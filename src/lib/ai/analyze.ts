@@ -133,20 +133,20 @@ interface ChatProvider {
 function providers(): ChatProvider[] {
   return [
     {
-      id: "groq",
-      label: "Llama",
-      key: process.env.GROQ_API_KEY,
-      url: "https://api.groq.com/openai/v1/chat/completions",
-      model: "openai/gpt-oss-120b",
-      models: ["openai/gpt-oss-120b", "qwen/qwen3.6-27b", "llama-3.3-70b-versatile", "llama-3.1-8b-instant"],
-    },
-    {
       id: "gemini",
       label: "Gemini",
       key: process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY,
       url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
       model: "gemini-2.0-flash",
-      models: ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-flash-latest"],
+      models: ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest", "gemini-1.5-flash"],
+    },
+    {
+      id: "groq",
+      label: "Llama",
+      key: process.env.GROQ_API_KEY,
+      url: "https://api.groq.com/openai/v1/chat/completions",
+      model: "openai/gpt-oss-120b",
+      models: ["openai/gpt-oss-120b", "qwen/qwen3.6-27b", "llama-3.3-70b-versatile"],
     },
     {
       id: "openrouter",
