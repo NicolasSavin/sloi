@@ -15,8 +15,9 @@ export const Route = createFileRoute("/tv")({
   },
   pendingComponent: function TvPending() {
     return (
-      <div className="flex min-h-dvh items-center justify-center text-sm text-muted">
-        Поднимаю эфир…
+      <div className="min-h-dvh">
+        <AppNav />
+        <p className="px-5 py-16 text-sm text-muted">Поднимаю эфир…</p>
       </div>
     );
   },
@@ -33,5 +34,10 @@ function TvPage() {
       </div>
     );
   }
-  return <Studio digest={data.digest} news={data.news} channels={data.channels} />;
+  return (
+    <div className="flex min-h-dvh flex-col">
+      <AppNav />
+      <Studio digest={data.digest} news={data.news} channels={data.channels} />
+    </div>
+  );
 }

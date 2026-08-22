@@ -182,11 +182,11 @@ export function Studio({
   const ticker = [...tapeQuotes, ...tapeQuotes];
 
   return (
-    <div className="relative min-h-dvh overflow-hidden bg-bg">
+    <div className="relative min-h-0 flex-1 overflow-hidden bg-bg">
       <img src="/art/strata.jpg" alt="" className="absolute inset-0 size-full object-cover" />
       <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/55 to-bg/30" />
 
-      <div className="pointer-events-none relative flex min-h-dvh flex-col">
+      <div className="pointer-events-none relative flex min-h-[calc(100dvh-3.5rem)] flex-col">
         <header className="pointer-events-auto flex flex-wrap items-center gap-3 bg-bg/80 px-3 py-2 backdrop-blur-md sm:px-5">
           <Link to="/" className="shrink-0">
             <ChannelLogo compact />
@@ -252,6 +252,9 @@ export function Studio({
             </button>
             <Link to="/desk" className="inline-flex h-11 items-center px-3 text-xs text-muted hover:text-fg">
               График
+            </Link>
+            <Link to="/" className="inline-flex h-11 items-center px-3 text-xs text-muted hover:text-fg">
+              На сайт
             </Link>
           </div>
         </header>
