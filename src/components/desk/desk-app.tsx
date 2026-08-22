@@ -16,7 +16,7 @@ import { analyzeWithGrok, type AiBrief } from "@/lib/ai/analyze";
 import { advise, actionLabel } from "@/lib/advisor";
 import { FundStrip } from "@/components/fund-strip";
 import { gateAdvice, windFor } from "@/lib/fundamentals";
-import { fetchDigest, fetchMarket } from "@/lib/market/fetch";
+import { fetchBroker, fetchDigest, fetchMarket } from "@/lib/market/fetch";
 import { useDeskStore, type OverlayFlags } from "@/lib/desk-store";
 import { loadJournal, saveJournal, type JournalEntry } from "@/lib/journal";
 import type { MarketPayload } from "@/lib/market/types";
@@ -109,6 +109,13 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
     queryFn: fetchDigest,
     staleTime: 60_000,
   });
+  const bookQ = useQuery({
+    queryKey: ["broker-book"],
+    queryFn: fetchBroker,
+    refetchInterval: 20_000,
+    staleTime: 8_000,
+  });
+  const book = bookQ.data?.books.find((b) => b.id === spec.id) ?? null;
   const fund = digestQ.data?.digest.fund;
   const advice = useMemo(() => {
     if (!snap) return null;
@@ -365,6 +372,7 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
               {snap ? <MarginBanner snap={snap} decimals={spec.decimals} /> : null}
               {snap?.wyckoff || snap?.patterns[0] ? <PatternBanner snap={snap} /> : null}
               {snap?.flow ? <FlowBanner snap={snap} /> : null}
+              <BookBanner book={book} iceberg={snap?.flow.events.find((e) => e.kind === "absorption")?.therefore} />
               {snap?.clusters ? <ClusterBanner snap={snap} /> : null}
               <ChartPane
               candles={market.data?.candles ?? []}
@@ -510,6 +518,50 @@ function ClusterBanner({ snap }: { snap: SmcSnapshot }) {
         {c.unfinished ? ` · незакрытый ${c.unfinished === "high" ? "верх" : c.unfinished === "low" ? "низ" : "оба края"}` : ""}
       </p>
       <p className="mt-1 text-xs leading-relaxed text-muted">{c.therefore}</p>
+    </div>
+  );
+}
+
+function BookBanner({
+  book,
+  iceberg,
+}: {
+  book: { bids: { price: number; volume: number }[]; asks: { price: number; volume: number }[]; iceberg: string | null } | null;
+  iceberg?: string;
+}) {
+  return (
+    <div className="mx-4 mt-2 rounded-lg bg-elevated/70 px-4 py-3">
+      <p className="font-mono text-[10px] tracking-[0.18em] text-accent">СТАКАН · АЙСБЕРГ</p>
+      {book && (book.bids.length || book.asks.length) ? (
+        <>
+          <div className="mt-2 grid grid-cols-2 gap-3 font-mono text-xs">
+            <div>
+              <p className="text-dim">ASK</p>
+              {book.asks.slice(0, 5).map((l) => (
+                <p key={`a${l.price}`} className="text-bear">
+                  {l.price} · {l.volume}
+                </p>
+              ))}
+            </div>
+            <div>
+              <p className="text-dim">BID</p>
+              {book.bids.slice(0, 5).map((l) => (
+                <p key={`b${l.price}`} className="text-bull">
+                  {l.price} · {l.volume}
+                </p>
+              ))}
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-muted">
+            {book.iceberg ?? "Объёмы в стакане с вашего MT4. Толстый уровень — возможный айсберг."}
+          </p>
+        </>
+      ) : (
+        <p className="mt-1 text-xs leading-relaxed text-muted">
+          Живой стакан появится, если брокер отдаёт Depth of Market и сов 4.09 висит на графике. Пока — эвристика по
+          свечам: {iceberg ?? "поглощение большого объёма без хода."}
+        </p>
+      )}
     </div>
   );
 }

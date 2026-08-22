@@ -421,6 +421,11 @@ export const fetchCalendar = createServerFn({ method: "GET" }).handler(async () 
   return { events: upcoming, halt, session: sessionNow() };
 });
 
+export const fetchBroker = createServerFn({ method: "GET" }).handler(async () => {
+  const { snapshotBroker } = await import("@/lib/broker-tape");
+  return snapshotBroker();
+});
+
 let tvGuideCache: { at: number; data: Awaited<ReturnType<typeof import("@/lib/tv-live").resolveTvChannels>> } | null =
   null;
 
