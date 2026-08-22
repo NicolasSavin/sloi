@@ -44,9 +44,9 @@ function AdvisorPage() {
           {[
             { n: "01", t: "Сохранить", d: "Скачать .mq4. Если файл не пришёл — код уже в буфере, вставьте в MetaEditor." },
             { n: "02", t: "MetaEditor", d: "Новый Expert Advisor → вставить → сохранить SLOI_Desk.mq4 в MQL4/Experts → F7." },
-            { n: "03", t: "WebRequest", d: "Сервис → Настройки → Советники → разрешить WebRequest: https://sloi-kohl.vercel.app  и  https://sloi-kohl.vercel.app/api/signals.txt" },
-            { n: "04", t: "Лента", d: "В панели поле «лента» уже стоит этот адрес. Суффикс брокера у вас cs — не стирайте. АВТО пока выкл." },
-            { n: "05", t: "Авто", d: "По умолчанию выкл: только алерт. АВТО ВКЛ — исполнит вход/стоп/цель с сайта, если спред брокера не съел ход." },
+            { n: "03", t: "WebRequest", d: "Сервис → Настройки → Советники → разрешить WebRequest: https://sloi-kohl.vercel.app" },
+            { n: "04", t: "Лента", d: "Суффикс .cs. АВТО выкл. Сайт считает по Yahoo; эксперт шлёт Bid/Ask брокера и не открывает, если цена разошлась больше MaxSkewPct (0.12%)." },
+            { n: "05", t: "Авто", d: "Приказ только если: сайт дал BUY/SELL, спред не съел ход, котировка NMarkets близка к Yahoo." },
           ].map((row) => (
             <li key={row.n} className="panel-volume flex gap-4 rounded-lg p-4">
               <span className="font-mono text-xs text-accent">{row.n}</span>

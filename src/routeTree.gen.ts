@@ -17,6 +17,7 @@ import { Route as DeskRouteImport } from './routes/desk'
 import { Route as DispatchRouteImport } from './routes/dispatch'
 import { Route as StatsRouteImport } from './routes/stats'
 import { Route as TvRouteImport } from './routes/tv'
+import { Route as ApiBrokerRouteImport } from './routes/api/broker'
 import { Route as ApiEaDotmq4RouteImport } from './routes/api/ea[.]mq4'
 import { Route as ApiSignalsDottxtRouteImport } from './routes/api/signals[.]txt'
 import { Route as NewsIndexRouteImport } from './routes/news/index'
@@ -62,6 +63,11 @@ const TvRoute = TvRouteImport.update({
   path: '/tv',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiBrokerRoute = ApiBrokerRouteImport.update({
+  id: '/api/broker',
+  path: '/api/broker',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiEaDotmq4Route = ApiEaDotmq4RouteImport.update({
   id: '/api/ea.mq4',
   path: '/api/ea.mq4',
@@ -92,6 +98,7 @@ export interface FileRoutesByFullPath {
   '/dispatch': typeof DispatchRoute
   '/stats': typeof StatsRoute
   '/tv': typeof TvRoute
+  '/api/broker': typeof ApiBrokerRoute
   '/api/ea.mq4': typeof ApiEaDotmq4Route
   '/api/signals.txt': typeof ApiSignalsDottxtRoute
   '/news/$slug': typeof NewsSlugRoute
@@ -106,6 +113,7 @@ export interface FileRoutesByTo {
   '/dispatch': typeof DispatchRoute
   '/stats': typeof StatsRoute
   '/tv': typeof TvRoute
+  '/api/broker': typeof ApiBrokerRoute
   '/api/ea.mq4': typeof ApiEaDotmq4Route
   '/api/signals.txt': typeof ApiSignalsDottxtRoute
   '/news/$slug': typeof NewsSlugRoute
@@ -121,6 +129,7 @@ export interface FileRoutesById {
   '/dispatch': typeof DispatchRoute
   '/stats': typeof StatsRoute
   '/tv': typeof TvRoute
+  '/api/broker': typeof ApiBrokerRoute
   '/api/ea.mq4': typeof ApiEaDotmq4Route
   '/api/signals.txt': typeof ApiSignalsDottxtRoute
   '/news/$slug': typeof NewsSlugRoute
@@ -137,6 +146,7 @@ export interface FileRouteTypes {
     | '/dispatch'
     | '/stats'
     | '/tv'
+    | '/api/broker'
     | '/api/ea.mq4'
     | '/api/signals.txt'
     | '/news/$slug'
@@ -151,6 +161,7 @@ export interface FileRouteTypes {
     | '/dispatch'
     | '/stats'
     | '/tv'
+    | '/api/broker'
     | '/api/ea.mq4'
     | '/api/signals.txt'
     | '/news/$slug'
@@ -165,6 +176,7 @@ export interface FileRouteTypes {
     | '/dispatch'
     | '/stats'
     | '/tv'
+    | '/api/broker'
     | '/api/ea.mq4'
     | '/api/signals.txt'
     | '/news/$slug'
@@ -180,6 +192,7 @@ export interface RootRouteChildren {
   DispatchRoute: typeof DispatchRoute
   StatsRoute: typeof StatsRoute
   TvRoute: typeof TvRoute
+  ApiBrokerRoute: typeof ApiBrokerRoute
   ApiEaDotmq4Route: typeof ApiEaDotmq4Route
   ApiSignalsDottxtRoute: typeof ApiSignalsDottxtRoute
   NewsSlugRoute: typeof NewsSlugRoute
@@ -244,6 +257,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TvRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/broker': {
+      id: '/api/broker'
+      path: '/api/broker'
+      fullPath: '/api/broker'
+      preLoaderRoute: typeof ApiBrokerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/ea.mq4': {
       id: '/api/ea.mq4'
       path: '/api/ea.mq4'
@@ -284,6 +304,7 @@ const rootRouteChildren: RootRouteChildren = {
   DispatchRoute: DispatchRoute,
   StatsRoute: StatsRoute,
   TvRoute: TvRoute,
+  ApiBrokerRoute: ApiBrokerRoute,
   ApiEaDotmq4Route: ApiEaDotmq4Route,
   ApiSignalsDottxtRoute: ApiSignalsDottxtRoute,
   NewsSlugRoute: NewsSlugRoute,

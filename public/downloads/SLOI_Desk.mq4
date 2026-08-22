@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.05"
+#property version   "4.06"
 #property strict
-#property description "Только сделки сайта SLOI. Спред Ask-Bid терминала."
+#property description "Сделки сайта. Спред и сверка котировок с брокером."
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  WatchList       = "EURUSD,GBPUSD,USDJPY,USDCHF,AUDUSD,USDCAD,NZDUSD,EURJPY,GBPJPY,XAUUSD,XAGUSD,USOIL";
@@ -18,6 +18,7 @@ input double  Lots            = 0.10;
 input int     Magic           = 220826;
 input int     SlippagePoints  = 20;
 input int     MaxSpreadPoints = 30;
+input double  MaxSkewPct      = 0.12;
 input double  MinCover        = 2.2;
 input double  MinNetRR        = 1.0;
 input int     OneTradeOnly    = 1;
@@ -40,6 +41,7 @@ int    g_tf;
 bool   g_auto;
 double g_lots;
 int    g_maxSp;
+double g_skew;
 bool   g_alerts;
 bool   g_seeded = false;
 bool   g_ready = false;
@@ -67,6 +69,7 @@ int OnInit()
    g_auto   = AutoTrade;
    g_lots   = Lots;
    g_maxSp  = MaxSpreadPoints;
+   g_skew   = MaxSkewPct;
    g_alerts = AlertsOn;
    Wipe();
    ParseWatch();
@@ -75,7 +78,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.05: лента Vercel, суффикс .cs, АВТО пока выкл.");
+   Print("SLOI 4.06: Yahoo vs брокер. Приказ только если котировки близки (MaxSkewPct).");
    return(INIT_SUCCEEDED);
   }
 
@@ -243,11 +246,40 @@ void PullFeed()
      }
    g_feed = CharArrayToString(result, 0, WHOLE_ARRAY, CP_UTF8);
    g_feedNote = (StringFind(g_feed, "SLOI") >= 0 || StringLen(g_feed) > 8 ? "сайт ок" : "пустая лента");
+   PushTape();
   }
 
-void ReadSite(string naked, int &dir, double &entry, double &stop, double &target, string &verdict, string &why)
+void PushTape()
   {
-   dir = 0; entry = 0; stop = 0; target = 0;
+   string url = g_url;
+   StringReplace(url, "signals.txt", "broker");
+   if(StringFind(url, "broker") < 0)
+     {
+      if(StringGetCharacter(url, StringLen(url) - 1) == '/') url = url + "api/broker";
+      else url = url + "/api/broker";
+     }
+   string body = "# SLOI broker\n";
+   for(int i = 0; i < g_n; i++)
+     {
+      string s = g_sym[i];
+      double bid = BidOf(s);
+      double ask = AskOf(s);
+      if(bid <= 0 || ask <= 0) continue;
+      body += Naked(s) + " " + DoubleToStr(bid, DigitsOf(s)) + " " + DoubleToStr(ask, DigitsOf(s)) + "\n";
+     }
+   char data[];
+   char result[];
+   string rh = "";
+   int n = StringToCharArray(body, data, 0, WHOLE_ARRAY, CP_UTF8);
+   if(n > 0) ArrayResize(data, n - 1);
+   string hdr = "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)\r\nContent-Type: text/plain\r\n";
+   ResetLastError();
+   WebRequest("POST", url, hdr, 8000, data, result, rh);
+  }
+
+void ReadSite(string naked, int &dir, double &entry, double &stop, double &target, double &siteLast, string &verdict, string &why)
+  {
+   dir = 0; entry = 0; stop = 0; target = 0; siteLast = 0;
    verdict = "ЖДАТЬ";
    why = g_feedNote;
    if(StringLen(g_feed) < 4) { why = "нет сайта"; return; }
@@ -270,6 +302,7 @@ void ReadSite(string naked, int &dir, double &entry, double &stop, double &targe
          stop = StringToDouble(p[3]);
          target = StringToDouble(p[4]);
         }
+      if(k >= 6) siteLast = StringToDouble(p[5]);
       if(side == "BUY") { dir = 1; verdict = "ЛОНГ"; why = "сайт"; return; }
       if(side == "SELL") { dir = -1; verdict = "ШОРТ"; why = "сайт"; return; }
       dir = 0; verdict = "ЖДАТЬ"; why = "сайт ждёт";
@@ -285,8 +318,24 @@ void Scan(int idx, string &bias, string &verdict, string &why,
    spPts = SpreadPt(s);
    double spread = SpreadPr(s);
    dir = 0; entry = 0; stop = 0; target = 0;
+   double siteLast = 0;
    bias = "сайт";
-   ReadSite(Naked(s), dir, entry, stop, target, verdict, why);
+   ReadSite(Naked(s), dir, entry, stop, target, siteLast, verdict, why);
+   double mid = (BidOf(s) + AskOf(s)) * 0.5;
+   if(siteLast > 0 && mid > 0)
+     {
+      double skew = MathAbs(mid - siteLast) / siteLast * 100.0;
+      bias = DoubleToStr(skew, 2) + "%";
+      double lim = g_skew;
+      if(DigitsOf(s) <= 3) lim = g_skew * 1.4;
+      if(dir != 0 && skew > lim)
+        {
+         dir = 0;
+         verdict = "КОТИР";
+         why = "Yahoo "+Px(s, siteLast);
+         return;
+        }
+     }
    if(dir == 0) return;
    if(spPts > g_maxSp) { dir = 0; verdict = "СПРЕД"; why = IntegerToString(spPts)+"п"; return; }
    double px = (dir > 0 ? AskOf(s) : BidOf(s));
@@ -301,7 +350,7 @@ void Scan(int idx, string &bias, string &verdict, string &why,
    double rr = (netK > 0 ? netR / netK : 0);
    if(netR <= 0 || covers < MinCover || rr < MinNetRR)
      { dir = 0; verdict = "СПРЕД"; why = "круг"; return; }
-   why = "сайт RR "+DoubleToStr(rr, 1);
+   why = "сверка ок RR "+DoubleToStr(rr, 1);
   }
 
 void MaybeTrade(int idx, int dir, double stop, double target, string verdict, int spPts)
@@ -428,7 +477,7 @@ color VClr(string v)
   {
    if(v == "ЛОНГ") return(C_BUY);
    if(v == "ШОРТ") return(C_SEL);
-   if(v == "СПРЕД" || v == "НЕТ ДАННЫХ") return(C_OFF);
+   if(v == "СПРЕД" || v == "КОТИР" || v == "НЕТ ДАННЫХ") return(C_OFF);
    return(C_WAIT);
   }
 
@@ -444,7 +493,7 @@ void DrawDesk()
 
    Rect("bg", x, y, w, h, C_BG);
    Lab("title", x + 14, y + 8, "SLOI DESK", C_GOLD, 12);
-   Lab("hint", x + 150, y + 12, g_feedNote+"   спред Ask-Bid   только сделки сайта", C_DIM, 8);
+   Lab("hint", x + 150, y + 12, g_feedNote+"   Yahoo vs брокер   приказ если котировки близки", C_DIM, 8);
 
    Btn("b_auto", x + 500, y + 8, 100, 22, g_auto ? "АВТО ВКЛ" : "АВТО ВЫКЛ", g_auto ? C_SEL : C_GOLD);
    Btn("b_alrt", x + 606, y + 8, 100, 22, g_alerts ? "АЛЕРТ ВКЛ" : "АЛЕРТ ВЫКЛ", C_GOLD);
@@ -474,7 +523,7 @@ void DrawDesk()
    int hy = y + setH + 2;
    Lab("h1", hx,     hy, "СИМВОЛ",  C_DIM, 8);
    Lab("h2", hx+110, hy, "СПРЕД",   C_DIM, 8);
-   Lab("h3", hx+170, hy, "САЙТ",    C_DIM, 8);
+   Lab("h3", hx+170, hy, "Δ YAHOO", C_DIM, 8);
    Lab("h4", hx+250, hy, "ВХОД",    C_DIM, 8);
    Lab("h5", hx+350, hy, "СТОП",    C_DIM, 8);
    Lab("h6", hx+450, hy, "ЦЕЛЬ",    C_DIM, 8);

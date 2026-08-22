@@ -391,13 +391,17 @@ async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }
 
 export async function renderSignalFeed() {
   const { digest } = await assembleDigest();
-  const lines = [`# SLOI v1`, `# ${new Date().toISOString()}`];
+  const { brokerSkewPct } = await import("@/lib/broker-tape");
+  const lines = [`# SLOI v1`, `# ${new Date().toISOString()}`, `# last = цена Yahoo; приказ если брокер близко`];
   for (const m of digest.markets) {
-    const side = m.advice.action === "long" ? "BUY" : m.advice.action === "short" ? "SELL" : "WAIT";
+    let side = m.advice.action === "long" ? "BUY" : m.advice.action === "short" ? "SELL" : "WAIT";
+    const last = m.lastClose;
+    const skew = brokerSkewPct(m.spec.id, last);
+    if (skew != null && skew > 0.12 && side !== "WAIT") side = "WAIT";
     const e = m.setup.entry ?? 0;
     const s = m.setup.stop ?? 0;
     const t = m.setup.targets[0] ?? 0;
-    lines.push(`${m.spec.id} ${side} ${e} ${s} ${t}`);
+    lines.push(`${m.spec.id} ${side} ${e} ${s} ${t} ${last}`);
   }
   return `${lines.join("\n")}\n`;
 }
