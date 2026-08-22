@@ -133,6 +133,7 @@ interface ChatProvider {
 function providers(): ChatProvider[] {
   const groqKey =
     process.env.GROQ_API_KEY ||
+    process.env.GROK_API_KEY ||
     (process.env.XAI_API_KEY?.startsWith("gsk_") ? process.env.XAI_API_KEY : undefined);
   const xaiKey = process.env.XAI_API_KEY?.startsWith("xai-") ? process.env.XAI_API_KEY : undefined;
   return [
