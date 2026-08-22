@@ -127,6 +127,7 @@ interface ChatProvider {
   key?: string;
   url: string;
   model: string;
+  models?: string[];
 }
 
 function providers(): ChatProvider[] {
@@ -136,7 +137,8 @@ function providers(): ChatProvider[] {
       label: "Grok",
       key: process.env.XAI_API_KEY,
       url: "https://api.x.ai/v1/chat/completions",
-      model: "grok-4.5",
+      model: "grok-4.6",
+      models: ["grok-4.6", "grok-4.5", "grok-4-0709", "grok-4", "grok-3"],
     },
     {
       id: "groq",
@@ -204,30 +206,39 @@ ${JSON.stringify(payload)}`;
 }
 
 async function chatOnce(p: ChatProvider, payload: unknown): Promise<AiBrief> {
-  const res = await fetch(p.url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${p.key}`,
-    },
-    body: JSON.stringify({
-      model: p.model,
-      temperature: 0.25,
-      max_tokens: 1400,
-      messages: [
-        { role: "system", content: SYSTEM },
-        { role: "user", content: userPrompt(payload) },
-      ],
-    }),
-  });
-  if (!res.ok) throw new Error(`${p.label} ${res.status}`);
-  const json = (await res.json()) as {
-    choices?: { message?: { content?: string } }[];
-  };
-  const text = json.choices?.[0]?.message?.content ?? "";
-  const brief = asBrief(extractJson(text));
-  if (!brief) throw new Error(`${p.label}: не JSON`);
-  return brief;
+  const models = p.models?.length ? p.models : [p.model];
+  let last = `${p.label} нет ответа`;
+  for (const model of models) {
+    const res = await fetch(p.url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${p.key}`,
+      },
+      body: JSON.stringify({
+        model,
+        temperature: 0.25,
+        max_tokens: 1400,
+        messages: [
+          { role: "system", content: SYSTEM },
+          { role: "user", content: userPrompt(payload) },
+        ],
+      }),
+    });
+    if (!res.ok) {
+      last = `${p.label} ${res.status}${res.status === 400 ? " (модель)" : ""}`;
+      if (res.status === 400 || res.status === 404) continue;
+      throw new Error(`${p.label} ${res.status}`);
+    }
+    const json = (await res.json()) as {
+      choices?: { message?: { content?: string } }[];
+    };
+    const text = json.choices?.[0]?.message?.content ?? "";
+    const brief = asBrief(extractJson(text));
+    if (!brief) throw new Error(`${p.label}: не JSON`);
+    return brief;
+  }
+  throw new Error(last);
 }
 
 export const analyzeWithGrok = createServerFn({ method: "POST" })
