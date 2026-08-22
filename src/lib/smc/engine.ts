@@ -2,6 +2,7 @@ import type { Candle, OptionsSnapshot } from "@/lib/market/types";
 import { detectPatterns, detectWyckoff, type PatternHit, type WyckoffRead } from "@/lib/smc/patterns";
 import { buildFlow, type FlowSnap } from "@/lib/smc/flow";
 import { clustersFromCandles, clustersFromTrades, type ClusterMap } from "@/lib/smc/clusters";
+import { buildMicro, type MicroSnap } from "@/lib/smc/micro";
 
 export type Bias = "bullish" | "bearish" | "range";
 export type Side = "bull" | "bear";
@@ -133,6 +134,7 @@ export interface SmcSnapshot {
   wyckoff: WyckoffRead;
   flow: FlowSnap;
   clusters: ClusterMap;
+  micro: MicroSnap;
   killzone: { name: string; active: boolean }[];
   confluence: ConfluenceItem[];
   score: number;
@@ -647,6 +649,7 @@ function buildStory(
   wyckoff: WyckoffRead,
   flow: FlowSnap,
   clusters: ClusterMap,
+  micro: MicroSnap,
 ): MarketStory {
   const chain: StoryBeat[] = [];
   const lastEv = events.at(-1);
@@ -725,6 +728,9 @@ function buildStory(
     chain.push({ because: flow.events[0].because, therefore: flow.events[0].therefore });
   }
   chain.push({ because: clusters.because, therefore: clusters.therefore });
+  chain.push({ because: micro.because, therefore: micro.therefore });
+  if (micro.infusion) chain.push({ because: micro.infusion.because, therefore: micro.infusion.therefore });
+  if (micro.splash) chain.push({ because: micro.splash.because, therefore: micro.splash.therefore });
 
   const swept = liq.find((l) => l.swept);
   if (swept) {
@@ -851,6 +857,7 @@ export function analyzeMarket(
   const patterns = detectPatterns(swings, atr, candles);
   const flow = buildFlow(candles, swings, atr);
   const clusters = (trades?.length ? clustersFromTrades(trades) : null) ?? clustersFromCandles(candles);
+  const micro = buildMicro(candles);
   const vp = {
     poc: clusters.poc,
     vah: clusters.vah,
@@ -1029,6 +1036,27 @@ export function analyzeMarket(
     status: clusters.stacked[0] ? (clusters.stacked[0].side === "buy" ? "for" : "against") : "neutral",
     note: `${clusters.source === "trades" ? "Лента сделок. " : "Профиль по свечам. "}${clusters.therefore}`,
   });
+  confluence.push({
+    id: "vwap",
+    layer: "VWAP",
+    status: micro.where === "inside" ? "neutral" : micro.where === "below" && trend === "up" ? "for" : micro.where === "above" && trend === "down" ? "for" : "against",
+    note: micro.therefore,
+  });
+  confluence.push({
+    id: "foot",
+    layer: "Футпринт",
+    status:
+      micro.splash?.side === "buy" || micro.infusion?.side === "buy"
+        ? "for"
+        : micro.splash?.side === "sell" || micro.infusion?.side === "sell"
+          ? "against"
+          : micro.footprint.delta > 0
+            ? "for"
+            : micro.footprint.delta < 0
+              ? "against"
+              : "neutral",
+    note: `${micro.because}${micro.infusion ? ` ${micro.infusion.because}` : ""}${micro.splash ? ` ${micro.splash.because}` : ""}`,
+  });
 
   const forCount = confluence.filter((c) => c.status === "for").length;
   const againstCount = confluence.filter((c) => c.status === "against").length;
@@ -1067,6 +1095,7 @@ export function analyzeMarket(
     wyckoff,
     flow,
     clusters,
+    micro,
   );
 
   return {
@@ -1091,6 +1120,7 @@ export function analyzeMarket(
     wyckoff,
     flow,
     clusters,
+    micro,
     killzone: kz,
     confluence,
     score,
@@ -1141,7 +1171,14 @@ export function compactForAi(symbol: string, timeframe: string, snap: SmcSnapsho
       because: snap.clusters.because,
       therefore: snap.clusters.therefore,
     },
-    killzone: snap.killzone,
+    micro: {
+      vwap: snap.micro.vwap,
+      where: snap.micro.where,
+      footprint: snap.micro.footprint,
+      infusion: snap.micro.infusion,
+      splash: snap.micro.splash,
+      therefore: snap.micro.therefore,
+    },
     confluence: snap.confluence,
     localSetup: snap.localSetup,
     story: snap.story,

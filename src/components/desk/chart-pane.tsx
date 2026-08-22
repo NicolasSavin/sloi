@@ -352,6 +352,9 @@ export function ChartPane({
         add(snap.volumeProfile.poc, "POC", accent);
         add(snap.volumeProfile.vah, "VAH", muted, true);
         add(snap.volumeProfile.val, "VAL", muted, true);
+        add(snap.micro.vwap, "VWAP", accent);
+        add(snap.micro.upper, "VWAP+σ", muted, true);
+        add(snap.micro.lower, "VWAP−σ", muted, true);
       }
       if (overlays.liquidity) {
         for (const p of snap.liquidity.filter((l) => l.equal || l.swept).slice(-4)) {
@@ -400,6 +403,17 @@ export function ChartPane({
                 }),
               ),
             )
+          : []),
+        ...(overlays.flow !== false && snap.micro.splash
+          ? [
+              {
+                time: (snap.swings.at(-1)?.time ?? snap.events.at(-1)?.time ?? 0) as UTCTimestamp,
+                position: snap.micro.splash.side === "buy" ? "belowBar" : "aboveBar",
+                color: snap.micro.splash.side === "buy" ? bull : bear,
+                shape: snap.micro.splash.side === "buy" ? "arrowUp" : "arrowDown",
+                text: "SPLASH",
+              } satisfies SeriesMarker<UTCTimestamp>,
+            ]
           : []),
       ];
       markersRef.current?.setMarkers(markers);

@@ -32,8 +32,8 @@ const OVERLAY_LABELS: { key: keyof OverlayFlags; label: string }[] = [
   { key: "liquidity", label: "Ликвидность" },
   { key: "margin", label: "Маржа" },
   { key: "patterns", label: "Паттерны" },
-  { key: "flow", label: "Дельта" },
-  { key: "profile", label: "Кластер" },
+  { key: "flow", label: "Дельта / футпринт" },
+  { key: "profile", label: "Профиль / VWAP" },
   { key: "divergences", label: "Дивергенции" },
   { key: "waves", label: "Волны" },
 ];
