@@ -1,0 +1,116 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { AppNav } from "@/components/app-nav";
+import { FundStrip } from "@/components/fund-strip";
+import { LiveShot } from "@/components/live-shot";
+import { DailyInfographic } from "@/components/daily/infographic";
+import { fetchDigest } from "@/lib/market/fetch";
+import { marketArt } from "@/lib/art";
+import { actionLabel } from "@/lib/advisor";
+import { Badge } from "@/components/ui/badge";
+import { formatPct, formatPrice } from "@/lib/utils";
+
+export const Route = createFileRoute("/daily")({
+  loader: async () => {
+    try {
+      return await fetchDigest();
+    } catch {
+      return null;
+    }
+  },
+  pendingComponent: DailyPending,
+  component: DailyPage,
+});
+
+function DailyPending() {
+  return (
+    <div className="min-h-dvh">
+      <AppNav />
+      <p className="px-5 py-16 text-sm text-muted">Собираю выпуск дня…</p>
+    </div>
+  );
+}
+
+function DailyPage() {
+  const data = Route.useLoaderData();
+  if (!data) {
+    return (
+      <div className="min-h-dvh">
+        <AppNav />
+        <p className="px-5 py-16 text-sm text-muted">Не удалось собрать выпуск дня. Обновите страницу.</p>
+      </div>
+    );
+  }
+  const { digest } = data;
+  return (
+    <div className="min-h-dvh">
+      <AppNav />
+      <main className="mx-auto max-w-6xl px-3 py-6 sm:px-6 sm:py-10">
+        <DailyInfographic digest={digest} />
+        <div className="mt-6">
+          <FundStrip fund={digest.fund} />
+        </div>
+
+        <section className="panel-volume mt-6 rounded-xl p-5">
+          <p className="font-mono text-xs tracking-[0.2em] text-accent">ОПЦИОНЫ · @Options_FX</p>
+          {digest.tgOptions.length ? (
+            <ul className="mt-3 space-y-3">
+              {digest.tgOptions.slice(0, 5).map((p) => (
+                <li key={p.text.slice(0, 40)} className="text-sm leading-relaxed text-muted">
+                  {p.text}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-3 text-sm leading-relaxed text-muted">
+              Канал не отдаёт публичную ленту без Telegram. Берём наши уровни max pain / OI с Yahoo, а посты смотрите
+              напрямую:{" "}
+              <a className="text-accent underline-offset-2 hover:underline" href="https://t.me/Options_FX" target="_blank" rel="noreferrer">
+                t.me/Options_FX
+              </a>
+            </p>
+          )}
+        </section>
+
+        <article className="panel-volume mt-10 rounded-xl p-5 sm:p-8">
+          {digest.article.body.split("\n\n").map((p) => (
+            <p key={p.slice(0, 24)} className="mt-4 text-base leading-relaxed first:mt-0">
+              {p}
+            </p>
+          ))}
+        </article>
+
+        <section className="mt-14">
+          <h2 className="text-2xl">Рынки выпуска</h2>
+          <ul className="mt-4 grid gap-3 sm:grid-cols-2">
+            {digest.markets.map((m) => (
+              <li key={m.spec.id} className="panel-volume group overflow-hidden rounded-xl">
+                <div className="relative h-28 overflow-hidden">
+                  <LiveShot src={marketArt(m.spec.id)} beat={m.spec.id.length} />
+                </div>
+                <div className="p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium">{m.spec.label}</span>
+                    <Badge
+                      tone={m.bias === "bullish" ? "bull" : m.bias === "bearish" ? "bear" : "warn"}
+                    >
+                      {actionLabel(m.advice.action)}
+                    </Badge>
+                  </div>
+                  {m.wind ? (
+                    <p className="mt-1 font-mono text-xs text-dim">
+                      макро {m.wind.kind === "tail" ? "попутный" : m.wind.kind === "head" ? "встречный" : "нейтральный"}
+                    </p>
+                  ) : null}
+                  <p className="mt-2 font-mono text-sm tabular-nums">
+                    {formatPrice(m.lastClose, m.spec.decimals)}{" "}
+                    <span className="text-muted">{formatPct(m.changePct)}</span>
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </main>
+    </div>
+  );
+}

@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: sloi
+    runtime: node
+    buildCommand: npm install && npm run build
+    startCommand: npx vite preview --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: NODE_VERSION
+        value: "22"

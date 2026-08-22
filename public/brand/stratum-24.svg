@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 40" fill="none">
+  <rect width="40" height="40" rx="4" fill="#0a0a0b"/>
+  <rect x="6" y="24" width="6" height="10" fill="#c9b896"/>
+  <rect x="14" y="16" width="6" height="18" fill="#e8dcc8"/>
+  <rect x="22" y="10" width="6" height="24" fill="#c9b896"/>
+  <rect x="30" y="19" width="5" height="15" fill="#8a7a62"/>
+  <text x="52" y="17" fill="#c9b896" font-family="IBM Plex Mono, ui-monospace, monospace" font-size="9" letter-spacing="3.2">STRATUM</text>
+  <text x="50" y="36" fill="#f0e6d4" font-family="Cormorant Garamond, Georgia, serif" font-size="20" font-weight="500">24</text>
+</svg>

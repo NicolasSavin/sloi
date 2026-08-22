@@ -1,0 +1,63 @@
+import type { SymbolSpec, Timeframe } from "./types";
+
+export const SYMBOLS: SymbolSpec[] = [
+  { id: "XAUUSD", label: "Золото", kind: "metal", decimals: 2, yahoo: "GC=F", binance: "XAUUSDT", bybit: "XAUUSDT", optionsYahoo: "GLD", spread: 0.35, pip: 0.1 },
+  { id: "XAGUSD", label: "Серебро", kind: "metal", decimals: 3, yahoo: "SI=F", binance: "XAGUSDT", bybit: "XAGUSDT", optionsYahoo: "SLV", spread: 0.03, pip: 0.01 },
+  { id: "EURUSD", label: "EUR/USD", kind: "fx", decimals: 5, yahoo: "EURUSD=X", spread: 0.0001, pip: 0.0001 },
+  { id: "GBPUSD", label: "GBP/USD", kind: "fx", decimals: 5, yahoo: "GBPUSD=X", spread: 0.00014, pip: 0.0001 },
+  { id: "USDJPY", label: "USD/JPY", kind: "fx", decimals: 3, yahoo: "USDJPY=X", spread: 0.012, pip: 0.01 },
+  { id: "USDCHF", label: "USD/CHF", kind: "fx", decimals: 5, yahoo: "USDCHF=X", spread: 0.00012, pip: 0.0001 },
+  { id: "AUDUSD", label: "AUD/USD", kind: "fx", decimals: 5, yahoo: "AUDUSD=X", spread: 0.00014, pip: 0.0001 },
+  { id: "USDCAD", label: "USD/CAD", kind: "fx", decimals: 5, yahoo: "USDCAD=X", spread: 0.00016, pip: 0.0001 },
+  { id: "NZDUSD", label: "NZD/USD", kind: "fx", decimals: 5, yahoo: "NZDUSD=X", spread: 0.00016, pip: 0.0001 },
+  { id: "EURGBP", label: "EUR/GBP", kind: "fx", decimals: 5, yahoo: "EURGBP=X", spread: 0.00014, pip: 0.0001 },
+  { id: "EURJPY", label: "EUR/JPY", kind: "fx", decimals: 3, yahoo: "EURJPY=X", spread: 0.02, pip: 0.01 },
+  { id: "GBPJPY", label: "GBP/JPY", kind: "fx", decimals: 3, yahoo: "GBPJPY=X", spread: 0.025, pip: 0.01 },
+  { id: "USOIL", label: "Нефть WTI", kind: "energy", decimals: 2, yahoo: "CL=F", optionsYahoo: "USO", spread: 0.04, pip: 0.01 },
+  { id: "SPY", label: "S&P 500", kind: "index", decimals: 2, yahoo: "SPY", optionsYahoo: "SPY", spread: 0.02, pip: 0.01 },
+  { id: "QQQ", label: "Nasdaq 100", kind: "index", decimals: 2, yahoo: "QQQ", optionsYahoo: "QQQ", spread: 0.03, pip: 0.01 },
+  { id: "IWM", label: "Russell 2000", kind: "index", decimals: 2, yahoo: "IWM", optionsYahoo: "IWM", spread: 0.04, pip: 0.01 },
+  { id: "DIA", label: "Dow", kind: "index", decimals: 2, yahoo: "DIA", optionsYahoo: "DIA", spread: 0.03, pip: 0.01 },
+];
+
+export const DIGEST_IDS = [
+  "XAUUSD",
+  "XAGUSD",
+  "EURUSD",
+  "GBPUSD",
+  "USDJPY",
+  "USDCHF",
+  "AUDUSD",
+  "USDCAD",
+  "NZDUSD",
+  "EURJPY",
+  "GBPJPY",
+  "USOIL",
+  "SPY",
+  "QQQ",
+];
+
+export const KIND_LABEL: Record<SymbolSpec["kind"], string> = {
+  metal: "Металлы",
+  fx: "Форекс",
+  energy: "Энергия",
+  index: "Индексы",
+};
+
+export const TIMEFRAMES: { id: Timeframe; label: string }[] = [
+  { id: "5m", label: "5м" },
+  { id: "15m", label: "15м" },
+  { id: "1h", label: "1ч" },
+  { id: "4h", label: "4ч" },
+  { id: "1d", label: "1д" },
+];
+
+export function getSymbol(id: string): SymbolSpec {
+  return SYMBOLS.find((s) => s.id === id) ?? SYMBOLS[0]!;
+}
+
+export function formatSpread(spec: SymbolSpec, spread = spec.spread): string {
+  const pips = spread / spec.pip;
+  if (spec.kind === "fx") return `${pips.toFixed(1)} п.`;
+  return `${spread.toFixed(spec.decimals)}`;
+}
