@@ -131,11 +131,15 @@ interface ChatProvider {
 }
 
 function providers(): ChatProvider[] {
+  const groqKey =
+    process.env.GROQ_API_KEY ||
+    (process.env.XAI_API_KEY?.startsWith("gsk_") ? process.env.XAI_API_KEY : undefined);
+  const xaiKey = process.env.XAI_API_KEY?.startsWith("xai-") ? process.env.XAI_API_KEY : undefined;
   return [
     {
       id: "groq",
       label: "Llama",
-      key: process.env.GROQ_API_KEY,
+      key: groqKey,
       url: "https://api.groq.com/openai/v1/chat/completions",
       model: "openai/gpt-oss-120b",
       models: ["openai/gpt-oss-120b", "qwen/qwen3.6-27b", "llama-3.3-70b-versatile"],
@@ -169,7 +173,7 @@ function providers(): ChatProvider[] {
     {
       id: "grok",
       label: "Grok",
-      key: process.env.XAI_API_KEY,
+      key: xaiKey,
       url: "https://api.x.ai/v1/chat/completions",
       model: "grok-3",
       models: ["grok-3", "grok-4.6", "latest"],
