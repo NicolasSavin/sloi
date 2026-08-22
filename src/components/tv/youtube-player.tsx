@@ -1,37 +1,36 @@
 import { useEffect } from "react";
 
 export function YoutubePlayer({
+  src,
   videoId,
-  muted = true,
   onEnded,
 }: {
-  videoId: string;
+  src?: string;
+  videoId?: string;
   muted?: boolean;
   onBlocked?: () => void;
   onEnded?: () => void;
 }) {
   useEffect(() => {
-    const cap = window.setTimeout(() => onEnded?.(), 170000);
+    const cap = window.setTimeout(() => onEnded?.(), 240000);
     return () => window.clearTimeout(cap);
-  }, [videoId, onEnded]);
+  }, [src, videoId, onEnded]);
 
-  const src = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&rel=0&modestbranding=1&playsinline=1&controls=1`;
+  const url =
+    src ??
+    (videoId
+      ? `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&rel=0&playsinline=1&controls=1`
+      : "");
+  if (!url) return null;
 
   return (
-    <>
-      <img
-        src={`https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`}
-        alt=""
-        className="absolute inset-0 z-[1] size-full object-cover"
-      />
-      <iframe
-        title="Эфир"
-        src={src}
-        allow="autoplay; encrypted-media; picture-in-picture"
-        allowFullScreen
-        className="absolute inset-0 z-[2] size-full border-0"
-      />
-    </>
+    <iframe
+      title="Эфир"
+      src={url}
+      allow="autoplay; encrypted-media; picture-in-picture"
+      allowFullScreen
+      className="absolute inset-0 z-[2] size-full border-0"
+    />
   );
 }
 

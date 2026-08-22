@@ -39,6 +39,10 @@ export const TV_CHANNELS: TvChannel[] = [
   ...RSS_NETS,
 ];
 
+export function youtubeChannelPlaylist(channelId: string) {
+  return `UU${channelId.slice(2)}`;
+}
+
 export function youtubeEmbed(videoId: string) {
   const q = new URLSearchParams({
     autoplay: "1",
@@ -46,10 +50,14 @@ export function youtubeEmbed(videoId: string) {
     playsinline: "1",
     rel: "0",
     modestbranding: "1",
-    controls: "0",
-    enablejsapi: "1",
+    controls: "1",
   });
   return `https://www.youtube.com/embed/${videoId}?${q.toString()}`;
+}
+
+export function youtubeSeriesEmbed(channelId: string) {
+  const list = youtubeChannelPlaylist(channelId);
+  return `https://www.youtube.com/embed/videoseries?list=${list}&autoplay=1&mute=1&rel=0&playsinline=1&controls=1`;
 }
 
 export function bumperOf(i: number): TvChannel {
@@ -71,6 +79,9 @@ export function weaveBumpers(list: TvChannel[]): TvChannel[] {
 
 export function withFallbackSrc(channel: TvChannel): TvChannel {
   if (channel.kind !== "youtube") return channel;
+  if (channel.channelId) {
+    return { ...channel, src: youtubeSeriesEmbed(channel.channelId), fallback: channel.fallback };
+  }
   const id = channel.fallback;
   return { ...channel, src: id ? youtubeEmbed(id) : channel.src };
 }

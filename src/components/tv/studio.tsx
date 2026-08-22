@@ -196,13 +196,14 @@ export function Studio({
           <span className="font-mono text-xs text-dim">{clock}</span>
           <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
             {mix.map((c, i) => (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => {
-                  setChannelIdx(i);
-                  lockRef.current = Date.now() + 60_000;
-                }}
+              c.kind === "bumper" ? null : (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => {
+                    setChannelIdx(i);
+                    lockRef.current = Date.now() + 180_000;
+                  }}
                 className={cn(
                   "inline-flex h-11 shrink-0 items-center gap-1 rounded-sm px-3 font-mono text-xs",
                   c.id === channel.id ? "bg-subtle text-fg" : "text-muted hover:text-fg",
@@ -211,6 +212,7 @@ export function Studio({
                 {c.live ? <span className="on-air-dot size-1.5 rounded-full bg-bear" /> : null}
                 {c.label}
               </button>
+              )
             ))}
           </div>
           <div className="ml-auto flex items-center gap-1">

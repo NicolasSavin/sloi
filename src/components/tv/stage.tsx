@@ -74,20 +74,13 @@ export function Stage({
   if (channel.kind !== "youtube" || dead) return reel;
 
   const id = videoIdFromSrc(channel.src) || channel.fallback || "";
-  if (!id) return reel;
+  const src = channel.src;
+  if (!src && !id) return reel;
 
   return (
     <>
       {reel}
-      <YoutubePlayer
-        videoId={id}
-        muted={muted}
-        onBlocked={() => {
-          setDead(true);
-          onBlocked?.();
-        }}
-        onEnded={onEnded}
-      />
+      <YoutubePlayer src={src} videoId={id} onEnded={onEnded} />
     </>
   );
 }

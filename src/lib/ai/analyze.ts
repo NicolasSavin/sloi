@@ -223,15 +223,14 @@ async function grokOnce(key: string, payload: unknown): Promise<AiBrief> {
     { role: "user", content: userPrompt(payload) },
   ];
   const attempts: { url: string; body: Record<string, unknown> }[] = [
+    { url: "https://api.x.ai/v1/chat/completions", body: { model: "grok-3", messages } },
+    { url: "https://api.x.ai/v1/chat/completions", body: { model: "grok-3-mini", messages } },
+    { url: "https://api.x.ai/v1/chat/completions", body: { model: "grok-2-1212", messages } },
     { url: "https://api.x.ai/v1/chat/completions", body: { model: "grok-4.6", messages } },
     { url: "https://api.x.ai/v1/chat/completions", body: { model: "latest", messages } },
-    {
-      url: "https://api.x.ai/v1/responses",
-      body: { model: "grok-4.6", input: messages },
-    },
-    { url: "https://api.x.ai/v1/chat/completions", body: { model: "grok-3", messages } },
+    { url: "https://api.x.ai/v1/responses", body: { model: "grok-3", input: messages } },
   ];
-  let last = "Grok 400";
+  let last = "Grok нет ответа";
   for (const a of attempts) {
     const res = await fetch(a.url, {
       method: "POST",
@@ -242,9 +241,8 @@ async function grokOnce(key: string, payload: unknown): Promise<AiBrief> {
       body: JSON.stringify(a.body),
     });
     if (!res.ok) {
-      const hint = (await res.text()).replace(/\s+/g, " ").slice(0, 120);
-      last = `Grok ${res.status}${hint ? `: ${hint}` : ""}`;
-      if (res.status === 400 || res.status === 404) continue;
+      last = `Grok ${res.status}`;
+      if (res.status === 400 || res.status === 403 || res.status === 404) continue;
       throw new Error(`Grok ${res.status}`);
     }
     const json = (await res.json()) as Record<string, unknown>;
@@ -337,9 +335,17 @@ export const analyzeWithGrok = createServerFn({ method: "POST" })
           cache.set(key, { at: Date.now(), brief, model });
           return { ok: true, brief, cached: false, model };
         } catch (err) {
-          errors.push(err instanceof Error ? err.message : p.label);
+          errors.push(err instanceof Error ? err.message : "fail");
         }
       }
-      return { ok: false, error: `Модели не ответили: ${errors.join("; ")}` };
+      const joined = errors.join("; ");
+      if (/403/.test(joined)) {
+        return {
+          ok: false,
+          error:
+            "xAI отклонил ключ (403): модель не включена или нет биллинга. console.x.ai → включите grok-3 / API. Движок слева уже дал разбор.",
+        };
+      }
+      return { ok: false, error: `Модели не ответили: ${joined}` };
     },
   );

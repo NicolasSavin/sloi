@@ -1,4 +1,4 @@
-import { RSS_NETS, weaveBumpers, youtubeEmbed, type TvChannel } from "@/lib/tv-channels";
+import { RSS_NETS, weaveBumpers, withFallbackSrc, youtubeEmbed, youtubeSeriesEmbed, type TvChannel } from "@/lib/tv-channels";
 
 type Clip = { id: string; title: string };
 
@@ -42,34 +42,41 @@ export async function resolveTvChannels(): Promise<TvChannel[]> {
   const studio: TvChannel = { id: "stratum", label: "Студия", kind: "reel", lang: "ru" };
   const rows = await Promise.all(
     RSS_NETS.map(async (net) => {
+      const head: TvChannel[] = net.channelId
+        ? [
+            {
+              id: `${net.id}-live`,
+              label: net.label,
+              kind: "youtube",
+              src: youtubeSeriesEmbed(net.channelId),
+              channelId: net.channelId,
+              fallback: net.fallback,
+              live: true,
+              lang: "ru",
+              title: "эфир канала",
+            },
+          ]
+        : [];
       const clips = await rssClips(net.channelId ?? "");
-      const list = clips.length
-        ? clips
-        : net.fallback
-          ? [{ id: net.fallback, title: net.label }]
-          : [];
-      return list.map((clip, i) => ({
-        id: `${net.id}-${i}-${clip.id}`,
-        label: net.label,
-        kind: "youtube" as const,
-        src: youtubeEmbed(clip.id),
-        fallback: clip.id,
-        live: false,
-        lang: "ru" as const,
-        foreign: false,
-        title: clip.title,
-      }));
+      const rest = (clips.length ? clips : net.fallback ? [{ id: net.fallback, title: net.label }] : []).map(
+        (clip, i) => ({
+          id: `${net.id}-${i}-${clip.id}`,
+          label: net.label,
+          kind: "youtube" as const,
+          src: youtubeEmbed(clip.id),
+          fallback: clip.id,
+          live: false,
+          lang: "ru" as const,
+          foreign: false,
+          title: clip.title,
+        }),
+      );
+      return [...head, ...rest];
     }),
   );
   const extra = rows.flat();
   if (extra.length === 0) {
-    return weaveBumpers([
-      ...RSS_NETS.map((n) => ({
-        ...n,
-        src: n.fallback ? youtubeEmbed(n.fallback) : undefined,
-      })),
-      studio,
-    ]);
+    return weaveBumpers([...RSS_NETS.map(withFallbackSrc), studio]);
   }
   return weaveBumpers([...extra, studio]);
 }
