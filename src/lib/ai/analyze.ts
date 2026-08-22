@@ -345,11 +345,18 @@ export const analyzeWithGrok = createServerFn({ method: "POST" })
         }
       }
       const joined = errors.join("; ");
+      if (/403/.test(joined) && !process.env.GROQ_API_KEY && !process.env.GEMINI_API_KEY) {
+        return {
+          ok: false,
+          error:
+            "Ключ xAI без биллинга (403). SuperGrok не считается. Бесплатно: groq.com/keys → в Vercel имя GROQ_API_KEY → Redeploy. Из России Gemini часто не открывается.",
+        };
+      }
       if (/403/.test(joined)) {
         return {
           ok: false,
           error:
-            "xAI отклонил ключ (403): модель не включена или нет биллинга. console.x.ai → включите grok-3 / API. Движок слева уже дал разбор.",
+            "xAI 403, пробую другие ключи не смог. Проверьте GROQ_API_KEY / GEMINI_API_KEY и Redeploy. Движок слева уже дал разбор.",
         };
       }
       return { ok: false, error: `Модели не ответили: ${joined}` };
