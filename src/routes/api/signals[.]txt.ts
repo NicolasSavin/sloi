@@ -8,7 +8,7 @@ export const Route = createFileRoute("/api/signals.txt")({
         new Response(await renderSignalFeed(), {
           headers: {
             "Content-Type": "text/plain; charset=utf-8",
-            "Cache-Control": "no-store",
+            "Cache-Control": "public, max-age=20",
             "Access-Control-Allow-Origin": "*",
           },
         }),

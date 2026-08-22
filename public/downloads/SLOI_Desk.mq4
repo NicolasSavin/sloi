@@ -5,13 +5,13 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.04"
+#property version   "4.05"
 #property strict
 #property description "Только сделки сайта SLOI. Спред Ask-Bid терминала."
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  WatchList       = "EURUSD,GBPUSD,USDJPY,USDCHF,AUDUSD,USDCAD,NZDUSD,EURJPY,GBPJPY,XAUUSD,XAGUSD,USOIL";
-input string  BrokerSuffix    = "";
+input string  BrokerSuffix    = ".cs";
 input int     WorkTF          = 240;
 input bool    AutoTrade       = false;
 input double  Lots            = 0.10;
@@ -75,7 +75,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.04: лента https://sloi-kohl.vercel.app/api/signals.txt — добавьте этот адрес в WebRequest.");
+   Print("SLOI 4.05: лента Vercel, суффикс .cs, АВТО пока выкл.");
    return(INIT_SUCCEEDED);
   }
 
@@ -146,7 +146,16 @@ void ParseWatch()
    for(int i = 0; i < n; i++)
      {
       string s = parts[i];
-      if(StringLen(g_suffix) > 0 && StringFind(s, g_suffix) < 0) s = s + g_suffix;
+      if(StringLen(g_suffix) > 0 && StringFind(s, g_suffix) < 0)
+        {
+         string a = s + g_suffix;
+         string b = (StringFind(g_suffix, ".") == 0 ? a : s + "." + g_suffix);
+         SymbolSelect(a, true);
+         SymbolSelect(b, true);
+         if(BidOf(b) > 0) s = b;
+         else if(BidOf(a) > 0) s = a;
+         else s = b;
+        }
       if(StringLen(s) == 0) continue;
       SymbolSelect(s, true);
       if(g_n >= MAXSYM) break;
@@ -205,7 +214,7 @@ void PullFeed()
    g_feedAt = TimeCurrent();
    char data[];
    char result[];
-   string hdr = "User-Agent: SLOI-Desk/4.02\r\n";
+   string hdr = "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)\r\nAccept: text/plain,*/*\r\n";
    string rh = "";
    ArrayResize(data, 0);
    ResetLastError();
@@ -214,13 +223,15 @@ void PullFeed()
       g_feedNote = "вставьте адрес ленты";
       return;
      }
-   int res = WebRequest("GET", g_url, hdr, 8000, data, result, rh);
+   int res = WebRequest("GET", g_url, hdr, 25000, data, result, rh);
    if(res == -1)
      {
       int err = GetLastError();
       if(err == 4060) g_feedNote = "этот адрес в WebRequest";
-      else if(err == 5200) g_feedNote = "домена нет, нужен живой сайт";
+      else if(err == 5200) g_feedNote = "домена нет";
+      else if(err == 5203) g_feedNote = "таймаут Vercel, повтор";
       else g_feedNote = "сеть "+IntegerToString(err);
+      Print("SLOI WebRequest fail ", err, " url=", g_url);
       g_feed = "";
       return;
      }

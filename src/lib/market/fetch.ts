@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { getSymbol } from "./symbols";
+import type { DailyDigest } from "@/lib/digest";
 import type { NewsItem } from "@/lib/news";
 import type { HomePayload } from "@/lib/home";
 import type { Candle, MarketPayload, Timeframe } from "./types";
@@ -304,11 +305,14 @@ async function loadCalendarXml() {
   return xml;
 }
 
+let digestCache: { at: number; data: { digest: DailyDigest; source: string } } | null = null;
+
 export const fetchDigest = createServerFn({ method: "GET" }).handler(async () => {
   return assembleDigest();
 });
 
-async function assembleDigest() {
+async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }> {
+  if (digestCache && Date.now() - digestCache.at < 45_000) return digestCache.data;
   const { analyzeMarket } = await import("@/lib/smc/engine");
   const { buildDigest, toDigestMarket, pickLead, todayKey } = await import("@/lib/digest");
   const { buildSentiment } = await import("@/lib/sentiment");
@@ -369,7 +373,7 @@ async function assembleDigest() {
   const leadRow = rows.find((r) => r.spec.id === leadMarket.spec.id) ?? rows[0]!;
   const { parseTgChannel } = await import("@/lib/tg-options");
   const tgOptions = tgHtml ? parseTgChannel(tgHtml) : [];
-  return {
+  const packed = {
     digest: buildDigest({
       markets,
       leadSnap: leadRow.snap,
@@ -381,6 +385,8 @@ async function assembleDigest() {
     }),
     source: payloads[0]?.source ?? "demo",
   };
+  digestCache = { at: Date.now(), data: packed };
+  return packed;
 }
 
 export async function renderSignalFeed() {
