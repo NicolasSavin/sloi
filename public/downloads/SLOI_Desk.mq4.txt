@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.15"
+#property version   "4.16"
 #property strict
 #property description "На графике: VWAP, профиль, футпринт бара, infusion/splash, Bid/Ask."
 
@@ -662,12 +662,20 @@ void ManageBE()
       if(type == OP_BUY && BidOf(s) - open >= risk)
         {
          double be = NormalizeDouble(open + SpreadPr(s), digits);
-         if(sl < be) OrderModify(OrderTicket(), open, be, tp, 0, C_GOLD);
+         if(sl < be)
+           {
+            if(!OrderModify(OrderTicket(), open, be, tp, 0, C_GOLD))
+               Print("SLOI BE buy ", GetLastError());
+           }
         }
       if(type == OP_SELL && open - AskOf(s) >= risk)
         {
          double be = NormalizeDouble(open - SpreadPr(s), digits);
-         if(sl == 0 || sl > be) OrderModify(OrderTicket(), open, be, tp, 0, C_GOLD);
+         if(sl == 0 || sl > be)
+           {
+            if(!OrderModify(OrderTicket(), open, be, tp, 0, C_GOLD))
+               Print("SLOI BE sell ", GetLastError());
+           }
         }
      }
   }
