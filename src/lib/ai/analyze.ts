@@ -175,6 +175,8 @@ const SYSTEM =
   "Ты рассказываешь, что делает крупный игрок (smart money). Одна история, по-русски, без канцелярита. Термин сразу расшифруй. Не обещай прибыль. Не выдумывай уровни. Отвечай ТОЛЬКО JSON.";
 
 function userPrompt(payload: unknown) {
+  const data = JSON.stringify(payload);
+  const cut = data.length > 7000 ? `${data.slice(0, 7000)}…` : data;
   return `Одна история: что делает крупняк, чего ждёт, к чему это приведёт. Учти сентимент, если он есть во входных данных.
 JSON:
 {
@@ -202,10 +204,60 @@ JSON:
   "watch": ["что смотреть"]
 }
 Данные:
-${JSON.stringify(payload)}`;
+${cut}`;
+}
+
+function readAssistant(json: Record<string, unknown>): string {
+  const choices = json.choices as { message?: { content?: string } }[] | undefined;
+  if (choices?.[0]?.message?.content) return choices[0].message.content;
+  if (typeof json.output_text === "string") return json.output_text;
+  const output = json.output as { content?: { text?: string }[] }[] | undefined;
+  const t = output?.[0]?.content?.[0]?.text;
+  if (t) return t;
+  return "";
+}
+
+async function grokOnce(key: string, payload: unknown): Promise<AiBrief> {
+  const messages = [
+    { role: "system", content: SYSTEM },
+    { role: "user", content: userPrompt(payload) },
+  ];
+  const attempts: { url: string; body: Record<string, unknown> }[] = [
+    { url: "https://api.x.ai/v1/chat/completions", body: { model: "grok-4.6", messages } },
+    { url: "https://api.x.ai/v1/chat/completions", body: { model: "latest", messages } },
+    {
+      url: "https://api.x.ai/v1/responses",
+      body: { model: "grok-4.6", input: messages },
+    },
+    { url: "https://api.x.ai/v1/chat/completions", body: { model: "grok-3", messages } },
+  ];
+  let last = "Grok 400";
+  for (const a of attempts) {
+    const res = await fetch(a.url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${key}`,
+      },
+      body: JSON.stringify(a.body),
+    });
+    if (!res.ok) {
+      const hint = (await res.text()).replace(/\s+/g, " ").slice(0, 120);
+      last = `Grok ${res.status}${hint ? `: ${hint}` : ""}`;
+      if (res.status === 400 || res.status === 404) continue;
+      throw new Error(`Grok ${res.status}`);
+    }
+    const json = (await res.json()) as Record<string, unknown>;
+    const text = readAssistant(json);
+    const brief = asBrief(extractJson(text));
+    if (!brief) throw new Error("Grok: не JSON");
+    return brief;
+  }
+  throw new Error(last);
 }
 
 async function chatOnce(p: ChatProvider, payload: unknown): Promise<AiBrief> {
+  if (p.id === "grok" && p.key) return grokOnce(p.key, payload);
   const models = p.models?.length ? p.models : [p.model];
   let last = `${p.label} нет ответа`;
   for (const model of models) {
@@ -226,14 +278,12 @@ async function chatOnce(p: ChatProvider, payload: unknown): Promise<AiBrief> {
       }),
     });
     if (!res.ok) {
-      last = `${p.label} ${res.status}${res.status === 400 ? " (модель)" : ""}`;
+      last = `${p.label} ${res.status}`;
       if (res.status === 400 || res.status === 404) continue;
       throw new Error(`${p.label} ${res.status}`);
     }
-    const json = (await res.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
-    const text = json.choices?.[0]?.message?.content ?? "";
+    const json = (await res.json()) as Record<string, unknown>;
+    const text = readAssistant(json);
     const brief = asBrief(extractJson(text));
     if (!brief) throw new Error(`${p.label}: не JSON`);
     return brief;
