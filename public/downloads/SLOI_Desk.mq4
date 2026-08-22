@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.11"
+#property version   "4.12"
 #property strict
 #property description "Клик по паре открывает график. На графике — уровни сайта и FVG (не приказ)."
 
@@ -78,7 +78,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.11: кнопка >> открывает график пары. FVG и уровни сайта — картинка, не приказ.");
+   Print("SLOI 4.12: >> меняет символ ЭТОГО окна, не открывает новое.");
    return(INIT_SUCCEEDED);
   }
 
@@ -157,17 +157,8 @@ int PeriodOf(int mins)
 
 void OpenPair(string s)
   {
-   long id = ChartFirst();
-   while(id >= 0)
-     {
-      if(ChartSymbol(id) == s)
-        {
-         ChartSetInteger(id, CHART_BRING_TO_TOP, true);
-         return;
-        }
-      id = ChartNext(id);
-     }
-   ChartOpen(s, PeriodOf(g_tf));
+   SymbolSelect(s, true);
+   ChartSetSymbolPeriod(0, s, PeriodOf(g_tf));
   }
 
 void Box(string id, datetime t1, double p1, datetime t2, double p2, color clr)
@@ -616,7 +607,7 @@ void DrawDesk()
 
    Rect("bg", x, y, w, h, C_BG);
    Lab("title", x + 14, y + 8, "SLOI DESK", C_GOLD, 12);
-   Lab("hint", x + 150, y + 12, g_feedNote+"   >> открывает график   SMC на текущем чарте", C_DIM, 8);
+   Lab("hint", x + 150, y + 12, g_feedNote+"   >> этот же график   SMC на чарте", C_DIM, 8);
 
    Btn("b_auto", x + 500, y + 8, 100, 22, g_auto ? "АВТО ВКЛ" : "АВТО ВЫКЛ", g_auto ? C_SEL : C_GOLD);
    Btn("b_alrt", x + 606, y + 8, 100, 22, g_alerts ? "АЛЕРТ ВКЛ" : "АЛЕРТ ВЫКЛ", C_GOLD);
