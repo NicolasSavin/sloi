@@ -1,3 +1,5 @@
+import type { CotSnap } from "@/lib/cot";
+import { EMPTY_COT, cotFor } from "@/lib/cot";
 import type { Advice } from "@/lib/advisor";
 import type { NewsHalt } from "@/lib/calendar";
 import { EMPTY_HALT } from "@/lib/calendar";
@@ -35,6 +37,7 @@ export interface FundamentalSnap {
   oilChange: number | null;
   esChange: number | null;
   spyPc: number | null;
+  cot: CotSnap;
 }
 
 const THEME_RULES: [RegExp, string][] = [
@@ -66,6 +69,7 @@ export function buildFundamentals(input: {
   nq?: Move;
   zn?: Move;
   spyOpt?: OptionsSnapshot | null;
+  cot?: CotSnap;
 }): FundamentalSnap {
   const yield10 = input.tnx?.price ?? null;
   const yieldChange = input.tnx?.changePct ?? null;
@@ -135,7 +139,7 @@ export function buildFundamentals(input: {
           ? `опционы SPY: P/C ${spyPc.toFixed(2)} — гонка за коллами`
           : `опционы SPY: P/C ${spyPc.toFixed(2)}`
       : input.spyOpt?.note ?? "";
-  const extra = [oilBit, futBit, optBit].filter(Boolean).join(". ");
+  const extra = [oilBit, futBit, optBit, input.cot?.line ?? ""].filter(Boolean).join(". ");
   const halt = input.halt ?? EMPTY_HALT;
   const driver = halt.active
     ? halt.line
@@ -212,6 +216,7 @@ export function buildFundamentals(input: {
     oilChange,
     esChange,
     spyPc,
+    cot: input.cot ?? EMPTY_COT,
     line: `Фундамент: ${yBit}, ${ratesBit}. ${dollarBit}. ${riskBit}.${themeBit}${extra ? ` ${extra}.` : ""}${haltBit}`,
     plain: { now, why, so, simple },
   };
@@ -219,6 +224,12 @@ export function buildFundamentals(input: {
 
 function wantedFor(id: string, fund: FundamentalSnap): "up" | "down" | "flat" {
   let s = 0;
+  const cot = cotFor(id, fund.cot);
+  if (cot) {
+    const specNet = cot.invert ? -cot.net : cot.net;
+    if (specNet > 20000) s += 1;
+    else if (specNet < -20000) s -= 1;
+  }
   if (id === "XAUUSD" || id === "XAGUSD") {
     if (fund.dollar === "offered") s += 1;
     if (fund.dollar === "bid") s -= 1;

@@ -19,6 +19,12 @@ export function FundStrip({ fund }: { fund: FundamentalSnap }) {
         {p.so}
       </p>
       <p className="mt-3 rounded-md bg-elevated/80 px-3 py-2 text-sm leading-relaxed">{p.simple}</p>
+      {fund.cot?.line ? (
+        <p className="mt-3 text-sm leading-relaxed text-muted">
+          <span className="text-accent">COT. </span>
+          {fund.cot.line}
+        </p>
+      ) : null}
       {halt.next && !halt.active ? <p className="mt-2 text-xs text-dim">{halt.line}</p> : null}
     </div>
   );

@@ -322,7 +322,7 @@ async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }
   const { SYMBOLS, DIGEST_IDS } = await import("./symbols");
   const timeframe: Timeframe = "4h";
   const digestSpecs = SYMBOLS.filter((s) => DIGEST_IDS.includes(s.id));
-  const [payloads, vix, dxy, tnx, fedXml, calXml, cl, es, nq, zn, tgHtml] = await Promise.all([
+  const [payloads, vix, dxy, tnx, fedXml, calXml, cl, es, nq, zn, tgHtml, cot] = await Promise.all([
     Promise.all(digestSpecs.map((s) => loadPayload(s.id, timeframe))),
     lastMove("^VIX"),
     lastMove("DX-Y.NYB"),
@@ -337,6 +337,7 @@ async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }
     lastMove("NQ=F"),
     lastMove("ZN=F"),
     getText("https://t.me/s/Options_FX", 4500),
+    import("@/lib/cot").then((m) => m.loadCot()),
   ]);
   const headlines = fedXml ? parseRss(fedXml).map((n) => n.title) : [];
   const halt = calXml ? buildHalt(parseFfCalendar(calXml)) : EMPTY_HALT;
@@ -364,6 +365,7 @@ async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }
     nq,
     zn,
     spyOpt,
+    cot,
   });
   const markets = rows.map((r) => {
     const wind = windFor(r.spec.id, fund);
