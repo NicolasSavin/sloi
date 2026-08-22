@@ -45,12 +45,7 @@ export function Studio({
   const [line, setLine] = useState("");
   const [shown, setShown] = useState("");
   const mix = channels.length ? channels : tvPlaylist();
-  const liveStart = (() => {
-    const live = mix.findIndex((c) => c.live);
-    if (live >= 0) return live;
-    const yt = mix.findIndex((c) => c.kind === "youtube");
-    return yt >= 0 ? yt : 0;
-  })();
+  const liveStart = 0;
   const [channelIdx, setChannelIdx] = useState(liveStart);
   const lockRef = useRef(0);
   const blockedRef = useRef(new Set<string>());
@@ -77,16 +72,18 @@ export function Studio({
   useEffect(() => {
     setClock(clockNow());
     const clockT = window.setInterval(() => setClock(clockNow()), 1000);
-    const mixT = window.setInterval(() => {
-      if (speakingRef.current) return;
+    return () => window.clearInterval(clockT);
+  }, []);
+
+  useEffect(() => {
+    const ms = channel.kind === "bumper" ? 8000 : channel.kind === "youtube" ? 180000 : 40000;
+    const t = window.setTimeout(() => {
+      if (speakingRef.current && channel.kind === "reel") return;
       if (Date.now() < lockRef.current) return;
       setChannelIdx((i) => nextOpen(i));
-    }, CHANNEL_MS);
-    return () => {
-      window.clearInterval(clockT);
-      window.clearInterval(mixT);
-    };
-  }, [mix.length]);
+    }, ms);
+    return () => window.clearTimeout(t);
+  }, [channel.id, mix.length]);
 
   useEffect(() => () => stopSpeech(), []);
 

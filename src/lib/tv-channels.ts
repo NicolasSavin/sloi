@@ -1,4 +1,4 @@
-export type ChannelKind = "youtube" | "tradingview" | "reel";
+export type ChannelKind = "youtube" | "tradingview" | "reel" | "bumper";
 
 export interface TvChannel {
   id: string;
@@ -7,6 +7,7 @@ export interface TvChannel {
   src?: string;
   live?: boolean;
   handle?: string;
+  channelId?: string;
   fallback?: string;
   lang?: "ru" | "en";
   foreign?: boolean;
@@ -14,42 +15,28 @@ export interface TvChannel {
   title?: string;
 }
 
-export const TV_CHANNELS: TvChannel[] = [
-  { id: "stratum", label: "Студия", kind: "reel", lang: "ru" },
+export const RSS_NETS: TvChannel[] = [
   {
     id: "euroru",
     label: "Евроньюс",
     kind: "youtube",
-    handle: "@euronewsru",
-    fallback: "lwYzwdBiaho",
+    channelId: "UCFzJjgVicCtFxJ5B0P_ei8A",
+    fallback: "bEVT8wNNCOs",
     lang: "ru",
-    videos: true,
-  },
-  {
-    id: "rbc",
-    label: "РБК",
-    kind: "youtube",
-    handle: "@rbc",
-    fallback: "xu1308nJ0EU",
-    lang: "ru",
-    videos: true,
   },
   {
     id: "vedomosti",
     label: "Ведомости",
     kind: "youtube",
-    handle: "@vedomosti",
+    channelId: "UCQdb0kgNp10fVlHWbkqKO8w",
+    fallback: "QsUuwCsWpWc",
     lang: "ru",
-    videos: true,
   },
-  {
-    id: "ria",
-    label: "РИА",
-    kind: "youtube",
-    handle: "@rianovosti",
-    lang: "ru",
-    videos: true,
-  },
+];
+
+export const TV_CHANNELS: TvChannel[] = [
+  { id: "stratum", label: "Студия", kind: "reel", lang: "ru" },
+  ...RSS_NETS,
 ];
 
 export function youtubeEmbed(videoId: string) {
@@ -62,21 +49,30 @@ export function youtubeEmbed(videoId: string) {
     controls: "0",
     enablejsapi: "1",
   });
-  return `https://www.youtube.com/embed/${videoId}?${q.toString()}`;
+  return `https://www.youtube-nocookie.com/embed/${videoId}?${q.toString()}`;
+}
+
+export function bumperOf(i: number): TvChannel {
+  return { id: `bumper-${i}`, label: "SLOI 24", kind: "bumper", lang: "ru", title: "заставка" };
+}
+
+export function weaveBumpers(list: TvChannel[]): TvChannel[] {
+  const out: TvChannel[] = [bumperOf(0)];
+  list.forEach((c, i) => {
+    out.push(c);
+    if (i % 2 === 1) out.push(bumperOf(i + 1));
+  });
+  return out;
 }
 
 export function withFallbackSrc(channel: TvChannel): TvChannel {
   if (channel.kind !== "youtube") return channel;
   const id = channel.fallback;
-  return {
-    ...channel,
-    src: id ? youtubeEmbed(id) : channel.src,
-    live: Boolean(channel.live),
-  };
+  return { ...channel, src: id ? youtubeEmbed(id) : channel.src };
 }
 
 export function tvPlaylist(): TvChannel[] {
-  return TV_CHANNELS.map(withFallbackSrc);
+  return weaveBumpers(TV_CHANNELS.map(withFallbackSrc));
 }
 
 const TV_SYMBOL: Record<string, string> = {
