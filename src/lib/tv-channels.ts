@@ -11,6 +11,7 @@ export interface TvChannel {
   lang?: "ru" | "en";
   foreign?: boolean;
   videos?: boolean;
+  title?: string;
 }
 
 export const TV_CHANNELS: TvChannel[] = [
@@ -22,6 +23,7 @@ export const TV_CHANNELS: TvChannel[] = [
     handle: "@euronewsru",
     fallback: "lwYzwdBiaho",
     lang: "ru",
+    videos: true,
   },
   {
     id: "rbc",
@@ -30,48 +32,22 @@ export const TV_CHANNELS: TvChannel[] = [
     handle: "@rbc",
     fallback: "xu1308nJ0EU",
     lang: "ru",
-  },
-  {
-    id: "euronews",
-    label: "Euronews",
-    kind: "youtube",
-    handle: "@euronews",
-    fallback: "pykpO5kQJ98",
-    lang: "en",
-  },
-  {
-    id: "france24",
-    label: "France 24",
-    kind: "youtube",
-    handle: "@FRANCE24",
-    fallback: "a47ckXKZjxI",
-    lang: "en",
-  },
-  {
-    id: "dw",
-    label: "DW",
-    kind: "youtube",
-    handle: "@dwnews",
-    fallback: "LuKwFajn37U",
-    lang: "en",
-  },
-  {
-    id: "kitco",
-    label: "Kitco",
-    kind: "youtube",
-    handle: "@KitcoNEWS",
-    fallback: "1Y0d-z2Qq8Y",
-    lang: "en",
-    foreign: true,
     videos: true,
   },
   {
-    id: "fxstreet",
-    label: "FXStreet",
+    id: "vedomosti",
+    label: "Ведомости",
     kind: "youtube",
-    handle: "@FXStreet",
-    lang: "en",
-    foreign: true,
+    handle: "@vedomosti",
+    lang: "ru",
+    videos: true,
+  },
+  {
+    id: "ria",
+    label: "РИА",
+    kind: "youtube",
+    handle: "@rianovosti",
+    lang: "ru",
     videos: true,
   },
 ];
@@ -95,7 +71,7 @@ export function withFallbackSrc(channel: TvChannel): TvChannel {
   return {
     ...channel,
     src: id ? youtubeEmbed(id) : channel.src,
-    live: channel.lang === "ru" || channel.id === "euronews" || channel.id === "france24",
+    live: Boolean(channel.live),
   };
 }
 

@@ -11,6 +11,7 @@ declare global {
 
 interface YtPlayer {
   mute: () => void;
+  unMute: () => void;
   playVideo: () => void;
   destroy: () => void;
 }
@@ -37,14 +38,20 @@ function loadApi() {
 
 export function YoutubePlayer({
   videoId,
+  muted = true,
   onBlocked,
+  onEnded,
 }: {
   videoId: string;
+  muted?: boolean;
   onBlocked: () => void;
+  onEnded?: () => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const blocked = useRef(onBlocked);
+  const ended = useRef(onEnded);
   blocked.current = onBlocked;
+  ended.current = onEnded;
 
   useEffect(() => {
     let player: YtPlayer | null = null;
@@ -52,7 +59,7 @@ export function YoutubePlayer({
     let playing = false;
     const fail = window.setTimeout(() => {
       if (!playing && !gone) blocked.current();
-    }, 5000);
+    }, 8000);
 
     void loadApi().then(() => {
       if (gone || !host.current || !window.YT?.Player) {
@@ -65,7 +72,7 @@ export function YoutubePlayer({
         height: "100%",
         playerVars: {
           autoplay: 1,
-          mute: 1,
+          mute: muted ? 1 : 0,
           playsinline: 1,
           rel: 0,
           modestbranding: 1,
@@ -74,12 +81,13 @@ export function YoutubePlayer({
         },
         events: {
           onReady: (e: { target: YtPlayer }) => {
-            e.target.mute();
+            if (muted) e.target.mute();
+            else e.target.unMute();
             e.target.playVideo();
           },
           onStateChange: (e: { data: number }) => {
             if (e.data === 1) playing = true;
-            if (e.data === 0 && !gone) blocked.current();
+            if (e.data === 0 && !gone) ended.current?.();
           },
           onError: () => {
             if (!gone) blocked.current();
@@ -97,7 +105,7 @@ export function YoutubePlayer({
         /* */
       }
     };
-  }, [videoId]);
+  }, [videoId, muted]);
 
   return <div ref={host} className="absolute inset-0 z-[1] size-full" />;
 }

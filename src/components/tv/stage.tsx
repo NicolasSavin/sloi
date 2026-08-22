@@ -8,11 +8,15 @@ import { reelFor } from "@/lib/tv-reels";
 export function Stage({
   channel,
   symbolId,
+  muted = true,
   onBlocked,
+  onEnded,
 }: {
   channel: TvChannel;
   symbolId: string;
+  muted?: boolean;
   onBlocked?: () => void;
+  onEnded?: () => void;
 }) {
   const poster = marketArt(symbolId);
   const reel = <Reel src={reelFor(symbolId)} poster={poster} />;
@@ -29,10 +33,12 @@ export function Stage({
       {reel}
       <YoutubePlayer
         videoId={id}
+        muted={muted}
         onBlocked={() => {
           setDead(true);
           onBlocked?.();
         }}
+        onEnded={onEnded}
       />
     </>
   );

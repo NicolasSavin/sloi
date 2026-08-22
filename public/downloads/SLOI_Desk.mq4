@@ -5,11 +5,11 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.03"
+#property version   "4.04"
 #property strict
-#property description "Только сделки сайта. В ленту — адрес вашего сайта /api/signals.txt"
+#property description "Только сделки сайта SLOI. Спред Ask-Bid терминала."
 
-input string  SignalsUrl      = "";
+input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  WatchList       = "EURUSD,GBPUSD,USDJPY,USDCHF,AUDUSD,USDCAD,NZDUSD,EURJPY,GBPJPY,XAUUSD,XAGUSD,USOIL";
 input string  BrokerSuffix    = "";
 input int     WorkTF          = 240;
@@ -75,7 +75,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.03: в поле ЛЕНТА вставьте адрес сайта /api/signals.txt и тот же домен в WebRequest.");
+   Print("SLOI 4.04: лента https://sloi-kohl.vercel.app/api/signals.txt — добавьте этот адрес в WebRequest.");
    return(INIT_SUCCEEDED);
   }
 

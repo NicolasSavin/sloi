@@ -1,22 +1,32 @@
 import { TV_CHANNELS, youtubeEmbed, type TvChannel } from "@/lib/tv-channels";
 
-function pickVideo(html: string, fallback?: string): { id: string; live: boolean } | null {
-  const liveAt = html.search(/isLiveNow"\s*:\s*true|"isLive"\s*:\s*true/);
-  if (liveAt >= 0) {
-    const chunk = html.slice(Math.max(0, liveAt - 1200), liveAt + 200);
-    const ids = [...chunk.matchAll(/"videoId"\s*:\s*"([a-zA-Z0-9_-]{11})"/g)].map((m) => m[1]!);
-    const id = ids.at(-1) ?? fallback;
-    if (id) return { id, live: true };
-  }
-  if (fallback && html.includes(fallback)) return { id: fallback, live: html.includes("isLiveNow") };
-  const counts = new Map<string, number>();
+type Clip = { id: string; title: string; live?: boolean };
+
+function decodeTitle(raw: string) {
+  return raw
+    .replace(/\\u0026/g, "&")
+    .replace(/\\"/g, '"')
+    .replace(/&/g, "&")
+    .slice(0, 42);
+}
+
+function pickClips(html: string, limit: number): Clip[] {
+  const out: Clip[] = [];
+  const seen = new Set<string>();
   for (const m of html.matchAll(/"videoId"\s*:\s*"([a-zA-Z0-9_-]{11})"/g)) {
     const id = m[1]!;
-    counts.set(id, (counts.get(id) ?? 0) + 1);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const slice = html.slice(m.index ?? 0, (m.index ?? 0) + 1200);
+    const title =
+      slice.match(/"text"\s*:\s*"([^"]{6,160})"/)?.[1] ??
+      slice.match(/"simpleText"\s*:\s*"([^"]{6,160})"/)?.[1] ??
+      "Эфир";
+    const live = /isLiveNow"\s*:\s*true|"isLive"\s*:\s*true/.test(slice);
+    out.push({ id, title: decodeTitle(title), live });
+    if (out.length >= limit) break;
   }
-  const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
-  if (top) return { id: top[0], live: false };
-  return fallback ? { id: fallback, live: false } : null;
+  return out;
 }
 
 async function youtubeHtml(url: string): Promise<string | null> {
@@ -28,8 +38,8 @@ async function youtubeHtml(url: string): Promise<string | null> {
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        "Accept-Language": "en-US,en;q=0.9",
-        Cookie: "CONSENT=YES+; SOCS=CAISNQgDEitib3FfaWRlbnRpdHlmcm9udGVuZHVpc2VydmVyXzIwMjQwMzA1LjA3X3AxGgJlbiACGgYIgKq0sAY",
+        "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.4",
+        Cookie: "CONSENT=YES+; SOCS=CAISNQgDEitib3FfaWRlbnRpdHlmcm9udGVuZHVpc2VydmVyXzIwMjQwMzA1LjA3X3AxGgJydSACGgYIgKq0sAY",
       },
       redirect: "follow",
     });
@@ -41,52 +51,74 @@ async function youtubeHtml(url: string): Promise<string | null> {
   }
 }
 
+function asChannel(label: string, clip: Clip, i: number, live?: boolean): TvChannel {
+  return {
+    id: `ru-${label}-${i}-${clip.id}`,
+    label,
+    kind: "youtube",
+    src: youtubeEmbed(clip.id),
+    fallback: clip.id,
+    live: live ?? Boolean(clip.live),
+    lang: "ru",
+    foreign: false,
+    title: clip.title,
+  };
+}
+
+const SEARCHES = [
+  { q: "форекс аналитика сегодня", label: "Форекс" },
+  { q: "золото прогноз сегодня", label: "Золото" },
+  { q: "рынок новости сегодня", label: "Рынок" },
+];
+
 export async function resolveTvChannels(): Promise<TvChannel[]> {
-  const rows = await Promise.all(
-    TV_CHANNELS.map(async (ch) => {
-      if (ch.kind !== "youtube" || !ch.handle) return ch;
-      const path = ch.videos ? "videos" : "streams";
-      const html = await youtubeHtml(`https://www.youtube.com/${ch.handle}/${path}`);
-      const picked = html ? pickVideo(html, ch.fallback) : ch.fallback ? { id: ch.fallback, live: false } : null;
-      if (!picked) return ch;
-      return {
-        ...ch,
-        src: youtubeEmbed(picked.id),
-        live: ch.videos ? false : picked.live || ch.lang === "ru" || ch.id === "euronews" || ch.id === "france24",
-      };
-    }),
-  );
-  const extra = await latestAnalysis(rows.map((r) => videoIdFrom(r.src)));
-  return [...rows, ...extra];
-}
+  const studio = TV_CHANNELS.find((c) => c.kind === "reel") ?? TV_CHANNELS[0]!;
+  const nets = TV_CHANNELS.filter((c) => c.kind === "youtube");
 
-function videoIdFrom(src?: string) {
-  const m = src?.match(/embed\/([a-zA-Z0-9_-]{11})/);
-  return m?.[1] ?? "";
-}
+  const [netRows, searchRows] = await Promise.all([
+    Promise.all(
+      nets.map(async (ch) => {
+        const html = await youtubeHtml(`https://www.youtube.com/${ch.handle}/videos`);
+        const liveHtml = await youtubeHtml(`https://www.youtube.com/${ch.handle}/streams`);
+        const live = liveHtml ? pickClips(liveHtml, 1).find((c) => c.live) : undefined;
+        const clips = html ? pickClips(html, 3) : [];
+        const list: TvChannel[] = [];
+        if (live) list.push(asChannel(ch.label, live, 0, true));
+        for (const [i, clip] of clips.entries()) {
+          if (live && clip.id === live.id) continue;
+          list.push(asChannel(ch.label, clip, i + 1));
+        }
+        if (list.length === 0 && ch.fallback) {
+          list.push({
+            ...ch,
+            src: youtubeEmbed(ch.fallback),
+            live: false,
+          });
+        }
+        return list;
+      }),
+    ),
+    Promise.all(
+      SEARCHES.map(async (s) => {
+        const html = await youtubeHtml(
+          `https://www.youtube.com/results?search_query=${encodeURIComponent(s.q)}&hl=ru&gl=RU&sp=CAI%253D`,
+        );
+        if (!html) return [] as TvChannel[];
+        return pickClips(html, 4).map((clip, i) => asChannel(s.label, clip, i));
+      }),
+    ),
+  ]);
 
-async function latestAnalysis(skip: string[]): Promise<TvChannel[]> {
-  const html = await youtubeHtml(
-    "https://www.youtube.com/results?search_query=forex+market+analysis&sp=CAI%253D",
-  );
-  if (!html) return [];
-  const seen = new Set(skip.filter(Boolean));
-  const ids: string[] = [];
-  for (const m of html.matchAll(/"videoId"\s*:\s*"([a-zA-Z0-9_-]{11})"/g)) {
-    const id = m[1]!;
+  const seen = new Set<string>();
+  const extra: TvChannel[] = [];
+  for (const row of [...netRows.flat(), ...searchRows.flat()]) {
+    const id = row.fallback ?? row.id;
     if (seen.has(id)) continue;
     seen.add(id);
-    ids.push(id);
-    if (ids.length >= 6) break;
+    extra.push(row);
+    if (extra.length >= 14) break;
   }
-  return ids.map((id, i) => ({
-    id: `yt-desk-${i}-${id}`,
-    label: "YouTube · форекс",
-    kind: "youtube" as const,
-    src: youtubeEmbed(id),
-    fallback: id,
-    live: false,
-    lang: "en" as const,
-    foreign: true,
-  }));
+
+  extra.sort((a, b) => Number(Boolean(b.live)) - Number(Boolean(a.live)));
+  return [studio, ...extra];
 }

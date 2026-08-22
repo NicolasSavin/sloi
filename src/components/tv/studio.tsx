@@ -19,7 +19,7 @@ import { tradingViewSrc, tvPlaylist, type TvChannel } from "@/lib/tv-channels";
 import { cn, formatPct, formatPrice } from "@/lib/utils";
 
 const SLOT_MS = 28000;
-const CHANNEL_MS = 48000;
+const CHANNEL_MS = 160000;
 
 function clockNow() {
   return new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
@@ -45,10 +45,12 @@ export function Studio({
   const [line, setLine] = useState("");
   const [shown, setShown] = useState("");
   const mix = channels.length ? channels : tvPlaylist();
-  const liveStart = Math.max(
-    0,
-    mix.findIndex((c) => c.kind === "reel"),
-  );
+  const liveStart = (() => {
+    const live = mix.findIndex((c) => c.live);
+    if (live >= 0) return live;
+    const yt = mix.findIndex((c) => c.kind === "youtube");
+    return yt >= 0 ? yt : 0;
+  })();
   const [channelIdx, setChannelIdx] = useState(liveStart);
   const lockRef = useRef(0);
   const blockedRef = useRef(new Set<string>());
@@ -150,9 +152,9 @@ export function Studio({
           playSignal(action);
         }
       }
-      speakingRef.current = true;
-      lockRef.current = Date.now() + 90_000;
-      if (armedRef.current && voiceOn && !onAir.foreign) await speakRu(text, { ident: onAir.lang === "en" });
+      speakingRef.current = onAir.kind !== "youtube";
+      if (onAir.kind !== "youtube") lockRef.current = Date.now() + 90_000;
+      if (armedRef.current && voiceOn && onAir.kind !== "youtube") await speakRu(text, { ident: onAir.lang === "en" });
       else await new Promise((r) => setTimeout(r, SLOT_MS));
       speakingRef.current = false;
       if (!cancelled) setIdx((i) => i + 1);
@@ -192,7 +194,7 @@ export function Studio({
           </Link>
           <span className="inline-flex items-center gap-2 rounded-sm bg-bear px-2 py-1 font-mono text-xs tracking-[0.16em] text-fg">
             <span className="on-air-dot size-1.5 rounded-full bg-fg" />
-            СТУДИЯ
+            ЭФИР
           </span>
           <span className="font-mono text-xs text-dim">{clock}</span>
           <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
@@ -261,17 +263,23 @@ export function Studio({
                 <Stage
                   channel={channel}
                   symbolId={current.spec.id}
+                  muted={!armed || !soundOn}
+                  onEnded={() => {
+                    lockRef.current = 0;
+                    setChannelIdx((i) => nextOpen(i));
+                  }}
                   onBlocked={() => {
                     blockedRef.current.add(channel.id);
-                    setSkipNote(`${channel.label} закрыт в вашей стране`);
+                    setSkipNote(`${channel.label} недоступен · следующий`);
                     window.setTimeout(() => setSkipNote(""), 2500);
                     setChannelIdx((i) => nextOpen(i));
                   }}
                 />
-                <div className="absolute top-3 left-3 z-10 inline-flex items-center gap-2 rounded-sm bg-bg/70 px-2 py-1 font-mono text-[10px] tracking-[0.16em] backdrop-blur-sm">
+                <div className="absolute top-3 left-3 z-10 inline-flex max-w-[70%] items-center gap-2 rounded-sm bg-bg/70 px-2 py-1 font-mono text-[10px] tracking-[0.16em] backdrop-blur-sm">
                   <span className="on-air-dot size-1.5 rounded-full bg-bear" />
-                  КАМЕРА 1 · {channel.live ? "LIVE · " : ""}
-                  {channel.label} · далее {nextChannel.label}
+                  {channel.live ? "LIVE · " : ""}
+                  {channel.label}
+                  {channel.title ? ` · ${channel.title}` : ""} · далее {nextChannel.label}
                 </div>
                 <div className="absolute top-3 right-3 z-10 text-right">
                   <p className="font-mono text-xs tracking-[0.18em] text-accent">{current.spec.label}</p>
@@ -280,7 +288,11 @@ export function Studio({
                   </p>
                 </div>
                 <div className="absolute right-3 bottom-3 z-10 flex flex-col items-end gap-2">
-                  {channel.foreign ? (
+                  {channel.kind === "youtube" && channel.lang === "ru" ? (
+                    <span className="rounded-sm bg-accent px-2 py-1 font-mono text-[10px] tracking-[0.16em] text-accent-fg">
+                      РУС · ЭФИР
+                    </span>
+                  ) : channel.foreign ? (
                     <span className="rounded-sm bg-accent px-2 py-1 font-mono text-[10px] tracking-[0.16em] text-accent-fg">
                       ЧУЖОЙ ЭФИР · НЕ СИГНАЛ
                     </span>
