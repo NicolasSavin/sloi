@@ -29,7 +29,7 @@ export interface AiBrief {
   watch: string[];
 }
 
-type CacheEntry = { at: number; brief: AiBrief };
+type CacheEntry = { at: number; brief: AiBrief; model: string };
 const cache = new Map<string, CacheEntry>();
 const TTL = 5 * 60 * 1000;
 let windowStart = Date.now();
@@ -121,50 +121,59 @@ export function briefToStory(brief: AiBrief): MarketStory {
   };
 }
 
-export const analyzeWithGrok = createServerFn({ method: "POST" })
-  .validator((input: unknown) => Input.parse(input))
-  .handler(
-    async ({
-      data,
-    }): Promise<
-      | { ok: true; brief: AiBrief; cached: boolean }
-      | { ok: false; error: string }
-    > => {
-      const apiKey = process.env.XAI_API_KEY;
-      if (!apiKey) return { ok: false, error: "Нейросеть недоступна в этой среде." };
+interface ChatProvider {
+  id: string;
+  label: string;
+  key?: string;
+  url: string;
+  model: string;
+}
 
-      const key = cacheKey(data.payload);
-      const hit = cache.get(key);
-      if (hit && Date.now() - hit.at < TTL) {
-        return { ok: true, brief: hit.brief, cached: true };
-      }
+function providers(): ChatProvider[] {
+  return [
+    {
+      id: "grok",
+      label: "Grok",
+      key: process.env.XAI_API_KEY,
+      url: "https://api.x.ai/v1/chat/completions",
+      model: "grok-4.5",
+    },
+    {
+      id: "groq",
+      label: "Llama 3.3",
+      key: process.env.GROQ_API_KEY,
+      url: "https://api.groq.com/openai/v1/chat/completions",
+      model: "llama-3.3-70b-versatile",
+    },
+    {
+      id: "gemini",
+      label: "Gemini",
+      key: process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+      url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+      model: "gemini-2.0-flash",
+    },
+    {
+      id: "openai",
+      label: "GPT-4o mini",
+      key: process.env.OPENAI_API_KEY,
+      url: "https://api.openai.com/v1/chat/completions",
+      model: "gpt-4o-mini",
+    },
+    {
+      id: "openrouter",
+      label: "OpenRouter",
+      key: process.env.OPENROUTER_API_KEY,
+      url: "https://openrouter.ai/api/v1/chat/completions",
+      model: process.env.OPENROUTER_MODEL || "meta-llama/llama-3.3-70b-instruct",
+    },
+  ].filter((p) => Boolean(p.key));
+}
 
-      const now = Date.now();
-      if (now - windowStart > WINDOW_MS) {
-        windowStart = now;
-        windowCount = 0;
-      }
-      if (windowCount >= WINDOW_MAX) {
-        if (hit) return { ok: true, brief: hit.brief, cached: true };
-        return {
-          ok: false,
-          error: "Лимит автоанализа. Нажмите ещё раз через несколько минут.",
-        };
-      }
+const SYSTEM =
+  "Ты рассказываешь, что делает крупный игрок (smart money). Одна история, по-русски, без канцелярита. Термин сразу расшифруй. Не обещай прибыль. Не выдумывай уровни. Отвечай ТОЛЬКО JSON.";
 
-      const body = JSON.stringify({
-        model: "grok-4.5",
-        temperature: 0.25,
-        max_tokens: 1400,
-        messages: [
-          {
-            role: "system",
-            content:
-              "Ты рассказываешь, что делает крупный игрок (smart money). Одна история, по-русски, без канцелярита. Термин сразу расшифруй. Не обещай прибыль. Не выдумывай уровни. Отвечай ТОЛЬКО JSON.",
-          },
-          {
-            role: "user",
-            content: `Одна история: что делает крупняк, чего ждёт, к чему это приведёт. Учти сентимент, если он есть во входных данных.
+function userPrompt(payload: unknown) {
+  return `Одна история: что делает крупняк, чего ждёт, к чему это приведёт. Учти сентимент, если он есть во входных данных.
 JSON:
 {
   "bias": "bullish" | "bearish" | "range",
@@ -191,34 +200,85 @@ JSON:
   "watch": ["что смотреть"]
 }
 Данные:
-${JSON.stringify(data.payload)}`,
-          },
-        ],
-      });
+${JSON.stringify(payload)}`;
+}
+
+async function chatOnce(p: ChatProvider, payload: unknown): Promise<AiBrief> {
+  const res = await fetch(p.url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${p.key}`,
+    },
+    body: JSON.stringify({
+      model: p.model,
+      temperature: 0.25,
+      max_tokens: 1400,
+      messages: [
+        { role: "system", content: SYSTEM },
+        { role: "user", content: userPrompt(payload) },
+      ],
+    }),
+  });
+  if (!res.ok) throw new Error(`${p.label} ${res.status}`);
+  const json = (await res.json()) as {
+    choices?: { message?: { content?: string } }[];
+  };
+  const text = json.choices?.[0]?.message?.content ?? "";
+  const brief = asBrief(extractJson(text));
+  if (!brief) throw new Error(`${p.label}: не JSON`);
+  return brief;
+}
+
+export const analyzeWithGrok = createServerFn({ method: "POST" })
+  .validator((input: unknown) => Input.parse(input))
+  .handler(
+    async ({
+      data,
+    }): Promise<
+      | { ok: true; brief: AiBrief; cached: boolean; model: string }
+      | { ok: false; error: string }
+    > => {
+      const chain = providers();
+      if (chain.length === 0) {
+        return {
+          ok: false,
+          error:
+            "Нет ключа модели. Движок SMC уже дал разбор. Чтобы подключить нейросеть: Vercel → Environment Variables → GROQ_API_KEY (бесплатно groq.com) или GEMINI_API_KEY или XAI_API_KEY.",
+        };
+      }
+
+      const key = cacheKey(data.payload);
+      const hit = cache.get(key);
+      if (hit && Date.now() - hit.at < TTL) {
+        return { ok: true, brief: hit.brief, cached: true, model: hit.model };
+      }
+
+      const now = Date.now();
+      if (now - windowStart > WINDOW_MS) {
+        windowStart = now;
+        windowCount = 0;
+      }
+      if (windowCount >= WINDOW_MAX) {
+        if (hit) return { ok: true, brief: hit.brief, cached: true, model: hit.model };
+        return {
+          ok: false,
+          error: "Лимит автоанализа. Нажмите ещё раз через несколько минут.",
+        };
+      }
 
       windowCount += 1;
-      const res = await fetch("https://api.x.ai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body,
-      });
-      if (!res.ok) {
-        return { ok: false, error: `xAI API error ${res.status}` };
+      const errors: string[] = [];
+      for (const p of chain) {
+        try {
+          const brief = await chatOnce(p, data.payload);
+          const model = p.label;
+          cache.set(key, { at: Date.now(), brief, model });
+          return { ok: true, brief, cached: false, model };
+        } catch (err) {
+          errors.push(err instanceof Error ? err.message : p.label);
+        }
       }
-      const json = (await res.json()) as {
-        choices?: { message?: { content?: string } }[];
-      };
-      const text = json.choices?.[0]?.message?.content ?? "";
-      try {
-        const brief = asBrief(extractJson(text));
-        if (!brief) return { ok: false, error: "Не удалось разобрать ответ модели." };
-        cache.set(key, { at: Date.now(), brief });
-        return { ok: true, brief, cached: false };
-      } catch {
-        return { ok: false, error: "Модель вернула неструктурированный ответ." };
-      }
+      return { ok: false, error: `Модели не ответили: ${errors.join("; ")}` };
     },
   );

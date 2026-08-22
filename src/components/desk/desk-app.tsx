@@ -100,6 +100,7 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
   const [brief, setBrief] = useState<AiBrief | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const [aiModel, setAiModel] = useState<string | null>(null);
   const [journal, setJournal] = useState<JournalEntry[]>([]);
   const lastKey = `${symbol}|${timeframe}|${snap?.events.at(-1)?.time ?? 0}`;
   const lastSignal = useRef("");
@@ -157,6 +158,7 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
       });
       if (res.ok) {
         setBrief(res.brief);
+        setAiModel(res.model);
         sessionStorage.setItem(cacheKey, JSON.stringify(res.brief));
       } else {
         setAiError(res.error);
@@ -171,6 +173,7 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
   useEffect(() => {
     setBrief(null);
     setAiError(null);
+    setAiModel(null);
   }, [symbol, timeframe]);
 
   useEffect(() => {
@@ -380,6 +383,7 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
               onJournal={addToJournal}
               snapReady={Boolean(snap)}
               aiLoading={aiLoading}
+              aiModel={aiModel}
             />
             <div className="mt-4">
               <StoryBody
@@ -457,6 +461,7 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
             onJournal={addToJournal}
             snapReady={Boolean(snap)}
             aiLoading={aiLoading}
+            aiModel={aiModel}
           />
           <ScrollArea className="mt-3 min-h-[280px] flex-1">
             <div className="space-y-4 px-4 pb-8">
@@ -584,6 +589,7 @@ function AnalyzeBar({
   onJournal,
   snapReady,
   aiLoading,
+  aiModel,
 }: {
   autoAnalyze: boolean;
   setAutoAnalyze: (on: boolean) => void;
@@ -591,6 +597,7 @@ function AnalyzeBar({
   onJournal: () => void;
   snapReady: boolean;
   aiLoading: boolean;
+  aiModel: string | null;
 }) {
   return (
     <div>
@@ -617,6 +624,9 @@ function AnalyzeBar({
         </Button>
       </div>
       <p className="pt-3 text-xs text-dim">
+        {aiModel
+          ? `Ответ: ${aiModel}. Движок SMC считает уровни сам; модель только пересказывает.`
+          : "Движок SMC считает уровни сам. Модель (Grok / Llama / Gemini) — по ключу в Vercel."}
         {autoAnalyze
           ? "Тумблер включён: при смене пары или таймфрейма Grok сам дописывает причину → следствие. Движок работает всегда."
           : "Тумблер выкл: слева всегда движок. Grok пишет текст только если нажать кнопку."}

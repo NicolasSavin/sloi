@@ -2,24 +2,20 @@
 
 Слои рынка: SMC, объёмы, волны, опционы. Сайт считает, MT4-эксперт исполняет.
 
-## Адрес после публикации
+Живой адрес: [https://sloi-kohl.vercel.app](https://sloi-kohl.vercel.app)
 
-Лента для советника:
+Лента для советника: `https://sloi-kohl.vercel.app/api/signals.txt`
 
-`https://<ваш-хост>/api/signals.txt`
+## Нейросеть (необязательно)
 
-Скачать эксперт: `/api/ea.mq4`
+Движок SMC работает без ключей. Кнопка «разобрать нейросетью» берёт первую доступную:
 
-## Vercel (рекомендуется)
+| Переменная | Модель |
+|---|---|
+| `XAI_API_KEY` | Grok 4.5 |
+| `GROQ_API_KEY` | Llama 3.3 70B (бесплатный ключ на groq.com) |
+| `GEMINI_API_KEY` | Gemini 2.0 Flash |
+| `OPENAI_API_KEY` | GPT-4o mini |
+| `OPENROUTER_API_KEY` | любая, или `OPENROUTER_MODEL` |
 
-1. Откройте [vercel.com/new](https://vercel.com/new) и импортируйте этот репозиторий.
-2. Framework: Other. Build: `npm run build`. Node 22.
-3. (Необязательно) переменная `XAI_API_KEY` — только для кнопки «разобрать нейросетью».
-4. После деплоя скопируйте URL вида `https://sloi-….vercel.app`.
-
-В MT4: Сервис → Настройки → Советники → WebRequest → этот URL.  
-В панели эксперта поле **лента**: `https://sloi-….vercel.app/api/signals.txt`. Суффикс брокера `cs`.
-
-## Render
-
-New → Web Service → этот репозиторий. Build `npm install && npm run build`. Start: смотрите `render.yaml`.
+Vercel → Project → Settings → Environment Variables → Redeploy. Ключ не коммитьте.
