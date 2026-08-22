@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.12"
+#property version   "4.13"
 #property strict
 #property description "Клик по паре открывает график. На графике — уровни сайта и FVG (не приказ)."
 
@@ -45,6 +45,7 @@ double g_skew;
 bool   g_alerts;
 bool   g_seeded = false;
 bool   g_ready = false;
+bool   g_min = false;
 string g_feed = "";
 datetime g_feedAt = 0;
 string g_feedNote = "нет ленты";
@@ -78,7 +79,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.12: >> меняет символ ЭТОГО окна, не открывает новое.");
+   Print("SLOI 4.13: [—] сворачивает панель, [+] раскрывает. Сделки с сайта идут и свёрнутой.");
    return(INIT_SUCCEEDED);
   }
 
@@ -96,6 +97,14 @@ void OnChartEvent(const int id, const long &lparam, const double &dparam, const 
   {
    if(id != CHARTEVENT_OBJECT_CLICK) return;
    ObjectSetInteger(0, sparam, OBJPROP_STATE, false);
+   if(sparam == P+"b_min")
+     {
+      g_min = !g_min;
+      Wipe();
+      g_seeded = false;
+      DrawDesk();
+      return;
+     }
    if(sparam == P+"b_auto")
      {
       g_auto = !g_auto;
@@ -599,6 +608,24 @@ void DrawDesk()
   {
    int x = PanelX;
    int y = PanelY;
+   PullFeed();
+   if(g_min)
+     {
+      Rect("bg", x, y, 300, 34, C_BG);
+      Lab("title", x + 12, y + 8, "SLOI  "+g_feedNote, C_GOLD, 11);
+      Btn("b_min", x + 260, y + 6, 32, 22, "+", C_GOLD);
+      for(int i = 0; i < g_n; i++)
+        {
+         string bias, verdict, why;
+         int dir = 0, spPts = 0;
+         double entry = 0, stop = 0, target = 0;
+         Scan(i, bias, verdict, why, dir, entry, stop, target, spPts);
+         MaybeTrade(i, dir, stop, target, verdict, spPts);
+        }
+      DrawSmcOnChart();
+      ChartRedraw();
+      return;
+     }
    int w = 790;
    int setH = 114;
    int rowH = 22;
@@ -607,10 +634,11 @@ void DrawDesk()
 
    Rect("bg", x, y, w, h, C_BG);
    Lab("title", x + 14, y + 8, "SLOI DESK", C_GOLD, 12);
-   Lab("hint", x + 150, y + 12, g_feedNote+"   >> этот же график   SMC на чарте", C_DIM, 8);
+   Lab("hint", x + 150, y + 12, g_feedNote+"   >> этот график   — свернуть", C_DIM, 8);
 
-   Btn("b_auto", x + 500, y + 8, 100, 22, g_auto ? "АВТО ВКЛ" : "АВТО ВЫКЛ", g_auto ? C_SEL : C_GOLD);
-   Btn("b_alrt", x + 606, y + 8, 100, 22, g_alerts ? "АЛЕРТ ВКЛ" : "АЛЕРТ ВЫКЛ", C_GOLD);
+   Btn("b_auto", x + 470, y + 8, 96, 22, g_auto ? "АВТО ВКЛ" : "АВТО ВЫКЛ", g_auto ? C_SEL : C_GOLD);
+   Btn("b_alrt", x + 572, y + 8, 96, 22, g_alerts ? "АЛЕРТ ВКЛ" : "АЛЕРТ ВЫКЛ", C_GOLD);
+   Btn("b_min", x + 674, y + 8, 32, 22, "—", C_GOLD);
 
    bool seed = !g_seeded;
    g_seeded = true;
@@ -643,7 +671,6 @@ void DrawDesk()
    Lab("h6", hx+450, hy, "ЦЕЛЬ",    C_DIM, 8);
    Lab("h7", hx+550, hy, "ВЕРДИКТ", C_DIM, 8);
 
-   PullFeed();
    string cmt = "SLOI DESK | лента "+g_feedNote+" | авто "+(g_auto?"ВКЛ":"ВЫКЛ")+" | макс спред "+IntegerToString(g_maxSp)+"п\n";
    cmt += "СИМВОЛ     СПРЕД  СТРУКТ   ВХОД        СТОП        ЦЕЛЬ        ВЕРДИКТ\n";
 
