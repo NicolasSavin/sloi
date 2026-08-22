@@ -45,7 +45,7 @@ export function Studio({
   const [line, setLine] = useState("");
   const [shown, setShown] = useState("");
   const mix = channels.length ? channels : tvPlaylist();
-  const liveStart = 0;
+  const liveStart = Math.max(0, mix.findIndex((c) => c.kind === "youtube"));
   const [channelIdx, setChannelIdx] = useState(liveStart);
   const lockRef = useRef(0);
   const blockedRef = useRef(new Set<string>());

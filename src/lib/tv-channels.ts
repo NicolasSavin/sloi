@@ -21,7 +21,7 @@ export const RSS_NETS: TvChannel[] = [
     label: "Евроньюс",
     kind: "youtube",
     channelId: "UCFzJjgVicCtFxJ5B0P_ei8A",
-    fallback: "bEVT8wNNCOs",
+    fallback: "j8z6woknGV8",
     lang: "ru",
   },
   {
@@ -49,7 +49,7 @@ export function youtubeEmbed(videoId: string) {
     controls: "0",
     enablejsapi: "1",
   });
-  return `https://www.youtube-nocookie.com/embed/${videoId}?${q.toString()}`;
+  return `https://www.youtube.com/embed/${videoId}?${q.toString()}`;
 }
 
 export function bumperOf(i: number): TvChannel {
@@ -57,11 +57,15 @@ export function bumperOf(i: number): TvChannel {
 }
 
 export function weaveBumpers(list: TvChannel[]): TvChannel[] {
-  const out: TvChannel[] = [bumperOf(0)];
-  list.forEach((c, i) => {
+  const yt = list.filter((c) => c.kind === "youtube");
+  const rest = list.filter((c) => c.kind !== "youtube");
+  if (!yt.length) return [bumperOf(0), ...rest];
+  const out: TvChannel[] = [];
+  yt.forEach((c, i) => {
     out.push(c);
     if (i % 2 === 1) out.push(bumperOf(i + 1));
   });
+  out.push(...rest);
   return out;
 }
 
