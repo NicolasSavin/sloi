@@ -72,7 +72,9 @@ export function withFallbackSrc(channel: TvChannel): TvChannel {
 }
 
 export function tvPlaylist(): TvChannel[] {
-  return weaveBumpers(TV_CHANNELS.map(withFallbackSrc));
+  const nets = RSS_NETS.map(withFallbackSrc);
+  const studio: TvChannel = { id: "stratum", label: "Студия", kind: "reel", lang: "ru" };
+  return weaveBumpers([...nets, studio]);
 }
 
 const TV_SYMBOL: Record<string, string> = {

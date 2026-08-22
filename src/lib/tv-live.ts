@@ -62,5 +62,14 @@ export async function resolveTvChannels(): Promise<TvChannel[]> {
     }),
   );
   const extra = rows.flat();
-  return weaveBumpers([studio, ...extra]);
+  if (extra.length === 0) {
+    return weaveBumpers([
+      ...RSS_NETS.map((n) => ({
+        ...n,
+        src: n.fallback ? youtubeEmbed(n.fallback) : undefined,
+      })),
+      studio,
+    ]);
+  }
+  return weaveBumpers([...extra, studio]);
 }
