@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.09"
+#property version   "4.10"
 #property strict
-#property description "Сверка Yahoo vs брокер на КАЖДОЙ паре. Приказ только если близко."
+#property description "Сверка Yahoo vs брокер. Стакан в MT4 недоступен — только Bid/Ask."
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  WatchList       = "EURUSD,GBPUSD,USDJPY,USDCHF,AUDUSD,USDCAD,NZDUSD,EURJPY,GBPJPY,XAUUSD,XAGUSD,USOIL";
@@ -73,20 +73,18 @@ int OnInit()
    g_alerts = AlertsOn;
    Wipe();
    ParseWatch();
-   for(int b = 0; b < g_n; b++) MarketBookAdd(g_sym[b]);
    EventSetTimer(2);
    ChartSetInteger(0, CHART_FOREGROUND, false);
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.09: стакан брокера, если NMarkets отдаёт Depth of Market.");
+   Print("SLOI 4.10: Bid/Ask брокера. Market Book в MT4 нет — стакан не шлём.");
    return(INIT_SUCCEEDED);
   }
 
 void OnDeinit(const int reason)
   {
    EventKillTimer();
-   for(int b = 0; b < g_n; b++) MarketBookRelease(g_sym[b]);
    Wipe();
    Comment("");
   }
@@ -268,29 +266,6 @@ void PushTape()
       double ask = AskOf(s);
       if(bid <= 0 || ask <= 0) continue;
       body += Naked(s) + " " + DoubleToStr(bid, DigitsOf(s)) + " " + DoubleToStr(ask, DigitsOf(s)) + "\n";
-      MqlBookInfo book[];
-      if(MarketBookGet(s, book) && ArraySize(book) > 0)
-        {
-         string row = "BOOK " + Naked(s);
-         int takeS = 0;
-         int takeB = 0;
-         for(int k = 0; k < ArraySize(book); k++)
-           {
-            if(book[k].type == BOOK_TYPE_SELL || book[k].type == BOOK_TYPE_SELL_MARKET)
-              {
-               if(takeS >= 5) continue;
-               row += " S " + DoubleToStr(book[k].price, DigitsOf(s)) + " " + DoubleToStr((double)book[k].volume, 2);
-               takeS++;
-              }
-            else if(book[k].type == BOOK_TYPE_BUY || book[k].type == BOOK_TYPE_BUY_MARKET)
-              {
-               if(takeB >= 5) continue;
-               row += " B " + DoubleToStr(book[k].price, DigitsOf(s)) + " " + DoubleToStr((double)book[k].volume, 2);
-               takeB++;
-              }
-           }
-         if(takeS + takeB > 0) body += row + "\n";
-        }
      }
    char data[];
    char result[];
