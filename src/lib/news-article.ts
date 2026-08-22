@@ -1,7 +1,7 @@
 import type { DigestMarket } from "@/lib/digest";
 import { marketArt } from "@/lib/art";
 import type { HomeQuote } from "@/lib/home";
-import type { NewsArticle, NewsItem } from "@/lib/news";
+import type { NewsArticle, NewsImpact, NewsItem } from "@/lib/news";
 import { formatPct, formatPrice } from "@/lib/utils";
 
 const GLOSS: [RegExp, string][] = [
