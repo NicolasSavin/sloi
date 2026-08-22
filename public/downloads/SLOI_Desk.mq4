@@ -612,7 +612,7 @@ void DrawDesk()
    if(g_min)
      {
       Rect("bg", x, y, 300, 34, C_BG);
-      Lab("title", x + 12, y + 8, "SLOI  "+g_feedNote, C_GOLD, 11);
+      Lab("title", x + 12, y + 8, "SLOI  "+g_feedNote+"  "+TimeToStr(TimeLocal(), TIME_MINUTES)+" лок", C_GOLD, 10);
       Btn("b_min", x + 260, y + 6, 32, 22, "+", C_GOLD);
       for(int i = 0; i < g_n; i++)
         {
