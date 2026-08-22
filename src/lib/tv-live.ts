@@ -30,7 +30,7 @@ async function rssClips(channelId: string): Promise<Clip[]> {
       if (seen.has(id)) continue;
       seen.add(id);
       out.push({ id, title: titles[i] ?? "Эфир" });
-      if (out.length >= 4) break;
+      if (out.length >= 2) break;
     }
     return out;
   } catch {

@@ -76,7 +76,7 @@ export function Studio({
   }, []);
 
   useEffect(() => {
-    const ms = channel.kind === "bumper" ? 8000 : channel.kind === "youtube" ? 180000 : 40000;
+    const ms = channel.kind === "bumper" ? 6000 : channel.kind === "youtube" ? 240000 : 40000;
     const t = window.setTimeout(() => {
       if (speakingRef.current && channel.kind === "reel") return;
       if (Date.now() < lockRef.current) return;

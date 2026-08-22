@@ -17,11 +17,31 @@ export interface TvChannel {
 
 export const RSS_NETS: TvChannel[] = [
   {
-    id: "euroru",
-    label: "Евроньюс",
+    id: "rbc",
+    label: "РБК Инвестиции",
     kind: "youtube",
-    channelId: "UCFzJjgVicCtFxJ5B0P_ei8A",
-    fallback: "j8z6woknGV8",
+    channelId: "UCD23js7wHnyG_yhimDMpLpg",
+    lang: "ru",
+  },
+  {
+    id: "bcs",
+    label: "БКС",
+    kind: "youtube",
+    channelId: "UCdUwDSicdhcU9N8iap4c4Ow",
+    lang: "ru",
+  },
+  {
+    id: "tinvest",
+    label: "Т-Инвест",
+    kind: "youtube",
+    channelId: "UCSoHzhlpiQeheYOMk2D6Nog",
+    lang: "ru",
+  },
+  {
+    id: "investfuture",
+    label: "InvestFuture",
+    kind: "youtube",
+    channelId: "UCQmYubm0bFtExa7Q9oHT6Rg",
     lang: "ru",
   },
   {
@@ -30,6 +50,14 @@ export const RSS_NETS: TvChannel[] = [
     kind: "youtube",
     channelId: "UCQdb0kgNp10fVlHWbkqKO8w",
     fallback: "QsUuwCsWpWc",
+    lang: "ru",
+  },
+  {
+    id: "euroru",
+    label: "Евроньюс",
+    kind: "youtube",
+    channelId: "UCFzJjgVicCtFxJ5B0P_ei8A",
+    fallback: "j8z6woknGV8",
     lang: "ru",
   },
 ];
@@ -71,7 +99,7 @@ export function weaveBumpers(list: TvChannel[]): TvChannel[] {
   const out: TvChannel[] = [];
   yt.forEach((c, i) => {
     out.push(c);
-    if (i % 2 === 1) out.push(bumperOf(i + 1));
+    if ((i + 1) % 4 === 0) out.push(bumperOf(i + 1));
   });
   out.push(...rest);
   return out;
