@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { getSymbol } from "./symbols";
 import type { DailyDigest } from "@/lib/digest";
-import type { NewsItem } from "@/lib/news";
+import type { NewsArticle, NewsItem } from "@/lib/news";
 import type { HomePayload } from "@/lib/home";
 import type { Candle, MarketPayload, Timeframe } from "./types";
 
@@ -439,7 +439,7 @@ async function buildHome(): Promise<HomePayload> {
   const { SYMBOLS } = await import("./symbols");
   const { marketArt } = await import("@/lib/art");
   const { parseRss, dedupeNews, newsImage, newsTag, slugOf } = await import("@/lib/news");
-  const { buildArticle } = await import("@/lib/news-article");
+  const { buildArticle, buildDeskArticles } = await import("@/lib/news-article");
   const timeframe: Timeframe = "1h";
   const queries = [
     "https://news.google.com/rss/search?q=%D0%B7%D0%BE%D0%BB%D0%BE%D1%82%D0%BE+%D1%86%D0%B5%D0%BD%D0%B0&hl=ru&gl=RU&ceid=RU:ru",
@@ -495,6 +495,14 @@ async function buildHome(): Promise<HomePayload> {
       };
     });
   }
-  const news = raw.map((item) => buildArticle(item, quotes)).filter((a) => a.title.length > 2);
+  const newsTape = raw.map((item) => buildArticle(item, quotes)).filter((a) => a.title.length > 2);
+  let desk: NewsArticle[] = [];
+  try {
+    const packed = await assembleDigest();
+    desk = buildDeskArticles(packed.digest.markets, quotes, packed.digest.fund.line);
+  } catch {
+    desk = [];
+  }
+  const news = [...desk, ...newsTape].filter((a, i, arr) => arr.findIndex((x) => x.slug === a.slug) === i);
   return { quotes, news, source: payloads[0]?.source ?? "demo" };
 }

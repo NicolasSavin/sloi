@@ -62,8 +62,15 @@ export function NewsBoard({ news }: { news: NewsArticle[] }) {
   return (
     <section className="px-4 pb-16 sm:px-6">
       <div className="mx-auto max-w-6xl">
-        <p className="font-mono text-xs tracking-[0.22em] text-accent">ЛЕНТА</p>
-        <h2 className="mt-2 text-3xl">Главные новости рынка</h2>
+        <div className="flex items-end justify-between gap-4">
+          <div>
+            <p className="font-mono text-xs tracking-[0.22em] text-accent">ЛЕНТА</p>
+            <h2 className="mt-2 text-3xl">Главные новости рынка</h2>
+          </div>
+          <Link to="/news" className="font-mono text-xs text-accent hover:text-fg">
+            Все новости
+          </Link>
+        </div>
         <div className="mt-6 grid gap-4">
           <NewsCard item={hero} variant="hero" />
           <div className="grid gap-4 lg:grid-cols-3">

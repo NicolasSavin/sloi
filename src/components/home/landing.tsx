@@ -31,6 +31,12 @@ export function Landing({ data }: { data: HomePayload }) {
               Диспетчер
             </Link>
             <Link
+              to="/news"
+              className="inline-flex h-11 items-center rounded-sm px-5 text-sm shadow-[var(--shadow-border)]"
+            >
+              Новости
+            </Link>
+            <Link
               to="/tv"
               className="inline-flex h-11 items-center rounded-sm px-5 text-sm shadow-[var(--shadow-border)]"
             >

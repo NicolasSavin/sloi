@@ -1,6 +1,8 @@
+import type { DigestMarket } from "@/lib/digest";
+import { marketArt } from "@/lib/art";
 import type { HomeQuote } from "@/lib/home";
-import { formatPct, formatPrice } from "@/lib/utils";
 import type { NewsArticle, NewsItem } from "@/lib/news";
+import { formatPct, formatPrice } from "@/lib/utils";
 
 const GLOSS: [RegExp, string][] = [
   [/Federal Reserve/gi, "ФРС"],
@@ -133,3 +135,66 @@ export function buildArticle(item: NewsItem, quotes: HomeQuote[]): NewsArticle {
     image: item.image,
   };
 }
+
+function deskHeadline(m: DigestMarket): string {
+  if (m.advice.action === "long") return `${m.spec.label}: крупняк набирает с дисконта`;
+  if (m.advice.action === "short") return `${m.spec.label}: премия, крупняк раздаёт`;
+  return `${m.spec.label}: пауза у края диапазона`;
+}
+
+export function buildDeskArticles(
+  markets: DigestMarket[],
+  quotes: HomeQuote[],
+  fundLine: string,
+): NewsArticle[] {
+  const ranked = [...markets].sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct));
+  const picks: DigestMarket[] = [];
+  for (const id of ["XAUUSD", "EURUSD", "USDJPY", "USOIL", "SPY"]) {
+    const hit = ranked.find((m) => m.spec.id === id);
+    if (hit) picks.push(hit);
+  }
+  for (const m of ranked) {
+    if (picks.length >= 6) break;
+    if (!picks.some((p) => p.spec.id === m.spec.id)) picks.push(m);
+  }
+  const now = new Date().toUTCString();
+  return picks.map((m) => {
+    const q = quotes.find((x) => x.id === m.spec.id);
+    const px = formatPrice(m.lastClose, m.spec.decimals);
+    const dir = m.changePct >= 0 ? "плюс" : "минус";
+    const title = deskHeadline(m);
+    const tape = q
+      ? `${q.label} сейчас ${formatPrice(q.price, q.decimals)}, за час ${dir} ${formatPct(Math.abs(q.changePct))}.`
+      : `${m.spec.label} на ${px}.`;
+    const doing = m.story.doing || m.story.now;
+    const waiting = m.story.waiting;
+    const leadsTo = m.story.leadsTo || m.story.means;
+    return {
+      id: `stol-${m.spec.id}`,
+      slug: `stol-${m.spec.id.toLowerCase()}`,
+      title,
+      source: "SLOI",
+      published: now,
+      originHref: "",
+      originTitle: title,
+      snippet: doing,
+      image: marketArt(m.spec.id),
+      tag: "Стол",
+      foreign: false,
+      dek: `Собственный разбор. Цена ${px}. ${fundLine}`,
+      body: [
+        doing,
+        tape,
+        waiting,
+        leadsTo,
+        fundLine ? `Фундамент дня: ${fundLine}` : "",
+        m.setup.entry && m.setup.stop
+          ? `Рабочие уровни: вход ${formatPrice(m.setup.entry, m.spec.decimals)}, стоп ${formatPrice(m.setup.stop, m.spec.decimals)}.`
+          : "Чистого входа нет — смотрим край диапазона, не тикер.",
+      ].filter(Boolean),
+      take: { doing, waiting, leadsTo },
+      relatedId: m.spec.id,
+    };
+  });
+}
+
