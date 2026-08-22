@@ -37,8 +37,14 @@ function Card({
       <div className="news-veil absolute inset-0" />
       <div className="absolute inset-0 flex flex-col p-5 sm:p-6">
         <span className="inline-flex w-fit rounded-sm bg-accent px-2 py-1 font-mono text-[10px] tracking-[0.16em] text-accent-fg">
-          {item.source === "SLOI" ? "СТОЛ SLOI" : item.foreign ? "ИНТЕРПРЕТАЦИЯ" : item.tag}
+          {item.tag}
         </span>
+        {item.impact ? (
+          <span className="mt-2 inline-flex w-fit rounded-sm bg-bg/70 px-2 py-1 font-mono text-[10px] tracking-[0.12em] text-accent">
+            {item.impact.pairLabel} · {item.impact.weight} ·{" "}
+            {item.impact.tone === "bull" ? "в плюс" : item.impact.tone === "bear" ? "в минус" : "нейтрально"}
+          </span>
+        ) : null}
         <div className="mt-auto">
           {quote ? (
             <div className="mb-3 flex items-end justify-between gap-3">
@@ -66,10 +72,8 @@ function Card({
 
 function NewsIndex() {
   const data = Route.useLoaderData();
-  const desk = data.news.filter((n) => n.source === "SLOI");
   const tape = data.news.filter((n) => n.source !== "SLOI");
-  const hero = desk[0] ?? tape[0];
-  const restDesk = desk.filter((n) => n.slug !== hero?.slug);
+  const hero = tape[0] ?? data.news[0];
   const q = (id: string | null) => data.quotes.find((x) => x.id === id);
 
   return (
@@ -77,10 +81,10 @@ function NewsIndex() {
       <AppNav />
       <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
         <p className="font-mono text-xs tracking-[0.22em] text-accent">НОВОСТИ</p>
-        <h1 className="mt-2 text-4xl sm:text-6xl">Стол пишет сам</h1>
+        <h1 className="mt-2 text-4xl sm:text-6xl">Фундамент из открытых лент</h1>
         <p className="mt-3 max-w-2xl text-sm text-muted">
-          Собственные короткие статьи по графику и общедоступной ленте. Не копипаст агентств — факт, цена, что делает
-          крупняк.
+          Google, BBC и деловые ленты. К каждой — оценка, на какой инструмент давит и насколько сильно. Это не аналитика
+          графика и не приказ.
         </p>
 
         {hero ? (
@@ -89,23 +93,11 @@ function NewsIndex() {
           </div>
         ) : null}
 
-        {restDesk.length ? (
+        {tape.length > 1 ? (
           <section className="mt-10">
-            <p className="font-mono text-xs tracking-[0.18em] text-accent">КОРОТКО С ГРАФИКА</p>
+            <p className="font-mono text-xs tracking-[0.18em] text-accent">ЛЕНТА</p>
             <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {restDesk.map((n) => (
-                <Card key={n.slug} item={n} quote={q(n.relatedId)} />
-              ))}
-            </div>
-          </section>
-        ) : null}
-
-        {tape.length ? (
-          <section className="mt-14">
-            <p className="font-mono text-xs tracking-[0.18em] text-accent">ЛЕНТА · ИНТЕРПРЕТАЦИЯ</p>
-            <h2 className="mt-2 text-2xl">Общедоступные новости</h2>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {tape.map((n) => (
+              {tape.slice(1).map((n) => (
                 <Card key={n.slug} item={n} quote={q(n.relatedId)} />
               ))}
             </div>

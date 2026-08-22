@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { getSymbol } from "./symbols";
 import type { DailyDigest } from "@/lib/digest";
-import type { NewsArticle, NewsItem } from "@/lib/news";
+import type { NewsItem } from "@/lib/news";
 import type { HomePayload } from "@/lib/home";
 import type { Candle, MarketPayload, Timeframe } from "./types";
 
@@ -443,12 +443,14 @@ async function buildHome(): Promise<HomePayload> {
   const { SYMBOLS } = await import("./symbols");
   const { marketArt } = await import("@/lib/art");
   const { parseRss, dedupeNews, newsImage, newsTag, slugOf } = await import("@/lib/news");
-  const { buildArticle, buildDeskArticles } = await import("@/lib/news-article");
+  const { buildArticle } = await import("@/lib/news-article");
   const timeframe: Timeframe = "1h";
   const queries = [
     "https://news.google.com/rss/search?q=%D0%B7%D0%BE%D0%BB%D0%BE%D1%82%D0%BE+%D1%86%D0%B5%D0%BD%D0%B0&hl=ru&gl=RU&ceid=RU:ru",
     "https://news.google.com/rss/search?q=%D0%B5%D0%B2%D1%80%D0%BE+%D0%B4%D0%BE%D0%BB%D0%BB%D0%B0%D1%80+%D0%BA%D1%83%D1%80%D1%81&hl=ru&gl=RU&ceid=RU:ru",
-    "https://news.google.com/rss/search?q=%D0%A4%D0%A0%D0%A1+%D1%81%D1%82%D0%B0%D0%B2%D0%BA%D0%B0&hl=ru&gl=RU&ceid=RU:ru",
+    "https://news.google.com/rss/search?q=%D0%A4%D0%A0%D0%A1+%D1%81%D1%82%D0%B0%D0%B2%D0%BA%D0%B0+%D0%B8%D0%BD%D1%84%D0%BB%D1%8F%D1%86%D0%B8%D1%8F&hl=ru&gl=RU&ceid=RU:ru",
+    "https://news.google.com/rss/search?q=%D0%BD%D0%B5%D1%84%D1%82%D1%8C+WTI+%D0%B1%D1%80%D0%B5%D0%BD%D1%82&hl=ru&gl=RU&ceid=RU:ru",
+    "https://news.google.com/rss/search?q=ECB+ECB+%D0%95%D0%A6%D0%91+%D1%81%D1%82%D0%B0%D0%B2%D0%BA%D0%B0&hl=ru&gl=RU&ceid=RU:ru",
     "https://feeds.bbci.co.uk/russian/business/rss.xml",
     "https://feeds.bbci.co.uk/news/business/rss.xml",
   ];
@@ -480,7 +482,7 @@ async function buildHome(): Promise<HomePayload> {
       if (list[i]) mixed.push(list[i]!);
     }
   }
-  let raw = dedupeNews(mixed, 8);
+  let raw = dedupeNews(mixed, 16);
   if (raw.length < 3) {
     raw = quotes.map((q) => {
       const title = `${q.label}: ${q.changePct >= 0 ? "плюс" : "минус"} ${Math.abs(q.changePct).toFixed(2)}% за час`;
@@ -499,14 +501,6 @@ async function buildHome(): Promise<HomePayload> {
       };
     });
   }
-  const newsTape = raw.map((item) => buildArticle(item, quotes)).filter((a) => a.title.length > 2);
-  let desk: NewsArticle[] = [];
-  try {
-    const packed = await assembleDigest();
-    desk = buildDeskArticles(packed.digest.markets, quotes, packed.digest.fund.line);
-  } catch {
-    desk = [];
-  }
-  const news = [...desk, ...newsTape].filter((a, i, arr) => arr.findIndex((x) => x.slug === a.slug) === i);
+  const news = raw.map((item) => buildArticle(item, quotes)).filter((a) => a.title.length > 2);
   return { quotes, news, source: payloads[0]?.source ?? "demo" };
 }

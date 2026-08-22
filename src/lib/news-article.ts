@@ -73,64 +73,90 @@ function tapeLine(q: HomeQuote | undefined): string {
   return `${q.label} сейчас ${formatPrice(q.price, q.decimals)}, за час ${dir} на ${formatPct(Math.abs(q.changePct))}.`;
 }
 
+function buildImpact(item: NewsItem, q: HomeQuote | undefined): NewsImpact {
+  const t = `${item.title} ${item.snippet}`.toLowerCase();
+  const pair = q?.id ?? "EURUSD";
+  const pairLabel = q?.label ?? "EUR/USD";
+  const hawk =
+    /повыш\w* ставк|ужесточ|жёстк|жестк|hawkish|rate hike|inflation (hot|high|surge)|инфляц\w* (выш|рост|разгон)|пауэлл.*не.*спеш|holds rates/.test(
+      t,
+    );
+  const dove =
+    /сниж\w* ставк|смягч|мягк|dovish|rate cut|pause|инфляц\w* (слаб|замед|пад)|пик инфляц/.test(t);
+  const goldish = /золот|gold|серебр|silver/.test(t);
+  const riskOn = /ралли|surge|record high|акци\w* рост|nasdaq.*рост/.test(t);
+  const riskOff = /страх|safe haven|обвал|slump|recess|риск.*off/.test(t);
+  const oil = /нефть|oil|opec|brent|wti/.test(t);
+
+  let tone: NewsImpact["tone"] = "neutral";
+  let weight: NewsImpact["weight"] = "умеренно";
+  let line = `Факт ленты касается ${pairLabel}. Пока это заголовок: смотрим реакцию цены, не открываем с тикера.`;
+
+  if (hawk) {
+    tone = pair === "XAUUSD" || pair === "EURUSD" || pair === "GBPUSD" ? "bear" : "bull";
+    weight = "сильно";
+    line = `Жёсткий тон по ставке. Доллар и доходности обычно в плюс, ${pairLabel} — под давлением, если это евро/золото. Вес: сильно.`;
+    if (pair === "USDJPY") line = `Жёсткая ставка. Доллар часто сильнее иены — ${pairLabel} может тянуть вверх. Вес: сильно.`;
+  } else if (dove) {
+    tone = pair === "XAUUSD" || pair === "EURUSD" || pair === "GBPUSD" ? "bull" : "bear";
+    weight = "сильно";
+    line = `Мягче по ставке. Металл и евро чаще в плюсе, доллар слабее. Для ${pairLabel} — поддержка риска. Вес: сильно.`;
+  } else if (goldish) {
+    tone = /рост|рекорд|выше|rally|surge/.test(t) ? "bull" : /пад|сниж|slump|drop/.test(t) ? "bear" : "neutral";
+    weight = "умеренно";
+    line = `Новость по металлу. На стол: ${pairLabel}. Это спрос на защиту или выход из доллара — не «покупай золото с заголовка». Вес: умеренно.`;
+  } else if (oil) {
+    tone = /рост|дорож|surge/.test(t) ? "bull" : "neutral";
+    weight = "умеренно";
+    line = `Нефть в ленте. Тянет инфляционные ожидания и рублёвые/канадские истории. Для ${pairLabel} — фон, не триггер. Вес: умеренно.`;
+  } else if (riskOn) {
+    tone = "bull";
+    weight = "умеренно";
+    line = `Риск в заголовках включён. Акции и йена-кэри чувствительны. ${pairLabel} может ехать вместе с аппетитом, пока не выбьют край. Вес: умеренно.`;
+  } else if (riskOff) {
+    tone = "bear";
+    weight = "сильно";
+    line = `Страх в ленте. Обычно доллар и йена, золото как убежище. ${pairLabel}: смотрим, не вытряхнули ли стопы. Вес: сильно.`;
+  }
+
+  return { pair, pairLabel, tone, weight, line };
+}
+
 export function buildArticle(item: NewsItem, quotes: HomeQuote[]): NewsArticle {
   const title = rusTitle(item);
   const q = relatedQuote(item, quotes);
   const tape = tapeLine(q);
   const foreign = item.foreign;
+  const impact = buildImpact(item, q);
 
-  const dek = foreign
-    ? `Иностранная публикация (${item.source}). Ниже — смысл по-русски и интерпретация SLOI: что это даёт крупняку.`
-    : `По мотивам ${item.source}. Коротко, что случилось и как это читает стол.`;
+  const dek = impact.line;
 
   const body: string[] = [];
-  if (foreign) {
-    body.push(
-      `Оригинал вышел на ${item.source}. Смысл ленты — ${title.toLowerCase()}. Мы не копируем чужой текст: берём факт и перекладываем его на уровни, которые видим сами.`,
-    );
-  } else {
-    body.push(
-      `${item.source} пишет: «${item.title}». Это не сигнал «покупай/продавай», а повод. Дальше — что из этого следует для цены.`,
-    );
-  }
+  body.push(
+    foreign
+      ? `${item.source} (оригинал на иностранном). Смысл: ${title || item.title}. Текст не копируем.`
+      : `${item.source}: «${item.title}».`,
+  );
+  if (item.snippet) body.push(item.snippet.slice(0, 420));
+  body.push(`Оценка влияния: ${impact.line}`);
   body.push(tape);
+  body.push(
+    "Это новость и оценка фона, не приказ. Сделку стол даёт отдельно, после сверки с графиком и брокером.",
+  );
 
-  if (item.tag === "Металлы") {
-    body.push(
-      "Когда в заголовках золото, крупняк обычно не «верит в металл», а прячет долларовый риск. Растут либо страх по ставке, либо дыры в балансе. Розница бежит в folie, институционал — в объёме на дисконте.",
-    );
-  } else if (item.tag === "Политика") {
-    body.push(
-      "Ставка и ФРС двигают не «новость», а цену денег. Если тон жёстче — доллар и доходности давят риск; если мягче — премия возвращается в евро, фунт и металл. Крупняк ждёт не слово, а реакцию DXY.",
-    );
-  } else if (item.tag === "Акции") {
-    body.push(
-      "По акциям смотрим не заголовок индекса, а кто забирает ликвидность на выбросах. Если розница радуется ралли, а премия уже сверху — это часто раздача, не вход.",
-    );
-  } else {
-    body.push(
-      "По валютам заголовок почти всегда про доллар. Пара — следствие. Сначала смотрим, кого вытряхнули за край диапазона, потом — вернулась ли цена в зону, где крупному выгодно набирать.",
-    );
-  }
-
-  const up = (q?.changePct ?? 0) >= 0;
   const take = {
-    doing: up
-      ? `На ${q?.label ?? "рынке"} цену уже тянут вверх. Крупняк, скорее, удерживает премию и смотрит, докупят ли за ним.`
-      : `На ${q?.label ?? "рынке"} час слабый. Это либо набор с дисконта, либо сдача слабым рукам — смотрим, кто остаётся в зоне.`,
-    waiting:
-      "Ждёт не сам заголовок, а подтверждение объёмом: удержат ли уровень после новости или вытряхнут стопы и вернут цену.",
-    leadsTo: up
-      ? "Если зона жива — заголовок станет поводом дожать ход. Если выбивают обратно — новость уже в цене, дальше пауза."
-      : "Если дисконт удерживают — новость дали, чтобы набрать. Если прокол без возврата — тезис ленты мёртв.",
+    doing: `Лента дала факт. По ${impact.pairLabel} тон ${impact.tone === "bull" ? "в пользу роста" : impact.tone === "bear" ? "в пользу снижения" : "нейтральный"}, вес — ${impact.weight}.`,
+    waiting: "Ждём, как цена примет заголовок: удержат уровень или вытряхнут край и вернут.",
+    leadsTo: impact.line,
   };
 
   return {
     ...item,
-    title,
+    title: title || item.title,
     dek,
     body,
     take,
+    impact,
     relatedId: q?.id ?? null,
     image: item.image,
   };
@@ -193,6 +219,13 @@ export function buildDeskArticles(
           : "Чистого входа нет — смотрим край диапазона, не тикер.",
       ].filter(Boolean),
       take: { doing, waiting, leadsTo },
+      impact: {
+        pair: m.spec.id,
+        pairLabel: m.spec.label,
+        tone: m.advice.action === "long" ? "bull" : m.advice.action === "short" ? "bear" : "neutral",
+        weight: "слабо",
+        line: "Это разбор графика, не новость ленты.",
+      },
       relatedId: m.spec.id,
     };
   });

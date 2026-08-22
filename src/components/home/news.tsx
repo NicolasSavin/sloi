@@ -31,8 +31,13 @@ function NewsCard({
       <div className="news-veil absolute inset-0" />
       <div className="absolute inset-0 flex flex-col p-4 sm:p-6">
         <span className="inline-flex w-fit rounded-sm bg-accent px-2 py-1 font-mono text-xs tracking-[0.16em] text-accent-fg">
-          {item.foreign ? "Интерпретация" : item.tag}
+          {item.tag}
         </span>
+        {item.impact ? (
+          <span className="mt-2 inline-flex w-fit max-w-[90%] rounded-sm bg-bg/70 px-2 py-1 font-mono text-[10px] text-accent">
+            {item.impact.pairLabel} · {item.impact.weight}
+          </span>
+        ) : null}
         <div className="mt-auto max-w-3xl">
           <p className="font-mono text-xs text-accent">
             {item.source}
@@ -65,7 +70,7 @@ export function NewsBoard({ news }: { news: NewsArticle[] }) {
         <div className="flex items-end justify-between gap-4">
           <div>
             <p className="font-mono text-xs tracking-[0.22em] text-accent">ЛЕНТА</p>
-            <h2 className="mt-2 text-3xl">Главные новости рынка</h2>
+            <h2 className="mt-2 text-3xl">Фундаментальные новости</h2>
           </div>
           <Link to="/news" className="font-mono text-xs text-accent hover:text-fg">
             Все новости

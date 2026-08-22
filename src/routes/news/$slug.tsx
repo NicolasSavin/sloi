@@ -60,6 +60,16 @@ function NewsPage() {
         </header>
 
         <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6 sm:py-14">
+          {article.impact ? (
+            <section className="panel-volume mb-10 rounded-xl p-5 sm:p-8">
+              <p className="font-mono text-xs tracking-[0.22em] text-accent">ОЦЕНКА ВЛИЯНИЯ</p>
+              <p className="mt-2 text-2xl">
+                {article.impact.pairLabel}: {article.impact.weight},{" "}
+                {article.impact.tone === "bull" ? "в плюс" : article.impact.tone === "bear" ? "в минус" : "нейтрально"}
+              </p>
+              <p className="mt-3 text-base leading-relaxed text-muted">{article.impact.line}</p>
+            </section>
+          ) : null}
           {article.body.map((p) => (
             <p key={p.slice(0, 40)} className="mt-5 text-base leading-relaxed first:mt-0">
               {p}
@@ -68,7 +78,7 @@ function NewsPage() {
 
           <section className="panel-volume mt-10 rounded-xl p-5 sm:p-8">
             <p className="font-mono text-xs tracking-[0.22em] text-accent">КАК ЧИТАЕТ SLOI</p>
-            <h2 className="mt-2 text-2xl">Что делает крупняк</h2>
+            <h2 className="mt-2 text-2xl">Что это значит для рынка</h2>
             <dl className="mt-6 space-y-5">
               <div>
                 <dt className="font-mono text-xs text-dim">делает</dt>

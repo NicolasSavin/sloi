@@ -18,11 +18,21 @@ export interface NewsTake {
   leadsTo: string;
 }
 
+export interface NewsImpact {
+  pair: string;
+  pairLabel: string;
+  tone: "bull" | "bear" | "neutral";
+  weight: "сильно" | "умеренно" | "слабо";
+  line: string;
+}
+
 export interface NewsArticle extends NewsItem {
   dek: string;
   body: string[];
   take: NewsTake;
+  impact: NewsImpact;
   relatedId: string | null;
+}
 }
 
 const SKIP =
