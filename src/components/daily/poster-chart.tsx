@@ -24,7 +24,7 @@ export function PosterChart({ chart, bias }: { chart: LeadChart; bias: "bull" | 
   const last = candles.at(-1)!;
   const cw = Math.max(4, innerW / candles.length - 2.4);
 
-  const wanted = ["вход", "стоп", "EQ", "верх", "низ"];
+  const wanted = ["вход", "стоп", "EQ", "0.62", "0.79", "верх", "низ"];
   const labels = chart.levels
     .filter((lv) => wanted.includes(lv.name))
     .sort((a, b) => b.price - a.price)

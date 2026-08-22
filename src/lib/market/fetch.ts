@@ -410,6 +410,17 @@ export const fetchHome = createServerFn({ method: "GET" }).handler(async () => {
   return loadHome();
 });
 
+export const fetchCalendar = createServerFn({ method: "GET" }).handler(async () => {
+  const { parseFfCalendar, buildHalt, EMPTY_HALT } = await import("@/lib/calendar");
+  const { sessionNow } = await import("@/lib/sessions");
+  const xml = await loadCalendarXml();
+  const events = xml ? parseFfCalendar(xml) : [];
+  const halt = xml ? buildHalt(events) : EMPTY_HALT;
+  const now = Date.now();
+  const upcoming = events.filter((e) => e.at > now - 60 * 60_000).slice(0, 24);
+  return { events: upcoming, halt, session: sessionNow() };
+});
+
 let tvGuideCache: { at: number; data: Awaited<ReturnType<typeof import("@/lib/tv-live").resolveTvChannels>> } | null =
   null;
 

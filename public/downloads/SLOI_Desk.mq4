@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.06"
+#property version   "4.07"
 #property strict
-#property description "Сделки сайта. Спред и сверка котировок с брокером."
+#property description "Сверка Yahoo vs брокер на КАЖДОЙ паре. Приказ только если близко."
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  WatchList       = "EURUSD,GBPUSD,USDJPY,USDCHF,AUDUSD,USDCAD,NZDUSD,EURJPY,GBPJPY,XAUUSD,XAGUSD,USOIL";
@@ -78,7 +78,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.06: Yahoo vs брокер. Приказ только если котировки близки (MaxSkewPct).");
+   Print("SLOI 4.07: колонка Δ — расхождение Yahoo и брокера. КОТИР = не открывать.");
    return(INIT_SUCCEEDED);
   }
 
@@ -303,6 +303,7 @@ void ReadSite(string naked, int &dir, double &entry, double &stop, double &targe
          target = StringToDouble(p[4]);
         }
       if(k >= 6) siteLast = StringToDouble(p[5]);
+      else if(target > 0 && entry <= 0) siteLast = target;
       if(side == "BUY") { dir = 1; verdict = "ЛОНГ"; why = "сайт"; return; }
       if(side == "SELL") { dir = -1; verdict = "ШОРТ"; why = "сайт"; return; }
       dir = 0; verdict = "ЖДАТЬ"; why = "сайт ждёт";
@@ -322,6 +323,7 @@ void Scan(int idx, string &bias, string &verdict, string &why,
    bias = "сайт";
    ReadSite(Naked(s), dir, entry, stop, target, siteLast, verdict, why);
    double mid = (BidOf(s) + AskOf(s)) * 0.5;
+   if(siteLast <= 0 && entry > 0) siteLast = entry;
    if(siteLast > 0 && mid > 0)
      {
       double skew = MathAbs(mid - siteLast) / siteLast * 100.0;
@@ -332,9 +334,19 @@ void Scan(int idx, string &bias, string &verdict, string &why,
         {
          dir = 0;
          verdict = "КОТИР";
-         why = "Yahoo "+Px(s, siteLast);
+         why = "Δ"+bias+" брок "+Px(s, mid);
          return;
         }
+      if(dir == 0)
+        {
+         why = (StringLen(why) ? why+" · " : "") + "Δ"+bias;
+         return;
+        }
+     }
+   else
+     {
+      bias = "нет last";
+      if(dir == 0) { why = why+" · нет Yahoo"; return; }
      }
    if(dir == 0) return;
    if(spPts > g_maxSp) { dir = 0; verdict = "СПРЕД"; why = IntegerToString(spPts)+"п"; return; }

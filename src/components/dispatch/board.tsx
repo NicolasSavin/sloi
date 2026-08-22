@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { SignalBook, StatsLink, StatsStrip } from "@/components/dispatch/book";
 import { FundStrip } from "@/components/fund-strip";
+import { SessionStrip } from "@/components/session-strip";
 import { LiveShot } from "@/components/live-shot";
 import { AppNav } from "@/components/app-nav";
 import { Badge } from "@/components/ui/badge";
@@ -43,7 +44,10 @@ export function DispatchBoard() {
           сверху всплывает карточка. Терминал MT4 не нужен: диспетчер работает в браузере.
         </p>
 
-        <div className="mt-8 flex flex-wrap gap-2">
+        <div className="mt-8">
+          <SessionStrip />
+        </div>
+        <div className="mt-6 flex flex-wrap gap-2">
           <Button
             onClick={() => {
               unlockSound();

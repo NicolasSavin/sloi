@@ -200,7 +200,23 @@ export function levelsFromSnap(snap: SmcSnapshot, decimals: number): ChartLevel[
   const px = (n: number) => formatPrice(n, decimals);
   const rows: ChartLevel[] = [
     { id: "high", name: "верх", price: snap.dealingRange.high, priceLabel: px(snap.dealingRange.high), hint: "край диапазона", tone: "bear" },
-    { id: "eq", name: "EQ", price: snap.dealingRange.eq, priceLabel: px(snap.dealingRange.eq), hint: "середина / первая цель", tone: "neutral" },
+    { id: "eq", name: "EQ", price: snap.dealingRange.eq, priceLabel: px(snap.dealingRange.eq), hint: "середина / Fib 0.5", tone: "neutral" },
+    {
+      id: "fib62",
+      name: "0.62",
+      price: snap.dealingRange.high - (snap.dealingRange.high - snap.dealingRange.low) * 0.618,
+      priceLabel: px(snap.dealingRange.high - (snap.dealingRange.high - snap.dealingRange.low) * 0.618),
+      hint: "Fib 0.618 — начало OTE, линейка свинга",
+      tone: "bull",
+    },
+    {
+      id: "fib79",
+      name: "0.79",
+      price: snap.dealingRange.high - (snap.dealingRange.high - snap.dealingRange.low) * 0.786,
+      priceLabel: px(snap.dealingRange.high - (snap.dealingRange.high - snap.dealingRange.low) * 0.786),
+      hint: "Fib 0.786 — глубокий OTE",
+      tone: "bull",
+    },
     {
       id: "m-up",
       name: "маржа верх",
@@ -487,6 +503,11 @@ export function buildPoster(lead: DigestMarket, snap: SmcSnapshot, date: string)
           { icon: "🛡", label: "SL / TP", value: `${short.sl} → ${short.tp1} / ${short.tp2}` },
           { icon: "🐂", label: long.priority ? "LONG приоритет" : "LONG контртренд", value: `вход ${long.entry}` },
           { icon: "📌", label: "EQ / края", value: `${px(snap.dealingRange.low)} · ${px(snap.dealingRange.eq)} · ${px(snap.dealingRange.high)}` },
+          {
+            icon: "📏",
+            label: "Fib 0.62 / 0.79",
+            value: `${px(snap.dealingRange.high - (snap.dealingRange.high - snap.dealingRange.low) * 0.618)} · ${px(snap.dealingRange.high - (snap.dealingRange.high - snap.dealingRange.low) * 0.786)}`,
+          },
         ],
         footer: lead.advice.therefore,
       },

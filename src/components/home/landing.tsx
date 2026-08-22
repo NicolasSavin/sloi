@@ -3,6 +3,7 @@ import { AppNav } from "@/components/app-nav";
 import { NewsBoard } from "@/components/home/news";
 import { QuoteBoard } from "@/components/home/quotes";
 import { Ticker } from "@/components/home/ticker";
+import { SessionStrip } from "@/components/session-strip";
 import { DOMAIN } from "@/lib/brand";
 import type { HomePayload } from "@/lib/home";
 
@@ -11,6 +12,9 @@ export function Landing({ data }: { data: HomePayload }) {
     <div className="min-h-dvh">
       <AppNav />
       <Ticker quotes={data.quotes} />
+      <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+        <SessionStrip />
+      </div>
       <section className="relative overflow-hidden">
         <img src="/art/strata.jpg" alt="" className="absolute inset-0 h-full w-full object-cover opacity-40" />
         <div className="absolute inset-0 bg-gradient-to-r from-bg via-bg/75 to-bg/30" />
