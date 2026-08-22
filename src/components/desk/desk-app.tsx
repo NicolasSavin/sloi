@@ -21,6 +21,7 @@ import { useDeskStore, type OverlayFlags } from "@/lib/desk-store";
 import { loadJournal, saveJournal, type JournalEntry } from "@/lib/journal";
 import type { MarketPayload } from "@/lib/market/types";
 import { KIND_LABEL, SYMBOLS, TIMEFRAMES, getSymbol } from "@/lib/market/symbols";
+import { sessionNow } from "@/lib/sessions";
 import { playSignal, unlockSound } from "@/lib/sound";
 import { analyzeMarket, compactForAi, type SmcSnapshot } from "@/lib/smc/engine";
 import { cn, formatPct, formatPrice } from "@/lib/utils";
@@ -120,7 +121,13 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
   const advice = useMemo(() => {
     if (!snap) return null;
     const raw = advise(snap, spec, spreads[spec.id] ?? spec.spread);
-    return fund ? gateAdvice(raw, windFor(spec.id, fund), fund.halt) : raw;
+    return fund
+      ? gateAdvice(raw, windFor(spec.id, fund), fund.halt, {
+          id: spec.id,
+          session: sessionNow(),
+          entry: snap.localSetup.entry ?? undefined,
+        })
+      : raw;
   }, [snap, spec, spreads, fund]);
 
   useEffect(() => {

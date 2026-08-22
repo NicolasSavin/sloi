@@ -1,3 +1,6 @@
+import { refineAdvice } from "@/lib/execution";
+import type { SessionSnap } from "@/lib/sessions";
+import type { Candle } from "@/lib/market/types";
 import type { CotSnap } from "@/lib/cot";
 import { EMPTY_COT, cotFor } from "@/lib/cot";
 import type { Advice } from "@/lib/advisor";
@@ -293,37 +296,43 @@ export function windFor(symbolId: string, fund: FundamentalSnap): FundWind {
   return { kind: wanted === "flat" ? "cross" : kind, wanted, note };
 }
 
-export function gateAdvice(advice: Advice, wind: FundWind, halt?: NewsHalt): Advice {
-  if (halt?.active) {
+export function gateAdvice(
+  advice: Advice,
+  wind: FundWind,
+  halt?: NewsHalt,
+  ctx?: { id: string; session?: SessionSnap | null; h1?: Candle[]; entry?: number },
+): Advice {
+  const base = ctx?.id ? refineAdvice(advice, { id: ctx.id, halt, session: ctx.session, h1: ctx.h1, entry: ctx.entry }) : advice;
+  if (halt?.active && !ctx?.id) {
     return {
-      ...advice,
+      ...base,
       action: "wait",
       title: "Стоп: крупная новость",
       therefore: halt.line,
     };
   }
-  if (advice.action !== "long" && advice.action !== "short") {
-    return { ...advice, therefore: `${advice.therefore} ${wind.note}` };
+  if (base.action !== "long" && base.action !== "short") {
+    return { ...base, therefore: `${base.therefore} ${wind.note}` };
   }
   const against =
-    (advice.action === "long" && wind.wanted === "down") ||
-    (advice.action === "short" && wind.wanted === "up");
+    (base.action === "long" && wind.wanted === "down") ||
+    (base.action === "short" && wind.wanted === "up");
   if (against) {
     return {
-      ...advice,
+      ...base,
       action: "wait",
       title: "Ждать: фундамент против структуры",
-      therefore: `Техника даёт ${advice.action === "long" ? "лонг" : "шорт"}, но ${wind.note} Сигнал не открываем, пока макро не совпадёт с зоной.`,
+      therefore: `Техника даёт ${base.action === "long" ? "лонг" : "шорт"}, но ${wind.note} Сигнал не открываем, пока макро не совпадёт с зоной.`,
     };
   }
   const withWind =
-    (advice.action === "long" && wind.wanted === "up") ||
-    (advice.action === "short" && wind.wanted === "down");
+    (base.action === "long" && wind.wanted === "up") ||
+    (base.action === "short" && wind.wanted === "down");
   return {
-    ...advice,
+    ...base,
     therefore: withWind
-      ? `${advice.therefore} Фундамент попутный.`
-      : `${advice.therefore} ${wind.note}`,
+      ? `${base.therefore} Макро попутный.`
+      : `${base.therefore} ${wind.note}`,
   };
 }
 

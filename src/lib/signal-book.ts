@@ -98,6 +98,7 @@ export interface SignalStats {
   winRate: number | null;
   avgR: number | null;
   bySymbol: { id: string; label: string; wins: number; losses: number; open: number }[];
+  byReason: { id: string; n: number }[];
 }
 
 export function bookStats(log: SignalHit[]): SignalStats {
@@ -126,6 +127,13 @@ export function bookStats(log: SignalHit[]): SignalStats {
     winRate: decided ? wins / decided : null,
     avgR: rs.length ? rs.reduce((a, b) => a + b, 0) / rs.length : null,
     bySymbol: [...by.values()].sort((a, b) => b.wins + b.losses + b.open - (a.wins + a.losses + a.open)),
+    byReason: [
+      { id: "цель", n: wins },
+      { id: "стоп", n: losses },
+      { id: "новость", n: halted },
+      { id: "разворот / не состоялся", n: other },
+      { id: "открыт", n: open },
+    ],
   };
 }
 

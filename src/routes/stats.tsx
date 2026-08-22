@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppNav } from "@/components/app-nav";
-import { SignalBook, StatsByPair, StatsStrip } from "@/components/dispatch/book";
+import { SignalBook, StatsByPair, StatsByReason, StatsStrip } from "@/components/dispatch/book";
 import { useDispatchStore } from "@/lib/dispatch-store";
 
 export const Route = createFileRoute("/stats")({
@@ -23,6 +23,7 @@ function StatsPage() {
           <StatsStrip log={log} />
         </div>
         <StatsByPair log={log} />
+        <StatsByReason log={log} />
         <section className="mt-12">
           <p className="font-mono text-xs tracking-[0.18em] text-accent">АРХИВ</p>
           <SignalBook log={log} />

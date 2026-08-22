@@ -322,7 +322,7 @@ async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }
   const { SYMBOLS, DIGEST_IDS } = await import("./symbols");
   const timeframe: Timeframe = "4h";
   const digestSpecs = SYMBOLS.filter((s) => DIGEST_IDS.includes(s.id));
-  const [payloads, vix, dxy, tnx, fedXml, calXml, cl, es, nq, zn, tgHtml, cot] = await Promise.all([
+  const [payloads, vix, dxy, tnx, fedXml, calXml, cl, es, nq, zn, tgHtml, cot, h1s] = await Promise.all([
     Promise.all(digestSpecs.map((s) => loadPayload(s.id, timeframe))),
     lastMove("^VIX"),
     lastMove("DX-Y.NYB"),
@@ -338,6 +338,7 @@ async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }
     lastMove("ZN=F"),
     getText("https://t.me/s/Options_FX", 4500),
     import("@/lib/cot").then((m) => m.loadCot()),
+    Promise.all(digestSpecs.map((s) => loadPayload(s.id, "1h", false))),
   ]);
   const headlines = fedXml ? parseRss(fedXml).map((n) => n.title) : [];
   const halt = calXml ? buildHalt(parseFfCalendar(calXml)) : EMPTY_HALT;
@@ -346,6 +347,9 @@ async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }
     const snap = analyzeMarket(p.candles, p.options, p.trades);
     return { spec, snap, candles: p.candles, market: toDigestMarket(spec, snap, spec.spread, p.candles.at(-1)) };
   });
+  const { sessionNow } = await import("@/lib/sessions");
+  const session = sessionNow();
+  const h1map = new Map(h1s.map((p) => [p.symbol, p.candles]));
   const dxySnap = dxy ?? (await lastMove("DX=F"));
   const sentiment = buildSentiment({
     vix,
@@ -369,7 +373,16 @@ async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }
   });
   const markets = rows.map((r) => {
     const wind = windFor(r.spec.id, fund);
-    return { ...r.market, wind, advice: gateAdvice(r.market.advice, wind, fund.halt) };
+    return {
+      ...r.market,
+      wind,
+      advice: gateAdvice(r.market.advice, wind, fund.halt, {
+        id: r.spec.id,
+        session,
+        h1: h1map.get(r.spec.id),
+        entry: r.market.setup.entry ?? undefined,
+      }),
+    };
   });
   const leadMarket = pickLead(markets);
   const leadRow = rows.find((r) => r.spec.id === leadMarket.spec.id) ?? rows[0]!;
@@ -394,16 +407,20 @@ async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }
 export async function renderSignalFeed() {
   const { digest } = await assembleDigest();
   const { brokerSkewPct } = await import("@/lib/broker-tape");
-  const lines = [`# SLOI v1`, `# ${new Date().toISOString()}`, `# last = цена Yahoo; приказ если брокер близко`];
+  const { skewLimit, fillMode } = await import("@/lib/execution");
+  const lines = [`# SLOI v2`, `# ${new Date().toISOString()}`, `# last=Yahoo  SKEW=макс%  MODE=LIMIT|MARKET`];
   for (const m of digest.markets) {
     let side = m.advice.action === "long" ? "BUY" : m.advice.action === "short" ? "SELL" : "WAIT";
     const last = m.lastClose;
+    const cap = skewLimit(m.spec.id);
     const skew = brokerSkewPct(m.spec.id, last);
-    if (skew != null && skew > 0.12 && side !== "WAIT") side = "WAIT";
+    if (skew != null && skew > cap && side !== "WAIT") side = "WAIT";
     const e = m.setup.entry ?? 0;
     const s = m.setup.stop ?? 0;
     const t = m.setup.targets[0] ?? 0;
-    lines.push(`${m.spec.id} ${side} ${e} ${s} ${t} ${last}`);
+    const mode =
+      side === "WAIT" ? "WAIT" : fillMode(side === "BUY" ? "long" : "short", last, e, s);
+    lines.push(`${m.spec.id} ${side} ${e} ${s} ${t} ${last} SKEW ${cap} MODE ${mode}`);
   }
   return `${lines.join("\n")}\n`;
 }

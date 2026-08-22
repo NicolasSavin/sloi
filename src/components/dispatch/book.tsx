@@ -67,6 +67,24 @@ export function SignalBook({ log }: { log: SignalHit[] }) {
   );
 }
 
+export function StatsByReason({ log }: { log: SignalHit[] }) {
+  const rows = bookStats(log).byReason.filter((r) => r.n > 0);
+  if (!rows.length) return null;
+  return (
+    <div className="mt-8">
+      <p className="font-mono text-xs tracking-[0.18em] text-accent">ПО ПРИЧИНЕ ВЫХОДА</p>
+      <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+        {rows.map((r) => (
+          <li key={r.id} className="panel-volume flex items-center justify-between rounded-lg px-4 py-3 text-sm">
+            <span>{r.id}</span>
+            <span className="font-mono text-xs text-dim">{r.n}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export function StatsByPair({ log }: { log: SignalHit[] }) {
   const rows = bookStats(log).bySymbol;
   if (!rows.length) return null;

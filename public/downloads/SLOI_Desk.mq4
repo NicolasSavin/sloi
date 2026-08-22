@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.13"
+#property version   "4.14"
 #property strict
 #property description "Клик по паре открывает график. На графике — уровни сайта и FVG (не приказ)."
 
@@ -33,6 +33,8 @@ string   g_sym[];
 int      g_n;
 string   g_lastKey[MAXSYM];
 datetime g_lastBar[MAXSYM];
+string   g_prevV[MAXSYM];
+int      g_lim[MAXSYM];
 
 string g_watch;
 string g_suffix;
@@ -79,7 +81,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.13: [—] сворачивает панель, [+] раскрывает. Сделки с сайта идут и свёрнутой.");
+   Print("SLOI 4.14: лимитка в зоне, сверка по паре, BE после 1R, алерт когда WAIT снялся.");
    return(INIT_SUCCEEDED);
   }
 
@@ -276,6 +278,7 @@ void ParseWatch()
       ArrayResize(g_sym, g_n + 1);
       g_sym[g_n] = s;
       g_lastKey[g_n] = "";
+      g_prevV[g_n] = "";
       g_lastBar[g_n] = 0;
       g_n++;
      }
@@ -388,9 +391,9 @@ void PushTape()
    WebRequest("POST", url, hdr, 8000, data, result, rh);
   }
 
-void ReadSite(string naked, int &dir, double &entry, double &stop, double &target, double &siteLast, string &verdict, string &why)
+void ReadSite(string naked, int &dir, double &entry, double &stop, double &target, double &siteLast, string &verdict, string &why, double &skewCap, int &lim)
   {
-   dir = 0; entry = 0; stop = 0; target = 0; siteLast = 0;
+   dir = 0; entry = 0; stop = 0; target = 0; siteLast = 0; skewCap = 0; lim = 0;
    verdict = "ЖДАТЬ";
    why = g_feedNote;
    if(StringLen(g_feed) < 4) { why = "нет сайта"; return; }
@@ -414,13 +417,28 @@ void ReadSite(string naked, int &dir, double &entry, double &stop, double &targe
          target = StringToDouble(p[4]);
         }
       if(k >= 6) siteLast = StringToDouble(p[5]);
-      else if(target > 0 && entry <= 0) siteLast = target;
+      for(int t = 6; t < k - 1; t++)
+        {
+         if(p[t] == "SKEW") skewCap = StringToDouble(p[t + 1]);
+         if(p[t] == "MODE" && p[t + 1] == "LIMIT") lim = 1;
+        }
       if(side == "BUY") { dir = 1; verdict = "ЛОНГ"; why = "сайт"; return; }
       if(side == "SELL") { dir = -1; verdict = "ШОРТ"; why = "сайт"; return; }
       dir = 0; verdict = "ЖДАТЬ"; why = "сайт ждёт";
       return;
      }
    why = "нет в ленте";
+  }
+
+double SkewCap(string n, double fromFeed)
+  {
+   if(fromFeed > 0) return(fromFeed);
+   if(n == "XAUUSD") return(0.35);
+   if(n == "XAGUSD") return(0.40);
+   if(n == "USOIL") return(0.30);
+   if(StringFind(n, "JPY") >= 0) return(0.15);
+   if(n == "EURUSD" || n == "GBPUSD" || n == "USDCHF" || n == "AUDUSD" || n == "USDCAD" || n == "NZDUSD") return(0.08);
+   return(g_skew);
   }
 
 void Scan(int idx, string &bias, string &verdict, string &why,
@@ -431,21 +449,23 @@ void Scan(int idx, string &bias, string &verdict, string &why,
    double spread = SpreadPr(s);
    dir = 0; entry = 0; stop = 0; target = 0;
    double siteLast = 0;
+   double skewFeed = 0;
+   int lim = 0;
    bias = "сайт";
-   ReadSite(Naked(s), dir, entry, stop, target, siteLast, verdict, why);
+   ReadSite(Naked(s), dir, entry, stop, target, siteLast, verdict, why, skewFeed, lim);
+   g_lim[idx] = lim;
    double mid = (BidOf(s) + AskOf(s)) * 0.5;
    if(siteLast <= 0 && entry > 0) siteLast = entry;
    if(siteLast > 0 && mid > 0)
      {
       double skew = MathAbs(mid - siteLast) / siteLast * 100.0;
       bias = DoubleToStr(skew, 2) + "%";
-      double lim = g_skew;
-      if(DigitsOf(s) <= 3) lim = g_skew * 1.4;
-      if(dir != 0 && skew > lim)
+      double limSkew = SkewCap(Naked(s), skewFeed);
+      if(dir != 0 && skew > limSkew)
         {
          dir = 0;
          verdict = "КОТИР";
-         why = bias+" брок "+Px(s, mid);
+         why = bias+" > "+DoubleToStr(limSkew, 2)+"%";
          return;
         }
       if(dir == 0)
@@ -476,15 +496,23 @@ void Scan(int idx, string &bias, string &verdict, string &why,
    why = "сверка "+bias+" RR "+DoubleToStr(rr, 1);
   }
 
-void MaybeTrade(int idx, int dir, double stop, double target, string verdict, int spPts)
+void MaybeTrade(int idx, int dir, double entry, double stop, double target, string verdict, int spPts)
   {
    string s = g_sym[idx];
+   bool nowGo = (verdict == "ЛОНГ" || verdict == "ШОРТ");
+   bool wasWait = (g_prevV[idx] != "" && g_prevV[idx] != "ЛОНГ" && g_prevV[idx] != "ШОРТ");
+   if(g_alerts && wasWait && nowGo)
+     {
+      Alert("SLOI WAIT снят ", s, " ", verdict);
+      PlaySound("alert.wav");
+     }
+   g_prevV[idx] = verdict;
    datetime bar = iTime(s, g_tf, 0);
    string key = s + verdict + TimeToStr(bar, TIME_DATE|TIME_MINUTES);
    if(key == g_lastKey[idx]) return;
    g_lastKey[idx] = key;
    if(dir == 0) return;
-   if(g_alerts) {
+   if(g_alerts && !wasWait) {
      Alert("SLOI ", s, " ", verdict, " ", IntegerToString(spPts), "pt");
      PlaySound("alert.wav");
    }
@@ -492,11 +520,46 @@ void MaybeTrade(int idx, int dir, double stop, double target, string verdict, in
    if(OneTradeOnly > 0 && CountMine(s) >= OneTradeOnly) return;
    RefreshRates();
    int digits = DigitsOf(s);
-   double px = (dir > 0 ? AskOf(s) : BidOf(s));
-   int ticket = OrderSend(s, dir > 0 ? OP_BUY : OP_SELL, g_lots, px, SlippagePoints,
+   int cmd = dir > 0 ? OP_BUY : OP_SELL;
+   double px = dir > 0 ? AskOf(s) : BidOf(s);
+   if(g_lim[idx] > 0 && entry > 0)
+     {
+      double zone = MathAbs(entry - stop) * 0.3;
+      if(dir > 0 && AskOf(s) > entry + zone) { cmd = OP_BUYLIMIT; px = NormalizeDouble(entry, digits); }
+      if(dir < 0 && BidOf(s) < entry - zone) { cmd = OP_SELLLIMIT; px = NormalizeDouble(entry, digits); }
+     }
+   int ticket = OrderSend(s, cmd, g_lots, px, SlippagePoints,
                           NormalizeDouble(stop, digits), NormalizeDouble(target, digits),
                           "SLOI", Magic, 0, dir > 0 ? C_BUY : C_SEL);
    if(ticket < 0) Print("SLOI ", s, " err ", GetLastError());
+  }
+
+void ManageBE()
+  {
+   for(int i = OrdersTotal() - 1; i >= 0; i--)
+     {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
+      if(OrderMagicNumber() != Magic) continue;
+      int type = OrderType();
+      if(type != OP_BUY && type != OP_SELL) continue;
+      double open = OrderOpenPrice();
+      double sl = OrderStopLoss();
+      double tp = OrderTakeProfit();
+      double risk = MathAbs(open - sl);
+      if(risk <= 0) continue;
+      string s = OrderSymbol();
+      int digits = DigitsOf(s);
+      if(type == OP_BUY && BidOf(s) - open >= risk)
+        {
+         double be = NormalizeDouble(open + SpreadPr(s), digits);
+         if(sl < be) OrderModify(OrderTicket(), open, be, tp, 0, C_GOLD);
+        }
+      if(type == OP_SELL && open - AskOf(s) >= risk)
+        {
+         double be = NormalizeDouble(open - SpreadPr(s), digits);
+         if(sl == 0 || sl > be) OrderModify(OrderTicket(), open, be, tp, 0, C_GOLD);
+        }
+     }
   }
 
 void Wipe()
@@ -620,8 +683,9 @@ void DrawDesk()
          int dir = 0, spPts = 0;
          double entry = 0, stop = 0, target = 0;
          Scan(i, bias, verdict, why, dir, entry, stop, target, spPts);
-         MaybeTrade(i, dir, stop, target, verdict, spPts);
+         MaybeTrade(i, dir, entry, stop, target, verdict, spPts);
         }
+      ManageBE();
       DrawSmcOnChart();
       ChartRedraw();
       return;
@@ -680,7 +744,7 @@ void DrawDesk()
       int dir = 0, spPts = 0;
       double entry = 0, stop = 0, target = 0;
       Scan(i, bias, verdict, why, dir, entry, stop, target, spPts);
-      MaybeTrade(i, dir, stop, target, verdict, spPts);
+      MaybeTrade(i, dir, entry, stop, target, verdict, spPts);
 
       int ry = y + setH + head + i * rowH;
       Rect("r"+IntegerToString(i), x + 8, ry - 2, w - 16, rowH - 2, C_BOX);
@@ -698,6 +762,7 @@ void DrawDesk()
       while(StringLen(s) < 10) { s = s + " "; }
       cmt += "  " + IntegerToString(spPts) + "п  " + bias + "  " + verdict + "  " + why + "\n";
      }
+   ManageBE();
    DrawSmcOnChart();
    ChartRedraw();
   }
