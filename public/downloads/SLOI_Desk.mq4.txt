@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.14"
+#property version   "4.15"
 #property strict
-#property description "Клик по паре открывает график. На графике — уровни сайта и FVG (не приказ)."
+#property description "На графике: VWAP, профиль, футпринт бара, infusion/splash, Bid/Ask."
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  WatchList       = "EURUSD,GBPUSD,USDJPY,USDCHF,AUDUSD,USDCAD,NZDUSD,EURJPY,GBPJPY,XAUUSD,XAGUSD,USOIL";
@@ -81,7 +81,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.14: лимитка в зоне, сверка по паре, BE после 1R, алерт когда WAIT снялся.");
+   Print("SLOI 4.15: VWAP, профиль, футпринт, splash/infusion на графике. Сделки только с сайта.");
    return(INIT_SUCCEEDED);
   }
 
@@ -206,6 +206,115 @@ void Hln(string id, double px, color clr)
    ObjectSet(n, OBJPROP_SELECTABLE, false);
   }
 
+void Txt(string id, int x, int y, string t, color clr)
+  {
+   string n = P + id;
+   if(ObjectFind(0, n) < 0) ObjectCreate(n, OBJ_LABEL, 0, 0, 0);
+   ObjectSet(n, OBJPROP_CORNER, 0);
+   ObjectSet(n, OBJPROP_XDISTANCE, x);
+   ObjectSet(n, OBJPROP_YDISTANCE, y);
+   ObjectSet(n, OBJPROP_COLOR, clr);
+   ObjectSetText(n, t, 9, "Arial", clr);
+  }
+
+void DrawTape()
+  {
+   string s = Symbol();
+   int tf = Period();
+   int n = 48;
+   double pv = 0, vv = 0, varS = 0;
+   double vols[];
+   ArrayResize(vols, n);
+   int i;
+   for(i = 0; i < n; i++)
+     {
+      double hi = iHigh(s, tf, i);
+      double lo = iLow(s, tf, i);
+      double cl = iClose(s, tf, i);
+      double v = (double)iVolume(s, tf, i);
+      if(v <= 0) v = 1;
+      double tp = (hi + lo + cl) / 3.0;
+      pv += tp * v;
+      vv += v;
+      vols[i] = v;
+     }
+   double vwap = (vv > 0 ? pv / vv : iClose(s, tf, 0));
+   for(i = 0; i < n; i++)
+     {
+      double hi = iHigh(s, tf, i);
+      double lo = iLow(s, tf, i);
+      double cl = iClose(s, tf, i);
+      double tp = (hi + lo + cl) / 3.0;
+      varS += vols[i] * (tp - vwap) * (tp - vwap);
+     }
+   double sd = MathSqrt(varS / MathMax(vv, 1));
+   Hln("vwap", vwap, C_GOLD);
+   Hln("vw_up", vwap + sd, C_DIM);
+   Hln("vw_dn", vwap - sd, C_DIM);
+
+   double avg = vv / n;
+   double lastV = vols[0];
+   double span = iHigh(s, tf, 0) - iLow(s, tf, 0);
+   double avgSpan = 0;
+   for(i = 0; i < n; i++) avgSpan += (iHigh(s, tf, i) - iLow(s, tf, i));
+   avgSpan /= n;
+   if(lastV > avg * 2.0 && span < avgSpan * 0.7)
+     {
+      Box("inf", iTime(s, tf, 0), iHigh(s, tf, 0), iTime(s, tf, 0) + tf * 60, iLow(s, tf, 0), C_GOLD);
+      Txt("inf_t", 12, 36, "INFUSION  лимит впитал объём", C_GOLD);
+     }
+   if(lastV > avg * 2.2 && span > avgSpan * 1.4)
+     {
+      Txt("spl_t", 12, 52, "SPLASH  агрессивный вынос", C_SEL);
+     }
+
+   double hiR = iHigh(s, tf, iHighest(s, tf, MODE_HIGH, n, 0));
+   double loR = iLow(s, tf, iLowest(s, tf, MODE_LOW, n, 0));
+   int bins = 16;
+   double step = (hiR - loR) / MathMax(bins, 1);
+   double maxB = 1;
+   double acc[];
+   ArrayResize(acc, bins);
+   ArrayInitialize(acc, 0);
+   for(i = 0; i < n; i++)
+     {
+      int b = (int)MathFloor((iClose(s, tf, i) - loR) / MathMax(step, 0.0000001));
+      if(b < 0) b = 0;
+      if(b >= bins) b = bins - 1;
+      acc[b] += vols[i];
+      if(acc[b] > maxB) maxB = acc[b];
+     }
+   datetime t0 = iTime(s, tf, 0);
+   datetime t1 = t0 + tf * 60 * 6;
+   for(i = 0; i < bins; i++)
+     {
+      if(acc[i] <= 0) continue;
+      double p1 = loR + i * step;
+      double p2 = p1 + step;
+      datetime tw = t0 + (datetime)(tf * 60 * 6.0 * acc[i] / maxB);
+      Box("pr"+IntegerToString(i), t0, p1, tw, p2, C_DIM);
+     }
+
+   for(i = 0; i < 12; i++)
+     {
+      double hi = iHigh(s, tf, i);
+      double lo = iLow(s, tf, i);
+      double cl = iClose(s, tf, i);
+      double mid = (hi + lo) * 0.5;
+      datetime t = iTime(s, tf, i);
+      datetime te = t + tf * 60 / 3;
+      color buyC = C_BUY;
+      color selC = C_SEL;
+      if(cl >= mid) Box("fb"+IntegerToString(i), t, mid, te, hi, buyC);
+      else Box("fs"+IntegerToString(i), t, lo, te, mid, selC);
+     }
+
+   Txt("ab", 12, 18,
+       "Bid "+DoubleToStr(Bid, Digits)+"  Ask "+DoubleToStr(Ask, Digits)+"  spr "+IntegerToString((int)MarketInfo(s, MODE_SPREAD))+
+       "  VWAP "+DoubleToStr(vwap, Digits),
+       C_GOLD);
+  }
+
 void DrawSmcOnChart()
   {
    string s = Symbol();
@@ -249,6 +358,7 @@ void DrawSmcOnChart()
    int sl = iLowest(s, tf, MODE_LOW, 48, 1);
    if(sh > 0) Hln("sw_h", iHigh(s, tf, sh), C_SEL);
    if(sl > 0) Hln("sw_l", iLow(s, tf, sl), C_BUY);
+   DrawTape();
   }
 
 void ParseWatch()

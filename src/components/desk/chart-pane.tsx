@@ -135,15 +135,100 @@ function drawProfile(
   ctx.fillText("B", rect.width - 12, 12);
 }
 
+function drawTape(
+  canvas: HTMLCanvasElement,
+  chart: IChartApi,
+  series: ISeriesApi<"Candlestick">,
+  candles: Candle[],
+  snap: SmcSnapshot | null,
+  on: boolean,
+  book: { bids: { price: number; volume: number }[]; asks: { price: number; volume: number }[] } | null,
+) {
+  const ctx = canvas.getContext("2d");
+  if (!ctx || !on) return;
+  const rect = canvas.getBoundingClientRect();
+  const ts = chart.timeScale();
+  const lastN = candles.slice(-18);
+  const maxV = Math.max(...lastN.map((c) => c.volume), 1);
+  for (let i = 0; i < lastN.length; i++) {
+    const c = lastN[i]!;
+    const x = ts.timeToCoordinate(c.time as UTCTimestamp);
+    const yH = series.priceToCoordinate(c.high);
+    const yL = series.priceToCoordinate(c.low);
+    const yC = series.priceToCoordinate(c.close);
+    if (x == null || yH == null || yL == null || yC == null) continue;
+    const next = lastN[i + 1];
+    const x2 = next ? ts.timeToCoordinate(next.time as UTCTimestamp) : x + 10;
+    const w = Math.max(4, Math.min(14, ((x2 ?? x + 10) - x) * 0.55));
+    const span = c.high - c.low || 1;
+    const buyShare = Math.min(1, Math.max(0, (c.close - c.low) / span));
+    const thick = 3 + (c.volume / maxV) * 7;
+    ctx.fillStyle = "rgba(181,122,122,0.45)";
+    ctx.fillRect(x - thick / 2, Math.min(yC, yL), thick, Math.abs(yL - yC) || 2);
+    ctx.fillStyle = "rgba(111,158,134,0.45)";
+    ctx.fillRect(x - thick / 2, Math.min(yH, yC), thick, Math.abs(yC - yH) || 2);
+    if (buyShare > 0.7) {
+      ctx.strokeStyle = "rgba(111,158,134,0.9)";
+      ctx.strokeRect(x - w / 2, Math.min(yH, yL), w, Math.abs(yH - yL) || 4);
+    }
+  }
+  const last = candles.at(-1);
+  if (snap?.micro.infusion && last) {
+    const x = ts.timeToCoordinate(last.time as UTCTimestamp);
+    const yH = series.priceToCoordinate(last.high);
+    const yL = series.priceToCoordinate(last.low);
+    if (x != null && yH != null && yL != null) {
+      ctx.strokeStyle = "rgba(201,184,150,0.95)";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(x - 10, Math.min(yH, yL) - 4, 20, Math.abs(yH - yL) + 8);
+      ctx.fillStyle = "#f0e6d4";
+      ctx.font = "bold 11px IBM Plex Mono, monospace";
+      ctx.fillText("INFUSION", x - 28, Math.min(yH, yL) - 8);
+    }
+  }
+  if (snap?.micro.splash && last) {
+    const x = ts.timeToCoordinate(last.time as UTCTimestamp);
+    const y = series.priceToCoordinate(last.close);
+    if (x != null && y != null) {
+      ctx.fillStyle = snap.micro.splash.side === "buy" ? "rgba(111,158,134,0.25)" : "rgba(181,122,122,0.25)";
+      ctx.fillRect(x - 16, y - 40, 32, 80);
+      ctx.fillStyle = "#f0e6d4";
+      ctx.font = "bold 11px IBM Plex Mono, monospace";
+      ctx.fillText("SPLASH", x - 22, y - 44);
+    }
+  }
+  if (book && (book.bids.length || book.asks.length)) {
+    const max = Math.max(...book.bids.map((l) => l.volume), ...book.asks.map((l) => l.volume), 1);
+    const x0 = rect.width - 70;
+    for (const l of book.asks.slice(0, 8)) {
+      const y = series.priceToCoordinate(l.price);
+      if (y == null) continue;
+      ctx.fillStyle = "rgba(181,122,122,0.55)";
+      ctx.fillRect(x0, y - 3, (l.volume / max) * 60, 6);
+    }
+    for (const l of book.bids.slice(0, 8)) {
+      const y = series.priceToCoordinate(l.price);
+      if (y == null) continue;
+      ctx.fillStyle = "rgba(111,158,134,0.55)";
+      ctx.fillRect(x0, y - 3, (l.volume / max) * 60, 6);
+    }
+    ctx.fillStyle = "rgba(232,220,200,0.8)";
+    ctx.font = "9px IBM Plex Mono, monospace";
+    ctx.fillText("ASK/BID", x0, 12);
+  }
+}
+
 export function ChartPane({
   candles,
   snap,
   overlays,
+  book = null,
   className,
 }: {
   candles: Candle[];
   snap: SmcSnapshot | null;
   overlays: OverlayFlags;
+  book?: { bids: { price: number; volume: number }[]; asks: { price: number; volume: number }[] } | null;
   className?: string;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -153,13 +238,18 @@ export function ChartPane({
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const cvdRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const vwapRef = useRef<ISeriesApi<"Line"> | null>(null);
   const markersRef = useRef<ISeriesMarkersPluginApi<UTCTimestamp> | null>(null);
   const linesRef = useRef<IPriceLine[]>([]);
   const snapRef = useRef(snap);
   const overlaysRef = useRef(overlays);
+  const candlesRef = useRef(candles);
+  const bookRef = useRef(book);
   const [ready, setReady] = useState(false);
   snapRef.current = snap;
   overlaysRef.current = overlays;
+  candlesRef.current = candles;
+  bookRef.current = book;
 
   useEffect(() => {
     const host = hostRef.current;
@@ -235,11 +325,19 @@ export function ChartPane({
       chart.priceScale("cvd").applyOptions({
         scaleMargins: { top: 0.68, bottom: 0.16 },
       });
+      const vwap = chart.addSeries(lc.LineSeries, {
+        color: "rgba(201,184,150,0.95)",
+        lineWidth: 2,
+        lastValueVisible: true,
+        priceLineVisible: false,
+        title: "VWAP",
+      });
       const markers = lc.createSeriesMarkers(series, []);
       chartRef.current = chart;
       seriesRef.current = series;
       volumeRef.current = volume;
       cvdRef.current = cvd;
+      vwapRef.current = vwap;
       markersRef.current = markers as ISeriesMarkersPluginApi<UTCTimestamp>;
 
       const paint = () => {
@@ -255,6 +353,17 @@ export function ChartPane({
             overlaysRef.current,
             snapRef.current,
           );
+          if (overlaysRef.current.flow) {
+            drawTape(
+              overlayRef.current,
+              c,
+              s,
+              candlesRef.current,
+              snapRef.current,
+              true,
+              bookRef.current,
+            );
+          }
         }
         if (profileRef.current) {
           drawProfile(profileRef.current, s, snapRef.current, overlaysRef.current.profile);
@@ -272,6 +381,7 @@ export function ChartPane({
       seriesRef.current = null;
       volumeRef.current = null;
       cvdRef.current = null;
+      vwapRef.current = null;
       markersRef.current = null;
     };
   }, []);
@@ -280,6 +390,7 @@ export function ChartPane({
     const series = seriesRef.current;
     const volume = volumeRef.current;
     const cvd = cvdRef.current;
+    const vwap = vwapRef.current;
     if (!ready || !series || !volume || !cvd || candles.length === 0) return;
     const bull = token("--color-bull", "#6f9e86");
     const bear = token("--color-bear", "#b57a7a");
@@ -309,6 +420,19 @@ export function ChartPane({
         return { time: c.time as UTCTimestamp, value: run };
       }),
     );
+    if (vwap) {
+      let pv = 0;
+      let vv = 0;
+      vwap.setData(
+        candles.map((c) => {
+          const tp = (c.high + c.low + c.close) / 3;
+          const v = c.volume || 1;
+          pv += tp * v;
+          vv += v;
+          return { time: c.time as UTCTimestamp, value: pv / vv };
+        }),
+      );
+    }
     chartRef.current?.timeScale().fitContent();
   }, [candles, ready]);
 
@@ -419,6 +543,7 @@ export function ChartPane({
       markersRef.current?.setMarkers(markers);
       if (overlayRef.current) {
         drawZones(overlayRef.current, chart, series, [...snap.fvgs, ...snap.orderBlocks], overlays, snap);
+        if (overlays.flow) drawTape(overlayRef.current, chart, series, candles, snap, true, book);
       }
       if (profileRef.current) drawProfile(profileRef.current, series, snap, overlays.profile);
     });
@@ -430,7 +555,7 @@ export function ChartPane({
       <canvas ref={overlayRef} className="pointer-events-none absolute inset-0" />
       <canvas
         ref={profileRef}
-        className="pointer-events-none absolute top-0 right-14 bottom-8 w-24"
+        className="pointer-events-none absolute top-0 right-14 bottom-8 w-32"
       />
     </div>
   );

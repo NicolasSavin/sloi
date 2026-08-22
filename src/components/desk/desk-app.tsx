@@ -385,6 +385,7 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
               candles={market.data?.candles ?? []}
               snap={snap}
               overlays={overlays}
+              book={book}
               className="h-[220px] lg:h-auto lg:min-h-[420px] lg:flex-1"
             />
             </>
