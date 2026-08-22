@@ -1,29 +1,28 @@
 //+------------------------------------------------------------------+
 //|                                              SLOI_Desk.mq4    |
-//|  Мультивалютный эксперт. Панель и настройки НА ГРАФИКЕ.          |
+//|  Берёт ТОЛЬКО команды сайта /api/signals.txt. Сам рынок не считает.
 //|  Спред = Ask-Bid каждого символа в терминале.                    |
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "3.00"
+#property version   "4.11"
 #property strict
-#property description "Панель + настройки на графике. Спред из терминала."
+#property description "Клик по паре открывает график. На графике — уровни сайта и FVG (не приказ)."
 
+input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  WatchList       = "EURUSD,GBPUSD,USDJPY,USDCHF,AUDUSD,USDCAD,NZDUSD,EURJPY,GBPJPY,XAUUSD,XAGUSD,USOIL";
-input string  BrokerSuffix    = "";
+input string  BrokerSuffix    = ".cs";
 input int     WorkTF          = 240;
 input bool    AutoTrade       = false;
 input double  Lots            = 0.10;
 input int     Magic           = 220826;
 input int     SlippagePoints  = 20;
 input int     MaxSpreadPoints = 30;
+input double  MaxSkewPct      = 0.12;
 input double  MinCover        = 2.2;
 input double  MinNetRR        = 1.0;
 input int     OneTradeOnly    = 1;
 input bool    AlertsOn        = true;
-input int     SwingPad        = 2;
-input int     Lookback        = 80;
-input double  AtrStopMult     = 0.35;
 input int     PanelX          = 8;
 input int     PanelY          = 18;
 
@@ -37,13 +36,18 @@ datetime g_lastBar[MAXSYM];
 
 string g_watch;
 string g_suffix;
+string g_url;
 int    g_tf;
 bool   g_auto;
 double g_lots;
 int    g_maxSp;
+double g_skew;
 bool   g_alerts;
 bool   g_seeded = false;
 bool   g_ready = false;
+string g_feed = "";
+datetime g_feedAt = 0;
+string g_feedNote = "нет ленты";
 
 color C_BG   = C'16,14,12';
 color C_BOX  = C'32,28,24';
@@ -60,17 +64,21 @@ int OnInit()
   {
    g_watch  = WatchList;
    g_suffix = BrokerSuffix;
+   g_url    = SignalsUrl;
    g_tf     = WorkTF;
    g_auto   = AutoTrade;
    g_lots   = Lots;
    g_maxSp  = MaxSpreadPoints;
+   g_skew   = MaxSkewPct;
    g_alerts = AlertsOn;
+   Wipe();
    ParseWatch();
-   EventSetTimer(1);
+   EventSetTimer(2);
    ChartSetInteger(0, CHART_FOREGROUND, false);
    g_ready = true;
    g_seeded = false;
    DrawDesk();
+   Print("SLOI 4.11: кнопка >> открывает график пары. FVG и уровни сайта — картинка, не приказ.");
    return(INIT_SUCCEEDED);
   }
 
@@ -105,6 +113,12 @@ void OnChartEvent(const int id, const long &lparam, const double &dparam, const 
       ApplyEdits();
       g_seeded = false;
       DrawDesk();
+      return;
+     }
+   if(StringFind(sparam, P+"g") == 0)
+     {
+      int idx = (int)StringToInteger(StringSubstr(sparam, StringLen(P+"g")));
+      if(idx >= 0 && idx < g_n) OpenPair(g_sym[idx]);
      }
   }
 
@@ -115,6 +129,7 @@ void ApplyEdits()
    string tf   = ObjectGetString(0, P+"e_tf", OBJPROP_TEXT);
    string suf  = ObjectGetString(0, P+"e_suf", OBJPROP_TEXT);
    string wl   = ObjectGetString(0, P+"e_list", OBJPROP_TEXT);
+   string url  = ObjectGetString(0, P+"e_url", OBJPROP_TEXT);
    double l = StringToDouble(lots);
    int    s = (int)StringToInteger(sp);
    int    t = (int)StringToInteger(tf);
@@ -123,7 +138,115 @@ void ApplyEdits()
    if(t == 15 || t == 30 || t == 60 || t == 240 || t == 1440) g_tf = t;
    g_suffix = suf;
    if(StringLen(wl) > 2) g_watch = wl;
+   if(StringLen(url) > 12) g_url = url;
+   g_feed = "";
+   g_feedAt = 0;
    ParseWatch();
+  }
+
+int PeriodOf(int mins)
+  {
+   if(mins <= 1) return(PERIOD_M1);
+   if(mins <= 5) return(PERIOD_M5);
+   if(mins <= 15) return(PERIOD_M15);
+   if(mins <= 30) return(PERIOD_M30);
+   if(mins <= 60) return(PERIOD_H1);
+   if(mins <= 240) return(PERIOD_H4);
+   return(PERIOD_D1);
+  }
+
+void OpenPair(string s)
+  {
+   long id = ChartFirst();
+   while(id >= 0)
+     {
+      if(ChartSymbol(id) == s)
+        {
+         ChartSetInteger(id, CHART_BRING_TO_TOP, true);
+         return;
+        }
+      id = ChartNext(id);
+     }
+   ChartOpen(s, PeriodOf(g_tf));
+  }
+
+void Box(string id, datetime t1, double p1, datetime t2, double p2, color clr)
+  {
+   string n = P + id;
+   if(ObjectFind(0, n) < 0)
+     {
+      if(!ObjectCreate(0, n, OBJ_RECTANGLE, 0, t1, p1, t2, p2))
+         ObjectCreate(n, OBJ_RECTANGLE, 0, t1, p1, t2, p2);
+     }
+   ObjectSet(n, OBJPROP_TIME1, t1);
+   ObjectSet(n, OBJPROP_PRICE1, p1);
+   ObjectSet(n, OBJPROP_TIME2, t2);
+   ObjectSet(n, OBJPROP_PRICE2, p2);
+   ObjectSet(n, OBJPROP_COLOR, clr);
+   ObjectSet(n, OBJPROP_BACK, true);
+   ObjectSet(n, OBJPROP_WIDTH, 1);
+   ObjectSet(n, OBJPROP_SELECTABLE, false);
+  }
+
+void Hln(string id, double px, color clr)
+  {
+   if(px <= 0) return;
+   string n = P + id;
+   if(ObjectFind(0, n) < 0)
+     {
+      if(!ObjectCreate(0, n, OBJ_HLINE, 0, 0, px))
+         ObjectCreate(n, OBJ_HLINE, 0, 0, px);
+     }
+   ObjectSet(n, OBJPROP_PRICE1, px);
+   ObjectSet(n, OBJPROP_COLOR, clr);
+   ObjectSet(n, OBJPROP_STYLE, STYLE_DASH);
+   ObjectSet(n, OBJPROP_WIDTH, 1);
+   ObjectSet(n, OBJPROP_SELECTABLE, false);
+  }
+
+void DrawSmcOnChart()
+  {
+   string s = Symbol();
+   int idx = -1;
+   int i;
+   for(i = 0; i < g_n; i++) if(g_sym[i] == s) { idx = i; break; }
+   if(idx < 0) return;
+
+   string bias, verdict, why;
+   int dir = 0, spPts = 0;
+   double entry = 0, stop = 0, target = 0;
+   Scan(idx, bias, verdict, why, dir, entry, stop, target, spPts);
+
+   Hln("lv_en", entry, C_GOLD);
+   Hln("lv_sl", stop, C_SEL);
+   Hln("lv_tp", target, C_BUY);
+
+   int tf = PeriodOf(g_tf);
+   int drawn = 0;
+   datetime tNow = iTime(s, tf, 0);
+   for(i = 3; i < 70 && drawn < 3; i++)
+     {
+      double hi = iHigh(s, tf, i);
+      double lo = iLow(s, tf, i);
+      double hi2 = iHigh(s, tf, i - 2);
+      double lo2 = iLow(s, tf, i - 2);
+      datetime t1 = iTime(s, tf, i);
+      if(lo2 > hi)
+        {
+         Box("fvg"+IntegerToString(drawn), t1, hi, tNow, lo2, C_BUY);
+         drawn++;
+        }
+      else if(hi2 < lo)
+        {
+         Box("fvg"+IntegerToString(drawn), t1, lo, tNow, hi2, C_SEL);
+         drawn++;
+        }
+     }
+
+   int sh = iHighest(s, tf, MODE_HIGH, 48, 1);
+   int sl = iLowest(s, tf, MODE_LOW, 48, 1);
+   if(sh > 0) Hln("sw_h", iHigh(s, tf, sh), C_SEL);
+   if(sl > 0) Hln("sw_l", iLow(s, tf, sl), C_BUY);
   }
 
 void ParseWatch()
@@ -137,7 +260,16 @@ void ParseWatch()
    for(int i = 0; i < n; i++)
      {
       string s = parts[i];
-      if(StringLen(g_suffix) > 0 && StringFind(s, g_suffix) < 0) s = s + g_suffix;
+      if(StringLen(g_suffix) > 0 && StringFind(s, g_suffix) < 0)
+        {
+         string a = s + g_suffix;
+         string b = (StringFind(g_suffix, ".") == 0 ? a : s + "." + g_suffix);
+         SymbolSelect(a, true);
+         SymbolSelect(b, true);
+         if(BidOf(b) > 0) s = b;
+         else if(BidOf(a) > 0) s = a;
+         else s = b;
+        }
       if(StringLen(s) == 0) continue;
       SymbolSelect(s, true);
       if(g_n >= MAXSYM) break;
@@ -166,51 +298,8 @@ int    SpreadPt(string s)
    if(pt <= 0) return(0);
    return((int)MathRound(SpreadPr(s) / pt));
   }
-int BarsOf(string s) { return(iBars(s, g_tf)); }
 string Px(string s, double v) { return(DoubleToStr(v, DigitsOf(s))); }
 
-bool IsSH(string s, int i)
-  {
-   int bars = BarsOf(s);
-   if(i < SwingPad || i + SwingPad >= bars) return(false);
-   double h = iHigh(s, g_tf, i);
-   for(int k = 1; k <= SwingPad; k++)
-      if(h <= iHigh(s, g_tf, i - k) || h < iHigh(s, g_tf, i + k)) return(false);
-   return(true);
-  }
-bool IsSL(string s, int i)
-  {
-   int bars = BarsOf(s);
-   if(i < SwingPad || i + SwingPad >= bars) return(false);
-   double l = iLow(s, g_tf, i);
-   for(int k = 1; k <= SwingPad; k++)
-      if(l >= iLow(s, g_tf, i - k) || l > iLow(s, g_tf, i + k)) return(false);
-   return(true);
-  }
-int LastSH(string s)
-  {
-   int lim = MathMin(Lookback, BarsOf(s) - SwingPad - 1);
-   for(int i = SwingPad; i <= lim; i++) if(IsSH(s, i)) return(i);
-   return(-1);
-  }
-int LastSL(string s)
-  {
-   int lim = MathMin(Lookback, BarsOf(s) - SwingPad - 1);
-   for(int i = SwingPad; i <= lim; i++) if(IsSL(s, i)) return(i);
-   return(-1);
-  }
-int PrevSH(string s, int after)
-  {
-   int lim = MathMin(Lookback, BarsOf(s) - SwingPad - 1);
-   for(int i = after + 1; i <= lim; i++) if(IsSH(s, i)) return(i);
-   return(-1);
-  }
-int PrevSL(string s, int after)
-  {
-   int lim = MathMin(Lookback, BarsOf(s) - SwingPad - 1);
-   for(int i = after + 1; i <= lim; i++) if(IsSL(s, i)) return(i);
-   return(-1);
-  }
 int CountMine(string s)
   {
    int n = 0;
@@ -222,40 +311,161 @@ int CountMine(string s)
    return(n);
   }
 
+string Naked(string s)
+  {
+   string u = s;
+   if(StringLen(g_suffix) > 0) StringReplace(u, g_suffix, "");
+   StringToUpper(u);
+   if(StringFind(u, "XAU") >= 0 || StringFind(u, "GOLD") >= 0) return("XAUUSD");
+   if(StringFind(u, "XAG") >= 0 || StringFind(u, "SILVER") >= 0) return("XAGUSD");
+   if(StringFind(u, "USO") >= 0 || StringFind(u, "WTI") >= 0 || StringFind(u, "XTI") >= 0) return("USOIL");
+   return(u);
+  }
+
+void PullFeed()
+  {
+   if(TimeCurrent() - g_feedAt < 20) return;
+   g_feedAt = TimeCurrent();
+   char data[];
+   char result[];
+   string hdr = "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)\r\nAccept: text/plain,*/*\r\n";
+   string rh = "";
+   ArrayResize(data, 0);
+   ResetLastError();
+   if(StringLen(g_url) < 12)
+     {
+      g_feedNote = "вставьте адрес ленты";
+      return;
+     }
+   int res = WebRequest("GET", g_url, hdr, 25000, data, result, rh);
+   if(res == -1)
+     {
+      int err = GetLastError();
+      if(err == 4060) g_feedNote = "этот адрес в WebRequest";
+      else if(err == 5200) g_feedNote = "домена нет";
+      else if(err == 5203) g_feedNote = "таймаут Vercel, повтор";
+      else g_feedNote = "сеть "+IntegerToString(err);
+      Print("SLOI WebRequest fail ", err, " url=", g_url);
+      g_feed = "";
+      return;
+     }
+   if(res != 200)
+     {
+      g_feedNote = "HTTP "+IntegerToString(res);
+      g_feed = "";
+      return;
+     }
+   g_feed = CharArrayToString(result, 0, WHOLE_ARRAY, CP_UTF8);
+   g_feedNote = (StringFind(g_feed, "SLOI") >= 0 || StringLen(g_feed) > 8 ? "сайт ок" : "пустая лента");
+   PushTape();
+  }
+
+void PushTape()
+  {
+   string url = g_url;
+   StringReplace(url, "signals.txt", "broker");
+   if(StringFind(url, "broker") < 0)
+     {
+      if(StringGetCharacter(url, StringLen(url) - 1) == '/') url = url + "api/broker";
+      else url = url + "/api/broker";
+     }
+   string body = "# SLOI broker\n";
+   for(int i = 0; i < g_n; i++)
+     {
+      string s = g_sym[i];
+      double bid = BidOf(s);
+      double ask = AskOf(s);
+      if(bid <= 0 || ask <= 0) continue;
+      body += Naked(s) + " " + DoubleToStr(bid, DigitsOf(s)) + " " + DoubleToStr(ask, DigitsOf(s)) + "\n";
+     }
+   char data[];
+   char result[];
+   string rh = "";
+   int n = StringToCharArray(body, data, 0, WHOLE_ARRAY, CP_UTF8);
+   if(n > 0) ArrayResize(data, n - 1);
+   string hdr = "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)\r\nContent-Type: text/plain\r\n";
+   ResetLastError();
+   WebRequest("POST", url, hdr, 8000, data, result, rh);
+  }
+
+void ReadSite(string naked, int &dir, double &entry, double &stop, double &target, double &siteLast, string &verdict, string &why)
+  {
+   dir = 0; entry = 0; stop = 0; target = 0; siteLast = 0;
+   verdict = "ЖДАТЬ";
+   why = g_feedNote;
+   if(StringLen(g_feed) < 4) { why = "нет сайта"; return; }
+   string lines[];
+   int n = StringSplit(g_feed, '\n', lines);
+   for(int i = 0; i < n; i++)
+     {
+      string line = lines[i];
+      StringTrimLeft(line);
+      StringTrimRight(line);
+      if(StringLen(line) < 3 || StringGetCharacter(line, 0) == '#') continue;
+      string p[];
+      int k = StringSplit(line, ' ', p);
+      if(k < 2) continue;
+      if(Naked(p[0]) != naked) continue;
+      string side = p[1];
+      if(k >= 5)
+        {
+         entry = StringToDouble(p[2]);
+         stop = StringToDouble(p[3]);
+         target = StringToDouble(p[4]);
+        }
+      if(k >= 6) siteLast = StringToDouble(p[5]);
+      else if(target > 0 && entry <= 0) siteLast = target;
+      if(side == "BUY") { dir = 1; verdict = "ЛОНГ"; why = "сайт"; return; }
+      if(side == "SELL") { dir = -1; verdict = "ШОРТ"; why = "сайт"; return; }
+      dir = 0; verdict = "ЖДАТЬ"; why = "сайт ждёт";
+      return;
+     }
+   why = "нет в ленте";
+  }
+
 void Scan(int idx, string &bias, string &verdict, string &why,
           int &dir, double &entry, double &stop, double &target, int &spPts)
   {
    string s = g_sym[idx];
-   double bid = BidOf(s);
-   double ask = AskOf(s);
    spPts = SpreadPt(s);
    double spread = SpreadPr(s);
-   double atr = iATR(s, g_tf, 14, 1);
-   if(atr <= 0) atr = PointOf(s) * 20;
    dir = 0; entry = 0; stop = 0; target = 0;
-   bias = "—"; verdict = "НЕТ ДАННЫХ"; why = "бары";
-   int sh = LastSH(s); int sl = LastSL(s);
-   if(sh < 0 || sl < 0) return;
-   int sh2 = PrevSH(s, sh); int sl2 = PrevSL(s, sl);
-   double hi = iHigh(s, g_tf, sh);
-   double lo = iLow(s, g_tf, sl);
-   double eq = (hi + lo) / 2.0;
-   int trend = 0;
-   if(sh2 >= 0 && sl2 >= 0)
+   double siteLast = 0;
+   bias = "сайт";
+   ReadSite(Naked(s), dir, entry, stop, target, siteLast, verdict, why);
+   double mid = (BidOf(s) + AskOf(s)) * 0.5;
+   if(siteLast <= 0 && entry > 0) siteLast = entry;
+   if(siteLast > 0 && mid > 0)
      {
-      if(iHigh(s, g_tf, sh) > iHigh(s, g_tf, sh2) && iLow(s, g_tf, sl) > iLow(s, g_tf, sl2)) trend = 1;
-      if(iHigh(s, g_tf, sh) < iHigh(s, g_tf, sh2) && iLow(s, g_tf, sl) < iLow(s, g_tf, sl2)) trend = -1;
+      double skew = MathAbs(mid - siteLast) / siteLast * 100.0;
+      bias = DoubleToStr(skew, 2) + "%";
+      double lim = g_skew;
+      if(DigitsOf(s) <= 3) lim = g_skew * 1.4;
+      if(dir != 0 && skew > lim)
+        {
+         dir = 0;
+         verdict = "КОТИР";
+         why = bias+" брок "+Px(s, mid);
+         return;
+        }
+      if(dir == 0)
+        {
+         why = "ждет "+bias;
+         return;
+        }
      }
-   if(trend > 0) bias = "бычий";
-   else if(trend < 0) bias = "медвеж.";
-   else bias = "флэт";
-   string reason = "ждём край";
-   if(trend > 0 && bid < eq) { dir = 1; entry = ask; stop = lo - atr * AtrStopMult; target = hi; reason = "дисконт"; }
-   else if(trend < 0 && bid > eq) { dir = -1; entry = bid; stop = hi + atr * AtrStopMult; target = lo; reason = "премия"; }
+   else
+     {
+      bias = "нет last";
+      if(dir == 0) { why = why+" · нет Yahoo"; return; }
+     }
+   if(dir == 0) return;
    if(spPts > g_maxSp) { dir = 0; verdict = "СПРЕД"; why = IntegerToString(spPts)+"п"; return; }
-   if(dir == 0) { verdict = "ЖДАТЬ"; why = reason; return; }
-   double grossR = MathAbs(target - (dir > 0 ? bid : ask));
-   double grossK = MathAbs((dir > 0 ? bid : ask) - stop);
+   double px = (dir > 0 ? AskOf(s) : BidOf(s));
+   if(entry <= 0) entry = px;
+   if(stop <= 0 || target <= 0) { dir = 0; verdict = "ЖДАТЬ"; why = "нет SL/TP"; return; }
+   double grossR = MathAbs(target - px);
+   double grossK = MathAbs(px - stop);
    double roundT = 2.0 * spread;
    double netR = grossR - spread;
    double netK = grossK + spread;
@@ -263,8 +473,7 @@ void Scan(int idx, string &bias, string &verdict, string &why,
    double rr = (netK > 0 ? netR / netK : 0);
    if(netR <= 0 || covers < MinCover || rr < MinNetRR)
      { dir = 0; verdict = "СПРЕД"; why = "круг"; return; }
-   verdict = (dir > 0 ? "ЛОНГ" : "ШОРТ");
-   why = "RR "+DoubleToStr(rr, 1);
+   why = "сверка "+bias+" RR "+DoubleToStr(rr, 1);
   }
 
 void MaybeTrade(int idx, int dir, double stop, double target, string verdict, int spPts)
@@ -295,8 +504,9 @@ void Wipe()
    for(int i = ObjectsTotal() - 1; i >= 0; i--)
      {
       string n = ObjectName(i);
-      if(StringFind(n, P) == 0) ObjectDelete(n);
+      if(StringFind(n, "SLOI_") == 0 || StringFind(n, "STRATUM_") == 0) ObjectDelete(n);
      }
+   Comment("");
   }
 
 void Rect(string id, int x, int y, int w, int h, color bg)
@@ -390,7 +600,7 @@ color VClr(string v)
   {
    if(v == "ЛОНГ") return(C_BUY);
    if(v == "ШОРТ") return(C_SEL);
-   if(v == "СПРЕД" || v == "НЕТ ДАННЫХ") return(C_OFF);
+   if(v == "СПРЕД" || v == "КОТИР" || v == "НЕТ ДАННЫХ") return(C_OFF);
    return(C_WAIT);
   }
 
@@ -398,15 +608,15 @@ void DrawDesk()
   {
    int x = PanelX;
    int y = PanelY;
-   int w = 720;
-   int setH = 92;
+   int w = 790;
+   int setH = 114;
    int rowH = 22;
    int head = 24;
    int h = setH + head + rowH * g_n + 20;
 
    Rect("bg", x, y, w, h, C_BG);
    Lab("title", x + 14, y + 8, "SLOI DESK", C_GOLD, 12);
-   Lab("hint", x + 150, y + 12, "настройки на графике   спред Ask-Bid терминала", C_DIM, 8);
+   Lab("hint", x + 150, y + 12, g_feedNote+"   >> открывает график   SMC на текущем чарте", C_DIM, 8);
 
    Btn("b_auto", x + 500, y + 8, 100, 22, g_auto ? "АВТО ВКЛ" : "АВТО ВЫКЛ", g_auto ? C_SEL : C_GOLD);
    Btn("b_alrt", x + 606, y + 8, 100, 22, g_alerts ? "АЛЕРТ ВКЛ" : "АЛЕРТ ВЫКЛ", C_GOLD);
@@ -429,18 +639,21 @@ void DrawDesk()
 
    Lab("l_list", x + 14, y + 64, "пары", C_DIM, 8);
    Edit("e_list", x + 50, y + 62, 654, 20, g_watch, seed);
+   Lab("l_url", x + 14, y + 86, "лента", C_DIM, 8);
+   Edit("e_url", x + 50, y + 84, 654, 20, g_url, seed);
 
    int hx = x + 14;
    int hy = y + setH + 2;
    Lab("h1", hx,     hy, "СИМВОЛ",  C_DIM, 8);
    Lab("h2", hx+110, hy, "СПРЕД",   C_DIM, 8);
-   Lab("h3", hx+170, hy, "СТРУКТ.", C_DIM, 8);
+   Lab("h3", hx+170, hy, "% YAHOO", C_DIM, 8);
    Lab("h4", hx+250, hy, "ВХОД",    C_DIM, 8);
    Lab("h5", hx+350, hy, "СТОП",    C_DIM, 8);
    Lab("h6", hx+450, hy, "ЦЕЛЬ",    C_DIM, 8);
    Lab("h7", hx+550, hy, "ВЕРДИКТ", C_DIM, 8);
 
-   string cmt = "SLOI DESK | лот "+DoubleToStr(g_lots, 2)+" | авто "+(g_auto?"ВКЛ":"ВЫКЛ")+" | макс спред "+IntegerToString(g_maxSp)+"п\n";
+   PullFeed();
+   string cmt = "SLOI DESK | лента "+g_feedNote+" | авто "+(g_auto?"ВКЛ":"ВЫКЛ")+" | макс спред "+IntegerToString(g_maxSp)+"п\n";
    cmt += "СИМВОЛ     СПРЕД  СТРУКТ   ВХОД        СТОП        ЦЕЛЬ        ВЕРДИКТ\n";
 
    for(int i = 0; i < g_n; i++)
@@ -461,11 +674,12 @@ void DrawDesk()
       Lab("k"+IntegerToString(i), hx+350, ry, stop > 0 ? Px(s, stop) : "—", C_SEL, 9);
       Lab("t"+IntegerToString(i), hx+450, ry, target > 0 ? Px(s, target) : "—", C_BUY, 9);
       Lab("v"+IntegerToString(i), hx+550, ry, verdict+"  "+why, VClr(verdict), 9);
+      Btn("g"+IntegerToString(i), x + w - 72, ry - 1, 58, 18, ">>", C_GOLD);
 
       cmt += s;
       while(StringLen(s) < 10) { s = s + " "; }
       cmt += "  " + IntegerToString(spPts) + "п  " + bias + "  " + verdict + "  " + why + "\n";
      }
-   Comment(cmt);
+   DrawSmcOnChart();
    ChartRedraw();
   }

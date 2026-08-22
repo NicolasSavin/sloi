@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.10"
+#property version   "4.11"
 #property strict
-#property description "Сверка Yahoo vs брокер. Стакан в MT4 недоступен — только Bid/Ask."
+#property description "Клик по паре открывает график. На графике — уровни сайта и FVG (не приказ)."
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  WatchList       = "EURUSD,GBPUSD,USDJPY,USDCHF,AUDUSD,USDCAD,NZDUSD,EURJPY,GBPJPY,XAUUSD,XAGUSD,USOIL";
@@ -78,7 +78,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.10: Bid/Ask брокера. Market Book в MT4 нет — стакан не шлём.");
+   Print("SLOI 4.11: кнопка >> открывает график пары. FVG и уровни сайта — картинка, не приказ.");
    return(INIT_SUCCEEDED);
   }
 
@@ -113,6 +113,12 @@ void OnChartEvent(const int id, const long &lparam, const double &dparam, const 
       ApplyEdits();
       g_seeded = false;
       DrawDesk();
+      return;
+     }
+   if(StringFind(sparam, P+"g") == 0)
+     {
+      int idx = (int)StringToInteger(StringSubstr(sparam, StringLen(P+"g")));
+      if(idx >= 0 && idx < g_n) OpenPair(g_sym[idx]);
      }
   }
 
@@ -136,6 +142,111 @@ void ApplyEdits()
    g_feed = "";
    g_feedAt = 0;
    ParseWatch();
+  }
+
+int PeriodOf(int mins)
+  {
+   if(mins <= 1) return(PERIOD_M1);
+   if(mins <= 5) return(PERIOD_M5);
+   if(mins <= 15) return(PERIOD_M15);
+   if(mins <= 30) return(PERIOD_M30);
+   if(mins <= 60) return(PERIOD_H1);
+   if(mins <= 240) return(PERIOD_H4);
+   return(PERIOD_D1);
+  }
+
+void OpenPair(string s)
+  {
+   long id = ChartFirst();
+   while(id >= 0)
+     {
+      if(ChartSymbol(id) == s)
+        {
+         ChartSetInteger(id, CHART_BRING_TO_TOP, true);
+         return;
+        }
+      id = ChartNext(id);
+     }
+   ChartOpen(s, PeriodOf(g_tf));
+  }
+
+void Box(string id, datetime t1, double p1, datetime t2, double p2, color clr)
+  {
+   string n = P + id;
+   if(ObjectFind(0, n) < 0)
+     {
+      if(!ObjectCreate(0, n, OBJ_RECTANGLE, 0, t1, p1, t2, p2))
+         ObjectCreate(n, OBJ_RECTANGLE, 0, t1, p1, t2, p2);
+     }
+   ObjectSet(n, OBJPROP_TIME1, t1);
+   ObjectSet(n, OBJPROP_PRICE1, p1);
+   ObjectSet(n, OBJPROP_TIME2, t2);
+   ObjectSet(n, OBJPROP_PRICE2, p2);
+   ObjectSet(n, OBJPROP_COLOR, clr);
+   ObjectSet(n, OBJPROP_BACK, true);
+   ObjectSet(n, OBJPROP_WIDTH, 1);
+   ObjectSet(n, OBJPROP_SELECTABLE, false);
+  }
+
+void Hln(string id, double px, color clr)
+  {
+   if(px <= 0) return;
+   string n = P + id;
+   if(ObjectFind(0, n) < 0)
+     {
+      if(!ObjectCreate(0, n, OBJ_HLINE, 0, 0, px))
+         ObjectCreate(n, OBJ_HLINE, 0, 0, px);
+     }
+   ObjectSet(n, OBJPROP_PRICE1, px);
+   ObjectSet(n, OBJPROP_COLOR, clr);
+   ObjectSet(n, OBJPROP_STYLE, STYLE_DASH);
+   ObjectSet(n, OBJPROP_WIDTH, 1);
+   ObjectSet(n, OBJPROP_SELECTABLE, false);
+  }
+
+void DrawSmcOnChart()
+  {
+   string s = Symbol();
+   int idx = -1;
+   int i;
+   for(i = 0; i < g_n; i++) if(g_sym[i] == s) { idx = i; break; }
+   if(idx < 0) return;
+
+   string bias, verdict, why;
+   int dir = 0, spPts = 0;
+   double entry = 0, stop = 0, target = 0;
+   Scan(idx, bias, verdict, why, dir, entry, stop, target, spPts);
+
+   Hln("lv_en", entry, C_GOLD);
+   Hln("lv_sl", stop, C_SEL);
+   Hln("lv_tp", target, C_BUY);
+
+   int tf = PeriodOf(g_tf);
+   int drawn = 0;
+   datetime tNow = iTime(s, tf, 0);
+   for(i = 3; i < 70 && drawn < 3; i++)
+     {
+      double hi = iHigh(s, tf, i);
+      double lo = iLow(s, tf, i);
+      double hi2 = iHigh(s, tf, i - 2);
+      double lo2 = iLow(s, tf, i - 2);
+      datetime t1 = iTime(s, tf, i);
+      if(lo2 > hi)
+        {
+         Box("fvg"+IntegerToString(drawn), t1, hi, tNow, lo2, C_BUY);
+         drawn++;
+        }
+      else if(hi2 < lo)
+        {
+         Box("fvg"+IntegerToString(drawn), t1, lo, tNow, hi2, C_SEL);
+         drawn++;
+        }
+     }
+
+   int sh = iHighest(s, tf, MODE_HIGH, 48, 1);
+   int sl = iLowest(s, tf, MODE_LOW, 48, 1);
+   if(sh > 0) Hln("sw_h", iHigh(s, tf, sh), C_SEL);
+   if(sl > 0) Hln("sw_l", iLow(s, tf, sl), C_BUY);
   }
 
 void ParseWatch()
@@ -497,7 +608,7 @@ void DrawDesk()
   {
    int x = PanelX;
    int y = PanelY;
-   int w = 720;
+   int w = 790;
    int setH = 114;
    int rowH = 22;
    int head = 24;
@@ -505,7 +616,7 @@ void DrawDesk()
 
    Rect("bg", x, y, w, h, C_BG);
    Lab("title", x + 14, y + 8, "SLOI DESK", C_GOLD, 12);
-   Lab("hint", x + 150, y + 12, g_feedNote+"   % Yahoo vs брокер   КОТИР=далеко  СПРЕД=ход съели", C_DIM, 8);
+   Lab("hint", x + 150, y + 12, g_feedNote+"   >> открывает график   SMC на текущем чарте", C_DIM, 8);
 
    Btn("b_auto", x + 500, y + 8, 100, 22, g_auto ? "АВТО ВКЛ" : "АВТО ВЫКЛ", g_auto ? C_SEL : C_GOLD);
    Btn("b_alrt", x + 606, y + 8, 100, 22, g_alerts ? "АЛЕРТ ВКЛ" : "АЛЕРТ ВЫКЛ", C_GOLD);
@@ -563,10 +674,12 @@ void DrawDesk()
       Lab("k"+IntegerToString(i), hx+350, ry, stop > 0 ? Px(s, stop) : "—", C_SEL, 9);
       Lab("t"+IntegerToString(i), hx+450, ry, target > 0 ? Px(s, target) : "—", C_BUY, 9);
       Lab("v"+IntegerToString(i), hx+550, ry, verdict+"  "+why, VClr(verdict), 9);
+      Btn("g"+IntegerToString(i), x + w - 72, ry - 1, 58, 18, ">>", C_GOLD);
 
       cmt += s;
       while(StringLen(s) < 10) { s = s + " "; }
       cmt += "  " + IntegerToString(spPts) + "п  " + bias + "  " + verdict + "  " + why + "\n";
      }
+   DrawSmcOnChart();
    ChartRedraw();
   }
