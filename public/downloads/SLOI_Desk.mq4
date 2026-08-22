@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.07"
+#property version   "4.08"
 #property strict
 #property description "Сверка Yahoo vs брокер на КАЖДОЙ паре. Приказ только если близко."
 
@@ -78,7 +78,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.07: колонка Δ — расхождение Yahoo и брокера. КОТИР = не открывать.");
+   Print("SLOI 4.08: колонка % Yahoo — сверка с брокером. КОТИР = не открывать.");
    return(INIT_SUCCEEDED);
   }
 
@@ -334,12 +334,12 @@ void Scan(int idx, string &bias, string &verdict, string &why,
         {
          dir = 0;
          verdict = "КОТИР";
-         why = "Δ"+bias+" брок "+Px(s, mid);
+         why = bias+" брок "+Px(s, mid);
          return;
         }
       if(dir == 0)
         {
-         why = (StringLen(why) ? why+" · " : "") + "Δ"+bias;
+         why = "ждет "+bias;
          return;
         }
      }
@@ -362,7 +362,7 @@ void Scan(int idx, string &bias, string &verdict, string &why,
    double rr = (netK > 0 ? netR / netK : 0);
    if(netR <= 0 || covers < MinCover || rr < MinNetRR)
      { dir = 0; verdict = "СПРЕД"; why = "круг"; return; }
-   why = "сверка ок RR "+DoubleToStr(rr, 1);
+   why = "сверка "+bias+" RR "+DoubleToStr(rr, 1);
   }
 
 void MaybeTrade(int idx, int dir, double stop, double target, string verdict, int spPts)
@@ -505,7 +505,7 @@ void DrawDesk()
 
    Rect("bg", x, y, w, h, C_BG);
    Lab("title", x + 14, y + 8, "SLOI DESK", C_GOLD, 12);
-   Lab("hint", x + 150, y + 12, g_feedNote+"   Yahoo vs брокер   приказ если котировки близки", C_DIM, 8);
+   Lab("hint", x + 150, y + 12, g_feedNote+"   % Yahoo vs брокер   КОТИР=далеко  СПРЕД=ход съели", C_DIM, 8);
 
    Btn("b_auto", x + 500, y + 8, 100, 22, g_auto ? "АВТО ВКЛ" : "АВТО ВЫКЛ", g_auto ? C_SEL : C_GOLD);
    Btn("b_alrt", x + 606, y + 8, 100, 22, g_alerts ? "АЛЕРТ ВКЛ" : "АЛЕРТ ВЫКЛ", C_GOLD);
@@ -535,7 +535,7 @@ void DrawDesk()
    int hy = y + setH + 2;
    Lab("h1", hx,     hy, "СИМВОЛ",  C_DIM, 8);
    Lab("h2", hx+110, hy, "СПРЕД",   C_DIM, 8);
-   Lab("h3", hx+170, hy, "Δ YAHOO", C_DIM, 8);
+   Lab("h3", hx+170, hy, "% YAHOO", C_DIM, 8);
    Lab("h4", hx+250, hy, "ВХОД",    C_DIM, 8);
    Lab("h5", hx+350, hy, "СТОП",    C_DIM, 8);
    Lab("h6", hx+450, hy, "ЦЕЛЬ",    C_DIM, 8);
