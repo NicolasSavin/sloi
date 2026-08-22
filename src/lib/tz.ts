@@ -3,6 +3,7 @@ import { persist } from "zustand/middleware";
 
 export const TZ_OPTS = [
   { id: "auto", label: "Авто (этот компьютер)", iana: "" },
+  { id: "gmt4", label: "GMT+4 Дубай / Самара", iana: "Asia/Dubai" },
   { id: "berlin", label: "Берлин GMT+1 / +2", iana: "Europe/Berlin" },
   { id: "riga", label: "Рига GMT+2 / +3", iana: "Europe/Riga" },
   { id: "london", label: "Лондон", iana: "Europe/London" },
