@@ -33,7 +33,6 @@ export interface NewsArticle extends NewsItem {
   impact: NewsImpact;
   relatedId: string | null;
 }
-}
 
 const SKIP =
   /метро|тройка|футбол|кино|сериал|погод|дети вместо|кустарного|крипт|bitcoin|биткоин|ethereum|войн|погиб|пропавш|royal mail|официальные курсы|украин|доставк|кривом роге|собак|вакцин|гибель|юаня на /i;
