@@ -12,7 +12,7 @@ export function YoutubePlayer({
   onEnded?: () => void;
 }) {
   useEffect(() => {
-    const cap = window.setTimeout(() => onEnded?.(), 240000);
+    const cap = window.setTimeout(() => onEnded?.(), 3_600_000);
     return () => window.clearTimeout(cap);
   }, [src, videoId, onEnded]);
 

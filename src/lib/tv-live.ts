@@ -1,4 +1,4 @@
-import { RSS_NETS, weaveBumpers, withFallbackSrc, youtubeEmbed, youtubeSeriesEmbed, type TvChannel } from "@/lib/tv-channels";
+import { RSS_NETS, weaveBumpers, withFallbackSrc, youtubeEmbed, youtubeQueueEmbed, youtubeSeriesEmbed, type TvChannel } from "@/lib/tv-channels";
 
 type Clip = { id: string; title: string };
 
@@ -30,7 +30,7 @@ async function rssClips(channelId: string): Promise<Clip[]> {
       if (seen.has(id)) continue;
       seen.add(id);
       out.push({ id, title: titles[i] ?? "Эфир" });
-      if (out.length >= 2) break;
+      if (out.length >= 8) break;
     }
     return out;
   } catch {
@@ -75,8 +75,18 @@ export async function resolveTvChannels(): Promise<TvChannel[]> {
     }),
   );
   const extra = rows.flat();
+  const ids = extra.filter((c) => !c.live && c.fallback).map((c) => c.fallback!);
+  const ether: TvChannel = {
+    id: "ether",
+    label: "Эфир",
+    kind: "youtube",
+    src: youtubeQueueEmbed(ids.length ? ids : ["j8z6woknGV8"]),
+    live: true,
+    lang: "ru",
+    title: "без пауз",
+  };
   if (extra.length === 0) {
-    return weaveBumpers([...RSS_NETS.map(withFallbackSrc), studio]);
+    return [ether, ...RSS_NETS.map(withFallbackSrc), studio];
   }
-  return weaveBumpers([...extra, studio]);
+  return [ether, ...extra.filter((c) => c.live), studio];
 }

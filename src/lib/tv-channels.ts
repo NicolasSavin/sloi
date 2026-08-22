@@ -85,7 +85,25 @@ export function youtubeEmbed(videoId: string) {
 
 export function youtubeSeriesEmbed(channelId: string) {
   const list = youtubeChannelPlaylist(channelId);
-  return `https://www.youtube.com/embed/videoseries?list=${list}&autoplay=1&mute=1&rel=0&playsinline=1&controls=1`;
+  return `https://www.youtube.com/embed/videoseries?list=${list}&autoplay=1&mute=1&rel=0&playsinline=1&controls=0&loop=1&iv_load_policy=3&modestbranding=1`;
+}
+
+export function youtubeQueueEmbed(ids: string[]) {
+  const uniq = [...new Set(ids.filter((id) => /^[a-zA-Z0-9_-]{11}$/.test(id)))];
+  const first = uniq[0];
+  if (!first) return "";
+  const q = new URLSearchParams({
+    autoplay: "1",
+    mute: "1",
+    rel: "0",
+    modestbranding: "1",
+    iv_load_policy: "3",
+    controls: "0",
+    playsinline: "1",
+    loop: "1",
+    playlist: uniq.join(","),
+  });
+  return `https://www.youtube.com/embed/${first}?${q.toString()}`;
 }
 
 export function bumperOf(i: number): TvChannel {
@@ -93,16 +111,7 @@ export function bumperOf(i: number): TvChannel {
 }
 
 export function weaveBumpers(list: TvChannel[]): TvChannel[] {
-  const yt = list.filter((c) => c.kind === "youtube");
-  const rest = list.filter((c) => c.kind !== "youtube");
-  if (!yt.length) return [bumperOf(0), ...rest];
-  const out: TvChannel[] = [];
-  yt.forEach((c, i) => {
-    out.push(c);
-    if ((i + 1) % 4 === 0) out.push(bumperOf(i + 1));
-  });
-  out.push(...rest);
-  return out;
+  return list.filter((c) => c.kind !== "bumper");
 }
 
 export function withFallbackSrc(channel: TvChannel): TvChannel {
@@ -115,9 +124,17 @@ export function withFallbackSrc(channel: TvChannel): TvChannel {
 }
 
 export function tvPlaylist(): TvChannel[] {
-  const nets = RSS_NETS.map(withFallbackSrc);
-  const studio: TvChannel = { id: "stratum", label: "Студия", kind: "reel", lang: "ru" };
-  return weaveBumpers([...nets, studio]);
+  const ids = RSS_NETS.map((n) => n.fallback).filter((id): id is string => Boolean(id));
+  const ether: TvChannel = {
+    id: "ether",
+    label: "Эфир",
+    kind: "youtube",
+    src: youtubeQueueEmbed(ids.length ? ids : ["j8z6woknGV8"]),
+    live: true,
+    lang: "ru",
+    title: "без пауз",
+  };
+  return [ether, ...RSS_NETS.map(withFallbackSrc)];
 }
 
 const TV_SYMBOL: Record<string, string> = {
