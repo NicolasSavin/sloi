@@ -133,19 +133,12 @@ interface ChatProvider {
 function providers(): ChatProvider[] {
   return [
     {
-      id: "grok",
-      label: "Grok",
-      key: process.env.XAI_API_KEY,
-      url: "https://api.x.ai/v1/chat/completions",
-      model: "grok-4.6",
-      models: ["grok-4.6", "grok-4.5", "grok-4-0709", "grok-4", "grok-3"],
-    },
-    {
       id: "groq",
-      label: "Llama 3.3",
+      label: "Llama",
       key: process.env.GROQ_API_KEY,
       url: "https://api.groq.com/openai/v1/chat/completions",
-      model: "llama-3.3-70b-versatile",
+      model: "openai/gpt-oss-120b",
+      models: ["openai/gpt-oss-120b", "qwen/qwen3.6-27b", "llama-3.3-70b-versatile", "llama-3.1-8b-instant"],
     },
     {
       id: "gemini",
@@ -153,6 +146,18 @@ function providers(): ChatProvider[] {
       key: process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY,
       url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
       model: "gemini-2.0-flash",
+      models: ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-flash-latest"],
+    },
+    {
+      id: "openrouter",
+      label: "OpenRouter",
+      key: process.env.OPENROUTER_API_KEY,
+      url: "https://openrouter.ai/api/v1/chat/completions",
+      model: process.env.OPENROUTER_MODEL || "meta-llama/llama-3.3-70b-instruct:free",
+      models: [
+        process.env.OPENROUTER_MODEL || "meta-llama/llama-3.3-70b-instruct:free",
+        "qwen/qwen3-8b:free",
+      ],
     },
     {
       id: "openai",
@@ -162,11 +167,12 @@ function providers(): ChatProvider[] {
       model: "gpt-4o-mini",
     },
     {
-      id: "openrouter",
-      label: "OpenRouter",
-      key: process.env.OPENROUTER_API_KEY,
-      url: "https://openrouter.ai/api/v1/chat/completions",
-      model: process.env.OPENROUTER_MODEL || "meta-llama/llama-3.3-70b-instruct",
+      id: "grok",
+      label: "Grok",
+      key: process.env.XAI_API_KEY,
+      url: "https://api.x.ai/v1/chat/completions",
+      model: "grok-3",
+      models: ["grok-3", "grok-4.6", "latest"],
     },
   ].filter((p) => Boolean(p.key));
 }
@@ -303,7 +309,7 @@ export const analyzeWithGrok = createServerFn({ method: "POST" })
         return {
           ok: false,
           error:
-            "Нет ключа модели. Движок SMC уже дал разбор. Чтобы подключить нейросеть: Vercel → Environment Variables → GROQ_API_KEY (бесплатно groq.com) или GEMINI_API_KEY или XAI_API_KEY.",
+            "Нет бесплатной модели. Grok API платный. Бесплатно: groq.com → API Keys → в Vercel переменная GROQ_API_KEY и Redeploy. Либо Gemini: GEMINI_API_KEY.",
         };
       }
 
