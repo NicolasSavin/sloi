@@ -8,7 +8,8 @@ export function skewLimit(id: string) {
   if (id === "XAGUSD") return 0.4;
   if (id === "XTIUSD" || id === "XBRUSD" || id === "USOIL") return 0.4;
   if (id === "XNGUSD") return 0.8;
-  if (/ETH|LTC|BCH|BTC|XRP|TON/.test(id)) return 2;
+  if (/BTC/.test(id) || /ETH/.test(id)) return 1.5;
+  if (/LTC|XRP|TON|BCH/.test(id)) return 2.2;
   if (id.includes("JPY")) return 0.15;
   if (["EURUSD", "GBPUSD", "USDCHF", "AUDUSD", "USDCAD", "NZDUSD"].includes(id)) return 0.08;
   return 0.12;
