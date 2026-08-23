@@ -149,15 +149,6 @@ function providers(): ChatProvider[] {
       model: "llama-3.1-8b-instant",
       models: ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "openai/gpt-oss-120b"],
     },
-  return [
-    {
-      id: "groq",
-      label: "Llama",
-      key: groqKey,
-      url: "https://api.groq.com/openai/v1/chat/completions",
-      model: "openai/gpt-oss-120b",
-      models: ["openai/gpt-oss-120b", "qwen/qwen3.6-27b", "llama-3.3-70b-versatile"],
-    },
     {
       id: "gemini",
       label: "Gemini",
