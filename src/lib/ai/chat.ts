@@ -9,17 +9,32 @@ const Input = z.object({
   symbol: z.string().optional(),
 });
 
+const ALIAS: [RegExp, string][] = [
+  [/золот|gold|xau/i, "XAUUSD"],
+  [/серебр|silver|xag/i, "XAGUSD"],
+  [/нефть|oil|wti|brent/i, "USOIL"],
+  [/евро.?иен|eurjpy/i, "EURJPY"],
+  [/фунт.?иен|gbpjpy/i, "GBPJPY"],
+  [/евро.?фунт|eurgbp/i, "EURGBP"],
+  [/евро|euro|eurusd|eur\/usd/i, "EURUSD"],
+  [/фунт|кабел|sterling|gbpusd|gbp\/usd/i, "GBPUSD"],
+  [/иен|yen|usdjpy|usd\/jpy/i, "USDJPY"],
+  [/франк|franc|usdchf/i, "USDCHF"],
+  [/австрал|аусси|aussie|audusd/i, "AUDUSD"],
+  [/канад|луни|loonie|usdcad/i, "USDCAD"],
+  [/киви|новозел|nzdusd/i, "NZDUSD"],
+  [/nasdaq|наздак|qqq/i, "QQQ"],
+  [/s&p|сп500|spy|индекс/i, "SPY"],
+];
+
 function guessSymbol(q: string, hint?: string) {
-  const hay = `${hint ?? ""} ${q}`.toUpperCase();
-  const hit = SYMBOLS.find(
-    (s) =>
-      hay.includes(s.id) ||
-      hay.includes(s.label.toUpperCase()) ||
-      (s.id === "XAUUSD" && /ЗОЛОТ|GOLD|XAU/.test(hay)) ||
-      (s.id === "XAGUSD" && /СЕРЕБР|SILVER|XAG/.test(hay)) ||
-      (s.id === "USOIL" && /НЕФТ|OIL|WTI|BRENT/.test(hay)),
-  );
-  return hit?.id ?? hint ?? "EURUSD";
+  const text = q.trim();
+  for (const [re, id] of ALIAS) {
+    if (re.test(text)) return id;
+  }
+  const hay = text.toUpperCase().replace(/\s+/g, "");
+  const byId = SYMBOLS.find((s) => hay.includes(s.id) || hay.includes(s.label.toUpperCase().replace(/\s+/g, "")));
+  return byId?.id ?? hint ?? "EURUSD";
 }
 
 function localReply(question: string, symbol: string, pack: Awaited<ReturnType<typeof fetchDigest>>) {

@@ -8,13 +8,14 @@ type Msg = { role: "user" | "bot"; text: string; model?: string };
 
 export function ChatDock() {
   const symbol = useDeskStore((s) => s.symbol);
-  const pair = getSymbol(symbol).label;
+  const [focus, setFocus] = useState(symbol);
+  const pair = getSymbol(focus).label;
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
   const [msgs, setMsgs] = useState<Msg[]>([
     {
       role: "bot",
-      text: "Диспетчерская. Спросите про пару или новость — отвечу по снимку стола.",
+      text: "Можно спросить любую пару стола: евро, фунт, золото, нефть, иена. Назову в шапке, по какой ответил.",
       model: "стол",
     },
   ]);
@@ -27,6 +28,7 @@ export function ChatDock() {
     setBusy(true);
     try {
       const res = await askDeskChat({ data: { question, symbol } });
+      if (res.symbol) setFocus(res.symbol);
       setMsgs((m) => [...m, { role: "bot", text: res.text, model: res.model }].slice(-10));
     } catch {
       setMsgs((m) => [
