@@ -5,7 +5,6 @@ import { Toaster } from "sonner";
 import { AuthProvider } from "@/lib/auth/provider";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import { DispatchWatcher } from "@/components/dispatch/watcher";
-import { ChatDock } from "@/components/desk/chat-dock";
 import appCss from "../styles.css?url";
 
 import { BRAND, DOMAIN, SITE_URL, TAGLINE } from "@/lib/brand";
@@ -64,7 +63,6 @@ function RootDocument() {
           <QueryClientProvider client={queryClient}>
             <Outlet />
             <DispatchWatcher />
-            <ChatDock />
             <Toaster theme="dark" position="bottom-center" />
           </QueryClientProvider>
         </AuthProvider>

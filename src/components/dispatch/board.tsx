@@ -13,6 +13,7 @@ import { isOpenAction, useDispatchStore } from "@/lib/dispatch-store";
 import { fetchDigest } from "@/lib/market/fetch";
 import { marketArt } from "@/lib/art";
 import { playDispatch, unlockSound } from "@/lib/sound";
+import { ChatDock } from "@/components/desk/chat-dock";
 import { cn, formatPct, formatPrice } from "@/lib/utils";
 
 export function DispatchBoard() {
@@ -88,6 +89,10 @@ export function DispatchBoard() {
             <FundStrip fund={fund} />
           </div>
         ) : null}
+
+        <div className="mt-8">
+          <ChatDock />
+        </div>
 
         <section className="mt-10">
           <p className="font-mono text-xs tracking-[0.18em] text-accent">ТАБЛО ПАР</p>
