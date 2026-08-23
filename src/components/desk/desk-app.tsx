@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChartPane } from "@/components/desk/chart-pane";
+import { ChartStage } from "@/components/desk/chart-hud";
 import { ChatDock } from "@/components/desk/chat-dock";
 import { AnalyzeBar, BookBanner, ClusterBanner, ConfluenceList, FlowBanner, LevelsTable, MarginBanner, PatternBanner } from "@/components/desk/desk-banners";
 import { EtherCard, StoryBody } from "@/components/desk/story-panel";
@@ -212,7 +213,9 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
               {snap?.flow ? <FlowBanner snap={snap} /> : null}
               <BookBanner book={book} iceberg={snap?.flow.events.find((e) => e.kind === "absorption")?.therefore} />
               {snap?.clusters ? <ClusterBanner snap={snap} /> : null}
-              <ChartPane candles={market.data?.candles ?? []} snap={snap} overlays={overlays} book={book} className="h-[220px] lg:h-auto lg:min-h-[420px] lg:flex-1" />
+              <ChartStage className="h-[260px] lg:h-auto lg:min-h-[420px] lg:flex-1">
+                <ChartPane candles={market.data?.candles ?? []} snap={snap} overlays={overlays} book={book} className="absolute inset-0 h-full" />
+              </ChartStage>
               <div className="px-4 pt-3"><EtherCard ether={ether} /></div>
               <div className="px-4 pb-4 pt-3"><ChatDock /></div>
             </>
