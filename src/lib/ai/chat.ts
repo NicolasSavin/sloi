@@ -1,8 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { fetchDigest } from "@/lib/market/fetch";
-import { SYMBOLS } from "@/lib/market/symbols";
+import { fetchDigest, fetchMarket } from "@/lib/market/fetch";
+import { SYMBOLS, getSymbol } from "@/lib/market/symbols";
 import { newsAlertText } from "@/lib/calendar";
+import { analyzeMarket } from "@/lib/smc/engine";
+import { formatPrice } from "@/lib/utils";
 
 const Input = z.object({
   question: z.string().min(2).max(500),
@@ -24,36 +26,55 @@ const ALIAS: [RegExp, string][] = [
   [/канад|луни|loonie|usdcad/i, "USDCAD"],
   [/киви|новозел|nzdusd/i, "NZDUSD"],
   [/nasdaq|наздак|qqq/i, "QQQ"],
-  [/s&p|сп500|spy|индекс/i, "SPY"],
+  [/s&p|сп500|spy/i, "SPY"],
 ];
 
 function guessSymbol(q: string, hint?: string) {
   const text = q.trim();
-  for (const [re, id] of ALIAS) {
-    if (re.test(text)) return id;
-  }
+  for (const [re, id] of ALIAS) if (re.test(text)) return id;
   const hay = text.toUpperCase().replace(/\s+/g, "");
   const byId = SYMBOLS.find((s) => hay.includes(s.id) || hay.includes(s.label.toUpperCase().replace(/\s+/g, "")));
   return byId?.id ?? hint ?? "EURUSD";
 }
 
-function localReply(question: string, symbol: string, pack: Awaited<ReturnType<typeof fetchDigest>>) {
-  const digest = pack.digest;
-  const m = digest.markets.find((x) => x.spec.id === symbol) ?? digest.markets[0];
-  const halt = digest.fund.halt;
-  const news = halt ? newsAlertText(halt) : digest.fund.line;
-  if (!m) return `Стол сейчас без снимка. Вопрос: ${question}`;
-  return [
-    `${m.spec.label} (${m.spec.id}). Цена ${m.lastClose}. Смещение ${m.changePct.toFixed(2)}%.`,
-    `Слой: ${m.bias}. Совет: ${m.advice.title}.`,
-    m.advice.because,
-    m.advice.therefore,
-    m.story?.doing ? `Крупняк: ${m.story.doing}` : "",
-    news,
-    "Это ответ движка стола. Не приказ и не обещание прибыли.",
-  ]
-    .filter(Boolean)
-    .join(" ");
+function replyFromSnap(q: string, symbol: string, pack: Awaited<ReturnType<typeof fetchDigest>>, snap: ReturnType<typeof analyzeMarket> | null) {
+  const spec = getSymbol(symbol);
+  const m = pack.digest.markets.find((x) => x.spec.id === symbol);
+  const halt = pack.digest.fund.halt;
+  const px = snap ? formatPrice(snap.lastClose, spec.decimals) : m ? formatPrice(m.lastClose, spec.decimals) : "н/д";
+  const harm = snap?.patterns.filter((p) => p.family === "harmonic") ?? [];
+  const graf = snap?.patterns.filter((p) => p.family === "graphic") ?? [];
+  const pats = snap?.patterns ?? [];
+
+  if (/гармон/i.test(q)) {
+    if (!harm.length) {
+      return `${spec.label} ${px}. На часовике чистой гармоники (Gartley, Bat, Cypher, ABCD) нет. ${graf[0] ? `Из графических ближе ${graf[0].name}: ${graf[0].therefore}` : "Свинги не сложились в гармонический сетап."}`;
+    }
+    return `${spec.label} ${px}. Гармоника: ${harm.map((p) => `${p.name} — ${p.therefore}`).join(" ")}`;
+  }
+  if (/паттерн|фигур|вымпел|флаг|плеч|двойн/i.test(q)) {
+    if (!pats.length) return `${spec.label} ${px}. Чистой фигуры нет: ни флага, ни вымпела, ни головы-плеч.`;
+    return `${spec.label} ${px}. Фигуры: ${pats.map((p) => `${p.name} (${p.family === "harmonic" ? "гармоника" : "графика"}) — ${p.therefore}`).join(" ")}`;
+  }
+  if (/вайкоф|wyckoff|фаз/i.test(q)) {
+    const w = snap?.wyckoff;
+    return w ? `${spec.label} ${px}. Вайкофф: ${w.name}. ${w.therefore}` : `${spec.label}: фазу Вайкоффа стол сейчас не видит.`;
+  }
+  if (/новост|календар|nfp|cpi|запрещ/i.test(q)) {
+    return halt ? newsAlertText(halt) : pack.digest.fund.line;
+  }
+  if (/вход|сигнал|лонг|шорт|можно ли/i.test(q) && m) {
+    return `${spec.label} ${px}. ${m.advice.title}. ${m.advice.because} ${m.advice.therefore}`;
+  }
+
+  const bits = [
+    `${spec.label} ${px}, слой ${snap?.bias ?? m?.bias ?? "—"}.`,
+    m?.advice.title,
+    harm[0] ? `Гармоника: ${harm[0].name}.` : "Гармоники нет.",
+    snap?.wyckoff ? `Вайкофф: ${snap.wyckoff.name}.` : "",
+    m?.story.doing,
+  ].filter(Boolean);
+  return bits.join(" ");
 }
 
 function asGroq(raw?: string) {
@@ -64,50 +85,26 @@ function asGroq(raw?: string) {
 
 async function llm(prompt: string): Promise<{ text: string; model: string } | null> {
   const groq = asGroq(process.env.GROQ_API_KEY) || asGroq(process.env.GROK_API_KEY);
-  const gemini = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-  const tries: { label: string; url: string; key: string; model: string }[] = [];
-  if (groq) {
-    tries.push({
-      label: "Llama",
-      url: "https://api.groq.com/openai/v1/chat/completions",
-      key: groq,
-      model: "llama-3.1-8b-instant",
+  if (!groq) return null;
+  try {
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${groq}` },
+      body: JSON.stringify({
+        model: "llama-3.1-8b-instant",
+        messages: [
+          { role: "system", content: "Дежурный SLOI. Отвечай строго на вопрос. Не повторяй весь снимок. Без обещания прибыли." },
+          { role: "user", content: prompt },
+        ],
+      }),
     });
+    if (!res.ok) return null;
+    const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+    const text = json.choices?.[0]?.message?.content?.trim();
+    return text ? { text, model: "Llama" } : null;
+  } catch {
+    return null;
   }
-  if (gemini) {
-    tries.push({
-      label: "Gemini",
-      url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-      key: gemini,
-      model: "gemini-2.0-flash",
-    });
-  }
-  for (const t of tries) {
-    try {
-      const res = await fetch(t.url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${t.key}` },
-        body: JSON.stringify({
-          model: t.model,
-          messages: [
-            {
-              role: "system",
-              content:
-                "Ты дежурный стола SLOI. По-русски, коротко, без канцелярита. Опирайся только на данные стола. Не обещай прибыль. Не выдумывай уровни, которых нет во входе.",
-            },
-            { role: "user", content: prompt },
-          ],
-        }),
-      });
-      if (!res.ok) continue;
-      const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-      const text = json.choices?.[0]?.message?.content?.trim();
-      if (text) return { text, model: t.label };
-    } catch {
-      /* next */
-    }
-  }
-  return null;
 }
 
 export const askDeskChat = createServerFn({ method: "POST" })
@@ -115,23 +112,19 @@ export const askDeskChat = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const pack = await fetchDigest();
     const symbol = guessSymbol(data.question, data.symbol);
-    const fallback = localReply(data.question, symbol, pack);
-    const m = pack.digest.markets.find((x) => x.spec.id === symbol);
-    const halt = pack.digest.fund.halt;
-    const prompt = `Вопрос трейдера: ${data.question}
-Пара: ${symbol} ${m?.spec.label ?? ""}
-Цена: ${m?.lastClose ?? "н/д"} смещение ${m?.changePct ?? 0}%
-Слой: ${m?.bias ?? ""} совет: ${m?.advice.title ?? ""}
-Почему: ${m?.advice.because ?? ""}
-Следствие: ${m?.advice.therefore ?? ""}
-Крупняк: ${m?.story?.doing ?? ""} / ждёт: ${m?.story?.waiting ?? ""}
-Новости: ${halt ? newsAlertText(halt) : pack.digest.fund.line}
-Ответь 4–8 предложениями.`;
+    let snap: ReturnType<typeof analyzeMarket> | null = null;
+    try {
+      const market = await fetchMarket({ data: { symbol, timeframe: "1h" } });
+      if (market.candles?.length) snap = analyzeMarket(market.candles, market.options, market.trades);
+    } catch {
+      snap = null;
+    }
+    const fallback = replyFromSnap(data.question, symbol, pack, snap);
+    const harm = snap?.patterns.filter((p) => p.family === "harmonic").map((p) => p.name) ?? [];
+    const prompt = `Вопрос: ${data.question}
+Пара ${symbol}. Паттерны: ${snap?.patterns.map((p) => p.name).join(", ") || "нет"}. Гармоника: ${harm.join(", ") || "нет"}.
+Вайкофф: ${snap?.wyckoff.name ?? "нет"}. Совет: ${pack.digest.markets.find((x) => x.spec.id === symbol)?.advice.title ?? ""}.
+Ответь только на вопрос, 3–6 предложений.`;
     const ai = await llm(prompt);
-    return {
-      ok: true as const,
-      symbol,
-      model: ai?.model ?? "стол",
-      text: ai?.text ?? fallback,
-    };
+    return { ok: true as const, symbol, model: ai?.model ?? "стол", text: ai?.text ?? fallback };
   });
