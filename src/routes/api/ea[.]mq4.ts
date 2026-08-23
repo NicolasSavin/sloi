@@ -19,7 +19,7 @@ function readyEa() {
   );
   src = src.replace(
     'if(n == "USOIL") return(0.30);',
-    'if(n == "USOIL" || n == "XTIUSD" || n == "XBRUSD") return(0.40);\n   if(n == "XNGUSD") return(0.80);\n   if(StringFind(n, "ETH") >= 0 || StringFind(n, "BTC") >= 0 || StringFind(n, "LTC") >= 0 || StringFind(n, "BCH") >= 0 || StringFind(n, "XRP") >= 0 || StringFind(n, "TON") >= 0) return(2.00);',
+    'if(n == "USOIL" || n == "XTIUSD" || n == "XBRUSD") return(0.40);\n   if(n == "XNGUSD") return(0.80);\n   if(StringFind(n, "BTC") >= 0 || StringFind(n, "ETH") >= 0) return(1.50);\n   if(StringFind(n, "LTC") >= 0 || StringFind(n, "XRP") >= 0 || StringFind(n, "TON") >= 0 || StringFind(n, "BCH") >= 0) return(2.20);',
   );
   return patchEaSource(src, {
     ...DEFAULT_EA,
