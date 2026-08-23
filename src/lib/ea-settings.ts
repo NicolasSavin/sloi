@@ -1,12 +1,7 @@
 export const PAIR_OPTIONS = [
-  "EURUSD",
-  "GBPUSD",
-  "USDJPY",
-  "XAUUSD",
-  "AUDUSD",
-  "USDCAD",
-  "USDCHF",
-  "NZDUSD",
+  "EURUSD","GBPUSD","USDJPY","USDCHF","AUDUSD","USDCAD","NZDUSD","EURJPY","GBPJPY",
+  "XAUUSD","XAGUSD","USOIL",
+  "ETHUSD","LTCUSD","BCHUSD","BTCUSD","XRPUSD","TONUSD",
 ] as const;
 
 export const TF_OPTIONS = [
@@ -28,8 +23,8 @@ export interface EaSettings {
 }
 
 export const DEFAULT_EA: EaSettings = {
-  pairs: ["EURUSD", "GBPUSD", "USDJPY", "XAUUSD", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD"],
-  suffix: "",
+  pairs: ["EURUSD","GBPUSD","USDJPY","USDCHF","AUDUSD","USDCAD","NZDUSD","EURJPY","GBPJPY","XAUUSD","XAGUSD","USOIL","ETHUSD","LTCUSD","BCHUSD","BTCUSD","XRPUSD","TONUSD"],
+  suffix: ".cs",
   workTF: 240,
   autoTrade: false,
   lots: 0.1,
