@@ -21,11 +21,14 @@ export const SYMBOLS: SymbolSpec[] = [
   { id: "ETHUSD", label: "Ethereum", kind: "crypto", decimals: 2, yahoo: "ETH-USD", binance: "ETHUSDT", bybit: "ETHUSDT", spread: 1.2, pip: 0.01 },
   { id: "LTCUSD", label: "Litecoin", kind: "crypto", decimals: 2, yahoo: "LTC-USD", binance: "LTCUSDT", bybit: "LTCUSDT", spread: 0.15, pip: 0.01 },
   { id: "BCHUSD", label: "Bitcoin Cash", kind: "crypto", decimals: 2, yahoo: "BCH-USD", binance: "BCHUSDT", bybit: "BCHUSDT", spread: 0.4, pip: 0.01 },
+  { id: "BTCUSD", label: "Bitcoin", kind: "crypto", decimals: 2, yahoo: "BTC-USD", binance: "BTCUSDT", bybit: "BTCUSDT", spread: 12, pip: 0.01 },
+  { id: "XRPUSD", label: "XRP", kind: "crypto", decimals: 4, yahoo: "XRP-USD", binance: "XRPUSDT", bybit: "XRPUSDT", spread: 0.002, pip: 0.0001 },
+  { id: "TONUSD", label: "Toncoin", kind: "crypto", decimals: 4, yahoo: "TON-USD", binance: "TONUSDT", bybit: "TONUSDT", spread: 0.008, pip: 0.0001 },
 ];
 
 export const DIGEST_IDS = [
   "XAUUSD", "XAGUSD", "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD", "NZDUSD",
-  "EURJPY", "GBPJPY", "USOIL", "SPY", "QQQ", "ETHUSD", "LTCUSD", "BCHUSD",
+  "EURJPY", "GBPJPY", "USOIL", "SPY", "QQQ", "ETHUSD", "LTCUSD", "BCHUSD", "BTCUSD", "XRPUSD", "TONUSD",
 ];
 
 export const KIND_LABEL: Record<SymbolSpec["kind"], string> = {
