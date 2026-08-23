@@ -190,13 +190,15 @@ export function newsAlertText(halt: NewsHalt) {
   const pair = newsCurrency(halt);
   const name = halt.event || "цифра календаря";
   const when =
-    halt.minutes > 0
-      ? `через ${halt.minutes} минут`
-      : halt.minutes === 0
-        ? "прямо сейчас"
-        : "уже вышла";
-  if (halt.active || halt.impact === "High") {
+    halt.minutes > 0 ? `через ${halt.minutes} минут` : halt.minutes === 0 ? "прямо сейчас" : "уже вышла";
+  if (halt.active) {
     return `Крупная новость по ${pair}: ${name}. ${when}. Торговля запрещена.`;
+  }
+  if (halt.impact === "High" && halt.minutes > 0 && halt.minutes <= 45) {
+    return `Крупная новость по ${pair}: ${name}. ${when}. Ближе к выходу торговлю остановлю.`;
+  }
+  if (halt.impact === "High") {
+    return `Дальше по календарю крупная по ${pair}: ${name}. ${when}. Сейчас торговля не запрещена.`;
   }
   if (halt.impact === "Medium") {
     return `Средняя новость по ${pair}: ${name}. ${when}. Торговлю не останавливаю, следите за спредом.`;

@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { askDeskChat } from "@/lib/ai/chat";
 import { useDeskStore } from "@/lib/desk-store";
+import { getSymbol } from "@/lib/market/symbols";
 import { cn } from "@/lib/utils";
 
 type Msg = { role: "user" | "bot"; text: string; model?: string };
 
 export function ChatDock() {
   const symbol = useDeskStore((s) => s.symbol);
+  const pair = getSymbol(symbol).label;
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
   const [msgs, setMsgs] = useState<Msg[]>([
@@ -39,7 +41,7 @@ export function ChatDock() {
   return (
     <section className="panel-volume overflow-hidden rounded-xl">
       <div className="flex items-center justify-between border-b border-border/70 px-4 py-3">
-        <p className="font-mono text-xs tracking-[0.18em] text-accent">ЧАТ ДИСПЕТЧЕРА · {symbol}</p>
+        <p className="font-mono text-xs tracking-[0.18em] text-accent">ЧАТ · смотрю {pair}</p>
       </div>
       <div className="max-h-64 space-y-2 overflow-y-auto px-4 py-3 text-sm leading-relaxed">
         {msgs.map((m, i) => (
