@@ -18,23 +18,14 @@ export const SYMBOLS: SymbolSpec[] = [
   { id: "QQQ", label: "Nasdaq 100", kind: "index", decimals: 2, yahoo: "QQQ", optionsYahoo: "QQQ", spread: 0.03, pip: 0.01 },
   { id: "IWM", label: "Russell 2000", kind: "index", decimals: 2, yahoo: "IWM", optionsYahoo: "IWM", spread: 0.04, pip: 0.01 },
   { id: "DIA", label: "Dow", kind: "index", decimals: 2, yahoo: "DIA", optionsYahoo: "DIA", spread: 0.03, pip: 0.01 },
+  { id: "ETHUSD", label: "Ethereum", kind: "crypto", decimals: 2, yahoo: "ETH-USD", binance: "ETHUSDT", bybit: "ETHUSDT", spread: 1.2, pip: 0.01 },
+  { id: "LTCUSD", label: "Litecoin", kind: "crypto", decimals: 2, yahoo: "LTC-USD", binance: "LTCUSDT", bybit: "LTCUSDT", spread: 0.15, pip: 0.01 },
+  { id: "BCHUSD", label: "Bitcoin Cash", kind: "crypto", decimals: 2, yahoo: "BCH-USD", binance: "BCHUSDT", bybit: "BCHUSDT", spread: 0.4, pip: 0.01 },
 ];
 
 export const DIGEST_IDS = [
-  "XAUUSD",
-  "XAGUSD",
-  "EURUSD",
-  "GBPUSD",
-  "USDJPY",
-  "USDCHF",
-  "AUDUSD",
-  "USDCAD",
-  "NZDUSD",
-  "EURJPY",
-  "GBPJPY",
-  "USOIL",
-  "SPY",
-  "QQQ",
+  "XAUUSD", "XAGUSD", "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD", "NZDUSD",
+  "EURJPY", "GBPJPY", "USOIL", "SPY", "QQQ", "ETHUSD", "LTCUSD", "BCHUSD",
 ];
 
 export const KIND_LABEL: Record<SymbolSpec["kind"], string> = {
@@ -42,6 +33,7 @@ export const KIND_LABEL: Record<SymbolSpec["kind"], string> = {
   fx: "Форекс",
   energy: "Энергия",
   index: "Индексы",
+  crypto: "Крипта 24/7",
 };
 
 export const TIMEFRAMES: { id: Timeframe; label: string }[] = [

@@ -1,6 +1,6 @@
 export type Timeframe = "5m" | "15m" | "1h" | "4h" | "1d";
 
-export type MarketKind = "metal" | "fx" | "index" | "energy";
+export type MarketKind = "metal" | "fx" | "index" | "energy" | "crypto";
 
 export interface SymbolSpec {
   id: string;
@@ -11,9 +11,7 @@ export interface SymbolSpec {
   binance?: string;
   bybit?: string;
   optionsYahoo?: string;
-  /** Typical one-way retail spread in price units. User can override. */
   spread: number;
-  /** Pip / point size for display. */
   pip: number;
 }
 

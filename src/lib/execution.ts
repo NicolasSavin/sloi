@@ -16,7 +16,7 @@ export function haltApplies(id: string, halt?: NewsHalt | null) {
   if (!halt?.active) return false;
   const c = `${halt.country} ${halt.event}`;
   if (/NFP|CPI|PCE|ФРС|Пауэлл|FOMC|занятост|инфляц|ставк/i.test(c) || /USD|United States|US/i.test(halt.country)) {
-    return /USD|XAU|XAG|USOIL|SPY|QQQ|IWM|DIA/.test(id);
+    return /USD|XAU|XAG|USOIL|SPY|QQQ|IWM|DIA|ETH|LTC|BCH/.test(id);
   }
   if (/ЕЦБ|ECB|EMU|EUR|Germany|Euro/i.test(c)) return /EUR/.test(id);
   if (/Англии|BOE|GBP|United Kingdom|UK/i.test(c)) return /GBP/.test(id);
@@ -34,6 +34,7 @@ export function sessionAllows(id: string, session?: SessionSnap | null) {
   const ny = session.bands.find((b) => b.id === "newyork")?.active;
   if (lon || ny) return { ok: true, note: session.overlap ? "пересечение Лондон–Нью-Йорк" : "сессия открыта" };
   if (/XAU|XAG|USOIL|JPY/.test(id)) return { ok: true, note: "Азия: металл и иена торгуются" };
+  if (/ETH|LTC|BCH|BTC/.test(id)) return { ok: true, note: "Крипта 24/7, сессии FX не глушат" };
   return { ok: false, note: "Тонкая Азия. Мажор FX не открываем до Лондона." };
 }
 
@@ -72,20 +73,10 @@ export function refineAdvice(
   }
   const sess = sessionAllows(opts.id, opts.session);
   if (!sess.ok && (advice.action === "long" || advice.action === "short")) {
-    return {
-      ...advice,
-      action: "wait",
-      title: "Ждать сессию",
-      therefore: sess.note,
-    };
+    return { ...advice, action: "wait", title: "Ждать сессию", therefore: sess.note };
   }
   if (advice.action !== "long" && advice.action !== "short") return advice;
   const trig = ltfTrigger(opts.h1, advice.action, opts.entry ?? 0);
-  if (!trig.ok) {
-    return { ...advice, action: "wait", title: "Ждать H1", therefore: trig.note };
-  }
-  return {
-    ...advice,
-    therefore: `${advice.therefore} ${trig.note}${sess.note ? ` ${sess.note}.` : ""}`,
-  };
+  if (!trig.ok) return { ...advice, action: "wait", title: "Ждать H1", therefore: trig.note };
+  return { ...advice, therefore: `${advice.therefore} ${trig.note}${sess.note ? ` ${sess.note}.` : ""}` };
 }
