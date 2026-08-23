@@ -46,9 +46,7 @@ export function parseYahooOptions(raw: unknown, ticker: string): OptionsSnapshot
   const puts: YahooContract[] = pack?.puts ?? [];
   if (!spot || (calls.length === 0 && puts.length === 0)) return null;
   const expiryUnix = num(pack?.expirationDate);
-  const expiry = expiryUnix
-    ? new Date(expiryUnix * 1000).toISOString().slice(0, 10)
-    : "";
+  const expiry = expiryUnix ? new Date(expiryUnix * 1000).toISOString().slice(0, 10) : "";
   const callOi = calls.reduce((s, c) => s + num(c.openInterest), 0);
   const putOi = puts.reduce((s, p) => s + num(p.openInterest), 0);
   const putCall = callOi > 0 ? putOi / callOi : null;
@@ -87,10 +85,7 @@ export function parseYahooOptions(raw: unknown, ticker: string): OptionsSnapshot
     byStrike.set(strike, row);
   }
   const rows = [...byStrike.values()].sort((a, b) => a.strike - b.strike);
-  const magnets = [...rows]
-    .sort((a, b) => b.callOi + b.putOi - (a.callOi + a.putOi))
-    .slice(0, 3)
-    .map((r) => r.strike);
+  const magnets = [...rows].sort((a, b) => b.callOi + b.putOi - (a.callOi + a.putOi)).slice(0, 3).map((r) => r.strike);
   const pain = maxPain(calls, puts);
   const pcBit =
     putCall == null
@@ -111,5 +106,59 @@ export function parseYahooOptions(raw: unknown, ticker: string): OptionsSnapshot
     magnetStrikes: magnets,
     rows: rows.filter((r) => r.callOi + r.putOi > 0).slice(0, 80),
     note: [`Опционы ${ticker}`, painBit, pcBit].filter(Boolean).join(". ") + ".",
+  };
+}
+
+export interface OptionConstruction {
+  strike: number;
+  expiry: string;
+  type: string;
+  why: string;
+  source: string;
+  putCall: string;
+}
+
+export function readConstruction(opt: OptionsSnapshot | null | undefined): OptionConstruction | null {
+  if (!opt || !opt.rows.length) return null;
+  const top = [...opt.rows].sort((a, b) => b.callOi + b.putOi - (a.callOi + a.putOi))[0];
+  if (!top) return null;
+  const total = top.callOi + top.putOi;
+  const putShare = total > 0 ? top.putOi / total : 0.5;
+  const spot = opt.spot;
+  const pain = opt.maxPain;
+  const dist = spot > 0 ? Math.abs(top.strike - spot) / spot : 1;
+  let type = "стена интереса";
+  let why = `На страйке ${top.strike} сидит основной открытый интерес. Это якорь, не приказ по споту.`;
+  if (putShare > 0.65) {
+    type = "стена путов";
+    why =
+      dist < 0.02
+        ? `Крупняк держит защиту под текущей ценой. Путы на ${top.strike} — пол на случай выноса. Спот ниже стены часто ускоряют, не «покупают потому что путы».`
+        : `Путовый интерес на ${top.strike} ниже рынка. Типичный хедж лонга или пол: крупняк не хочет дешевле этого страйка без компенсации.`;
+  } else if (putShare < 0.35) {
+    type = "стена коллов";
+    why =
+      top.strike > spot
+        ? `Коллы торчат выше спота на ${top.strike}. Часто потолок или покрытие шорта: к экспирации цену могут не пускать далеко за страйк без смены интереса.`
+        : `Коллы сконцентрированы на ${top.strike}. Ритейл уже заплатил за рост — крупняк может кормить движение в страйк, а не через него.`;
+  } else if (pain != null && Math.abs(pain - spot) / spot < 0.02) {
+    type = "пин / бабочка около max pain";
+    why = `Макс. боль ${pain} почти на споте. Конструкция ближе к кондору: выгодно, чтобы к экспирации цена стояла. Не путать с трендом.`;
+  }
+  const pc =
+    opt.putCall == null
+      ? "P/C нет"
+      : opt.putCall > 1.1
+        ? `P/C ${opt.putCall.toFixed(2)} — рынок платит за защиту вниз`
+        : opt.putCall < 0.7
+          ? `P/C ${opt.putCall.toFixed(2)} — рынок платит за рост`
+          : `P/C ${opt.putCall.toFixed(2)} — без явного перекоса`;
+  return {
+    strike: top.strike,
+    expiry: top.expiry || "ближайшая",
+    type,
+    why: `${why} ${pc}. Источник — биржевая цепочка ${opt.currency}, не внебиржевой блок.`,
+    source: opt.currency,
+    putCall: pc,
   };
 }
