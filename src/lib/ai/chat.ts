@@ -45,36 +45,59 @@ function replyFromSnap(q: string, symbol: string, pack: Awaited<ReturnType<typeo
   const harm = snap?.patterns.filter((p) => p.family === "harmonic") ?? [];
   const graf = snap?.patterns.filter((p) => p.family === "graphic") ?? [];
   const pats = snap?.patterns ?? [];
+  const story = snap?.story ?? m?.story;
+  const doing = story?.doing ?? "Крупный игрок не показывает чистый набор.";
+  const means = story?.means ?? "Пока нет причины открывать сделку «потому что цена живая».";
+  const wait = story?.waiting ?? "Ждёт край диапазона или слом структуры.";
+  const wy = snap?.wyckoff;
 
   if (/гармон/i.test(q)) {
     if (!harm.length) {
-      return `${spec.label} ${px}. На часовике чистой гармоники (Gartley, Bat, Cypher, ABCD) нет. ${graf[0] ? `Из графических ближе ${graf[0].name}: ${graf[0].therefore}` : "Свинги не сложились в гармонический сетап."}`;
+      return [
+        `По ${spec.label} на ${px} гармонического сетапа нет: точки XABCD не сложились в Gartley, Bat, Cypher или классический AB=CD.`,
+        graf[0] ? `Ближе обычная графика — ${graf[0].name}: ${graf[0].therefore}` : "Свинги слишком рваные, чтобы натянуть гармонику.",
+        doing,
+        means,
+        "Искать вход по гармонике сейчас бессмысленно — сначала нужна законченная фигура, потом реакция на точку D.",
+      ].join(" ");
     }
-    return `${spec.label} ${px}. Гармоника: ${harm.map((p) => `${p.name} — ${p.therefore}`).join(" ")}`;
+    return [
+      `По ${spec.label} на ${px} стол видит гармонику ${harm.map((p) => p.name).join(", ")}.`,
+      harm.map((p) => p.therefore).join(" "),
+      doing,
+      "Гармоника — это карта, не приказ. Сделка имеет смысл только если цена уважит зону D и появится смещение структуры.",
+    ].join(" ");
   }
   if (/паттерн|фигур|вымпел|флаг|плеч|двойн/i.test(q)) {
-    if (!pats.length) return `${spec.label} ${px}. Чистой фигуры нет: ни флага, ни вымпела, ни головы-плеч.`;
-    return `${spec.label} ${px}. Фигуры: ${pats.map((p) => `${p.name} (${p.family === "harmonic" ? "гармоника" : "графика"}) — ${p.therefore}`).join(" ")}`;
+    if (!pats.length) {
+      return `По ${spec.label} на ${px} нет ни флага, ни вымпела, ни головы-плеч, ни двойной вершины. ${doing} ${means} Ждать фигуру не нужно: смотрите слом и ликвидность, а не название паттерна.`;
+    }
+    return [`По ${spec.label} на ${px} есть ${pats.map((p) => p.name).join(", ")}.`, pats.map((p) => p.therefore).join(" "), doing, means].join(" ");
   }
   if (/вайкоф|wyckoff|фаз/i.test(q)) {
-    const w = snap?.wyckoff;
-    return w ? `${spec.label} ${px}. Вайкофф: ${w.name}. ${w.therefore}` : `${spec.label}: фазу Вайкоффа стол сейчас не видит.`;
+    return wy
+      ? `По ${spec.label} на ${px} фаза Вайкоффа: ${wy.name}. ${wy.therefore} ${doing} ${wait}`
+      : `По ${spec.label} фазу Вайкоффа стол не разметил. ${doing} ${wait}`;
   }
   if (/новост|календар|nfp|cpi|запрещ/i.test(q)) {
-    return halt ? newsAlertText(halt) : pack.digest.fund.line;
+    const n = halt ? newsAlertText(halt) : pack.digest.fund.line;
+    return `${n} Для ${spec.label} это фон, не сигнал. ${means}`;
   }
   if (/вход|сигнал|лонг|шорт|можно ли/i.test(q) && m) {
-    return `${spec.label} ${px}. ${m.advice.title}. ${m.advice.because} ${m.advice.therefore}`;
+    return [`По ${spec.label} на ${px} совет: ${m.advice.title}.`, m.advice.because, m.advice.therefore, doing, wait].join(" ");
   }
 
-  const bits = [
-    `${spec.label} ${px}, слой ${snap?.bias ?? m?.bias ?? "—"}.`,
-    m?.advice.title,
-    harm[0] ? `Гармоника: ${harm[0].name}.` : "Гармоники нет.",
-    snap?.wyckoff ? `Вайкофф: ${snap.wyckoff.name}.` : "",
-    m?.story.doing,
-  ].filter(Boolean);
-  return bits.join(" ");
+  return [
+    `Сейчас по ${spec.label} цена ${px}, слой ${snap?.bias ?? m?.bias ?? "неясен"}.`,
+    doing,
+    means,
+    wait,
+    wy ? `По Вайкоффу это ${wy.name}.` : "",
+    harm[0] ? `Гармоника на столе: ${harm[0].name}.` : "Гармонической фигуры нет.",
+    m ? `${m.advice.title}. ${m.advice.therefore}` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 
 function asGroq(raw?: string) {
@@ -93,7 +116,11 @@ async function llm(prompt: string): Promise<{ text: string; model: string } | nu
       body: JSON.stringify({
         model: "llama-3.1-8b-instant",
         messages: [
-          { role: "system", content: "Дежурный SLOI. Отвечай строго на вопрос. Не повторяй весь снимок. Без обещания прибыли." },
+          {
+            role: "system",
+            content:
+              "Ты аналитик стола SLOI. Пиши по-русски живым языком, 6–10 предложений. Сначала прямой ответ на вопрос, потом: что делает крупный игрок, зачем, чего ждёт, чем это кончится. Без канцелярита, без копипаста одних и тех же трёх фраз, без обещания прибыли.",
+          },
           { role: "user", content: prompt },
         ],
       }),
@@ -121,10 +148,13 @@ export const askDeskChat = createServerFn({ method: "POST" })
     }
     const fallback = replyFromSnap(data.question, symbol, pack, snap);
     const harm = snap?.patterns.filter((p) => p.family === "harmonic").map((p) => p.name) ?? [];
+    const st = snap?.story;
     const prompt = `Вопрос: ${data.question}
-Пара ${symbol}. Паттерны: ${snap?.patterns.map((p) => p.name).join(", ") || "нет"}. Гармоника: ${harm.join(", ") || "нет"}.
-Вайкофф: ${snap?.wyckoff.name ?? "нет"}. Совет: ${pack.digest.markets.find((x) => x.spec.id === symbol)?.advice.title ?? ""}.
-Ответь только на вопрос, 3–6 предложений.`;
+Пара ${symbol}. Паттерны: ${snap?.patterns.map((p) => `${p.name}: ${p.therefore}`).join(" | ") || "нет"}.
+Гармоника: ${harm.join(", ") || "нет"}. Вайкофф: ${snap?.wyckoff ? `${snap.wyckoff.name}. ${snap.wyckoff.therefore}` : "нет"}.
+Крупняк делает: ${st?.doing ?? ""}. Значит: ${st?.means ?? ""}. Ждёт: ${st?.waiting ?? ""}.
+Совет: ${pack.digest.markets.find((x) => x.spec.id === symbol)?.advice.title ?? ""}.
+Сначала ответь на вопрос. Затем причина → следствие.`;
     const ai = await llm(prompt);
     return { ok: true as const, symbol, model: ai?.model ?? "стол", text: ai?.text ?? fallback };
   });
