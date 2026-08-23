@@ -13,6 +13,7 @@ export interface NewsHalt {
   at: number;
   minutes: number;
   line: string;
+  impact: "High" | "Medium" | "";
   next: { event: string; at: number; label: string } | null;
 }
 
@@ -135,20 +136,29 @@ export function buildHalt(events: CalEvent[], now = Date.now()): NewsHalt {
       country: current.country,
       at: current.at,
       minutes,
+      impact: "High",
       line: `Крупная новость: ${current.label} (${current.country}) ${phase}. Торговлю торможу — спред и стопы в такие минуты лгут.`,
       next: upcoming ? { event: upcoming.label, at: upcoming.at, label: whenLabel(upcoming.at, now) } : null,
     };
   }
+  const midSoon = events
+    .filter((e) => e.impact === "Medium" && e.at - now > -5 * 60_000 && e.at - now < 45 * 60_000)
+    .sort((a, b) => a.at - b.at)[0];
+  const pick = upcoming ?? midSoon ?? null;
+  const grade = upcoming ? "High" : midSoon ? "Medium" : "";
   return {
     active: false,
-    event: upcoming?.label ?? "",
-    country: upcoming?.country ?? "",
-    at: upcoming?.at ?? 0,
-    minutes: upcoming ? Math.round((upcoming.at - now) / 60000) : 0,
+    event: pick?.label ?? "",
+    country: pick?.country ?? "",
+    at: pick?.at ?? 0,
+    minutes: pick ? Math.round((pick.at - now) / 60000) : 0,
+    impact: grade,
     line: upcoming
       ? `Следующая крупная: ${upcoming.label} (${upcoming.country}) ${whenLabel(upcoming.at, now)}.`
-      : "Крупных новостей в календаре рядом нет.",
-    next: upcoming ? { event: upcoming.label, at: upcoming.at, label: whenLabel(upcoming.at, now) } : null,
+      : midSoon
+        ? `Средняя новость: ${midSoon.label} (${midSoon.country}) ${whenLabel(midSoon.at, now)}. Ордер не снимаю, спред может расшириться.`
+        : "Крупных и средних новостей рядом нет.",
+    next: pick ? { event: pick.label, at: pick.at, label: whenLabel(pick.at, now) } : null,
   };
 }
 
@@ -158,6 +168,7 @@ export const EMPTY_HALT: NewsHalt = {
   country: "",
   at: 0,
   minutes: 0,
+  impact: "",
   line: "Календарь новостей сейчас недоступен.",
   next: null,
 };
@@ -177,18 +188,18 @@ export function newsCurrency(halt: Pick<NewsHalt, "country" | "event">) {
 
 export function newsAlertText(halt: NewsHalt) {
   const pair = newsCurrency(halt);
-  const name = halt.event || "крупная цифра";
-  if (halt.active) {
-    const when =
-      halt.minutes > 0
-        ? `через ${halt.minutes} минут`
-        : halt.minutes === 0
-          ? "прямо сейчас"
-          : "уже вышла";
-    return `Новость по ${pair}: ${name}. ${when}. Торговля запрещена.`;
+  const name = halt.event || "цифра календаря";
+  const when =
+    halt.minutes > 0
+      ? `через ${halt.minutes} минут`
+      : halt.minutes === 0
+        ? "прямо сейчас"
+        : "уже вышла";
+  if (halt.active || halt.impact === "High") {
+    return `Крупная новость по ${pair}: ${name}. ${when}. Торговля запрещена.`;
   }
-  if (halt.next && halt.minutes > 0 && halt.minutes <= 30) {
-    return `Новость по ${pair}: ${halt.event || halt.next.event}. Через ${halt.minutes} минут. Торговля будет запрещена.`;
+  if (halt.impact === "Medium") {
+    return `Средняя новость по ${pair}: ${name}. ${when}. Торговлю не останавливаю, следите за спредом.`;
   }
   return halt.line;
 }
@@ -196,5 +207,5 @@ export function newsAlertText(halt: NewsHalt) {
 export function newsAlertKey(halt: NewsHalt) {
   const bucket =
     halt.minutes > 20 ? 30 : halt.minutes > 10 ? 15 : halt.minutes > 3 ? 5 : halt.active ? 0 : -1;
-  return `${halt.event}|${halt.at}|${bucket}`;
+  return `${halt.impact}|${halt.event}|${halt.at}|${bucket}`;
 }

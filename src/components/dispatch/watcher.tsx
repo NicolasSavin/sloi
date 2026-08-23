@@ -104,7 +104,9 @@ export function DispatchWatcher() {
 
   const halt = q.data?.digest.fund?.halt;
   const newsLine = halt ? newsAlertText(halt) : "";
-  const warnNews = Boolean(halt && (halt.active || (halt.minutes > 0 && halt.minutes <= 30)));
+  const warnNews = Boolean(
+    halt && (halt.active || (halt.minutes > -5 && halt.minutes <= (halt.impact === "Medium" ? 20 : 30))),
+  );
 
   useEffect(() => {
     if (!onDuty || !halt || !warnNews) return;
