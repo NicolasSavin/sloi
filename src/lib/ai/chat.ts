@@ -5,6 +5,7 @@ import { SYMBOLS, getSymbol } from "@/lib/market/symbols";
 import { newsAlertText } from "@/lib/calendar";
 import { analyzeMarket } from "@/lib/smc/engine";
 import { formatPrice } from "@/lib/utils";
+import { askPlain } from "@/lib/ai/plain";
 
 const Input = z.object({
   question: z.string().min(2).max(500),
@@ -50,7 +51,6 @@ function replyFromSnap(q: string, symbol: string, pack: Awaited<ReturnType<typeo
   const means = story?.means ?? "Пока нет причины открывать сделку «потому что цена живая».";
   const wait = story?.waiting ?? "Ждёт край диапазона или слом структуры.";
   const wy = snap?.wyckoff;
-
   if (/гармон/i.test(q)) {
     if (!harm.length) {
       return [
@@ -61,78 +61,26 @@ function replyFromSnap(q: string, symbol: string, pack: Awaited<ReturnType<typeo
         "Искать вход по гармонике сейчас бессмысленно — сначала нужна законченная фигура, потом реакция на точку D.",
       ].join(" ");
     }
-    return [
-      `По ${spec.label} на ${px} стол видит гармонику ${harm.map((p) => p.name).join(", ")}.`,
-      harm.map((p) => p.therefore).join(" "),
-      doing,
-      "Гармоника — это карта, не приказ. Сделка имеет смысл только если цена уважит зону D и появится смещение структуры.",
-    ].join(" ");
+    return [`По ${spec.label} на ${px} стол видит гармонику ${harm.map((p) => p.name).join(", ")}.`, harm.map((p) => p.therefore).join(" "), doing, "Гармоника — это карта, не приказ."].join(" ");
   }
   if (/паттерн|фигур|вымпел|флаг|плеч|двойн/i.test(q)) {
-    if (!pats.length) {
-      return `По ${spec.label} на ${px} нет ни флага, ни вымпела, ни головы-плеч, ни двойной вершины. ${doing} ${means} Ждать фигуру не нужно: смотрите слом и ликвидность, а не название паттерна.`;
-    }
+    if (!pats.length) return `По ${spec.label} на ${px} нет чистой фигуры. ${doing} ${means}`;
     return [`По ${spec.label} на ${px} есть ${pats.map((p) => p.name).join(", ")}.`, pats.map((p) => p.therefore).join(" "), doing, means].join(" ");
   }
   if (/вайкоф|wyckoff|фаз/i.test(q)) {
-    return wy
-      ? `По ${spec.label} на ${px} фаза Вайкоффа: ${wy.name}. ${wy.therefore} ${doing} ${wait}`
-      : `По ${spec.label} фазу Вайкоффа стол не разметил. ${doing} ${wait}`;
+    return wy ? `По ${spec.label} на ${px} фаза Вайкоффа: ${wy.name}. ${wy.therefore} ${doing} ${wait}` : `По ${spec.label} фазу Вайкоффа стол не разметил. ${doing}`;
   }
   if (/новост|календар|nfp|cpi|запрещ/i.test(q)) {
-    const n = halt ? newsAlertText(halt) : pack.digest.fund.line;
-    return `${n} Для ${spec.label} это фон, не сигнал. ${means}`;
+    return `${halt ? newsAlertText(halt) : pack.digest.fund.line} Для ${spec.label} это фон, не сигнал.`;
   }
   if (/вход|сигнал|лонг|шорт|можно ли/i.test(q) && m) {
     return [`По ${spec.label} на ${px} совет: ${m.advice.title}.`, m.advice.because, m.advice.therefore, doing, wait].join(" ");
   }
-
-  return [
-    `Сейчас по ${spec.label} цена ${px}, слой ${snap?.bias ?? m?.bias ?? "неясен"}.`,
-    doing,
-    means,
-    wait,
-    wy ? `По Вайкоффу это ${wy.name}.` : "",
-    harm[0] ? `Гармоника на столе: ${harm[0].name}.` : "Гармонической фигуры нет.",
-    m ? `${m.advice.title}. ${m.advice.therefore}` : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
+  return [`Сейчас по ${spec.label} цена ${px}, слой ${snap?.bias ?? m?.bias ?? "неясен"}.`, doing, means, wait].filter(Boolean).join(" ");
 }
 
-function asGroq(raw?: string) {
-  if (!raw) return undefined;
-  if (raw.startsWith("xai-") || raw.startsWith("AIza")) return undefined;
-  return raw;
-}
-
-async function llm(prompt: string): Promise<{ text: string; model: string } | null> {
-  const groq = asGroq(process.env.GROQ_API_KEY) || asGroq(process.env.GROK_API_KEY);
-  if (!groq) return null;
-  try {
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${groq}` },
-      body: JSON.stringify({
-        model: "llama-3.1-8b-instant",
-        messages: [
-          {
-            role: "system",
-            content:
-              "Ты аналитик стола SLOI. Пиши по-русски живым языком, 6–10 предложений. Сначала прямой ответ на вопрос, потом: что делает крупный игрок, зачем, чего ждёт, чем это кончится. Без канцелярита, без копипаста одних и тех же трёх фраз, без обещания прибыли.",
-          },
-          { role: "user", content: prompt },
-        ],
-      }),
-    });
-    if (!res.ok) return null;
-    const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-    const text = json.choices?.[0]?.message?.content?.trim();
-    return text ? { text, model: "Llama" } : null;
-  } catch {
-    return null;
-  }
-}
+const SYSTEM_CHAT =
+  "Ты дежурный аналитик стола SLOI. Отвечай по-русски живым языком, 6–12 предложений. Сначала прямой ответ на вопрос. Потом: что делает крупный игрок, зачем, чего ждёт. Не копируй шаблон. Не обещай прибыль. Не выдумывай уровни.";
 
 export const askDeskChat = createServerFn({ method: "POST" })
   .validator((input: unknown) => Input.parse(input))
@@ -153,8 +101,7 @@ export const askDeskChat = createServerFn({ method: "POST" })
 Пара ${symbol}. Паттерны: ${snap?.patterns.map((p) => `${p.name}: ${p.therefore}`).join(" | ") || "нет"}.
 Гармоника: ${harm.join(", ") || "нет"}. Вайкофф: ${snap?.wyckoff ? `${snap.wyckoff.name}. ${snap.wyckoff.therefore}` : "нет"}.
 Крупняк делает: ${st?.doing ?? ""}. Значит: ${st?.means ?? ""}. Ждёт: ${st?.waiting ?? ""}.
-Совет: ${pack.digest.markets.find((x) => x.spec.id === symbol)?.advice.title ?? ""}.
-Сначала ответь на вопрос. Затем причина → следствие.`;
-    const ai = await llm(prompt);
+Совет: ${pack.digest.markets.find((x) => x.spec.id === symbol)?.advice.title ?? ""}.`;
+    const ai = await askPlain(SYSTEM_CHAT, prompt);
     return { ok: true as const, symbol, model: ai?.model ?? "стол", text: ai?.text ?? fallback };
   });
