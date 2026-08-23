@@ -39,7 +39,7 @@ export const useDeskStore = create<DeskState>()(
     (set) => ({
       symbol: "EURUSD",
       timeframe: "1h",
-      autoAnalyze: false,
+      autoAnalyze: true,
       soundOn: true,
       voiceOn: true,
       overlays: {
@@ -59,14 +59,12 @@ export const useDeskStore = create<DeskState>()(
       setAutoAnalyze: (on) => set({ autoAnalyze: on }),
       setSoundOn: (on) => set({ soundOn: on }),
       setVoiceOn: (on) => set({ voiceOn: on }),
-      toggleOverlay: (key) =>
-        set((s) => ({ overlays: { ...s.overlays, [key]: !s.overlays[key] } })),
-      setSpread: (id, spread) =>
-        set((s) => ({ spreads: { ...s.spreads, [id]: spread } })),
+      toggleOverlay: (key) => set((s) => ({ overlays: { ...s.overlays, [key]: !s.overlays[key] } })),
+      setSpread: (id, spread) => set((s) => ({ spreads: { ...s.spreads, [id]: spread } })),
     }),
     {
       name: "stratum-desk",
-      version: 8,
+      version: 9,
       migrate: (persisted) => {
         const p = (persisted ?? {}) as Partial<DeskState>;
         const symbol = p.symbol && ALLOWED.has(p.symbol) ? p.symbol : "EURUSD";
@@ -75,6 +73,7 @@ export const useDeskStore = create<DeskState>()(
           ...p,
           symbol,
           spreads,
+          autoAnalyze: true,
           soundOn: p.soundOn ?? true,
           voiceOn: p.voiceOn ?? true,
           overlays: {
