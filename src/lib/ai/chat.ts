@@ -103,5 +103,6 @@ export const askDeskChat = createServerFn({ method: "POST" })
 Крупняк делает: ${st?.doing ?? ""}. Значит: ${st?.means ?? ""}. Ждёт: ${st?.waiting ?? ""}.
 Совет: ${pack.digest.markets.find((x) => x.spec.id === symbol)?.advice.title ?? ""}.`;
     const ai = await askPlain(SYSTEM_CHAT, prompt);
-    return { ok: true as const, symbol, model: ai?.model ?? "стол", text: ai?.text ?? fallback };
+    if ("text" in ai) return { ok: true as const, symbol, model: ai.model, text: ai.text };
+    return { ok: true as const, symbol, model: "стол", text: `${ai.miss} ${fallback}` };
   });
