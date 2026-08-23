@@ -230,7 +230,7 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
           )}
           <div className="border-t border-border px-4 py-4 lg:hidden">
             <AnalyzeBar autoAnalyze={autoAnalyze} setAutoAnalyze={setAutoAnalyze} onRun={() => void runAi(true)} onJournal={addToJournal} snapReady={Boolean(snap)} aiLoading={aiLoading} aiModel={aiModel} />
-            <div className="mt-4"><StoryBody brief={brief} snap={snap} aiLoading={aiLoading} aiError={aiError} decimals={spec.decimals} /></div>
+            <div className="mt-4"><StoryBody brief={brief} snap={snap} aiLoading={aiLoading} aiError={aiError} decimals={spec.decimals} options={market.data?.options} /></div>
           </div>
           <Tabs defaultValue="levels" className="border-t border-border">
             <div className="overflow-x-auto px-3 pt-3">
@@ -254,7 +254,7 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
           <ScrollArea className="mt-3 min-h-[280px] flex-1">
             <div className="space-y-4 px-4 pb-8">
               {fund ? <FundStrip fund={fund} /> : null}
-              <StoryBody brief={brief} snap={snap} aiLoading={aiLoading} aiError={aiError} decimals={spec.decimals} />
+              <StoryBody brief={brief} snap={snap} aiLoading={aiLoading} aiError={aiError} decimals={spec.decimals} options={market.data?.options} />
               <Separator />
               <div>
                 <div className="mb-2 flex items-center gap-2 text-sm font-medium"><Layers className="size-4 text-muted" /> Слои</div>
