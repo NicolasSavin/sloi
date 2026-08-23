@@ -130,34 +130,25 @@ interface ChatProvider {
   models?: string[];
 }
 
-function groqish(raw?: string) {
-  return raw?.startsWith("gsk_") ? raw : undefined;
-}
-
-function keyDebug() {
-  const bits: string[] = [];
-  const mark = (name: string, v?: string) => {
-    if (!v) return;
-    if (v.startsWith("gsk_")) bits.push(`${name}=gsk (Groq)`);
-    else if (v.startsWith("xai-")) bits.push(`${name}=xai (Grok, платный)`);
-    else if (v.startsWith("AIza")) bits.push(`${name}=Gemini`);
-    else bits.push(`${name}=неизвестный префикс`);
-  };
-  mark("GROQ_API_KEY", process.env.GROQ_API_KEY);
-  mark("GROK_API_KEY", process.env.GROK_API_KEY);
-  mark("XAI_API_KEY", process.env.XAI_API_KEY);
-  mark("GEMINI_API_KEY", process.env.GEMINI_API_KEY);
-  return bits.length ? bits.join(", ") : "ключей нет";
+function asGroq(raw?: string) {
+  if (!raw) return undefined;
+  if (raw.startsWith("xai-") || raw.startsWith("AIza")) return undefined;
+  return raw;
 }
 
 function providers(): ChatProvider[] {
   const groqKey =
-    groqish(process.env.GROQ_API_KEY) || groqish(process.env.GROK_API_KEY) || groqish(process.env.XAI_API_KEY);
-  const xaiKey = process.env.XAI_API_KEY?.startsWith("xai-")
-    ? process.env.XAI_API_KEY
-    : process.env.GROK_API_KEY?.startsWith("xai-")
-      ? process.env.GROK_API_KEY
-      : undefined;
+    asGroq(process.env.GROQ_API_KEY) || asGroq(process.env.GROK_API_KEY) || asGroq(process.env.XAI_API_KEY);
+  const xaiKey = [process.env.XAI_API_KEY, process.env.GROK_API_KEY].find((k) => k?.startsWith("xai-"));
+  return [
+    {
+      id: "groq",
+      label: "Llama",
+      key: groqKey,
+      url: "https://api.groq.com/openai/v1/chat/completions",
+      model: "llama-3.1-8b-instant",
+      models: ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "openai/gpt-oss-120b"],
+    },
   return [
     {
       id: "groq",
@@ -300,8 +291,6 @@ async function chatOnce(p: ChatProvider, payload: unknown): Promise<AiBrief> {
       },
       body: JSON.stringify({
         model,
-        temperature: 0.25,
-        max_tokens: 1400,
         messages: [
           { role: "system", content: SYSTEM },
           { role: "user", content: userPrompt(payload) },
@@ -372,17 +361,12 @@ export const analyzeWithGrok = createServerFn({ method: "POST" })
         }
       }
       const joined = errors.join("; ");
-      const dbg = keyDebug();
-      const hasGroq = Boolean(groqish(process.env.GROQ_API_KEY) || groqish(process.env.GROK_API_KEY));
-      if (!hasGroq) {
+      if (chain.some((p) => p.id === "groq")) {
         return {
           ok: false,
-          error: `Нет ключа Groq (должен начинаться с gsk_). Сейчас в Vercel: ${dbg}. Создайте groq.com/keys → переменная GROQ_API_KEY → Redeploy. Движок слева уже дал разбор.`,
+          error: `Llama не ответила: ${joined}. Ключ на месте (как вчера). Часто лимит Groq или сеть из РФ — VPN или подождать минуту. Движок слева уже дал разбор.`,
         };
       }
-      return {
-        ok: false,
-        error: `Модели не ответили (${dbg}): ${joined}. Groq из РФ иногда режет — VPN и новый gsk_. Движок слева уже дал разбор.`,
-      };
+      return { ok: false, error: `Модели не ответили: ${joined}. Движок слева уже дал разбор.` };
     },
   );
