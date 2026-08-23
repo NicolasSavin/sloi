@@ -161,3 +161,40 @@ export const EMPTY_HALT: NewsHalt = {
   line: "Календарь новостей сейчас недоступен.",
   next: null,
 };
+
+export function newsCurrency(halt: Pick<NewsHalt, "country" | "event">) {
+  const c = `${halt.country} ${halt.event}`;
+  if (/ЕЦБ|ECB|EMU|EUR|Germany|Euro/i.test(c)) return "евро";
+  if (/Англии|BOE|GBP|United Kingdom|UK/i.test(c)) return "фунту";
+  if (/Япони|BOJ|JPY|Japan/i.test(c)) return "иене";
+  if (/AUD|Australia/i.test(c)) return "австралийцу";
+  if (/CAD|Canada/i.test(c)) return "канадцу";
+  if (/NZD|New Zealand/i.test(c)) return "новозеландцу";
+  if (/CHF|Swiss/i.test(c)) return "франку";
+  if (/XAU|золот/i.test(c)) return "золоту";
+  return "доллару";
+}
+
+export function newsAlertText(halt: NewsHalt) {
+  const pair = newsCurrency(halt);
+  const name = halt.event || "крупная цифра";
+  if (halt.active) {
+    const when =
+      halt.minutes > 0
+        ? `через ${halt.minutes} минут`
+        : halt.minutes === 0
+          ? "прямо сейчас"
+          : "уже вышла";
+    return `Новость по ${pair}: ${name}. ${when}. Торговля запрещена.`;
+  }
+  if (halt.next && halt.minutes > 0 && halt.minutes <= 30) {
+    return `Новость по ${pair}: ${halt.event || halt.next.event}. Через ${halt.minutes} минут. Торговля будет запрещена.`;
+  }
+  return halt.line;
+}
+
+export function newsAlertKey(halt: NewsHalt) {
+  const bucket =
+    halt.minutes > 20 ? 30 : halt.minutes > 10 ? 15 : halt.minutes > 3 ? 5 : halt.active ? 0 : -1;
+  return `${halt.event}|${halt.at}|${bucket}`;
+}

@@ -4,6 +4,7 @@ import { Link } from "@tanstack/react-router";
 import { isOpenAction, useDispatchStore } from "@/lib/dispatch-store";
 import { fetchDigest, fetchMarket } from "@/lib/market/fetch";
 import { playDispatch, speakRu, unlockSound } from "@/lib/sound";
+import { newsAlertKey, newsAlertText } from "@/lib/calendar";
 import { useDeskStore } from "@/lib/desk-store";
 import { actionLabel } from "@/lib/advisor";
 import { LiveShot } from "@/components/live-shot";
@@ -23,6 +24,7 @@ export function DispatchWatcher() {
   const seen = useRef<Record<string, string>>({});
   const primed = useRef(false);
   const settling = useRef(false);
+  const newsSeen = useRef("");
 
   const openHits = log.filter((h) => (h.status ?? "open") === "open");
   const watching = onDuty || openHits.length > 0;
@@ -100,6 +102,19 @@ export function DispatchWatcher() {
     if (!onDuty) primed.current = false;
   }, [onDuty]);
 
+  const halt = q.data?.digest.fund?.halt;
+  const newsLine = halt ? newsAlertText(halt) : "";
+  const warnNews = Boolean(halt && (halt.active || (halt.minutes > 0 && halt.minutes <= 30)));
+
+  useEffect(() => {
+    if (!onDuty || !halt || !warnNews) return;
+    const key = newsAlertKey(halt);
+    if (newsSeen.current === key) return;
+    newsSeen.current = key;
+    if (soundOn) playDispatch("short");
+    if (voiceOn) void speakRu(newsLine);
+  }, [onDuty, halt?.at, halt?.minutes, halt?.active, halt?.event, newsLine, warnNews, soundOn, voiceOn]);
+
   useEffect(() => {
     if (!flash) return;
     const t = window.setTimeout(() => clearFlash(), 9000);
@@ -134,6 +149,15 @@ export function DispatchWatcher() {
                 Табло
               </Link>
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      {onDuty && warnNews && newsLine ? (
+        <div className="fixed inset-x-0 top-0 z-50 px-3 pt-3">
+          <div className="panel-volume mx-auto max-w-3xl rounded-xl border-bear/50 bg-bg/95 px-4 py-3">
+            <p className="font-mono text-xs tracking-[0.16em] text-accent">КАЛЕНДАРЬ · ТОРМОЖУ</p>
+            <p className="mt-1 text-lg leading-snug">{newsLine}</p>
           </div>
         </div>
       ) : null}
