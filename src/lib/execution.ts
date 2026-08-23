@@ -6,7 +6,9 @@ import type { SessionSnap } from "@/lib/sessions";
 export function skewLimit(id: string) {
   if (id === "XAUUSD") return 0.35;
   if (id === "XAGUSD") return 0.4;
-  if (id === "USOIL") return 0.3;
+  if (id === "XTIUSD" || id === "XBRUSD" || id === "USOIL") return 0.4;
+  if (id === "XNGUSD") return 0.8;
+  if (/ETH|LTC|BCH|BTC|XRP|TON/.test(id)) return 2;
   if (id.includes("JPY")) return 0.15;
   if (["EURUSD", "GBPUSD", "USDCHF", "AUDUSD", "USDCAD", "NZDUSD"].includes(id)) return 0.08;
   return 0.12;
@@ -16,7 +18,7 @@ export function haltApplies(id: string, halt?: NewsHalt | null) {
   if (!halt?.active) return false;
   const c = `${halt.country} ${halt.event}`;
   if (/NFP|CPI|PCE|ФРС|Пауэлл|FOMC|занятост|инфляц|ставк/i.test(c) || /USD|United States|US/i.test(halt.country)) {
-    return /USD|XAU|XAG|USOIL|SPY|QQQ|IWM|DIA|ETH|LTC|BCH|BTC|XRP|TON/.test(id);
+    return /USD|XAU|XAG|XTI|XBR|XNG|USOIL|SPY|QQQ|IWM|DIA|ETH|LTC|BCH|BTC|XRP|TON/.test(id);
   }
   if (/ЕЦБ|ECB|EMU|EUR|Germany|Euro/i.test(c)) return /EUR/.test(id);
   if (/Англии|BOE|GBP|United Kingdom|UK/i.test(c)) return /GBP/.test(id);
@@ -33,7 +35,7 @@ export function sessionAllows(id: string, session?: SessionSnap | null) {
   const lon = session.bands.find((b) => b.id === "london")?.active;
   const ny = session.bands.find((b) => b.id === "newyork")?.active;
   if (lon || ny) return { ok: true, note: session.overlap ? "пересечение Лондон–Нью-Йорк" : "сессия открыта" };
-  if (/XAU|XAG|USOIL|JPY/.test(id)) return { ok: true, note: "Азия: металл и иена торгуются" };
+  if (/XAU|XAG|XTI|XBR|XNG|USOIL|JPY/.test(id)) return { ok: true, note: "Азия: металл и энергия торгуются" };
   if (/ETH|LTC|BCH|BTC|XRP|TON/.test(id)) return { ok: true, note: "Крипта 24/7, сессии FX не глушат" };
   return { ok: false, note: "Тонкая Азия. Мажор FX не открываем до Лондона." };
 }

@@ -13,7 +13,9 @@ export const SYMBOLS: SymbolSpec[] = [
   { id: "EURGBP", label: "EUR/GBP", kind: "fx", decimals: 5, yahoo: "EURGBP=X", spread: 0.00014, pip: 0.0001 },
   { id: "EURJPY", label: "EUR/JPY", kind: "fx", decimals: 3, yahoo: "EURJPY=X", spread: 0.02, pip: 0.01 },
   { id: "GBPJPY", label: "GBP/JPY", kind: "fx", decimals: 3, yahoo: "GBPJPY=X", spread: 0.025, pip: 0.01 },
-  { id: "USOIL", label: "Нефть WTI", kind: "energy", decimals: 2, yahoo: "CL=F", optionsYahoo: "USO", spread: 0.04, pip: 0.01 },
+  { id: "XTIUSD", label: "Нефть WTI", kind: "energy", decimals: 2, yahoo: "CL=F", optionsYahoo: "USO", spread: 0.04, pip: 0.01 },
+  { id: "XBRUSD", label: "Нефть Brent", kind: "energy", decimals: 2, yahoo: "BZ=F", optionsYahoo: "BNO", spread: 0.04, pip: 0.01 },
+  { id: "XNGUSD", label: "Газ Henry Hub", kind: "energy", decimals: 3, yahoo: "NG=F", spread: 0.02, pip: 0.001 },
   { id: "SPY", label: "S&P 500", kind: "index", decimals: 2, yahoo: "SPY", optionsYahoo: "SPY", spread: 0.02, pip: 0.01 },
   { id: "QQQ", label: "Nasdaq 100", kind: "index", decimals: 2, yahoo: "QQQ", optionsYahoo: "QQQ", spread: 0.03, pip: 0.01 },
   { id: "IWM", label: "Russell 2000", kind: "index", decimals: 2, yahoo: "IWM", optionsYahoo: "IWM", spread: 0.04, pip: 0.01 },
@@ -28,7 +30,7 @@ export const SYMBOLS: SymbolSpec[] = [
 
 export const DIGEST_IDS = [
   "XAUUSD", "XAGUSD", "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD", "NZDUSD",
-  "EURJPY", "GBPJPY", "USOIL", "SPY", "QQQ", "ETHUSD", "LTCUSD", "BCHUSD", "BTCUSD", "XRPUSD", "TONUSD",
+  "EURJPY", "GBPJPY", "XTIUSD", "XBRUSD", "XNGUSD", "SPY", "QQQ", "ETHUSD", "BTCUSD", "XRPUSD", "TONUSD",
 ];
 
 export const KIND_LABEL: Record<SymbolSpec["kind"], string> = {
