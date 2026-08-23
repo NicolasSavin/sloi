@@ -130,12 +130,34 @@ interface ChatProvider {
   models?: string[];
 }
 
+function groqish(raw?: string) {
+  return raw?.startsWith("gsk_") ? raw : undefined;
+}
+
+function keyDebug() {
+  const bits: string[] = [];
+  const mark = (name: string, v?: string) => {
+    if (!v) return;
+    if (v.startsWith("gsk_")) bits.push(`${name}=gsk (Groq)`);
+    else if (v.startsWith("xai-")) bits.push(`${name}=xai (Grok, платный)`);
+    else if (v.startsWith("AIza")) bits.push(`${name}=Gemini`);
+    else bits.push(`${name}=неизвестный префикс`);
+  };
+  mark("GROQ_API_KEY", process.env.GROQ_API_KEY);
+  mark("GROK_API_KEY", process.env.GROK_API_KEY);
+  mark("XAI_API_KEY", process.env.XAI_API_KEY);
+  mark("GEMINI_API_KEY", process.env.GEMINI_API_KEY);
+  return bits.length ? bits.join(", ") : "ключей нет";
+}
+
 function providers(): ChatProvider[] {
   const groqKey =
-    process.env.GROQ_API_KEY ||
-    process.env.GROK_API_KEY ||
-    (process.env.XAI_API_KEY?.startsWith("gsk_") ? process.env.XAI_API_KEY : undefined);
-  const xaiKey = process.env.XAI_API_KEY?.startsWith("xai-") ? process.env.XAI_API_KEY : undefined;
+    groqish(process.env.GROQ_API_KEY) || groqish(process.env.GROK_API_KEY) || groqish(process.env.XAI_API_KEY);
+  const xaiKey = process.env.XAI_API_KEY?.startsWith("xai-")
+    ? process.env.XAI_API_KEY
+    : process.env.GROK_API_KEY?.startsWith("xai-")
+      ? process.env.GROK_API_KEY
+      : undefined;
   return [
     {
       id: "groq",
@@ -350,20 +372,17 @@ export const analyzeWithGrok = createServerFn({ method: "POST" })
         }
       }
       const joined = errors.join("; ");
-      if (/403/.test(joined) && !process.env.GROQ_API_KEY && !process.env.GEMINI_API_KEY) {
+      const dbg = keyDebug();
+      const hasGroq = Boolean(groqish(process.env.GROQ_API_KEY) || groqish(process.env.GROK_API_KEY));
+      if (!hasGroq) {
         return {
           ok: false,
-          error:
-            "Ключ xAI без биллинга (403). SuperGrok не считается. Бесплатно: groq.com/keys → в Vercel имя GROQ_API_KEY → Redeploy. Из России Gemini часто не открывается.",
+          error: `Нет ключа Groq (должен начинаться с gsk_). Сейчас в Vercel: ${dbg}. Создайте groq.com/keys → переменная GROQ_API_KEY → Redeploy. Движок слева уже дал разбор.`,
         };
       }
-      if (/403/.test(joined)) {
-        return {
-          ok: false,
-          error:
-            "xAI 403, пробую другие ключи не смог. Проверьте GROQ_API_KEY / GEMINI_API_KEY и Redeploy. Движок слева уже дал разбор.",
-        };
-      }
-      return { ok: false, error: `Модели не ответили: ${joined}` };
+      return {
+        ok: false,
+        error: `Модели не ответили (${dbg}): ${joined}. Groq из РФ иногда режет — VPN и новый gsk_. Движок слева уже дал разбор.`,
+      };
     },
   );
