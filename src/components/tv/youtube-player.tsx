@@ -3,6 +3,7 @@ import { useEffect } from "react";
 export function YoutubePlayer({
   src,
   videoId,
+  muted = true,
   onEnded,
 }: {
   src?: string;
@@ -16,15 +17,20 @@ export function YoutubePlayer({
     return () => window.clearTimeout(cap);
   }, [src, videoId, onEnded]);
 
-  const url =
-    src ??
-    (videoId
-      ? `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&rel=0&playsinline=1&controls=1`
-      : "");
+  const id = videoId || "";
+  const mute = muted ? 1 : 0;
+  let url = src ?? "";
+  if (!url && id) {
+    url = `https://www.youtube.com/embed/${id}?autoplay=1&mute=${mute}&rel=0&playsinline=1&controls=1`;
+  } else if (url) {
+    url = url.replace(/mute=\d/, `mute=${mute}`);
+    if (!url.includes("mute=")) url += (url.includes("?") ? "&" : "?") + `mute=${mute}`;
+  }
   if (!url) return null;
 
   return (
     <iframe
+      key={`${url}|${mute}`}
       title="Эфир"
       src={url}
       allow="autoplay; encrypted-media; picture-in-picture"

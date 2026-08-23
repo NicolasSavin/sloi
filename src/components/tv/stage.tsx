@@ -25,22 +25,9 @@ function Bumper({ onEnded }: { onEnded?: () => void }) {
         }}
       />
       {clip ? (
-        <video
-          src="/reels/ident.mp4"
-          autoPlay
-          muted
-          playsInline
-          className="absolute inset-0 size-full object-cover"
-        />
+        <video src="/reels/ident.mp4" autoPlay muted playsInline className="absolute inset-0 size-full object-cover" />
       ) : (
-        <video
-          src="/reels/ident.mp4"
-          muted
-          playsInline
-          preload="auto"
-          onCanPlay={() => setClip(true)}
-          className="pointer-events-none absolute h-0 w-0 opacity-0"
-        />
+        <video src="/reels/ident.mp4" muted playsInline preload="auto" onCanPlay={() => setClip(true)} className="pointer-events-none absolute h-0 w-0 opacity-0" />
       )}
       <div className="absolute inset-0 bg-gradient-to-t from-[#0c0a08]/50 via-transparent to-[#0c0a08]/30" />
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-5">
@@ -80,7 +67,7 @@ export function Stage({
   return (
     <>
       {reel}
-      <YoutubePlayer src={src} videoId={id} onEnded={onEnded} />
+      <YoutubePlayer src={src} videoId={id} muted={muted} onEnded={onEnded} onBlocked={onBlocked} />
     </>
   );
 }
