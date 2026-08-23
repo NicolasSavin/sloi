@@ -12,13 +12,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChartPane } from "@/components/desk/chart-pane";
 import { ChatDock } from "@/components/desk/chat-dock";
 import { AnalyzeBar, BookBanner, ClusterBanner, ConfluenceList, FlowBanner, LevelsTable, MarginBanner, PatternBanner } from "@/components/desk/desk-banners";
-import { StoryBody } from "@/components/desk/story-panel";
+import { EtherCard, StoryBody } from "@/components/desk/story-panel";
 import { AppNav } from "@/components/app-nav";
 import { analyzeWithGrok, type AiBrief } from "@/lib/ai/analyze";
 import { advise, actionLabel } from "@/lib/advisor";
 import { FundStrip } from "@/components/fund-strip";
 import { gateAdvice, windFor } from "@/lib/fundamentals";
-import { fetchBroker, fetchDigest, fetchMarket } from "@/lib/market/fetch";
+import { fetchBroker, fetchDigest, fetchMarket, fetchTvGuide } from "@/lib/market/fetch";
 import { useDeskStore, type OverlayFlags } from "@/lib/desk-store";
 import { loadJournal, saveJournal, type JournalEntry } from "@/lib/journal";
 import type { MarketPayload } from "@/lib/market/types";
@@ -26,20 +26,14 @@ import { KIND_LABEL, SYMBOLS, TIMEFRAMES, getSymbol } from "@/lib/market/symbols
 import { sessionNow } from "@/lib/sessions";
 import { playSignal, unlockSound } from "@/lib/sound";
 import { analyzeMarket, compactForAi, type SmcSnapshot } from "@/lib/smc/engine";
+import { makeTvBrief } from "@/lib/tv-brief";
 import { cn, formatPct, formatPrice } from "@/lib/utils";
 
 const OVERLAY_LABELS: { key: keyof OverlayFlags; label: string }[] = [
-  { key: "fvg", label: "FVG" },
-  { key: "ob", label: "OB" },
-  { key: "liquidity", label: "Ликвидность" },
-  { key: "margin", label: "Маржа" },
-  { key: "patterns", label: "Паттерны" },
-  { key: "flow", label: "Дельта / футпринт" },
-  { key: "profile", label: "Профиль / VWAP" },
-  { key: "divergences", label: "Дивергенции" },
-  { key: "waves", label: "Волны" },
+  { key: "fvg", label: "FVG" }, { key: "ob", label: "OB" }, { key: "liquidity", label: "Ликвидность" },
+  { key: "margin", label: "Маржа" }, { key: "patterns", label: "Паттерны" }, { key: "flow", label: "Дельта / футпринт" },
+  { key: "profile", label: "Профиль / VWAP" }, { key: "divergences", label: "Дивергенции" }, { key: "waves", label: "Волны" },
 ];
-
 function biasTone(bias: string): "bull" | "bear" | "warn" {
   if (bias === "bullish") return "bull";
   if (bias === "bearish") return "bear";
@@ -91,9 +85,11 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
   const lastKey = `${symbol}|${timeframe}|${snap?.events.at(-1)?.time ?? 0}`;
   const lastSignal = useRef("");
   const digestQ = useQuery({ queryKey: ["dispatch-digest"], queryFn: fetchDigest, staleTime: 60_000 });
+  const tvQ = useQuery({ queryKey: ["tv-guide"], queryFn: fetchTvGuide, staleTime: 120_000 });
   const bookQ = useQuery({ queryKey: ["broker-book"], queryFn: fetchBroker, refetchInterval: 20_000, staleTime: 8_000 });
   const book = bookQ.data?.books.find((b) => b.id === spec.id) ?? null;
   const fund = digestQ.data?.digest.fund;
+  const ether = makeTvBrief(tvQ.data ?? [], [fund?.driver ?? "", fund?.line ?? "", ...(fund?.themes ?? [])].filter(Boolean));
   const advice = useMemo(() => {
     if (!snap) return null;
     const raw = advise(snap, spec, spreads[spec.id] ?? spec.spread);
@@ -122,7 +118,7 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
     }
     setAiLoading(true); setAiError(null);
     try {
-      const res = await analyzeWithGrok({ data: { payload: compactForAi(symbol, timeframe, snap) } });
+      const res = await analyzeWithGrok({ data: { payload: { ...compactForAi(symbol, timeframe, snap), ether, etherNote: "справка эфира, не приказ" } } });
       if (res.ok) { setBrief(res.brief); setAiModel(res.model); sessionStorage.setItem(cacheKey, JSON.stringify(res.brief)); }
       else setAiError(res.error);
     } catch { setAiError("Не удалось связаться с нейросетью."); }
@@ -147,24 +143,16 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
       <div className="flex items-center gap-3 overflow-x-auto border-b border-border px-3 py-2 sm:px-5">
         <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto">
           {SYMBOLS.map((s) => (
-            <button key={s.id} type="button" onClick={() => setSymbol(s.id)} className={cn("h-11 shrink-0 rounded-sm px-3 text-xs font-medium", s.id === symbol ? "bg-subtle text-fg" : "text-muted hover:text-fg")}>
-              {s.label}
-            </button>
+            <button key={s.id} type="button" onClick={() => setSymbol(s.id)} className={cn("h-11 shrink-0 rounded-sm px-3 text-xs font-medium", s.id === symbol ? "bg-subtle text-fg" : "text-muted hover:text-fg")}>{s.label}</button>
           ))}
         </div>
         <div className="flex items-center gap-1 rounded-md bg-subtle p-1">
           {TIMEFRAMES.map((tf) => (
-            <button key={tf.id} type="button" onClick={() => setTimeframe(tf.id)} className={cn("h-9 min-w-11 rounded-sm px-2.5 font-mono text-xs", tf.id === timeframe ? "bg-elevated text-fg" : "text-muted")}>
-              {tf.label}
-            </button>
+            <button key={tf.id} type="button" onClick={() => setTimeframe(tf.id)} className={cn("h-9 min-w-11 rounded-sm px-2.5 font-mono text-xs", tf.id === timeframe ? "bg-elevated text-fg" : "text-muted")}>{tf.label}</button>
           ))}
         </div>
-        <Button variant="outline" size="icon" onClick={() => { unlockSound(); setSoundOn(!soundOn); }} aria-label="Звук">
-          {soundOn ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
-        </Button>
-        <Button variant="outline" size="icon" onClick={() => market.refetch()} aria-label="Обновить">
-          <RefreshCw className={cn("size-4", market.isFetching && "animate-spin")} />
-        </Button>
+        <Button variant="outline" size="icon" onClick={() => { unlockSound(); setSoundOn(!soundOn); }} aria-label="Звук">{soundOn ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}</Button>
+        <Button variant="outline" size="icon" onClick={() => market.refetch()} aria-label="Обновить"><RefreshCw className={cn("size-4", market.isFetching && "animate-spin")} /></Button>
       </div>
       <div className="grid flex-1 grid-cols-1 lg:grid-cols-[200px_minmax(0,1fr)_340px]">
         <aside className="hidden border-r border-border lg:block">
@@ -225,12 +213,13 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
               <BookBanner book={book} iceberg={snap?.flow.events.find((e) => e.kind === "absorption")?.therefore} />
               {snap?.clusters ? <ClusterBanner snap={snap} /> : null}
               <ChartPane candles={market.data?.candles ?? []} snap={snap} overlays={overlays} book={book} className="h-[220px] lg:h-auto lg:min-h-[420px] lg:flex-1" />
+              <div className="px-4 pt-3"><EtherCard ether={ether} /></div>
               <div className="px-4 pb-4 pt-3"><ChatDock /></div>
             </>
           )}
           <div className="border-t border-border px-4 py-4 lg:hidden">
             <AnalyzeBar autoAnalyze={autoAnalyze} setAutoAnalyze={setAutoAnalyze} onRun={() => void runAi(true)} onJournal={addToJournal} snapReady={Boolean(snap)} aiLoading={aiLoading} aiModel={aiModel} />
-            <div className="mt-4"><StoryBody brief={brief} snap={snap} aiLoading={aiLoading} aiError={aiError} decimals={spec.decimals} options={market.data?.options} /></div>
+            <div className="mt-4"><StoryBody brief={brief} snap={snap} aiLoading={aiLoading} aiError={aiError} decimals={spec.decimals} options={market.data?.options} ether={ether} /></div>
           </div>
           <Tabs defaultValue="levels" className="border-t border-border">
             <div className="overflow-x-auto px-3 pt-3">
@@ -254,7 +243,7 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
           <ScrollArea className="mt-3 min-h-[280px] flex-1">
             <div className="space-y-4 px-4 pb-8">
               {fund ? <FundStrip fund={fund} /> : null}
-              <StoryBody brief={brief} snap={snap} aiLoading={aiLoading} aiError={aiError} decimals={spec.decimals} options={market.data?.options} />
+              <StoryBody brief={brief} snap={snap} aiLoading={aiLoading} aiError={aiError} decimals={spec.decimals} options={market.data?.options} ether={ether} />
               <Separator />
               <div>
                 <div className="mb-2 flex items-center gap-2 text-sm font-medium"><Layers className="size-4 text-muted" /> Слои</div>
