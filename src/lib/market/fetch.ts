@@ -311,6 +311,11 @@ export const fetchDigest = createServerFn({ method: "GET" }).handler(async () =>
   return assembleDigest();
 });
 
+/** Public alias for API routes (archive). */
+export async function assembleDigestPublic() {
+  return assembleDigest();
+}
+
 async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }> {
   if (digestCache && Date.now() - digestCache.at < 45_000) return digestCache.data;
   const { analyzeMarket } = await import("@/lib/smc/engine");
@@ -400,6 +405,12 @@ async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }
     }),
     source: payloads[0]?.source ?? "demo",
   };
+  try {
+    const { syncArchiveFromDigest } = await import("@/lib/archive-store");
+    syncArchiveFromDigest(packed.digest.markets, packed.digest.fund?.halt);
+  } catch {
+    /* archive optional */
+  }
   digestCache = { at: Date.now(), data: packed };
   return packed;
 }
