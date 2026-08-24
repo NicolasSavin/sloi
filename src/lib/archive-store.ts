@@ -5,7 +5,7 @@ import { settleHit, bookStats } from "@/lib/signal-book";
 
 const g = globalThis as typeof globalThis & { __sloiArchive__?: SignalHit[] };
 
-function store(): SignalHit[] {
+function mem(): SignalHit[] {
   if (!g.__sloiArchive__) g.__sloiArchive__ = [];
   return g.__sloiArchive__;
 }
@@ -19,9 +19,96 @@ function signalId(symbol: string, action: "long" | "short", entry: number | null
   return `${symbol}-${action}-${e}-${dayKey()}`;
 }
 
+function rowToHit(r: Record<string, unknown>): SignalHit {
+  return {
+    id: String(r.id),
+    at: new Date(String(r.at)).getTime(),
+    symbol: String(r.symbol),
+    label: String(r.label),
+    action: r.action === "short" ? "short" : "long",
+    entry: r.entry == null ? null : Number(r.entry),
+    stop: r.stop == null ? null : Number(r.stop),
+    target: r.target == null ? null : Number(r.target),
+    title: String(r.title ?? ""),
+    decimals: Number(r.decimals ?? 5),
+    status: (r.status as SignalHit["status"]) ?? "open",
+    closedAt: r.closed_at ? new Date(String(r.closed_at)).getTime() : undefined,
+    exit: r.exit == null ? null : Number(r.exit),
+    resultR: r.result_r == null ? null : Number(r.result_r),
+    why: r.why == null ? undefined : String(r.why),
+  };
+}
+
+async function loadFromDb(): Promise<SignalHit[] | null> {
+  try {
+    const { getSql } = await import("@/lib/db");
+    const sql = await getSql();
+    const rows = await sql`
+      select * from signal_archive
+      order by at desc
+      limit 500
+    `;
+    return rows.map((r) => rowToHit(r as Record<string, unknown>));
+  } catch {
+    return null;
+  }
+}
+
+async function saveToDb(hits: SignalHit[]) {
+  try {
+    const { getSql } = await import("@/lib/db");
+    const sql = await getSql();
+    for (const h of hits.slice(0, 200)) {
+      await sql`
+        insert into signal_archive (
+          id, at, symbol, label, action, entry, stop, target, title, decimals,
+          status, closed_at, exit, result_r, why, filled, updated_at
+        ) values (
+          ${h.id},
+          ${new Date(h.at).toISOString()},
+          ${h.symbol},
+          ${h.label},
+          ${h.action},
+          ${h.entry},
+          ${h.stop},
+          ${h.target},
+          ${h.title},
+          ${h.decimals},
+          ${h.status ?? "open"},
+          ${h.closedAt ? new Date(h.closedAt).toISOString() : null},
+          ${h.exit ?? null},
+          ${h.resultR ?? null},
+          ${h.why ?? null},
+          ${false},
+          ${new Date().toISOString()}
+        )
+        on conflict (id) do update set
+          status = excluded.status,
+          closed_at = excluded.closed_at,
+          exit = excluded.exit,
+          result_r = excluded.result_r,
+          why = excluded.why,
+          updated_at = excluded.updated_at
+      `;
+    }
+  } catch {
+    /* no durable db */
+  }
+}
+
+function paperWhy(h: SignalHit): SignalHit {
+  if ((h.status ?? "open") === "open" || !h.why) return h;
+  if (h.why.includes("бумажн")) return h;
+  return {
+    ...h,
+    why: `Бумажный исход (цена касалась уровня; ордер в MT4 мог не открываться). ${h.why}`,
+  };
+}
+
 /** Upsert open BUY/SELL from digest; settle existing opens against path. */
-export function syncArchiveFromDigest(markets: DigestMarket[], halt?: NewsHalt) {
-  const list = store();
+export async function syncArchiveFromDigest(markets: DigestMarket[], halt?: NewsHalt) {
+  const fromDb = await loadFromDb();
+  const list = fromDb ?? mem();
   const byId = new Map(list.map((h) => [h.id, h]));
 
   for (const m of markets) {
@@ -35,8 +122,7 @@ export function syncArchiveFromDigest(markets: DigestMarket[], halt?: NewsHalt) 
     const existing = byId.get(id);
     if (existing) {
       if ((existing.status ?? "open") === "open") {
-        const settled = settleHit(existing, m, halt);
-        byId.set(id, settled);
+        byId.set(id, paperWhy(settleHit(existing, m, halt)));
       }
       continue;
     }
@@ -52,27 +138,37 @@ export function syncArchiveFromDigest(markets: DigestMarket[], halt?: NewsHalt) 
       title: m.advice.title,
       decimals: m.spec.decimals,
       status: "open",
+      why: "Сигнал сайта. Ордер откроется в MT4 только при АВТО и прохождении фильтров.",
     });
   }
 
-  // settle other open rows with matching market
   for (const [id, h] of byId) {
     if ((h.status ?? "open") !== "open") continue;
     const m = markets.find((x) => x.spec.id === h.symbol);
     if (!m) continue;
-    byId.set(id, settleHit(h, m, halt));
+    byId.set(id, paperWhy(settleHit(h, m, halt)));
   }
 
   const next = [...byId.values()].sort((a, b) => (b.at ?? 0) - (a.at ?? 0)).slice(0, 500);
   g.__sloiArchive__ = next;
+  await saveToDb(next);
   return next;
 }
 
-export function getArchive() {
-  return store().slice();
+export async function getArchiveAsync() {
+  const fromDb = await loadFromDb();
+  if (fromDb?.length) {
+    g.__sloiArchive__ = fromDb;
+    return fromDb;
+  }
+  return mem().slice();
 }
 
-export function archivePayload() {
-  const log = getArchive();
-  return { log, stats: bookStats(log), at: Date.now() };
+export function getArchive() {
+  return mem().slice();
+}
+
+export async function archivePayload() {
+  const log = await getArchiveAsync();
+  return { log, stats: bookStats(log), at: Date.now(), durable: Boolean(process.env.DATABASE_URL) };
 }

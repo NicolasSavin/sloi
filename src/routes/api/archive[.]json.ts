@@ -8,14 +8,15 @@ export const Route = createFileRoute("/api/archive.json")({
         try {
           const { assembleDigestPublic } = await import("@/lib/market/fetch");
           const { digest } = await assembleDigestPublic();
-          syncArchiveFromDigest(digest.markets, digest.fund?.halt);
+          await syncArchiveFromDigest(digest.markets, digest.fund?.halt);
         } catch {
-          /* keep last archive */
+          /* keep last */
         }
-        return new Response(JSON.stringify(archivePayload()), {
+        const body = await archivePayload();
+        return new Response(JSON.stringify(body), {
           headers: {
             "Content-Type": "application/json; charset=utf-8",
-            "Cache-Control": "public, max-age=30",
+            "Cache-Control": "public, max-age=20",
             "Access-Control-Allow-Origin": "*",
           },
         });
