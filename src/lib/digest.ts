@@ -47,6 +47,8 @@ export interface LeadChart {
   notes: ChartNote[];
   levels: ChartLevel[];
   zones: Zone[];
+  waves: { time: number; price: number; label: string }[];
+  trend: "up" | "down" | "range";
   decimals: number;
   margin: {
     upper: { top: number; bottom: number; active: boolean };
@@ -123,6 +125,11 @@ export function dateLabel(iso: string): string {
     year: "numeric",
     timeZone: "UTC",
   });
+}
+
+export function shortDate(iso: string): string {
+  const [y, m, d] = iso.split("-");
+  return `${d}.${m}.${y}`;
 }
 
 export function toDigestMarket(spec: SymbolSpec, snap: SmcSnapshot, spread?: number, last?: Candle, options?: OptionsSnapshot | null): DigestMarket {
@@ -393,7 +400,7 @@ export function buildPoster(lead: DigestMarket, snap: SmcSnapshot, date: string)
   return {
     pair: spec.label,
     price: px(lead.lastClose),
-    dateLabel: dateLabel(date),
+    dateLabel: shortDate(date),
     atr: `≈ ${atrPips} ${spec.kind === "fx" ? "pips" : "пунктов"}`,
     atrNote: `ATR ${px(snap.atr)} · кадр H1`,
     bias:
@@ -536,6 +543,8 @@ export function chartFromSnap(snap: SmcSnapshot, candles: Candle[], decimals: nu
     notes: notesFromSnap(snap, decimals),
     levels: levelsFromSnap(snap, decimals),
     zones: [...snap.fvgs.slice(-4), ...snap.orderBlocks.slice(-3)],
+    waves: snap.waves.slice(-6),
+    trend: snap.trend,
     decimals,
     margin: {
       upper: { top: snap.margin.upper.top, bottom: snap.margin.upper.bottom, active: snap.margin.upper.active },
