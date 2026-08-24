@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChartPane } from "@/components/desk/chart-pane";
-import { ChartStage } from "@/components/desk/chart-hud";
+import { ChartStage, OrderHud } from "@/components/desk/chart-hud";
 import { ChatDock } from "@/components/desk/chat-dock";
 import { AnalyzeBar, BookBanner, ClusterBanner, ConfluenceList, FlowBanner, LevelsTable, MarginBanner, PatternBanner } from "@/components/desk/desk-banners";
 import { EtherCard, StoryBody } from "@/components/desk/story-panel";
@@ -201,16 +201,16 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
               </p>
             </div>
           </div>
-          {order ? (
-            <div className="mx-4 mt-2 rounded-lg bg-elevated/70 px-4 py-3">
-              <p className="font-mono text-[10px] tracking-[0.18em] text-accent">ПРИКАЗ ДИСПЕТЧЕРА ДЕРЖИМ, ПОКА НЕ СМЕНИТ</p>
-              <p className="mt-1 text-sm font-medium">
-                {actionLabel(order.action)}
-                {deskMarket?.setup.entry != null ? ` · вход ${formatPrice(deskMarket.setup.entry, spec.decimals)}` : ""}
-              </p>
-              <p className="mt-1 text-xs leading-relaxed text-muted">{order.therefore || order.title}</p>
-            </div>
-          ) : null}
+          <div className="mx-4 mt-2 rounded-lg bg-elevated px-4 py-3">
+            <p className="font-mono text-[10px] tracking-[0.18em] text-accent">ПРИКАЗ ДИСПЕТЧЕРА ДЕРЖИМ, ПОКА НЕ СМЕНИТ</p>
+            <p className="mt-1 text-sm font-medium">
+              {digestQ.isLoading ? "гружу стол…" : order ? actionLabel(order.action) : "лента ещё не пришла"}
+              {deskMarket?.setup.entry != null ? ` · вход ${formatPrice(deskMarket.setup.entry, spec.decimals)}` : ""}
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-muted">
+              {order?.therefore || order?.title || "Карта графика — не приказ. Ждём строку диспетчера."}
+            </p>
+          </div>
           {market.isLoading ? (
             <Skeleton className="m-4 min-h-[320px] flex-1 rounded-lg" />
           ) : market.error ? (
@@ -224,6 +224,7 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
               {snap?.clusters ? <ClusterBanner snap={snap} /> : null}
               <ChartStage className="h-[260px] lg:h-auto lg:min-h-[420px] lg:flex-1">
                 <ChartPane candles={market.data?.candles ?? []} snap={snap} overlays={overlays} book={book} order={order} setup={deskMarket?.setup ?? null} className="absolute inset-0 h-full" />
+                <OrderHud order={order} setup={deskMarket?.setup ?? null} decimals={spec.decimals} loading={digestQ.isLoading} />
               </ChartStage>
               <div className="px-4 pt-3"><EtherCard ether={ether} /></div>
               <div className="px-4 pb-4 pt-3"><ChatDock /></div>

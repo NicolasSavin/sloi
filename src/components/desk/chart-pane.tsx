@@ -461,13 +461,13 @@ export function ChartPane({
       const bull = token("--color-bull", "#6f9e86");
       const bear = token("--color-bear", "#b57a7a");
       const muted = token("--color-muted", "#9a9aa3");
-      const add = (price: number, title: string, color: string, dotted = false) => {
+      const add = (price: number, title: string, color: string, dotted = false, wide = false) => {
         linesRef.current.push(
           series.createPriceLine({
             price,
             color,
-            lineWidth: 1,
-            lineStyle: dotted ? lc.LineStyle.Dashed : lc.LineStyle.SparseDotted,
+            lineWidth: wide ? 2 : 1,
+            lineStyle: wide ? lc.LineStyle.Solid : dotted ? lc.LineStyle.Dashed : lc.LineStyle.SparseDotted,
             axisLabelVisible: true,
             title,
           }),
@@ -500,11 +500,14 @@ export function ChartPane({
       }
       const cmd = order;
       const cmdSetup = setup;
-      if (cmd && (cmd.action === "long" || cmd.action === "short")) {
-        const col = cmd.action === "long" ? bull : bear;
-        if (cmdSetup?.entry != null) add(cmdSetup.entry, cmd.action === "long" ? "ПРИКАЗ BUY" : "ПРИКАЗ SELL", col);
-        if (cmdSetup?.stop != null) add(cmdSetup.stop, "ПРИКАЗ SL", bear);
-        cmdSetup?.targets.slice(0, 2).forEach((t, i) => add(t, `ПРИКАЗ TP${i + 1}`, bull));
+      if (cmdSetup && (cmdSetup.entry != null || cmdSetup.stop != null)) {
+        const live = cmd?.action === "long" || cmd?.action === "short";
+        const col = cmd?.action === "short" ? bear : cmd?.action === "long" ? bull : accent;
+        if (cmdSetup.entry != null) {
+          add(cmdSetup.entry, live ? (cmd?.action === "long" ? "ПРИКАЗ BUY" : "ПРИКАЗ SELL") : "ЗОНА ДИСП.", col, !live, live);
+        }
+        if (cmdSetup.stop != null) add(cmdSetup.stop, live ? "ПРИКАЗ SL" : "SL ДИСП.", bear, !live, live);
+        cmdSetup.targets.slice(0, 2).forEach((t, i) => add(t, live ? `ПРИКАЗ TP${i + 1}` : `TP${i + 1}`, bull, !live, live));
       }
       const markers: SeriesMarker<UTCTimestamp>[] = [
         ...snap.events.slice(-8).map((e): SeriesMarker<UTCTimestamp> => ({

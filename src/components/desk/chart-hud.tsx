@@ -2,7 +2,10 @@ import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObjec
 import { Maximize2, Minimize2 } from "lucide-react";
 import { useDeskStore } from "@/lib/desk-store";
 import { TIMEFRAMES } from "@/lib/market/symbols";
-import { cn } from "@/lib/utils";
+import { actionLabel } from "@/lib/advisor";
+import type { Advice } from "@/lib/advisor";
+import type { LocalSetup } from "@/lib/smc/engine";
+import { cn, formatPrice } from "@/lib/utils";
 
 export function ChartHud({ boxRef }: { boxRef: RefObject<HTMLDivElement | null> }) {
   const timeframe = useDeskStore((s) => s.timeframe);
@@ -56,6 +59,33 @@ export function ChartHud({ boxRef }: { boxRef: RefObject<HTMLDivElement | null> 
         {wide ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
         {wide ? "свернуть" : "экран"}
       </button>
+    </div>
+  );
+}
+
+export function OrderHud({
+  order,
+  setup,
+  decimals,
+  loading,
+}: {
+  order?: Advice | null;
+  setup?: LocalSetup | null;
+  decimals: number;
+  loading?: boolean;
+}) {
+  const side = order ? actionLabel(order.action) : loading ? "гружу стол…" : "нет ленты";
+  const entry = setup?.entry != null ? formatPrice(setup.entry, decimals) : "—";
+  const stop = setup?.stop != null ? formatPrice(setup.stop, decimals) : "—";
+  const tp = setup?.targets[0] != null ? formatPrice(setup.targets[0], decimals) : "—";
+  return (
+    <div className="pointer-events-none absolute inset-x-0 bottom-8 z-20 px-2">
+      <div className="max-w-xl rounded-md bg-bg/85 px-3 py-2 backdrop-blur-sm">
+        <p className="font-mono text-[10px] tracking-[0.16em] text-accent">ПРИКАЗ ДИСПЕТЧЕРА · ДЕРЖИМ, ПОКА НЕ СМЕНИТ</p>
+        <p className="mt-1 text-sm font-medium">
+          {side} · вход {entry} · стоп {stop} · цель {tp}
+        </p>
+      </div>
     </div>
   );
 }
