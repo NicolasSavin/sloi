@@ -15,7 +15,7 @@ const Input = z.object({
 const ALIAS: [RegExp, string][] = [
   [/золот|gold|xau/i, "XAUUSD"],
   [/серебр|silver|xag/i, "XAGUSD"],
-  [/нефть|oil|wti|brent/i, "USOIL"],
+  [/нефть|oil|wti|brent|xti|xbr/i, "XTIUSD"],
   [/евро.?иен|eurjpy/i, "EURJPY"],
   [/фунт.?иен|gbpjpy/i, "GBPJPY"],
   [/евро.?фунт|eurgbp/i, "EURGBP"],

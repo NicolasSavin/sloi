@@ -309,7 +309,7 @@ function mapPool<T, R>(items: T[], size: number, fn: (item: T) => Promise<R>): P
 }
 
 function wantOptions(id: string) {
-  return ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "USOIL", "SPY", "QQQ"].includes(id);
+  return ["XAUUSD", "XAGUSD", "EURUSD", "GBPUSD", "USDJPY", "XTIUSD", "SPY", "QQQ"].includes(id);
 }
 
 const CAL_JSON = [

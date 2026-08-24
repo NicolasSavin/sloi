@@ -261,7 +261,7 @@ function wantedFor(id: string, fund: FundamentalSnap): "up" | "down" | "flat" {
     if ((fund.oilChange ?? 0) < -1) s += 1;
     if (fund.dollar === "bid") s += 1;
     if (fund.dollar === "offered") s -= 1;
-  } else if (id === "USOIL") {
+  } else if (id === "USOIL" || id === "XTIUSD" || id === "XBRUSD" || id === "XNGUSD") {
     if (fund.risk === "risk-on") s += 1;
     if (fund.risk === "risk-off") s -= 1;
     if ((fund.esChange ?? 0) > 0.5) s += 1;
