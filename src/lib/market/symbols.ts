@@ -30,7 +30,8 @@ export const SYMBOLS: SymbolSpec[] = [
 
 export const DIGEST_IDS = [
   "XAUUSD", "XAGUSD", "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD", "NZDUSD",
-  "EURJPY", "GBPJPY", "XTIUSD", "XBRUSD", "XNGUSD", "SPY", "QQQ", "ETHUSD", "BTCUSD", "XRPUSD", "TONUSD",
+  "EURJPY", "GBPJPY", "XTIUSD", "XBRUSD", "XNGUSD", "SPY", "QQQ",
+  "ETHUSD", "LTCUSD", "BCHUSD", "BTCUSD", "XRPUSD", "TONUSD",
 ];
 
 export const KIND_LABEL: Record<SymbolSpec["kind"], string> = {

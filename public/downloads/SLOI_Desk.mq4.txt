@@ -5,12 +5,12 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.18"
+#property version   "4.19"
 #property strict
 #property description "На графике: VWAP, профиль, футпринт бара, infusion/splash, Bid/Ask."
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
-input string  WatchList       = "EURUSD,GBPUSD,USDJPY,USDCHF,AUDUSD,USDCAD,NZDUSD,EURJPY,GBPJPY,XAUUSD,XAGUSD,USOIL";
+input string  WatchList       = "EURUSD,GBPUSD,USDJPY,USDCHF,AUDUSD,USDCAD,NZDUSD,EURJPY,GBPJPY,XAUUSD,XAGUSD,XTIUSD,XBRUSD,XNGUSD,ETHUSD,LTCUSD,BCHUSD,BTCUSD,XRPUSD,TONUSD";
 input string  BrokerSuffix    = ".cs";
 input int     WorkTF          = 60;
 input bool    AutoTrade       = false;
@@ -27,7 +27,7 @@ input int     PanelX          = 8;
 input int     PanelY          = 18;
 
 #define P "SLOI_"
-#define MAXSYM 16
+#define MAXSYM 24
 
 string   g_sym[];
 int      g_n;
@@ -81,7 +81,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.15: VWAP, профиль, футпринт, splash/infusion на графике. Сделки только с сайта.");
+   Print("SLOI 4.19: кнопки Купить/Продать/Закрыть. Сделки с сайта или вручную по этому графику.");
    return(INIT_SUCCEEDED);
   }
 
@@ -126,6 +126,10 @@ void OnChartEvent(const int id, const long &lparam, const double &dparam, const 
       DrawDesk();
       return;
      }
+   if(sparam == P+"b_buy")  { ManualTrade(1);  DrawDesk(); return; }
+   if(sparam == P+"b_sell") { ManualTrade(-1); DrawDesk(); return; }
+   if(sparam == P+"b_cp")   { CloseMine(false); DrawDesk(); return; }
+   if(sparam == P+"b_ca")   { CloseMine(true);  DrawDesk(); return; }
    if(StringFind(sparam, P+"g") == 0)
      {
       int idx = (int)StringToInteger(StringSubstr(sparam, StringLen(P+"g")));
@@ -372,15 +376,17 @@ void ParseWatch()
    for(int i = 0; i < n; i++)
      {
       string s = parts[i];
+      if(StringLen(s) < 3) continue;
       if(StringLen(g_suffix) > 0 && StringFind(s, g_suffix) < 0)
         {
          string a = s + g_suffix;
          string b = (StringFind(g_suffix, ".") == 0 ? a : s + "." + g_suffix);
+         SymbolSelect(s, true);
          SymbolSelect(a, true);
          SymbolSelect(b, true);
-         if(BidOf(b) > 0) s = b;
-         else if(BidOf(a) > 0) s = a;
-         else s = b;
+         if(BidOf(s) > 0 || AskOf(s) > 0) { }
+         else if(BidOf(b) > 0 || AskOf(b) > 0) s = b;
+         else if(BidOf(a) > 0 || AskOf(a) > 0) s = a;
         }
       if(StringLen(s) == 0) continue;
       SymbolSelect(s, true);
@@ -419,7 +425,9 @@ int CountMine(string s)
    for(int i = OrdersTotal() - 1; i >= 0; i--)
      {
       if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
-      if(OrderSymbol() == s && OrderMagicNumber() == Magic) n++;
+      if(OrderSymbol() != s || OrderMagicNumber() != Magic) continue;
+      int ty = OrderType();
+      if(ty==OP_BUY || ty==OP_SELL || ty==OP_BUYLIMIT || ty==OP_SELLLIMIT || ty==OP_BUYSTOP || ty==OP_SELLSTOP) n++;
      }
    return(n);
   }
@@ -431,7 +439,9 @@ string Naked(string s)
    StringToUpper(u);
    if(StringFind(u, "XAU") >= 0 || StringFind(u, "GOLD") >= 0) return("XAUUSD");
    if(StringFind(u, "XAG") >= 0 || StringFind(u, "SILVER") >= 0) return("XAGUSD");
-   if(StringFind(u, "USO") >= 0 || StringFind(u, "WTI") >= 0 || StringFind(u, "XTI") >= 0) return("USOIL");
+   if(StringFind(u, "XBR") >= 0 || StringFind(u, "BRENT") >= 0) return("XBRUSD");
+   if(StringFind(u, "XNG") >= 0) return("XNGUSD");
+   if(StringFind(u, "USO") >= 0 || StringFind(u, "WTI") >= 0 || StringFind(u, "XTI") >= 0) return("XTIUSD");
    return(u);
   }
 
@@ -545,7 +555,10 @@ double SkewCap(string n, double fromFeed)
    if(fromFeed > 0) return(fromFeed);
    if(n == "XAUUSD") return(0.35);
    if(n == "XAGUSD") return(0.40);
-   if(n == "USOIL") return(0.30);
+   if(n == "USOIL" || n == "XTIUSD" || n == "XBRUSD") return(0.40);
+   if(n == "XNGUSD") return(0.80);
+   if(StringFind(n, "BTC") >= 0 || StringFind(n, "ETH") >= 0) return(1.50);
+   if(StringFind(n, "LTC") >= 0 || StringFind(n, "XRP") >= 0 || StringFind(n, "TON") >= 0 || StringFind(n, "BCH") >= 0) return(2.20);
    if(StringFind(n, "JPY") >= 0) return(0.15);
    if(n == "EURUSD" || n == "GBPUSD" || n == "USDCHF" || n == "AUDUSD" || n == "USDCAD" || n == "NZDUSD") return(0.08);
    return(g_skew);
@@ -683,6 +696,64 @@ void ManageBE()
      }
   }
 
+void ManualTrade(int dir)
+  {
+   string s = Symbol();
+   SymbolSelect(s, true);
+   RefreshRates();
+   double lots = g_lots;
+   if(lots <= 0) lots = Lots;
+   int digits = DigitsOf(s);
+   int cmd = dir > 0 ? OP_BUY : OP_SELL;
+   double px = dir > 0 ? AskOf(s) : BidOf(s);
+   if(px <= 0) { Print("SLOI ручной: нет котировки ", s); return; }
+   int d = 0;
+   double entry = 0, stop = 0, target = 0, siteLast = 0, skewCap = 0;
+   string verdict, why;
+   int lim = 0;
+   ReadSite(Naked(s), d, entry, stop, target, siteLast, verdict, why, skewCap, lim);
+   double sl = (stop > 0 ? NormalizeDouble(stop, digits) : 0);
+   double tp = (target > 0 ? NormalizeDouble(target, digits) : 0);
+   int ticket = OrderSend(s, cmd, lots, px, SlippagePoints, sl, tp,
+                          "SLOI manual", Magic, 0, dir > 0 ? C_BUY : C_SEL);
+   if(ticket < 0) Print("SLOI ручной ", s, " err ", GetLastError());
+   else Alert("SLOI ", (dir > 0 ? "КУПИТЬ " : "ПРОДАТЬ "), s, " #", ticket);
+  }
+
+void CloseOne()
+  {
+   int type = OrderType();
+   int ticket = OrderTicket();
+   string s = OrderSymbol();
+   double lots = OrderLots();
+   RefreshRates();
+   bool ok = false;
+   if(type == OP_BUY) ok = OrderClose(ticket, lots, BidOf(s), SlippagePoints, C_SEL);
+   else if(type == OP_SELL) ok = OrderClose(ticket, lots, AskOf(s), SlippagePoints, C_BUY);
+   else ok = OrderDelete(ticket);
+   if(!ok) Print("SLOI close err ", GetLastError(), " #", ticket);
+  }
+
+void CloseMine(bool all)
+  {
+   int n = 0;
+   for(int i = OrdersTotal() - 1; i >= 0; i--)
+     {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
+      if(OrderMagicNumber() != Magic) continue;
+      int type = OrderType();
+      if(type != OP_BUY && type != OP_SELL && type != OP_BUYLIMIT && type != OP_SELLLIMIT && type != OP_BUYSTOP && type != OP_SELLSTOP) continue;
+      if(!all)
+        {
+         if(type != OP_BUY && type != OP_SELL) continue;
+         if(OrderProfit() + OrderSwap() + OrderCommission() <= 0) continue;
+        }
+      CloseOne();
+      n++;
+     }
+   Alert("SLOI ", (all ? "закрыть всё: " : "закрыть прибыль: "), n);
+  }
+
 void Wipe()
   {
    for(int i = ObjectsTotal() - 1; i >= 0; i--)
@@ -812,14 +883,14 @@ void DrawDesk()
       return;
      }
    int w = 790;
-   int setH = 114;
-   int rowH = 22;
-   int head = 24;
-   int h = setH + head + rowH * g_n + 20;
+   int setH = 142;
+   int rowH = 20;
+   int head = 22;
+   int h = setH + head + rowH * g_n + 16;
 
    Rect("bg", x, y, w, h, C_BG);
    Lab("title", x + 14, y + 8, "SLOI DESK", C_GOLD, 12);
-   Lab("hint", x + 150, y + 12, g_feedNote+"   >> этот график   — свернуть", C_DIM, 8);
+   Lab("hint", x + 150, y + 12, g_feedNote+"  "+IntegerToString(g_n)+"/"+IntegerToString(MAXSYM)+" пар  >> график  — свернуть", C_DIM, 8);
 
    Btn("b_auto", x + 470, y + 8, 96, 22, g_auto ? "АВТО ВКЛ" : "АВТО ВЫКЛ", g_auto ? C_SEL : C_GOLD);
    Btn("b_alrt", x + 572, y + 8, 96, 22, g_alerts ? "АЛЕРТ ВКЛ" : "АЛЕРТ ВЫКЛ", C_GOLD);
@@ -845,6 +916,12 @@ void DrawDesk()
    Edit("e_list", x + 50, y + 62, 654, 20, g_watch, seed);
    Lab("l_url", x + 14, y + 86, "лента", C_DIM, 8);
    Edit("e_url", x + 50, y + 84, 654, 20, g_url, seed);
+
+   Btn("b_buy",  x + 50,  y + 110, 100, 24, "КУПИТЬ", C_BUY);
+   Btn("b_sell", x + 158, y + 110, 100, 24, "ПРОДАТЬ", C_SEL);
+   Btn("b_cp",   x + 266, y + 110, 150, 24, "ЗАКРЫТЬ ПРИБЫЛЬ", C_GOLD);
+   Btn("b_ca",   x + 424, y + 110, 130, 24, "ЗАКРЫТЬ ВСЁ", C_SEL);
+   Lab("l_man", x + 564, y + 114, "этот график / magic", C_DIM, 8);
 
    int hx = x + 14;
    int hy = y + setH + 2;
