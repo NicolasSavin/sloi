@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { AppNav } from "@/components/app-nav";
 import { FundStrip } from "@/components/fund-strip";
 import { LiveShot } from "@/components/live-shot";
@@ -31,7 +32,15 @@ function DailyPending() {
 }
 
 function DailyPage() {
-  const data = Route.useLoaderData();
+  const seed = Route.useLoaderData();
+  const q = useQuery({
+    queryKey: ["dispatch-digest"],
+    queryFn: () => fetchDigest(),
+    initialData: seed ?? undefined,
+    staleTime: 45_000,
+    refetchInterval: 60_000,
+  });
+  const data = q.data ?? seed;
   if (!data) {
     return (
       <div className="min-h-dvh">
@@ -90,9 +99,7 @@ function DailyPage() {
                 <div className="p-4">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-sm font-medium">{m.spec.label}</span>
-                    <Badge
-                      tone={m.bias === "bullish" ? "bull" : m.bias === "bearish" ? "bear" : "warn"}
-                    >
+                    <Badge tone={m.bias === "bullish" ? "bull" : m.bias === "bearish" ? "bear" : "warn"}>
                       {actionLabel(m.advice.action)}
                     </Badge>
                   </div>

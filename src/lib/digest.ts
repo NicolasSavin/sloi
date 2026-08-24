@@ -145,8 +145,9 @@ export function toDigestMarket(spec: SymbolSpec, snap: SmcSnapshot, spread?: num
 
 export function pickLead(markets: DigestMarket[]): DigestMarket {
   const ranked = [...markets].sort((a, b) => {
-    const dir = (m: DigestMarket) => (m.bias === "range" ? 0 : 1);
-    return dir(b) - dir(a) || b.score - a.score;
+    const live = (m: DigestMarket) =>
+      m.advice.action === "long" || m.advice.action === "short" ? 2 : m.bias === "range" ? 0 : 1;
+    return live(b) - live(a) || b.score - a.score;
   });
   return ranked[0]!;
 }
@@ -394,7 +395,7 @@ export function buildPoster(lead: DigestMarket, snap: SmcSnapshot, date: string)
     price: px(lead.lastClose),
     dateLabel: dateLabel(date),
     atr: `≈ ${atrPips} ${spec.kind === "fx" ? "pips" : "пунктов"}`,
-    atrNote: `ATR ${px(snap.atr)} на снимке 4ч`,
+    atrNote: `ATR ${px(snap.atr)} · кадр H1`,
     bias:
       lead.bias === "bearish"
         ? "медвежий · приоритет продаж"
@@ -529,6 +530,20 @@ export function buildPoster(lead: DigestMarket, snap: SmcSnapshot, date: string)
   };
 }
 
+export function chartFromSnap(snap: SmcSnapshot, candles: Candle[], decimals: number): LeadChart {
+  return {
+    candles: candles.slice(-120),
+    notes: notesFromSnap(snap, decimals),
+    levels: levelsFromSnap(snap, decimals),
+    zones: [...snap.fvgs.slice(-4), ...snap.orderBlocks.slice(-3)],
+    decimals,
+    margin: {
+      upper: { top: snap.margin.upper.top, bottom: snap.margin.upper.bottom, active: snap.margin.upper.active },
+      lower: { top: snap.margin.lower.top, bottom: snap.margin.lower.bottom, active: snap.margin.lower.active },
+    },
+  };
+}
+
 export function buildDigest(input: {
   markets: DigestMarket[];
   leadSnap: SmcSnapshot;
@@ -550,25 +565,7 @@ export function buildDigest(input: {
     fund: input.fund,
     poster: buildPoster(lead, input.leadSnap, date),
     tgOptions: input.tgOptions ?? [],
-    chart: {
-      candles: input.leadCandles.slice(-120),
-      notes: notesFromSnap(input.leadSnap, lead.spec.decimals),
-      levels: levelsFromSnap(input.leadSnap, lead.spec.decimals),
-      zones: [...input.leadSnap.fvgs.slice(-4), ...input.leadSnap.orderBlocks.slice(-3)],
-      decimals: lead.spec.decimals,
-      margin: {
-        upper: {
-          top: input.leadSnap.margin.upper.top,
-          bottom: input.leadSnap.margin.upper.bottom,
-          active: input.leadSnap.margin.upper.active,
-        },
-        lower: {
-          top: input.leadSnap.margin.lower.top,
-          bottom: input.leadSnap.margin.lower.bottom,
-          active: input.leadSnap.margin.lower.active,
-        },
-      },
-    },
+    chart: chartFromSnap(input.leadSnap, input.leadCandles, lead.spec.decimals),
     article: writeArticle(lead, others, date, input.sentiment, input.fund, input.leadSnap),
   };
 }
