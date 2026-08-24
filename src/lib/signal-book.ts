@@ -35,18 +35,31 @@ function explain(
 ) {
   const fmt = (n: number) => formatPrice(n, hit.decimals);
   if (status === "target") {
-    return `Цель ${hit.target != null ? fmt(hit.target) : "—"} взята по ${fmt(px)}. ${market?.story.leadsTo ?? ""} Сценарий отработал: выход там, где крупняк мог отдавать.`.replace(/\s+/g, " ").trim();
+    return `Цель ${hit.target != null ? fmt(hit.target) : "—"} взята по ${fmt(px)}. ${market?.story.leadsTo ?? ""} Сценарий отработал после касания входа.`.replace(/\s+/g, " ").trim();
   }
   if (status === "stop") {
-    return `Стоп ${hit.stop != null ? fmt(hit.stop) : "—"} снёс по ${fmt(px)}. ${market?.story.waiting ?? ""} Край не удержал — либо ликвидность забрали дальше, либо это был вынос, а не набор.`.replace(/\s+/g, " ").trim();
+    return `Стоп ${hit.stop != null ? fmt(hit.stop) : "—"} снёс по ${fmt(px)}. ${market?.story.waiting ?? ""} После входа край не удержал.`.replace(/\s+/g, " ").trim();
   }
   if (status === "halt") {
-    return `Сделку сняли из-за крупной новости. ${halt?.line ?? "Календарь ударил в окно."} Такой исход не плюс и не минус — в эти минуты стоп и цель врут.`;
+    return `Сигнал сняли из-за крупной новости. ${halt?.line ?? "Календарь."} Не плюс и не минус.`;
   }
   if (status === "reverse") {
-    return `Пока сигнал висел, характер стал против. ${market?.advice.title ?? ""} Держать дальше — спорить с новым сломом.`;
+    return `Пока ждали вход, характер стал против. ${market?.advice.title ?? ""} Лимит/сценарий отменён.`
+      .replace(/\s+/g, " ")
+      .trim();
   }
-  return `Больше суток без стопа и цели. Цена ушла от края. Это не победа и не поражение — сценарий не состоялся.`;
+  return `Вход ${hit.entry != null ? fmt(hit.entry) : "—"} так и не коснули (или сутки без TP/SL). Это не сделка — сценарий не состоялся.`
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** True if price path touched the entry zone (signal would fill). */
+function wasFilled(hit: SignalHit, high: number, low: number) {
+  if (hit.filled) return true;
+  if (hit.entry == null) return true; // market-style, treat as live
+  const tol = Math.abs((hit.entry - (hit.stop ?? hit.entry)) * 0.05) || Math.abs(hit.entry) * 0.0002;
+  if (hit.action === "long") return low <= hit.entry + tol;
+  return high >= hit.entry - tol;
 }
 
 export function settleHit(
@@ -62,14 +75,31 @@ export function settleHit(
   const px = path?.close ?? market?.lastClose;
   if (px == null || high == null || low == null) return { ...hit, status: hit.status ?? "open" };
 
+  const filled = wasFilled(hit, high, low);
+  const base: SignalHit = filled
+    ? { ...hit, filled: true, filledAt: hit.filledAt ?? Date.now(), status: "open" }
+    : { ...hit, filled: false, status: "open", why: hit.entry != null ? `Ждёт касания входа ${formatPrice(hit.entry, hit.decimals)} — это ещё не сделка` : hit.why };
+
   const mark = (status: SignalStatus, exit: number): SignalHit => ({
-    ...hit,
+    ...base,
     status,
     closedAt: Date.now(),
     exit,
-    resultR: rMultiple(hit, exit),
-    why: explain(status, hit, exit, market, halt),
+    resultR: status === "target" || status === "stop" ? rMultiple(base, exit) : null,
+    why: explain(status, base, exit, market, halt),
   });
+
+  // No fill yet: never count TP/SL as win/loss
+  if (!filled) {
+    if (halt?.active) return mark("halt", px);
+    const opposite =
+      market &&
+      ((hit.action === "long" && market.advice.action === "short") ||
+        (hit.action === "short" && market.advice.action === "long"));
+    if (opposite) return mark("reverse", px);
+    if (Date.now() - hit.at > DAY * 2) return mark("expired", px);
+    return base;
+  }
 
   if (hit.action === "long") {
     if (hit.target != null && high >= hit.target) return mark("target", hit.target);
@@ -84,8 +114,8 @@ export function settleHit(
     ((hit.action === "long" && market.advice.action === "short") ||
       (hit.action === "short" && market.advice.action === "long"));
   if (opposite) return mark("reverse", px);
-  if (Date.now() - hit.at > DAY && market && market.advice.action !== hit.action) return mark("expired", px);
-  return { ...hit, status: "open" };
+  if (Date.now() - hit.at > DAY * 3) return mark("expired", px);
+  return { ...base, why: `В сделке с ${formatPrice(hit.entry!, hit.decimals)}. Ждёт TP/SL.` };
 }
 
 export interface SignalStats {
@@ -137,11 +167,12 @@ export function bookStats(log: SignalHit[]): SignalStats {
   };
 }
 
-export function statusLabel(status: SignalStatus | undefined) {
+export function statusLabel(status: SignalStatus | undefined, filled?: boolean) {
   if (status === "target") return "цель";
   if (status === "stop") return "стоп";
   if (status === "halt") return "новость";
   if (status === "reverse") return "разворот";
   if (status === "expired") return "не состоялся";
-  return "открыт";
+  if (filled) return "в сделке";
+  return "ждёт вход";
 }

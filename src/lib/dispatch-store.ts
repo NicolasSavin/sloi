@@ -20,6 +20,9 @@ export interface SignalHit {
   exit?: number | null;
   resultR?: number | null;
   why?: string;
+  /** Price touched entry — only then TP/SL count as deal outcome. */
+  filled?: boolean;
+  filledAt?: number;
 }
 
 interface DispatchState {
@@ -45,7 +48,7 @@ export const useDispatchStore = create<DispatchState>()(
             (h) => (h.status ?? "open") === "open" && h.symbol === hit.symbol && h.action === hit.action,
           );
           if (openSame) return { flash: hit };
-          return { flash: hit, log: [{ ...hit, status: "open" as const }, ...s.log].slice(0, 400) };
+          return { flash: hit, log: [{ ...hit, status: "open" as const, filled: false }, ...s.log].slice(0, 400) };
         }),
       patchHits: (hits) =>
         set((s) => {
@@ -54,7 +57,7 @@ export const useDispatchStore = create<DispatchState>()(
           const log = s.log.map((h) => {
             const n = map.get(h.id);
             if (!n) return h;
-            if (n.status !== h.status || n.why !== h.why) changed = true;
+            if (n.status !== h.status || n.why !== h.why || n.filled !== h.filled) changed = true;
             return n;
           });
           return changed ? { log } : {};
@@ -63,13 +66,13 @@ export const useDispatchStore = create<DispatchState>()(
     }),
     {
       name: "stratum-dispatch",
-      version: 2,
+      version: 3,
       partialize: (s) => ({ onDuty: s.onDuty, log: s.log }),
       migrate: (persisted) => {
         const p = (persisted ?? {}) as Partial<DispatchState>;
         return {
           onDuty: p.onDuty ?? false,
-          log: (p.log ?? []).map((h) => ({ ...h, status: h.status ?? "open" })),
+          log: (p.log ?? []).map((h) => ({ ...h, status: h.status ?? "open", filled: h.filled ?? false })),
           flash: null,
         } as DispatchState;
       },
