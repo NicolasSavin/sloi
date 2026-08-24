@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { isOpenAction, useDispatchStore } from "@/lib/dispatch-store";
@@ -104,15 +104,24 @@ export function DispatchWatcher() {
 
   const halt = q.data?.digest.fund?.halt;
   const newsLine = halt ? newsAlertText(halt) : "";
-  const warnNews = Boolean(halt?.event && newsLine && (halt.active || halt.minutes > 0));
+  const warnNews = Boolean(halt?.event && newsLine);
+  const [newsOpen, setNewsOpen] = useState(false);
 
   useEffect(() => {
-    if (!onDuty || !halt || !warnNews) return;
+    if (!onDuty || !halt || !warnNews) {
+      setNewsOpen(false);
+      return;
+    }
     const key = newsAlertKey(halt);
     if (newsSeen.current === key) return;
     newsSeen.current = key;
+    setNewsOpen(true);
     if (soundOn) playDispatch("short");
     if (voiceOn) void speakRu(newsLine);
+    if (!halt.active) {
+      const t = window.setTimeout(() => setNewsOpen(false), 12_000);
+      return () => window.clearTimeout(t);
+    }
   }, [onDuty, halt?.at, halt?.minutes, halt?.active, halt?.event, newsLine, warnNews, soundOn, voiceOn]);
 
   useEffect(() => {
@@ -126,7 +135,7 @@ export function DispatchWatcher() {
   return (
     <>
       {flash ? (
-        <div className="pointer-events-none fixed inset-x-0 top-16 z-30 px-3">
+        <div className="pointer-events-none fixed inset-x-0 bottom-16 z-30 px-3">
           <div
             className={cn(
               "pointer-events-auto panel-volume group relative mx-auto flex max-w-3xl overflow-hidden rounded-xl",
@@ -153,13 +162,18 @@ export function DispatchWatcher() {
         </div>
       ) : null}
 
-      {onDuty && warnNews && newsLine ? (
-        <div className="pointer-events-none fixed inset-x-0 top-16 z-30 px-3">
-          <div className="pointer-events-auto panel-volume mx-auto max-w-3xl rounded-xl border-bear/50 bg-bg/95 px-4 py-3">
-            <p className="font-mono text-xs tracking-[0.16em] text-accent">
-              {halt?.active ? "КАЛЕНДАРЬ · ТОРМОЖУ" : "КАЛЕНДАРЬ"}
-            </p>
-            <p className="mt-1 text-lg leading-snug">{newsLine}</p>
+      {onDuty && newsOpen && newsLine ? (
+        <div className="pointer-events-none fixed inset-x-0 bottom-16 z-30 px-3">
+          <div className="pointer-events-auto panel-volume mx-auto flex max-w-3xl items-start gap-3 rounded-xl border-bear/50 bg-bg/95 px-4 py-3">
+            <div className="min-w-0 flex-1">
+              <p className="font-mono text-xs tracking-[0.16em] text-accent">
+                {halt?.active ? "КАЛЕНДАРЬ · ТОРМОЖУ" : "КАЛЕНДАРЬ"}
+              </p>
+              <p className="mt-1 text-lg leading-snug">{newsLine}</p>
+            </div>
+            <button type="button" className="shrink-0 pt-1 text-sm text-muted" onClick={() => setNewsOpen(false)}>
+              закрыть
+            </button>
           </div>
         </div>
       ) : null}

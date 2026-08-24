@@ -208,9 +208,9 @@ export function newsCurrency(halt: Pick<NewsHalt, "country" | "event">) {
 }
 
 export function newsAlertText(halt: NewsHalt) {
-  if (!halt.event && !halt.active) return "";
+  if (!halt.event) return "";
   const pair = newsCurrency(halt);
-  const name = halt.event || "цифра календаря";
+  const name = halt.event;
   const when =
     halt.minutes > 0 ? `через ${halt.minutes} минут` : halt.minutes === 0 ? "прямо сейчас" : "уже вышла";
   if (halt.active) {
@@ -218,9 +218,6 @@ export function newsAlertText(halt: NewsHalt) {
   }
   if (halt.impact === "High" && halt.minutes > 0 && halt.minutes <= 45) {
     return `Крупная новость по ${pair}: ${name}. ${when}. Ближе к выходу торговлю остановлю.`;
-  }
-  if (halt.impact === "High") {
-    return `Дальше по календарю крупная по ${pair}: ${name}. ${when}. Сейчас торговля не запрещена.`;
   }
   if (halt.impact === "Medium" && halt.minutes > 0 && halt.minutes <= 20) {
     return `Средняя новость по ${pair}: ${name}. ${when}. Торговлю не останавливаю, следите за спредом.`;
