@@ -6,7 +6,7 @@ import { EMPTY_COT, cotFor } from "@/lib/cot";
 import type { Advice } from "@/lib/advisor";
 import type { NewsHalt } from "@/lib/calendar";
 import { EMPTY_HALT } from "@/lib/calendar";
-import type { OptionsSnapshot } from "@/lib/market/types";
+import type { OptionConstruction, OptionsSnapshot } from "@/lib/market/types";
 
 type Move = { price: number; changePct: number } | null;
 
@@ -300,9 +300,25 @@ export function gateAdvice(
   advice: Advice,
   wind: FundWind,
   halt?: NewsHalt,
-  ctx?: { id: string; session?: SessionSnap | null; h1?: Candle[]; entry?: number },
+  ctx?: {
+    id: string;
+    session?: SessionSnap | null;
+    h1?: Candle[];
+    entry?: number;
+    construction?: OptionConstruction | null;
+    htfBias?: "bullish" | "bearish" | "range";
+  },
 ): Advice {
-  const base = ctx?.id ? refineAdvice(advice, { id: ctx.id, halt, session: ctx.session, h1: ctx.h1, entry: ctx.entry }) : advice;
+  const base = ctx?.id
+    ? refineAdvice(advice, {
+        id: ctx.id,
+        halt,
+        session: ctx.session,
+        h1: ctx.h1,
+        entry: ctx.entry,
+        htfBias: ctx.htfBias,
+      })
+    : advice;
   if (halt?.active && !ctx?.id) {
     return {
       ...base,
@@ -313,6 +329,20 @@ export function gateAdvice(
   }
   if (base.action !== "long" && base.action !== "short") {
     return { ...base, therefore: `${base.therefore} ${wind.note}` };
+  }
+  const wall = ctx?.construction;
+  const againstWall =
+    wall &&
+    wall.type !== "mixed" &&
+    ((base.action === "long" && wall.wanted === "down") ||
+      (base.action === "short" && wall.wanted === "up"));
+  if (againstWall && wall) {
+    return {
+      ...base,
+      action: "wait",
+      title: "Ждать: опционная конструкция против",
+      therefore: `${wall.why} Техника даёт ${base.action === "long" ? "лонг" : "шорт"} — приказ не шлём.`,
+    };
   }
   const against =
     (base.action === "long" && wind.wanted === "down") ||
@@ -328,11 +358,12 @@ export function gateAdvice(
   const withWind =
     (base.action === "long" && wind.wanted === "up") ||
     (base.action === "short" && wind.wanted === "down");
+  const wallBit = wall ? ` Конструкция ${wall.ticker}: ${wall.type === "call-wall" ? "стена коллов" : wall.type === "put-wall" ? "стена путов" : "смешанный OI"} ${wall.strike ?? ""}.` : "";
   return {
     ...base,
     therefore: withWind
-      ? `${base.therefore} Макро попутный.`
-      : `${base.therefore} ${wind.note}`,
+      ? `${base.therefore} Макро попутный.${wallBit}`
+      : `${base.therefore} ${wind.note}${wallBit}`,
   };
 }
 

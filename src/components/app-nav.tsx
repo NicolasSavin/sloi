@@ -8,6 +8,7 @@ const LINKS = [
   { to: "/news", label: "Новости" },
   { to: "/calendar", label: "Календарь" },
   { to: "/dispatch", label: "Диспетчер" },
+  { to: "/ideas", label: "TradingView" },
   { to: "/stats", label: "Статистика" },
   { to: "/tv", label: "ТВ" },
   { to: "/desk", label: "График" },

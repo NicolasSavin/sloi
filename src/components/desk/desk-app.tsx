@@ -16,15 +16,13 @@ import { AnalyzeBar, BookBanner, ClusterBanner, ConfluenceList, FlowBanner, Leve
 import { EtherCard, StoryBody } from "@/components/desk/story-panel";
 import { AppNav } from "@/components/app-nav";
 import { analyzeWithGrok, type AiBrief } from "@/lib/ai/analyze";
-import { advise, actionLabel } from "@/lib/advisor";
+import { actionLabel, actionTone } from "@/lib/advisor";
 import { FundStrip } from "@/components/fund-strip";
-import { gateAdvice, windFor } from "@/lib/fundamentals";
 import { fetchBroker, fetchDigest, fetchMarket, fetchTvGuide } from "@/lib/market/fetch";
 import { useDeskStore, type OverlayFlags } from "@/lib/desk-store";
 import { loadJournal, saveJournal, type JournalEntry } from "@/lib/journal";
 import type { MarketPayload } from "@/lib/market/types";
 import { KIND_LABEL, SYMBOLS, TIMEFRAMES, getSymbol } from "@/lib/market/symbols";
-import { sessionNow } from "@/lib/sessions";
 import { playSignal, unlockSound } from "@/lib/sound";
 import { analyzeMarket, compactForAi, type SmcSnapshot } from "@/lib/smc/engine";
 import { makeTvBrief } from "@/lib/tv-brief";
@@ -91,11 +89,10 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
   const book = bookQ.data?.books.find((b) => b.id === spec.id) ?? null;
   const fund = digestQ.data?.digest.fund;
   const ether = makeTvBrief(tvQ.data ?? [], [fund?.driver ?? "", fund?.line ?? "", ...(fund?.themes ?? [])].filter(Boolean));
-  const advice = useMemo(() => {
-    if (!snap) return null;
-    const raw = advise(snap, spec, spreads[spec.id] ?? spec.spread);
-    return fund ? gateAdvice(raw, windFor(spec.id, fund), fund.halt, { id: spec.id, session: sessionNow(), entry: snap.localSetup.entry ?? undefined }) : raw;
-  }, [snap, spec, spreads, fund]);
+  const deskMarket = digestQ.data?.digest.markets.find((m) => m.spec.id === spec.id);
+  const construction = deskMarket?.construction ?? null;
+  const order = deskMarket?.advice ?? null;
+  const advice = order;
   useEffect(() => {
     if (!advice || !soundOn) return;
     const key = `${spec.id}|${advice.action}|${advice.title}`;
@@ -104,7 +101,7 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
     lastSignal.current = key;
     if (advice.action === "long" || advice.action === "short") {
       playSignal(advice.action);
-      toast.message(`${spec.label}: ${actionLabel(advice.action)}`, { description: advice.title });
+      toast.message(`Диспетчер · ${spec.label}: ${actionLabel(advice.action)}`, { description: advice.title });
     }
   }, [advice, spec.id, spec.label, soundOn]);
   useEffect(() => { setJournal(loadJournal()); }, []);
@@ -152,6 +149,7 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
             <button key={tf.id} type="button" onClick={() => setTimeframe(tf.id)} className={cn("h-9 min-w-11 rounded-sm px-2.5 font-mono text-xs", tf.id === timeframe ? "bg-elevated text-fg" : "text-muted")}>{tf.label}</button>
           ))}
         </div>
+        <a href={`/ideas?pair=${spec.id}`} className="hidden h-11 shrink-0 items-center rounded-sm px-3 text-xs text-accent sm:inline-flex">TradingView</a>
         <Button variant="outline" size="icon" onClick={() => { unlockSound(); setSoundOn(!soundOn); }} aria-label="Звук">{soundOn ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}</Button>
         <Button variant="outline" size="icon" onClick={() => market.refetch()} aria-label="Обновить"><RefreshCw className={cn("size-4", market.isFetching && "animate-spin")} /></Button>
       </div>
@@ -193,7 +191,8 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-lg font-medium tracking-tight">{spec.label}</h1>
-                {snap ? <Badge tone={biasTone(snap.bias)}>{biasLabel(snap.bias)}</Badge> : null}
+                {snap ? <Badge tone={biasTone(snap.bias)}>карта {biasLabel(snap.bias)}</Badge> : null}
+                {order ? <Badge tone={actionTone(order.action)}>приказ {actionLabel(order.action)}</Badge> : null}
                 {market.data ? <Badge tone={market.data.source === "demo" ? "bear" : "neutral"}>{sourceLabel(market.data.source, market.data.staleSec)}</Badge> : null}
               </div>
               <p className="mt-1 font-mono text-2xl tabular-nums tracking-tight">
@@ -202,6 +201,16 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
               </p>
             </div>
           </div>
+          {order ? (
+            <div className="mx-4 mt-2 rounded-lg bg-elevated/70 px-4 py-3">
+              <p className="font-mono text-[10px] tracking-[0.18em] text-accent">ПРИКАЗ ДИСПЕТЧЕРА ДЕРЖИМ, ПОКА НЕ СМЕНИТ</p>
+              <p className="mt-1 text-sm font-medium">
+                {actionLabel(order.action)}
+                {deskMarket?.setup.entry != null ? ` · вход ${formatPrice(deskMarket.setup.entry, spec.decimals)}` : ""}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-muted">{order.therefore || order.title}</p>
+            </div>
+          ) : null}
           {market.isLoading ? (
             <Skeleton className="m-4 min-h-[320px] flex-1 rounded-lg" />
           ) : market.error ? (
@@ -214,7 +223,7 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
               <BookBanner book={book} iceberg={snap?.flow.events.find((e) => e.kind === "absorption")?.therefore} />
               {snap?.clusters ? <ClusterBanner snap={snap} /> : null}
               <ChartStage className="h-[260px] lg:h-auto lg:min-h-[420px] lg:flex-1">
-                <ChartPane candles={market.data?.candles ?? []} snap={snap} overlays={overlays} book={book} className="absolute inset-0 h-full" />
+                <ChartPane candles={market.data?.candles ?? []} snap={snap} overlays={overlays} book={book} order={order} setup={deskMarket?.setup ?? null} className="absolute inset-0 h-full" />
               </ChartStage>
               <div className="px-4 pt-3"><EtherCard ether={ether} /></div>
               <div className="px-4 pb-4 pt-3"><ChatDock /></div>
@@ -222,7 +231,7 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
           )}
           <div className="border-t border-border px-4 py-4 lg:hidden">
             <AnalyzeBar autoAnalyze={autoAnalyze} setAutoAnalyze={setAutoAnalyze} onRun={() => void runAi(true)} onJournal={addToJournal} snapReady={Boolean(snap)} aiLoading={aiLoading} aiModel={aiModel} />
-            <div className="mt-4"><StoryBody brief={brief} snap={snap} aiLoading={aiLoading} aiError={aiError} decimals={spec.decimals} options={market.data?.options} ether={ether} /></div>
+            <div className="mt-4"><StoryBody brief={brief} snap={snap} aiLoading={aiLoading} aiError={aiError} decimals={spec.decimals} options={market.data?.options} ether={ether} construction={construction} /></div>
           </div>
           <Tabs defaultValue="levels" className="border-t border-border">
             <div className="overflow-x-auto px-3 pt-3">
@@ -246,7 +255,7 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
           <ScrollArea className="mt-3 min-h-[280px] flex-1">
             <div className="space-y-4 px-4 pb-8">
               {fund ? <FundStrip fund={fund} /> : null}
-              <StoryBody brief={brief} snap={snap} aiLoading={aiLoading} aiError={aiError} decimals={spec.decimals} options={market.data?.options} ether={ether} />
+              <StoryBody brief={brief} snap={snap} aiLoading={aiLoading} aiError={aiError} decimals={spec.decimals} options={market.data?.options} ether={ether} construction={construction} />
               <Separator />
               <div>
                 <div className="mb-2 flex items-center gap-2 text-sm font-medium"><Layers className="size-4 text-muted" /> Слои</div>

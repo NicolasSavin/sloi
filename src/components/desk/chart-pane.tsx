@@ -9,7 +9,8 @@ import type {
 } from "lightweight-charts";
 import type { Candle } from "@/lib/market/types";
 import type { OverlayFlags } from "@/lib/desk-store";
-import type { SmcSnapshot, Zone } from "@/lib/smc/engine";
+import type { Advice } from "@/lib/advisor";
+import type { LocalSetup, SmcSnapshot, Zone } from "@/lib/smc/engine";
 import { deltaOf } from "@/lib/smc/flow";
 import { cn } from "@/lib/utils";
 
@@ -223,12 +224,16 @@ export function ChartPane({
   snap,
   overlays,
   book = null,
+  order = null,
+  setup = null,
   className,
 }: {
   candles: Candle[];
   snap: SmcSnapshot | null;
   overlays: OverlayFlags;
   book?: { bids: { price: number; volume: number }[]; asks: { price: number; volume: number }[] } | null;
+  order?: Advice | null;
+  setup?: LocalSetup | null;
   className?: string;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -245,11 +250,15 @@ export function ChartPane({
   const overlaysRef = useRef(overlays);
   const candlesRef = useRef(candles);
   const bookRef = useRef(book);
+  const orderRef = useRef(order);
+  const setupRef = useRef(setup);
   const [ready, setReady] = useState(false);
   snapRef.current = snap;
   overlaysRef.current = overlays;
   candlesRef.current = candles;
   bookRef.current = book;
+  orderRef.current = order;
+  setupRef.current = setup;
 
   useEffect(() => {
     const host = hostRef.current;
@@ -489,6 +498,14 @@ export function ChartPane({
           );
         }
       }
+      const cmd = order;
+      const cmdSetup = setup;
+      if (cmd && (cmd.action === "long" || cmd.action === "short")) {
+        const col = cmd.action === "long" ? bull : bear;
+        if (cmdSetup?.entry != null) add(cmdSetup.entry, cmd.action === "long" ? "ПРИКАЗ BUY" : "ПРИКАЗ SELL", col);
+        if (cmdSetup?.stop != null) add(cmdSetup.stop, "ПРИКАЗ SL", bear);
+        cmdSetup?.targets.slice(0, 2).forEach((t, i) => add(t, `ПРИКАЗ TP${i + 1}`, bull));
+      }
       const markers: SeriesMarker<UTCTimestamp>[] = [
         ...snap.events.slice(-8).map((e): SeriesMarker<UTCTimestamp> => ({
           time: e.time as UTCTimestamp,
@@ -547,7 +564,7 @@ export function ChartPane({
       }
       if (profileRef.current) drawProfile(profileRef.current, series, snap, overlays.profile);
     });
-  }, [snap, overlays, ready]);
+  }, [snap, overlays, ready, order, setup]);
 
   return (
     <div className={cn("relative overflow-hidden bg-bg", className)}>

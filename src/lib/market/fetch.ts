@@ -33,7 +33,7 @@ async function getJson(url: string, timeoutMs = 7000): Promise<any> {
   try {
     const res = await fetch(url, {
       signal: ctrl.signal,
-      headers: { "User-Agent": "Mozilla/5.0 StratumDesk/1.0", Accept: "application/json" },
+      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36", Accept: "application/json" },
     });
     if (!res.ok) return null;
     return await res.json();
@@ -51,7 +51,7 @@ async function getText(url: string, timeoutMs = 5000): Promise<string | null> {
     const res = await fetch(url, {
       signal: ctrl.signal,
       headers: {
-        "User-Agent": "Mozilla/5.0 StratumDesk/1.0",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         Accept: "application/rss+xml, application/xml, text/xml, */*",
       },
     });
@@ -297,18 +297,71 @@ async function lastMove(yahoo: string) {
   return { price: a, changePct: ((a - b) / b) * 100 };
 }
 
-let calCache: { at: number; xml: string | null } | null = null;
+function mapPool<T, R>(items: T[], size: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  return (async () => {
+    const out: R[] = [];
+    for (let i = 0; i < items.length; i += size) {
+      const part = await Promise.all(items.slice(i, i + size).map(fn));
+      out.push(...part);
+    }
+    return out;
+  })();
+}
+
+function wantOptions(id: string) {
+  return ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "USOIL", "SPY", "QQQ"].includes(id);
+}
+
+const CAL_JSON = [
+  "https://nfs.faireconomy.media/ff_calendar_thisweek.json",
+  "https://cdn-nfs.faireconomy.media/ff_calendar_thisweek.json",
+];
+const CAL_URLS = [
+  "https://nfs.faireconomy.media/ff_calendar_thisweek.xml",
+  "https://cdn-nfs.faireconomy.media/ff_calendar_thisweek.xml",
+];
+
+let calCache: { at: number; xml: string | null; json: unknown | null } | null = null;
 async function loadCalendarXml() {
-  if (calCache && Date.now() - calCache.at < 300_000) return calCache.xml;
-  const xml = await getText("https://nfs.faireconomy.media/ff_calendar_thisweek.xml", 6000);
-  calCache = { at: Date.now(), xml };
+  if (calCache && Date.now() - calCache.at < 180_000) return calCache.xml;
+  const jsons = await Promise.all(CAL_JSON.map((u) => getJson(`${u}?t=${Date.now()}`, 4000)));
+  const json = jsons.find((x) => Array.isArray(x) && x.length > 0) ?? null;
+  let xml: string | null = null;
+  if (!json) {
+    const xmls = await Promise.all(CAL_URLS.map((u) => getText(`${u}?t=${Date.now()}`, 4000)));
+    xml = xmls.find((x) => x && x.includes("<event")) ?? null;
+  }
+  calCache = { at: Date.now(), xml, json };
   return xml;
+}
+
+async function loadCalendarEvents() {
+  const { parseFfCalendar, parseFfJson, fallbackCalendar } = await import("@/lib/calendar");
+  if (calCache && Date.now() - calCache.at < 180_000) {
+    if (Array.isArray(calCache.json) && calCache.json.length) return parseFfJson(calCache.json);
+    if (calCache.xml) {
+      const p = parseFfCalendar(calCache.xml);
+      if (p.length) return p;
+    }
+  }
+  await loadCalendarXml();
+  if (calCache?.json && Array.isArray(calCache.json) && calCache.json.length) return parseFfJson(calCache.json);
+  if (calCache?.xml) {
+    const p = parseFfCalendar(calCache.xml);
+    if (p.length) return p;
+  }
+  return fallbackCalendar();
 }
 
 let digestCache: { at: number; data: { digest: DailyDigest; source: string } } | null = null;
 
 export const fetchDigest = createServerFn({ method: "GET" }).handler(async () => {
-  return assembleDigest();
+  try {
+    return await assembleDigest();
+  } catch {
+    if (digestCache) return digestCache.data;
+    throw new Error("digest");
+  }
 });
 
 /** Public alias for API routes (archive). */
@@ -322,39 +375,44 @@ async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }
   const { buildDigest, toDigestMarket, pickLead, todayKey } = await import("@/lib/digest");
   const { buildSentiment } = await import("@/lib/sentiment");
   const { buildFundamentals, windFor, gateAdvice } = await import("@/lib/fundamentals");
-  const { parseFfCalendar, buildHalt, EMPTY_HALT } = await import("@/lib/calendar");
+  const { buildHalt, EMPTY_HALT } = await import("@/lib/calendar");
   const { parseRss } = await import("@/lib/news");
   const { SYMBOLS, DIGEST_IDS } = await import("./symbols");
-  const timeframe: Timeframe = "4h";
+  const timeframe: Timeframe = "1h";
   const digestSpecs = SYMBOLS.filter((s) => DIGEST_IDS.includes(s.id));
-  const [payloads, vix, dxy, tnx, fedXml, calXml, cl, es, nq, zn, tgHtml, cot, h1s] = await Promise.all([
-    Promise.all(digestSpecs.map((s) => loadPayload(s.id, timeframe))),
+  const [payloads, vix, dxy, tnx, fedXml, calEvents, cl, es, nq, zn, tgHtml, cot, h4s] = await Promise.all([
+    mapPool(digestSpecs, 5, (s) => loadPayload(s.id, timeframe, wantOptions(s.id))),
     lastMove("^VIX"),
     lastMove("DX-Y.NYB"),
     lastMove("^TNX"),
     getText(
       "https://news.google.com/rss/search?q=%D0%A4%D0%A0%D0%A1+%D1%81%D1%82%D0%B0%D0%B2%D0%BA%D0%B0+%D0%B8%D0%BD%D1%84%D0%BB%D1%8F%D1%86%D0%B8%D1%8F&hl=ru&gl=RU&ceid=RU:ru",
-      4000,
+      3500,
     ),
-    loadCalendarXml(),
+    loadCalendarEvents(),
     lastMove("CL=F"),
     lastMove("ES=F"),
     lastMove("NQ=F"),
     lastMove("ZN=F"),
-    getText("https://t.me/s/Options_FX", 4500),
+    getText("https://t.me/s/Options_FX", 3500),
     import("@/lib/cot").then((m) => m.loadCot()),
-    Promise.all(digestSpecs.map((s) => loadPayload(s.id, "1h", false))),
+    mapPool(digestSpecs, 5, (s) => loadPayload(s.id, "4h", false)),
   ]);
   const headlines = fedXml ? parseRss(fedXml).map((n) => n.title) : [];
-  const halt = calXml ? buildHalt(parseFfCalendar(calXml)) : EMPTY_HALT;
+  const halt = calEvents.length ? buildHalt(calEvents) : EMPTY_HALT;
   const rows = payloads.map((p) => {
     const spec = SYMBOLS.find((s) => s.id === p.symbol)!;
     const snap = analyzeMarket(p.candles, p.options, p.trades);
-    return { spec, snap, candles: p.candles, market: toDigestMarket(spec, snap, spec.spread, p.candles.at(-1)) };
+    return { spec, snap, candles: p.candles, market: toDigestMarket(spec, snap, spec.spread, p.candles.at(-1), p.options) };
   });
   const { sessionNow } = await import("@/lib/sessions");
   const session = sessionNow();
-  const h1map = new Map(h1s.map((p) => [p.symbol, p.candles]));
+  const h4bias = new Map(
+    h4s.map((p) => {
+      const snap = analyzeMarket(p.candles, null);
+      return [p.symbol, snap.bias] as const;
+    }),
+  );
   const dxySnap = dxy ?? (await lastMove("DX=F"));
   const sentiment = buildSentiment({
     vix,
@@ -378,16 +436,16 @@ async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }
   });
   const markets = rows.map((r) => {
     const wind = windFor(r.spec.id, fund);
-    return {
-      ...r.market,
-      wind,
-      advice: gateAdvice(r.market.advice, wind, fund.halt, {
-        id: r.spec.id,
-        session,
-        h1: h1map.get(r.spec.id),
-        entry: r.market.setup.entry ?? undefined,
-      }),
+    const ctx = {
+      id: r.spec.id,
+      session,
+      h1: undefined,
+      entry: r.market.setup.entry ?? undefined,
+      construction: r.market.construction,
+      htfBias: h4bias.get(r.spec.id),
     };
+    const advice = gateAdvice(r.market.advice, wind, fund.halt, ctx);
+    return { ...r.market, wind, advice, htfBias: ctx.htfBias };
   });
   const leadMarket = pickLead(markets);
   const leadRow = rows.find((r) => r.spec.id === leadMarket.spec.id) ?? rows[0]!;
@@ -419,7 +477,7 @@ export async function renderSignalFeed() {
   const { digest } = await assembleDigest();
   const { brokerSkewPct } = await import("@/lib/broker-tape");
   const { skewLimit, fillMode } = await import("@/lib/execution");
-  const lines = [`# SLOI v2`, `# ${new Date().toISOString()}`, `# last=Yahoo  SKEW=макс%  MODE=LIMIT|MARKET`];
+  const lines = [`# SLOI v2 H1`, `# ${new Date().toISOString()}`, `# last=Yahoo  SKEW=макс%  MODE=LIMIT|MARKET  TF=60`];
   for (const m of digest.markets) {
     let side = m.advice.action === "long" ? "BUY" : m.advice.action === "short" ? "SELL" : "WAIT";
     const last = m.lastClose;
@@ -430,8 +488,9 @@ export async function renderSignalFeed() {
     const s = m.setup.stop ?? 0;
     const t = m.setup.targets[0] ?? 0;
     const mode =
-      side === "WAIT" ? "WAIT" : fillMode(side === "BUY" ? "long" : "short", last, e, s);
-    lines.push(`${m.spec.id} ${side} ${e} ${s} ${t} ${last} SKEW ${cap} MODE ${mode}`);
+      side === "WAIT" ? "WAIT" : fillMode(side === "BUY" ? "long" : "short", last, e, s, t);
+    if (mode === "LATE") side = "WAIT";
+    lines.push(`${m.spec.id} ${side} ${e} ${s} ${t} ${last} SKEW ${cap} MODE ${mode === "LATE" ? "WAIT" : mode}`);
   }
   return `${lines.join("\n")}\n`;
 }
@@ -441,13 +500,12 @@ export const fetchHome = createServerFn({ method: "GET" }).handler(async () => {
 });
 
 export const fetchCalendar = createServerFn({ method: "GET" }).handler(async () => {
-  const { parseFfCalendar, buildHalt, EMPTY_HALT } = await import("@/lib/calendar");
+  const { buildHalt, EMPTY_HALT } = await import("@/lib/calendar");
   const { sessionNow } = await import("@/lib/sessions");
-  const xml = await loadCalendarXml();
-  const events = xml ? parseFfCalendar(xml) : [];
-  const halt = xml ? buildHalt(events) : EMPTY_HALT;
+  const events = await loadCalendarEvents();
+  const halt = events.some((e) => e.impact === "High") ? buildHalt(events) : { ...EMPTY_HALT, line: events.length ? `Календарь: ${events.length} событий. Крупных рядом нет.` : EMPTY_HALT.line };
   const now = Date.now();
-  const upcoming = events.filter((e) => e.at > now - 60 * 60_000).slice(0, 24);
+  const upcoming = events.filter((e) => e.at > now - 60 * 60_000).slice(0, 28);
   return { events: upcoming, halt, session: sessionNow() };
 });
 
@@ -501,8 +559,8 @@ async function buildHome(): Promise<HomePayload> {
     "https://feeds.bbci.co.uk/news/business/rss.xml",
   ];
   const [payloads, ...feeds] = await Promise.all([
-    Promise.all(SYMBOLS.map((s) => loadPayload(s.id, timeframe, false))),
-    ...queries.map((u) => getText(u, 4500)),
+    mapPool(SYMBOLS, 5, (s) => loadPayload(s.id, timeframe, false)),
+    ...queries.map((u) => getText(u, 3500)),
   ]);
   const quotes = payloads.map((p) => {
     const spec = SYMBOLS.find((s) => s.id === p.symbol)!;

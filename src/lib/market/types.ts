@@ -11,6 +11,8 @@ export interface SymbolSpec {
   binance?: string;
   bybit?: string;
   optionsYahoo?: string;
+  futuresYahoo?: string;
+  /** Typical one-way retail spread in price units. User can override. */
   spread: number;
   pip: number;
 }
@@ -45,6 +47,17 @@ export interface OptionsSnapshot {
   magnetStrikes: number[];
   rows: OptionsRow[];
   note: string;
+}
+
+export interface OptionConstruction {
+  ticker: string;
+  expiry: string;
+  putCall: number | null;
+  maxPain: number | null;
+  strike: number | null;
+  type: "call-wall" | "put-wall" | "mixed";
+  wanted: "up" | "down" | "flat";
+  why: string;
 }
 
 export interface MarketPayload {

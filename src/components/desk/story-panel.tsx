@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { briefToStory, type AiBrief } from "@/lib/ai/analyze";
 import type { MarketStory, SmcSnapshot } from "@/lib/smc/engine";
+import type { OptionConstruction } from "@/lib/market/types";
 import { formatPrice } from "@/lib/utils";
 import type { OptionsSnapshot } from "@/lib/market/types";
 import { readConstruction } from "@/lib/options";
@@ -19,10 +20,11 @@ function biasLabel(bias: string) {
 }
 
 export function StoryPanel({
-  story, bias, confidence, headline, setup, risks, watch,
+  story, bias, confidence, headline, setup, risks, watch, construction,
 }: {
   story: MarketStory; bias: string; confidence?: number; headline?: string;
   setup?: AiBrief["setup"]; risks?: string[]; watch?: string[];
+  construction?: OptionConstruction | null;
 }) {
   return (
     <div className="space-y-4">
@@ -50,6 +52,20 @@ export function StoryPanel({
           </dl>
         </div>
       ) : null}
+
+      {construction ? (
+        <div className="rounded-lg panel-volume p-3">
+          <p className="text-xs font-medium tracking-wide text-accent">Конструкция опционов</p>
+          <p className="mt-1 font-mono text-xs text-dim">
+            {construction.ticker}
+            {construction.expiry ? ` · ${construction.expiry}` : ""}
+            {construction.strike != null ? ` · страйк ${construction.strike}` : ""}
+            {construction.putCall != null ? ` · P/C ${construction.putCall.toFixed(2)}` : ""}
+          </p>
+          <p className="mt-2 text-sm leading-relaxed">{construction.why}</p>
+        </div>
+      ) : null}
+
       {risks?.length ? (
         <div>
           <p className="text-xs font-medium tracking-wide text-dim">Почему может не сработать</p>
@@ -103,19 +119,20 @@ export function ConstructionCard({ options }: { options: OptionsSnapshot | null 
 }
 
 export function StoryBody({
-  brief, snap, aiLoading, aiError, decimals, options, ether,
+  brief, snap, aiLoading, aiError, decimals, options, ether, construction,
 }: {
   brief: AiBrief | null; snap: SmcSnapshot | null; aiLoading: boolean; aiError: string | null;
   decimals: number; options?: OptionsSnapshot | null; ether?: TvBrief | null;
+  construction?: OptionConstruction | null;
 }) {
   return (
     <div className="space-y-4">
       {aiLoading && !brief ? <div className="space-y-2"><Skeleton className="h-6 w-2/3" /><Skeleton className="h-16 w-full" /></div> : null}
       {aiError ? <div className="rounded-md bg-elevated p-3 text-sm text-warn">{aiError}</div> : null}
       {brief ? (
-        <StoryPanel story={briefToStory(brief)} bias={brief.bias} confidence={brief.confidence} headline={brief.headline} setup={brief.setup} risks={brief.risks} watch={brief.watch} />
+        <StoryPanel story={briefToStory(brief)} bias={brief.bias} confidence={brief.confidence} headline={brief.headline} setup={brief.setup} risks={brief.risks} watch={brief.watch} construction={construction} />
       ) : snap ? (
-        <StoryPanel story={snap.story} bias={snap.bias} setup={{
+        <StoryPanel story={snap.story} bias={snap.bias} construction={construction} setup={{
           type: "",
           entry: snap.localSetup.entry != null ? formatPrice(snap.localSetup.entry, decimals) : "ждать реакцию у края",
           stop: snap.localSetup.stop != null ? formatPrice(snap.localSetup.stop, decimals) : snap.localSetup.invalidation,
@@ -125,7 +142,7 @@ export function StoryBody({
       ) : null}
       <ConstructionCard options={options} />
       <EtherCard ether={ether} />
-      <p className="text-xs text-dim">Разбор — причина → следствие. Эфир — справка, не руководство.</p>
+      <p className="text-xs text-dim">Карта графика — что делает цена. Приказ только у диспетчера и в советнике. Эфир — справка.</p>
     </div>
   );
 }

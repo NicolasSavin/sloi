@@ -137,6 +137,16 @@ export function DispatchBoard() {
                       макро {m.wind.kind === "tail" ? "попутный" : m.wind.kind === "head" ? "встречный" : "нейтральный"}
                     </p>
                   ) : null}
+                  {m.construction ? (
+                    <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted">{m.construction.why}</p>
+                  ) : null}
+                  <a
+                    href={`/ideas?pair=${m.spec.id}`}
+                    className="relative mt-3 inline-flex text-xs text-accent"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    TradingView →
+                  </a>
                   </div>
                 </Link>
               );

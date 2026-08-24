@@ -24,16 +24,16 @@ export function ChatDock() {
     const question = q.trim();
     if (!question || busy) return;
     setQ("");
-    setMsgs((m) => [...m, { role: "user", text: question }].slice(-10));
+    setMsgs((m) => [...m, { role: "user" as const, text: question }].slice(-10));
     setBusy(true);
     try {
       const res = await askDeskChat({ data: { question, symbol } });
       if (res.symbol) setFocus(res.symbol);
-      setMsgs((m) => [...m, { role: "bot", text: res.text, model: res.model }].slice(-10));
+      setMsgs((m) => [...m, { role: "bot" as const, text: res.text, model: res.model }].slice(-10));
     } catch {
       setMsgs((m) => [
         ...m,
-        { role: "bot", text: "Чат не ответил. Смотрите табло пар слева — там тот же снимок.", model: "стол" },
+        { role: "bot" as const, text: "Чат не ответил. Смотрите табло пар слева — там тот же снимок.", model: "стол" },
       ]);
     } finally {
       setBusy(false);

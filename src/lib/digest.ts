@@ -1,5 +1,6 @@
 import { advise, type Advice } from "@/lib/advisor";
-import type { Candle, SymbolSpec } from "@/lib/market/types";
+import type { Candle, OptionConstruction, OptionsSnapshot, SymbolSpec } from "@/lib/market/types";
+import { buildConstruction } from "@/lib/options";
 import type { FundWind, FundamentalSnap } from "@/lib/fundamentals";
 import type { SentimentSnap } from "@/lib/sentiment";
 import type { LocalSetup, MarketStory, SmcSnapshot, Zone } from "@/lib/smc/engine";
@@ -19,6 +20,8 @@ export interface DigestMarket {
   advice: Advice;
   premiumDiscount: SmcSnapshot["premiumDiscount"];
   wind?: FundWind;
+  construction?: OptionConstruction | null;
+  htfBias?: SmcSnapshot["bias"];
 }
 
 export interface ChartNote {
@@ -122,7 +125,7 @@ export function dateLabel(iso: string): string {
   });
 }
 
-export function toDigestMarket(spec: SymbolSpec, snap: SmcSnapshot, spread?: number, last?: Candle): DigestMarket {
+export function toDigestMarket(spec: SymbolSpec, snap: SmcSnapshot, spread?: number, last?: Candle, options?: OptionsSnapshot | null): DigestMarket {
   return {
     spec,
     lastClose: snap.lastClose,
@@ -136,6 +139,7 @@ export function toDigestMarket(spec: SymbolSpec, snap: SmcSnapshot, spread?: num
     range: snap.dealingRange,
     advice: advise(snap, spec, spread ?? spec.spread),
     premiumDiscount: snap.premiumDiscount,
+    construction: buildConstruction(options, spec),
   };
 }
 

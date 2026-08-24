@@ -954,14 +954,14 @@ export function analyzeMarket(
   });
   if (options) {
     const magnet = options.magnetStrikes[0];
-    const near =
-      magnet != null && Math.abs(options.spot - magnet) / options.spot < 0.03;
+    const pc = options.putCall;
+    const near = magnet != null && Math.abs(options.spot - magnet) / options.spot < 0.03;
     confluence.push({
       id: "opt",
       layer: "Опционы",
-      status: near ? "for" : "neutral",
+      status: pc != null && pc > 1.15 ? "against" : pc != null && pc < 0.7 ? "for" : near ? "for" : "neutral",
       note: magnet
-        ? `Магнит OI около ${magnet}. P/C ${options.putCall?.toFixed(2) ?? "—"}.`
+        ? `${options.currency}: магнит OI ${magnet}. P/C ${pc?.toFixed(2) ?? "—"}. ${options.note}`
         : options.note,
     });
   } else {

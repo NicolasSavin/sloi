@@ -8,6 +8,14 @@ import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/calendar")({
   loader: () => fetchCalendar(),
+  pendingComponent: function CalPending() {
+    return (
+      <div className="min-h-dvh">
+        <AppNav />
+        <p className="px-5 py-16 text-sm text-muted">Календарь…</p>
+      </div>
+    );
+  },
   component: CalendarPage,
 });
 

@@ -71,6 +71,27 @@ function parseStamp(date: string, time: string): number | null {
   return etToUtc(year, month, day, hour, minute);
 }
 
+export function parseFfJson(raw: unknown): CalEvent[] {
+  if (!Array.isArray(raw)) return [];
+  const out: CalEvent[] = [];
+  for (const row of raw) {
+    const r = row as { title?: string; country?: string; date?: string; impact?: string };
+    const title = String(r.title ?? "").trim();
+    const at = Date.parse(String(r.date ?? ""));
+    if (!title || !Number.isFinite(at)) continue;
+    const impactRaw = String(r.impact ?? "");
+    const impact = impactRaw === "High" || impactRaw === "Medium" || impactRaw === "Low" ? impactRaw : "Low";
+    out.push({
+      title,
+      label: ruEvent(title),
+      country: String(r.country ?? ""),
+      at,
+      impact,
+    });
+  }
+  return out.sort((a, b) => a.at - b.at);
+}
+
 export function parseFfCalendar(xml: string): CalEvent[] {
   const chunks = xml.split(/<event>/i).slice(1);
   const out: CalEvent[] = [];
@@ -169,7 +190,7 @@ export const EMPTY_HALT: NewsHalt = {
   at: 0,
   minutes: 0,
   impact: "",
-  line: "Календарь новостей сейчас недоступен.",
+  line: "Лента ForexFactory не пришла. Торговлю не глушу — смотрите новости на главной.",
   next: null,
 };
 
@@ -210,4 +231,36 @@ export function newsAlertKey(halt: NewsHalt) {
   const bucket =
     halt.minutes > 20 ? 30 : halt.minutes > 10 ? 15 : halt.minutes > 3 ? 5 : halt.active ? 0 : -1;
   return `${halt.impact}|${halt.event}|${halt.at}|${bucket}`;
+}
+
+/** Грубые окна США, если XML молчит. Не High — не стоп советника. */
+export function fallbackCalendar(now = Date.now()): CalEvent[] {
+  const out: CalEvent[] = [];
+  const start = new Date(now);
+  start.setUTCHours(0, 0, 0, 0);
+  for (let d = 0; d < 7; d++) {
+    const day = new Date(start.getTime() + d * 86400000);
+    const wd = day.getUTCDay();
+    if (wd === 0 || wd === 6) continue;
+    const y = day.getUTCFullYear();
+    const m = day.getUTCMonth();
+    const dd = day.getUTCDate();
+    out.push({
+      title: "US data window",
+      label: "окно США (CPI/NFP/FOMC — уточняйте ленту)",
+      country: "USD",
+      at: Date.UTC(y, m, dd, 12, 30, 0),
+      impact: "Medium",
+    });
+    if (wd === 3) {
+      out.push({
+        title: "Crude oil inventories",
+        label: "запасы нефти EIA",
+        country: "USD",
+        at: Date.UTC(y, m, dd, 14, 30, 0),
+        impact: "Medium",
+      });
+    }
+  }
+  return out;
 }

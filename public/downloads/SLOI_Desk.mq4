@@ -5,21 +5,21 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.16"
+#property version   "4.18"
 #property strict
 #property description "На графике: VWAP, профиль, футпринт бара, infusion/splash, Bid/Ask."
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  WatchList       = "EURUSD,GBPUSD,USDJPY,USDCHF,AUDUSD,USDCAD,NZDUSD,EURJPY,GBPJPY,XAUUSD,XAGUSD,USOIL";
 input string  BrokerSuffix    = ".cs";
-input int     WorkTF          = 240;
+input int     WorkTF          = 60;
 input bool    AutoTrade       = false;
 input double  Lots            = 0.10;
 input int     Magic           = 220826;
 input int     SlippagePoints  = 20;
 input int     MaxSpreadPoints = 30;
 input double  MaxSkewPct      = 0.12;
-input double  MinCover        = 2.2;
+input double  MinCover        = 1.8;
 input double  MinNetRR        = 1.0;
 input int     OneTradeOnly    = 1;
 input bool    AlertsOn        = true;
@@ -590,12 +590,15 @@ void Scan(int idx, string &bias, string &verdict, string &why,
       if(dir == 0) { why = why+" · нет Yahoo"; return; }
      }
    if(dir == 0) return;
-   if(spPts > g_maxSp) { dir = 0; verdict = "СПРЕД"; why = IntegerToString(spPts)+"п"; return; }
+   if(lim == 0 && spPts > g_maxSp) { dir = 0; verdict = "СПРЕД"; why = IntegerToString(spPts)+"п"; return; }
    double px = (dir > 0 ? AskOf(s) : BidOf(s));
    if(entry <= 0) entry = px;
    if(stop <= 0 || target <= 0) { dir = 0; verdict = "ЖДАТЬ"; why = "нет SL/TP"; return; }
-   double grossR = MathAbs(target - px);
-   double grossK = MathAbs(px - stop);
+   double pxRef = (lim > 0 && entry > 0) ? entry : px;
+   if(lim > 0 && mid > 0 && spread / mid * 100.0 > 1.5)
+     { dir = 0; verdict = "СПРЕД"; why = "лимит широкий"; return; }
+   double grossR = MathAbs(target - pxRef);
+   double grossK = MathAbs(pxRef - stop);
    double roundT = 2.0 * spread;
    double netR = grossR - spread;
    double netK = grossK + spread;
@@ -603,7 +606,7 @@ void Scan(int idx, string &bias, string &verdict, string &why,
    double rr = (netK > 0 ? netR / netK : 0);
    if(netR <= 0 || covers < MinCover || rr < MinNetRR)
      { dir = 0; verdict = "СПРЕД"; why = "круг"; return; }
-   why = "сверка "+bias+" RR "+DoubleToStr(rr, 1);
+   why = (lim > 0 ? "лимит " : "рынок ") + bias + " RR " + DoubleToStr(rr, 1);
   }
 
 void MaybeTrade(int idx, int dir, double entry, double stop, double target, string verdict, int spPts)
@@ -634,7 +637,7 @@ void MaybeTrade(int idx, int dir, double entry, double stop, double target, stri
    double px = dir > 0 ? AskOf(s) : BidOf(s);
    if(g_lim[idx] > 0 && entry > 0)
      {
-      double zone = MathAbs(entry - stop) * 0.3;
+      double zone = MathAbs(entry - stop) * 0.5;
       if(dir > 0 && AskOf(s) > entry + zone) { cmd = OP_BUYLIMIT; px = NormalizeDouble(entry, digits); }
       if(dir < 0 && BidOf(s) < entry - zone) { cmd = OP_SELLLIMIT; px = NormalizeDouble(entry, digits); }
      }

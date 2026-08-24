@@ -16,8 +16,10 @@ import { Route as CalendarRouteImport } from './routes/calendar'
 import { Route as DailyRouteImport } from './routes/daily'
 import { Route as DeskRouteImport } from './routes/desk'
 import { Route as DispatchRouteImport } from './routes/dispatch'
+import { Route as IdeasRouteImport } from './routes/ideas'
 import { Route as StatsRouteImport } from './routes/stats'
 import { Route as TvRouteImport } from './routes/tv'
+import { Route as ApiArchiveDotjsonRouteImport } from './routes/api/archive[.]json'
 import { Route as ApiBrokerRouteImport } from './routes/api/broker'
 import { Route as ApiEaDotmq4RouteImport } from './routes/api/ea[.]mq4'
 import { Route as ApiSignalsDottxtRouteImport } from './routes/api/signals[.]txt'
@@ -59,6 +61,11 @@ const DispatchRoute = DispatchRouteImport.update({
   path: '/dispatch',
   getParentRoute: () => rootRouteImport,
 } as any)
+const IdeasRoute = IdeasRouteImport.update({
+  id: '/ideas',
+  path: '/ideas',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const StatsRoute = StatsRouteImport.update({
   id: '/stats',
   path: '/stats',
@@ -67,6 +74,11 @@ const StatsRoute = StatsRouteImport.update({
 const TvRoute = TvRouteImport.update({
   id: '/tv',
   path: '/tv',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiArchiveDotjsonRoute = ApiArchiveDotjsonRouteImport.update({
+  id: '/api/archive.json',
+  path: '/api/archive.json',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiBrokerRoute = ApiBrokerRouteImport.update({
@@ -103,8 +115,10 @@ export interface FileRoutesByFullPath {
   '/daily': typeof DailyRoute
   '/desk': typeof DeskRoute
   '/dispatch': typeof DispatchRoute
+  '/ideas': typeof IdeasRoute
   '/stats': typeof StatsRoute
   '/tv': typeof TvRoute
+  '/api/archive.json': typeof ApiArchiveDotjsonRoute
   '/api/broker': typeof ApiBrokerRoute
   '/api/ea.mq4': typeof ApiEaDotmq4Route
   '/api/signals.txt': typeof ApiSignalsDottxtRoute
@@ -119,8 +133,10 @@ export interface FileRoutesByTo {
   '/daily': typeof DailyRoute
   '/desk': typeof DeskRoute
   '/dispatch': typeof DispatchRoute
+  '/ideas': typeof IdeasRoute
   '/stats': typeof StatsRoute
   '/tv': typeof TvRoute
+  '/api/archive.json': typeof ApiArchiveDotjsonRoute
   '/api/broker': typeof ApiBrokerRoute
   '/api/ea.mq4': typeof ApiEaDotmq4Route
   '/api/signals.txt': typeof ApiSignalsDottxtRoute
@@ -136,8 +152,10 @@ export interface FileRoutesById {
   '/daily': typeof DailyRoute
   '/desk': typeof DeskRoute
   '/dispatch': typeof DispatchRoute
+  '/ideas': typeof IdeasRoute
   '/stats': typeof StatsRoute
   '/tv': typeof TvRoute
+  '/api/archive.json': typeof ApiArchiveDotjsonRoute
   '/api/broker': typeof ApiBrokerRoute
   '/api/ea.mq4': typeof ApiEaDotmq4Route
   '/api/signals.txt': typeof ApiSignalsDottxtRoute
@@ -154,8 +172,10 @@ export interface FileRouteTypes {
     | '/daily'
     | '/desk'
     | '/dispatch'
+    | '/ideas'
     | '/stats'
     | '/tv'
+    | '/api/archive.json'
     | '/api/broker'
     | '/api/ea.mq4'
     | '/api/signals.txt'
@@ -170,8 +190,10 @@ export interface FileRouteTypes {
     | '/daily'
     | '/desk'
     | '/dispatch'
+    | '/ideas'
     | '/stats'
     | '/tv'
+    | '/api/archive.json'
     | '/api/broker'
     | '/api/ea.mq4'
     | '/api/signals.txt'
@@ -186,8 +208,10 @@ export interface FileRouteTypes {
     | '/daily'
     | '/desk'
     | '/dispatch'
+    | '/ideas'
     | '/stats'
     | '/tv'
+    | '/api/archive.json'
     | '/api/broker'
     | '/api/ea.mq4'
     | '/api/signals.txt'
@@ -203,8 +227,10 @@ export interface RootRouteChildren {
   DailyRoute: typeof DailyRoute
   DeskRoute: typeof DeskRoute
   DispatchRoute: typeof DispatchRoute
+  IdeasRoute: typeof IdeasRoute
   StatsRoute: typeof StatsRoute
   TvRoute: typeof TvRoute
+  ApiArchiveDotjsonRoute: typeof ApiArchiveDotjsonRoute
   ApiBrokerRoute: typeof ApiBrokerRoute
   ApiEaDotmq4Route: typeof ApiEaDotmq4Route
   ApiSignalsDottxtRoute: typeof ApiSignalsDottxtRoute
@@ -263,6 +289,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DispatchRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/ideas': {
+      id: '/ideas'
+      path: '/ideas'
+      fullPath: '/ideas'
+      preLoaderRoute: typeof IdeasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/stats': {
       id: '/stats'
       path: '/stats'
@@ -275,6 +308,13 @@ declare module '@tanstack/react-router' {
       path: '/tv'
       fullPath: '/tv'
       preLoaderRoute: typeof TvRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/archive.json': {
+      id: '/api/archive.json'
+      path: '/api/archive.json'
+      fullPath: '/api/archive.json'
+      preLoaderRoute: typeof ApiArchiveDotjsonRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/broker': {
@@ -323,8 +363,10 @@ const rootRouteChildren: RootRouteChildren = {
   DailyRoute: DailyRoute,
   DeskRoute: DeskRoute,
   DispatchRoute: DispatchRoute,
+  IdeasRoute: IdeasRoute,
   StatsRoute: StatsRoute,
   TvRoute: TvRoute,
+  ApiArchiveDotjsonRoute: ApiArchiveDotjsonRoute,
   ApiBrokerRoute: ApiBrokerRoute,
   ApiEaDotmq4Route: ApiEaDotmq4Route,
   ApiSignalsDottxtRoute: ApiSignalsDottxtRoute,

@@ -41,30 +41,61 @@ export function sessionAllows(id: string, session?: SessionSnap | null) {
   return { ok: false, note: "Тонкая Азия. Мажор FX не открываем до Лондона." };
 }
 
+export function htfAllows(bias: "bullish" | "bearish" | "range" | undefined, action: "long" | "short") {
+  if (!bias || bias === "range") return { ok: true, note: "H4 без стороны — часовик решает." };
+  if (action === "long" && bias === "bearish") {
+    return { ok: false, note: "H1 лонг, но H4 медвежий. Против старшего не открываем." };
+  }
+  if (action === "short" && bias === "bullish") {
+    return { ok: false, note: "H1 шорт, но H4 бычий. Против старшего не открываем." };
+  }
+  return { ok: true, note: "H4 попутный часовику." };
+}
+
 export function ltfTrigger(h1: Candle[] | undefined, action: "long" | "short", entry: number) {
   const last = h1?.at(-1);
   const prev = h1?.at(-2);
-  if (!last || !prev) return { ok: true, note: "H1 нет — не блокируем" };
+  if (!last || !prev) return { ok: true, note: "M15 нет — не блокируем" };
   if (action === "long") {
-    const against = last.close < last.open && last.close < prev.close;
-    if (against) return { ok: false, note: "H4 лонг, но H1 ещё медвежий. Ждём бычью свечу у зоны." };
-    return { ok: true, note: "H1 не спорит с лонгом" };
+    const against = last.close < last.open && prev.close < prev.open && last.close < prev.close;
+    if (against) return { ok: false, note: "H1 лонг, но два M15 подряд вниз. Ждём реакцию в зоне." };
+    return { ok: true, note: "M15 не спорит с лонгом" };
   }
-  const against = last.close > last.open && last.close > prev.close;
-  if (against) return { ok: false, note: "H4 шорт, но H1 ещё бычий. Ждём медвежью свечу у зоны." };
-  return { ok: true, note: "H1 не спорит с шортом" };
+  const against = last.close > last.open && prev.close > prev.open && last.close > prev.close;
+  if (against) return { ok: false, note: "H1 шорт, но два M15 подряд вверх. Ждём реакцию в зоне." };
+  return { ok: true, note: "M15 не спорит с шортом" };
 }
 
-export function fillMode(action: "long" | "short", last: number, entry: number, stop: number) {
-  const zone = Math.abs(entry - stop) * 0.3;
-  if (!Number.isFinite(zone) || zone <= 0) return "LIMIT" as const;
-  if (action === "long") return last <= entry + zone ? ("MARKET" as const) : ("LIMIT" as const);
-  return last >= entry - zone ? ("MARKET" as const) : ("LIMIT" as const);
+export function fillMode(
+  action: "long" | "short",
+  last: number,
+  entry: number,
+  stop: number,
+  target?: number,
+): "LIMIT" | "MARKET" | "LATE" {
+  const risk = Math.abs(entry - stop);
+  const zone = risk * 0.5;
+  if (!Number.isFinite(zone) || zone <= 0) return "LIMIT";
+  if (action === "long") {
+    if (target != null && target > entry && last > entry + (target - entry) * 0.45) return "LATE";
+    if (last <= entry + zone) return "MARKET";
+    return "LIMIT";
+  }
+  if (target != null && target < entry && last < entry - (entry - target) * 0.45) return "LATE";
+  if (last >= entry - zone) return "MARKET";
+  return "LIMIT";
 }
 
 export function refineAdvice(
   advice: Advice,
-  opts: { id: string; halt?: NewsHalt | null; session?: SessionSnap | null; h1?: Candle[]; entry?: number },
+  opts: {
+    id: string;
+    halt?: NewsHalt | null;
+    session?: SessionSnap | null;
+    h1?: Candle[];
+    entry?: number;
+    htfBias?: "bullish" | "bearish" | "range";
+  },
 ): Advice {
   if (haltApplies(opts.id, opts.halt)) {
     return {
@@ -79,7 +110,16 @@ export function refineAdvice(
     return { ...advice, action: "wait", title: "Ждать сессию", therefore: sess.note };
   }
   if (advice.action !== "long" && advice.action !== "short") return advice;
+  const htf = htfAllows(opts.htfBias, advice.action);
+  if (!htf.ok) {
+    return { ...advice, action: "wait", title: "Ждать: H4 против", therefore: htf.note };
+  }
   const trig = ltfTrigger(opts.h1, advice.action, opts.entry ?? 0);
-  if (!trig.ok) return { ...advice, action: "wait", title: "Ждать H1", therefore: trig.note };
-  return { ...advice, therefore: `${advice.therefore} ${trig.note}${sess.note ? ` ${sess.note}.` : ""}` };
+  if (!trig.ok) {
+    return { ...advice, action: "wait", title: "Ждать M15", therefore: trig.note };
+  }
+  return {
+    ...advice,
+    therefore: `${advice.therefore} ${htf.note} ${trig.note}${sess.note ? ` ${sess.note}.` : ""}`,
+  };
 }
