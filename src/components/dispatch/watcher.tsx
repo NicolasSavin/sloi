@@ -104,9 +104,7 @@ export function DispatchWatcher() {
 
   const halt = q.data?.digest.fund?.halt;
   const newsLine = halt ? newsAlertText(halt) : "";
-  const warnNews = Boolean(
-    halt && (halt.active || (halt.minutes > -5 && halt.minutes <= (halt.impact === "Medium" ? 20 : 30))),
-  );
+  const warnNews = Boolean(halt?.event && newsLine && (halt.active || halt.minutes > 0));
 
   useEffect(() => {
     if (!onDuty || !halt || !warnNews) return;
@@ -128,10 +126,10 @@ export function DispatchWatcher() {
   return (
     <>
       {flash ? (
-        <div className="fixed inset-x-0 top-0 z-40 px-3 pt-3">
+        <div className="pointer-events-none fixed inset-x-0 top-16 z-30 px-3">
           <div
             className={cn(
-              "panel-volume group relative mx-auto flex max-w-3xl overflow-hidden rounded-xl",
+              "pointer-events-auto panel-volume group relative mx-auto flex max-w-3xl overflow-hidden rounded-xl",
               flash.action === "long" ? "border-bull/40" : "border-bear/40",
             )}
           >
@@ -156,9 +154,11 @@ export function DispatchWatcher() {
       ) : null}
 
       {onDuty && warnNews && newsLine ? (
-        <div className="fixed inset-x-0 top-0 z-50 px-3 pt-3">
-          <div className="panel-volume mx-auto max-w-3xl rounded-xl border-bear/50 bg-bg/95 px-4 py-3">
-            <p className="font-mono text-xs tracking-[0.16em] text-accent">КАЛЕНДАРЬ · ТОРМОЖУ</p>
+        <div className="pointer-events-none fixed inset-x-0 top-16 z-30 px-3">
+          <div className="pointer-events-auto panel-volume mx-auto max-w-3xl rounded-xl border-bear/50 bg-bg/95 px-4 py-3">
+            <p className="font-mono text-xs tracking-[0.16em] text-accent">
+              {halt?.active ? "КАЛЕНДАРЬ · ТОРМОЖУ" : "КАЛЕНДАРЬ"}
+            </p>
             <p className="mt-1 text-lg leading-snug">{newsLine}</p>
           </div>
         </div>
