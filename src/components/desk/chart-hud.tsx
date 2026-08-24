@@ -79,8 +79,8 @@ export function OrderHud({
   const stop = setup?.stop != null ? formatPrice(setup.stop, decimals) : "—";
   const tp = setup?.targets[0] != null ? formatPrice(setup.targets[0], decimals) : "—";
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-8 z-20 px-2">
-      <div className="max-w-xl rounded-md bg-bg/85 px-3 py-2 backdrop-blur-sm">
+    <div className="pointer-events-none absolute inset-x-0 top-12 z-30 px-2">
+      <div className="max-w-xl rounded-md border border-accent/40 bg-bg px-3 py-2 shadow-[var(--shadow-volume)]">
         <p className="font-mono text-[10px] tracking-[0.16em] text-accent">ПРИКАЗ ДИСПЕТЧЕРА · ДЕРЖИМ, ПОКА НЕ СМЕНИТ</p>
         <p className="mt-1 text-sm font-medium">
           {side} · вход {entry} · стоп {stop} · цель {tp}

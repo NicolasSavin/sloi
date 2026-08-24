@@ -16,7 +16,15 @@ const TV_SYMBOL: Record<string, string> = {
   EURGBP: "FX_IDC:EURGBP",
   EURJPY: "FX_IDC:EURJPY",
   GBPJPY: "FX_IDC:GBPJPY",
-  USOIL: "TVC:USOIL",
+  XTIUSD: "TVC:USOIL",
+  XBRUSD: "TVC:UKOIL",
+  XNGUSD: "NYMEX:NG1!",
+  ETHUSD: "BINANCE:ETHUSDT",
+  BTCUSD: "BINANCE:BTCUSDT",
+  LTCUSD: "BINANCE:LTCUSDT",
+  BCHUSD: "BINANCE:BCHUSDT",
+  XRPUSD: "BINANCE:XRPUSDT",
+  TONUSD: "BINANCE:TONUSDT",
   SPY: "AMEX:SPY",
   QQQ: "NASDAQ:QQQ",
   IWM: "AMEX:IWM",
@@ -39,50 +47,52 @@ export function tvWidgetSrc(id: string, interval = "60") {
 }
 
 function n(v: number | null | undefined, d: number) {
-  if (v == null || !Number.isFinite(v)) return "na";
+  if (v == null || !Number.isFinite(v)) return "0";
   return v.toFixed(d);
 }
 
-function pineStr(s: string) {
-  return s.replace(/\\/g, "/").replace(/"/g, "'").replace(/\n/g, " ").slice(0, 280);
+/** Один и тот же скрипт. Публикуете в TV один раз, дальше только крутите входы. */
+export const PINE_STABLE = `//@version=5
+indicator("SLOI Desk", overlay=true, max_labels_count=8)
+side = input.string("wait", "Сторона", options=["wait","long","short"])
+entry = input.float(0.0, "Вход")
+stop = input.float(0.0, "Стоп")
+tp1 = input.float(0.0, "Цель 1")
+tp2 = input.float(0.0, "Цель 2")
+hi = input.float(0.0, "Верх диапазона")
+lo = input.float(0.0, "Низ диапазона")
+eq = input.float(0.0, "EQ 0.5")
+note = input.string("SLOI", "Подпись")
+colE = side == "long" ? color.new(#6e9e86, 0) : side == "short" ? color.new(#b57a7a, 0) : color.new(#c4a86e, 0)
+pEntry = plot(entry == 0 ? na : entry, "SLOI вход", color=colE, linewidth=2)
+pStop = plot(stop == 0 ? na : stop, "SLOI стоп", color=color.new(#b57a7a, 0), linewidth=2)
+plot(tp1 == 0 ? na : tp1, "SLOI цель 1", color=color.new(#6e9e86, 20))
+plot(tp2 == 0 ? na : tp2, "SLOI цель 2", color=color.new(#6e9e86, 50))
+plot(hi == 0 ? na : hi, "верх", color=color.new(#8a8276, 50))
+plot(lo == 0 ? na : lo, "низ", color=color.new(#8a8276, 50))
+plot(eq == 0 ? na : eq, "EQ", color=color.new(#d4b88c, 40), style=plot.style_circles)
+fill(pEntry, pStop, color=side == "wait" ? na : color.new(colE, 88), title="зона")
+if barstate.islast and entry != 0
+    label.new(bar_index, entry, note, style=label.style_label_left, textcolor=color.white, color=color.new(#1c1814, 15), size=size.small)
+`;
+
+export function pineInputs(m: DigestMarket) {
+  const d = m.spec.decimals;
+  const side = m.advice.action === "long" ? "long" : m.advice.action === "short" ? "short" : "wait";
+  return [
+    `Сторона: ${side}`,
+    `Вход: ${n(m.setup.entry, d)}`,
+    `Стоп: ${n(m.setup.stop, d)}`,
+    `Цель 1: ${n(m.setup.targets[0], d)}`,
+    `Цель 2: ${n(m.setup.targets[1], d)}`,
+    `Верх диапазона: ${n(m.range.high, d)}`,
+    `Низ диапазона: ${n(m.range.low, d)}`,
+    `EQ 0.5: ${n(m.range.eq, d)}`,
+  ].join("\n");
 }
 
 export function pineFromMarket(m: DigestMarket) {
-  const d = m.spec.decimals;
-  const entry = n(m.setup.entry, d);
-  const stop = n(m.setup.stop, d);
-  const tp1 = n(m.setup.targets[0], d);
-  const tp2 = n(m.setup.targets[1], d);
-  const hi = n(m.range.high, d);
-  const lo = n(m.range.low, d);
-  const eq = n(m.range.eq, d);
-  const side = m.advice.action === "long" ? "long" : m.advice.action === "short" ? "short" : "wait";
-  const title = pineStr(`${BRAND} ${m.spec.id} ${actionLabel(m.advice.action)}`);
-  const note = pineStr(m.advice.therefore || m.story.doing || m.setup.thesis);
-  return `//@version=5
-indicator("${title}", overlay=true, max_labels_count=20)
-// Уровни с ${SITE_URL}. Не стратегия: только линии.
-side = "${side}"
-entry = ${entry}
-stop = ${stop}
-tp1 = ${tp1}
-tp2 = ${tp2}
-hi = ${hi}
-lo = ${lo}
-eq = ${eq}
-colE = side == "long" ? color.new(#6e9e86, 0) : side == "short" ? color.new(#b57a7a, 0) : color.new(#c4a86e, 0)
-pEntry = plot(entry, "SLOI вход", color=colE, linewidth=2)
-pStop = plot(stop, "SLOI стоп", color=color.new(#b57a7a, 0), style=plot.style_stepline)
-plot(tp1, "SLOI цель 1", color=color.new(#6e9e86, 40), style=plot.style_stepline)
-plot(tp2, "SLOI цель 2", color=color.new(#6e9e86, 70), style=plot.style_stepline)
-plot(hi, "верх диапазона", color=color.new(#8a8276, 50))
-plot(lo, "низ диапазона", color=color.new(#8a8276, 50))
-plot(eq, "EQ 0.5", color=color.new(#d4b88c, 40), style=plot.style_circles)
-fill(pEntry, pStop, color=side == "wait" ? na : color.new(colE, 88), title="зона риска")
-if barstate.islast
-    label.new(bar_index, entry, "${note}", style=label.style_label_left, textcolor=color.white, color=color.new(#1c1814, 20), size=size.small)
-alertcondition(side != "wait" and ta.crossover(close, entry), "SLOI вход", "Цена у входа SLOI")
-`;
+  return PINE_STABLE;
 }
 
 export function ideaFromMarket(m: DigestMarket) {

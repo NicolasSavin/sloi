@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { actionLabel, actionTone } from "@/lib/advisor";
 import { isOpenAction } from "@/lib/dispatch-store";
 import { fetchDigest } from "@/lib/market/fetch";
-import { ideaFromMarket, pineFromMarket, tvChartUrl, tvSymbol, tvWidgetSrc } from "@/lib/tradingview";
+import { ideaFromMarket, pineInputs, PINE_STABLE, tvChartUrl, tvSymbol, tvWidgetSrc } from "@/lib/tradingview";
 import { cn, formatPrice } from "@/lib/utils";
 
 async function copyText(label: string, text: string) {
@@ -30,7 +30,8 @@ export function TvRelay({ initialId }: { initialId?: string }) {
   const live = markets.filter((m) => isOpenAction(m.advice.action));
   const [id, setId] = useState(initialId || live[0]?.spec.id || markets[0]?.spec.id || "XAUUSD");
   const m = markets.find((x) => x.spec.id === id) ?? markets[0] ?? null;
-  const pine = useMemo(() => (m ? pineFromMarket(m) : ""), [m]);
+  const pine = PINE_STABLE;
+  const levels = useMemo(() => (m ? pineInputs(m) : ""), [m]);
   const idea = useMemo(() => (m ? ideaFromMarket(m) : ""), [m]);
 
   return (
@@ -40,8 +41,8 @@ export function TvRelay({ initialId }: { initialId?: string }) {
         <p className="font-mono text-xs tracking-[0.22em] text-accent">TRADINGVIEW</p>
         <h1 className="mt-3 text-4xl font-medium tracking-tight sm:text-5xl">Идея на график TV</h1>
         <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted">
-          TradingView не принимает приказы с чужого сайта. Стол отдаёт уровни: открываете график, вставляете Pine —
-          линии входа/стопа/цели. Текст идеи копируете в «Опубликовать идею». Это ретрансляция разбора, не автопост.
+          Скрипт один — «SLOI Desk». Публикуете в TradingView один раз. Каждый сигнал — не новый код, а числа во входах
+          индикатора. Идею (текст + снимок) можно постить хоть каждый час: Pine при этом не трогаете.
         </p>
 
         <div className="mt-8 flex flex-wrap gap-2">
@@ -90,17 +91,20 @@ export function TvRelay({ initialId }: { initialId?: string }) {
                     Открыть график
                   </Button>
                 </a>
-                <Button variant="outline" onClick={() => void copyText("Pine", pine)}>
-                  Копировать Pine
+                <Button variant="outline" onClick={() => void copyText("Pine SLOI Desk", pine)}>
+                  Копировать скрипт (один раз)
+                </Button>
+                <Button variant="outline" onClick={() => void copyText("Входы индикатора", levels)}>
+                  Копировать уровни
                 </Button>
                 <Button variant="outline" onClick={() => void copyText("Текст идеи", idea)}>
                   Копировать идею
                 </Button>
               </div>
               <ol className="list-decimal space-y-1 pl-5 text-sm text-muted">
-                <li>Открыть график → Pine Editor → вставить скрипт → Add to chart.</li>
-                <li>Камера / Share idea → вставить текст.</li>
-                <li>Не публикуйте как «сигнал брокера». Это карта стола.</li>
+                <li>Один раз: Pine Editor → вставить скрипт → Add to chart → Publish script (имя SLOI Desk).</li>
+                <li>Дальше на каждом сигнале: шестерёнка индикатора → вставить скопированные уровни.</li>
+                <li>Идея: камера / Share idea → текст со стола. Скрипт заново не публикуете.</li>
               </ol>
             </div>
           </section>
@@ -108,11 +112,19 @@ export function TvRelay({ initialId }: { initialId?: string }) {
           <p className="mt-10 text-sm text-muted">Стол ещё собирает пары…</p>
         )}
 
-        <section className="mt-10">
-          <p className="font-mono text-xs tracking-[0.18em] text-accent">PINE</p>
-          <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-elevated p-4 text-[11px] leading-relaxed text-muted">
-            {pine || "—"}
-          </pre>
+        <section className="mt-10 grid gap-6 lg:grid-cols-2">
+          <div>
+            <p className="font-mono text-xs tracking-[0.18em] text-accent">ВХОДЫ СЕЙЧАС</p>
+            <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-elevated p-4 text-[11px] leading-relaxed text-muted">
+              {levels || "—"}
+            </pre>
+          </div>
+          <div>
+            <p className="font-mono text-xs tracking-[0.18em] text-accent">PINE · ОДИН РАЗ</p>
+            <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-elevated p-4 text-[11px] leading-relaxed text-muted">
+              {pine}
+            </pre>
+          </div>
         </section>
       </main>
     </div>
