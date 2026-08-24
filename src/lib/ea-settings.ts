@@ -25,7 +25,7 @@ export interface EaSettings {
 export const DEFAULT_EA: EaSettings = {
   pairs: ["EURUSD","GBPUSD","USDJPY","USDCHF","AUDUSD","USDCAD","NZDUSD","EURJPY","GBPJPY","XAUUSD","XAGUSD","XTIUSD","XBRUSD","XNGUSD","ETHUSD","LTCUSD","BCHUSD","BTCUSD","XRPUSD","TONUSD"],
   suffix: ".cs",
-  workTF: 240,
+  workTF: 60,
   autoTrade: false,
   lots: 0.1,
   maxSpread: 80,
