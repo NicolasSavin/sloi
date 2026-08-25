@@ -447,13 +447,21 @@ async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }
     const advice = gateAdvice(r.market.advice, wind, fund.halt, ctx);
     return { ...r.market, wind, advice, htfBias: ctx.htfBias };
   });
-  const leadMarket = pickLead(markets);
+  const { applyHold, seedHold } = await import("@/lib/signal-hold");
+  try {
+    const { getArchiveAsync } = await import("@/lib/archive-store");
+    seedHold(await getArchiveAsync());
+  } catch {
+    /* archive optional */
+  }
+  const held = applyHold(markets);
+  const leadMarket = pickLead(held);
   const leadRow = rows.find((r) => r.spec.id === leadMarket.spec.id) ?? rows[0]!;
   const { parseTgChannel } = await import("@/lib/tg-options");
   const tgOptions = tgHtml ? parseTgChannel(tgHtml) : [];
   const packed = {
     digest: buildDigest({
-      markets,
+      markets: held,
       leadSnap: leadRow.snap,
       leadCandles: leadRow.candles,
       sentiment,
@@ -477,6 +485,7 @@ export async function renderSignalFeed() {
   const { digest } = await assembleDigest();
   const { brokerSkewPct } = await import("@/lib/broker-tape");
   const { skewLimit, fillMode } = await import("@/lib/execution");
+  const { isHeld } = await import("@/lib/signal-hold");
   const lines = [`# SLOI v2 H1`, `# ${new Date().toISOString()}`, `# last=Yahoo  SKEW=макс%  MODE=LIMIT|MARKET  TF=60`];
   for (const m of digest.markets) {
     let side = m.advice.action === "long" ? "BUY" : m.advice.action === "short" ? "SELL" : "WAIT";
@@ -487,9 +496,12 @@ export async function renderSignalFeed() {
     const e = m.setup.entry ?? 0;
     const s = m.setup.stop ?? 0;
     const t = m.setup.targets[0] ?? 0;
-    const mode =
+    let mode =
       side === "WAIT" ? "WAIT" : fillMode(side === "BUY" ? "long" : "short", last, e, s, t);
-    if (mode === "LATE") side = "WAIT";
+    if (mode === "LATE") {
+      if (isHeld(m.spec.id)) mode = "LIMIT";
+      else side = "WAIT";
+    }
     lines.push(`${m.spec.id} ${side} ${e} ${s} ${t} ${last} SKEW ${cap} MODE ${mode === "LATE" ? "WAIT" : mode}`);
   }
   return `${lines.join("\n")}\n`;
