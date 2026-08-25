@@ -467,6 +467,11 @@ async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }
   });
   const markets = rows.map((r) => {
     const wind = windFor(r.spec.id, fund);
+    const ev = r.snap.events.at(-1);
+    const choch =
+      ev?.kind === "CHoCH" &&
+      ((r.market.advice.action === "long" && ev.side === "bull") ||
+        (r.market.advice.action === "short" && ev.side === "bear"));
     const ctx = {
       id: r.spec.id,
       session,
@@ -477,6 +482,7 @@ async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }
       construction: r.market.construction,
       htfBias: h4bias.get(r.spec.id),
       d1Bias: d1bias.get(r.spec.id),
+      choch,
     };
     const advice = gateAdvice(r.market.advice, wind, fund.halt, ctx);
     return { ...r.market, wind, advice, htfBias: ctx.htfBias, d1Bias: ctx.d1Bias };

@@ -45,6 +45,7 @@ export function stackGrade(
   action: "long" | "short",
   h4?: "bullish" | "bearish" | "range",
   d1?: "bullish" | "bearish" | "range",
+  choch?: boolean,
 ): { grade: "D1" | "H4" | "H1"; block: "none" | "market" | "all"; note: string } {
   const against = (b?: string) =>
     (action === "long" && b === "bearish") || (action === "short" && b === "bullish");
@@ -55,7 +56,14 @@ export function stackGrade(
   const h4w = withUs(h4);
   const d1w = withUs(d1);
   if (h4x && d1x) {
-    return { grade: "H1", block: "all", note: "H4 и дневка против часа. Не берём." };
+    if (choch) {
+      return {
+        grade: "H1",
+        block: "market",
+        note: "CHoCH на часе против H4/D1 — разворот. Только лимит, не догон.",
+      };
+    }
+    return { grade: "H1", block: "all", note: "H4 и дневка против, на часе нет CHoCH. Не берём." };
   }
   if (d1w && h4w) {
     return { grade: "D1", block: "none", note: "H1+H4+D1 вместе. В зоне можно рынок." };
@@ -64,7 +72,13 @@ export function stackGrade(
     return { grade: "H4", block: "none", note: "Час с четвёркой. Дневка не спорит." };
   }
   if (h4x || d1x) {
-    return { grade: "H1", block: "market", note: "Старший против — только лимит с часа." };
+    return {
+      grade: "H1",
+      block: "market",
+      note: choch
+        ? "CHoCH против старшего — лимит в новую зону."
+        : "Старший против — только лимит с часа.",
+    };
   }
   return { grade: "H1", block: "market", note: "Только час. Лимит к зоне, не догон." };
 }
@@ -126,6 +140,7 @@ export function refineAdvice(
     last?: number;
     htfBias?: "bullish" | "bearish" | "range";
     d1Bias?: "bullish" | "bearish" | "range";
+    choch?: boolean;
   },
 ): Advice {
   if (haltApplies(opts.id, opts.halt)) {
@@ -145,7 +160,7 @@ export function refineAdvice(
   if (mode === "LATE") {
     return { ...advice, action: "wait", title: "Поздно: цена уже убежала", therefore: "Лимитку не догоняем." };
   }
-  const stack = stackGrade(advice.action, opts.htfBias, opts.d1Bias);
+  const stack = stackGrade(advice.action, opts.htfBias, opts.d1Bias, opts.choch);
   if (stack.block === "all") {
     return { ...advice, action: "wait", title: "Ждать старший ТФ", therefore: stack.note };
   }
