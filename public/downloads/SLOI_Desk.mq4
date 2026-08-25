@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.26"
+#property version   "4.27"
 #property strict
 #property description "На графике: VWAP, профиль, футпринт бара, infusion/splash, Bid/Ask."
 
@@ -756,11 +756,8 @@ void MaybeTrade(int idx, int dir, double entry, double stop, double target, stri
    string key = s + verdict + TimeToStr(bar, TIME_DATE|TIME_MINUTES);
    if(dir == 0)
      {
-      if(key != g_lastKey[idx])
-        {
-         g_lastKey[idx] = key;
-         DeletePending(s);
-        }
+      DeletePending(s);
+      g_lastKey[idx] = key;
       return;
      }
    if(g_alerts && !wasWait && key != g_lastKey[idx]) {
@@ -777,7 +774,7 @@ void MaybeTrade(int idx, int dir, double entry, double stop, double target, stri
       g_lastKey[idx] = key;
       return;
      }
-   if(OneTradeOnly > 0 && CountMine(s) >= OneTradeOnly) { g_lastKey[idx] = key; return; }
+   if(CountMarket(s) > 0 && OneTradeOnly > 0) { g_lastKey[idx] = key; return; }
    RefreshRates();
    int digits = DigitsOf(s);
    int cmd = dir > 0 ? OP_BUY : OP_SELL;
@@ -788,14 +785,58 @@ void MaybeTrade(int idx, int dir, double entry, double stop, double target, stri
       if(dir > 0 && AskOf(s) > entry + zone) { cmd = OP_BUYLIMIT; px = NormalizeDouble(entry, digits); }
       if(dir < 0 && BidOf(s) < entry - zone) { cmd = OP_SELLLIMIT; px = NormalizeDouble(entry, digits); }
      }
-   if(cmd == OP_BUYLIMIT || cmd == OP_SELLLIMIT)
+   DeleteWrongPending(s, dir);
+   if((cmd == OP_BUYLIMIT || cmd == OP_SELLLIMIT) && SamePending(s, dir, px))
      {
-      if(CountPending(s) > 0) { g_lastKey[idx] = key; return; }
+      g_lastKey[idx] = key;
+      return;
      }
+   if(cmd == OP_BUYLIMIT || cmd == OP_SELLLIMIT) DeletePending(s);
    int ticket = SendOrder(s, cmd, g_lots, px,
                           NormalizeDouble(stop, digits), NormalizeDouble(target, digits),
                           "SLOI", dir > 0 ? C_BUY : C_SEL);
    if(ticket > 0) g_lastKey[idx] = key;
+  }
+
+int CountMarket(string s)
+  {
+   int n = 0;
+   for(int i = OrdersTotal() - 1; i >= 0; i--)
+     {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
+      if(OrderSymbol() != s || OrderMagicNumber() != Magic) continue;
+      int ty = OrderType();
+      if(ty == OP_BUY || ty == OP_SELL) n++;
+     }
+   return(n);
+  }
+
+void DeleteWrongPending(string s, int dir)
+  {
+   for(int i = OrdersTotal() - 1; i >= 0; i--)
+     {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
+      if(OrderMagicNumber() != Magic || OrderSymbol() != s) continue;
+      int ty = OrderType();
+      bool buyP = (ty == OP_BUYLIMIT || ty == OP_BUYSTOP);
+      bool selP = (ty == OP_SELLLIMIT || ty == OP_SELLSTOP);
+      if(dir > 0 && selP) OrderDelete(OrderTicket());
+      if(dir < 0 && buyP) OrderDelete(OrderTicket());
+     }
+  }
+
+bool SamePending(string s, int dir, double px)
+  {
+   for(int i = OrdersTotal() - 1; i >= 0; i--)
+     {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
+      if(OrderMagicNumber() != Magic || OrderSymbol() != s) continue;
+      int ty = OrderType();
+      if(dir > 0 && ty != OP_BUYLIMIT && ty != OP_BUYSTOP) continue;
+      if(dir < 0 && ty != OP_SELLLIMIT && ty != OP_SELLSTOP) continue;
+      if(MathAbs(OrderOpenPrice() - px) <= MathMax(PointOf(s) * 10.0, MathAbs(px) * 0.0008)) return(true);
+     }
+   return(false);
   }
 
 int CountPending(string s)
