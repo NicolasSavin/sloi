@@ -5,6 +5,7 @@ import { isOpenAction, useDispatchStore } from "@/lib/dispatch-store";
 import { fetchDigest, fetchMarket } from "@/lib/market/fetch";
 import { fillMode } from "@/lib/execution";
 import { playDispatch, scriptCancel, scriptExit, scriptFill, scriptOrder, scriptReady, speakRu, unlockSound } from "@/lib/sound";
+import { deskToast } from "@/lib/notify";
 import { newsAlertKey, newsAlertText } from "@/lib/calendar";
 import { useDeskStore } from "@/lib/desk-store";
 import { actionLabel } from "@/lib/advisor";
@@ -60,6 +61,9 @@ export function DispatchWatcher() {
       }
       if (was && !live) {
         if (voiceOn) void speakRu(scriptCancel(m.spec.id, m.spec.label, prev.action as "long" | "short"));
+        void deskToast("SLOI · отмена", scriptCancel(m.spec.id, m.spec.label, prev.action as "long" | "short"), {
+          tag: m.spec.id,
+        });
         seen.current[m.spec.id] = { action: next };
         continue;
       }
@@ -81,6 +85,11 @@ export function DispatchWatcher() {
         pushHit(hit);
         if (soundOn) playDispatch(next);
         if (voiceOn) void speakRu(scriptOrder(m));
+        void deskToast(
+          `SLOI · ${m.spec.label}`,
+          scriptOrder(m),
+          { tag: m.spec.id, url: "/dispatch" },
+        );
         seen.current[m.spec.id] = {
           action: next,
           mode,
@@ -93,11 +102,13 @@ export function DispatchWatcher() {
         if (mode === "MARKET" && prev.mode === "LIMIT" && !prev.filled) {
           if (voiceOn) void speakRu(scriptFill(m.spec.id, m.spec.label, next));
           if (soundOn) playDispatch(next);
+          void deskToast("SLOI · вход", scriptFill(m.spec.id, m.spec.label, next), { tag: m.spec.id });
           seen.current[m.spec.id] = { ...prev, mode, filled: true, ready: true };
           continue;
         }
         if (mode === "LIMIT" && pips <= 8 && !prev.ready) {
           if (voiceOn) void speakRu(scriptReady(m.spec.id, m.spec.label, next, pips));
+          void deskToast("SLOI · зона", scriptReady(m.spec.id, m.spec.label, next, pips), { tag: `${m.spec.id}-ready` });
           seen.current[m.spec.id] = { ...prev, mode, ready: true };
           continue;
         }
@@ -133,6 +144,11 @@ export function DispatchWatcher() {
           closedVoice.current[h.id] = st;
           if (voiceOn) void speakRu(scriptExit(h));
           if (soundOn) playDispatch(st === "target" ? "long" : "short");
+          void deskToast(
+            st === "target" ? "SLOI · тейк" : st === "stop" ? "SLOI · стоп" : "SLOI · закрыто",
+            scriptExit(h),
+            { tag: h.symbol },
+          );
         }
         patchHits(next);
       } finally {

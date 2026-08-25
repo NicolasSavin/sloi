@@ -14,6 +14,7 @@ import { isOpenAction, useDispatchStore } from "@/lib/dispatch-store";
 import { fetchDigest } from "@/lib/market/fetch";
 import { marketArt } from "@/lib/art";
 import { playDispatch, testVoice, unlockSound } from "@/lib/sound";
+import { deskToast, enableDeskPush } from "@/lib/notify";
 import { ChatDock } from "@/components/desk/chat-dock";
 import { cn, formatPct, formatPrice } from "@/lib/utils";
 
@@ -65,6 +66,7 @@ export function DispatchBoard() {
               unlockSound();
               setSoundOn(true);
               setVoiceOn(true);
+              void enableDeskPush();
               setOnDuty(!onDuty);
               if (!onDuty) void testVoice();
             }}
@@ -77,6 +79,13 @@ export function DispatchBoard() {
             onClick={() => {
               unlockSound();
               setVoiceOn(true);
+              void enableDeskPush().then((p) => {
+                if (p === "granted") {
+                  void deskToast("SLOI стол", "Плашка на мониторе включена. Даже если вкладка не спереди.", {
+                    tag: "sloi-test",
+                  });
+                }
+              });
               void testVoice();
             }}
           >
@@ -116,7 +125,8 @@ export function DispatchBoard() {
               : "Проверяю студию…"}{" "}
           {onDuty
             ? "Смена открыта: сигнал, зона, отмена, стоп и тейк озвучиваются."
-            : "Пока смена закрыта, голос событий молчит."}
+            : "Пока смена закрыта, голос событий молчит."}{" "}
+          Плашка на мониторе: разрешите уведомления при «На смену» / «Проба голоса». Вкладку сайта не закрывайте.
         </p>
         {fund ? (
           <div className="mt-6">
