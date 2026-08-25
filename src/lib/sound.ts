@@ -183,10 +183,18 @@ let studioAudio: HTMLAudioElement | null = null;
 let voicesCache: SpeechSynthesisVoice[] = [];
 let studioOk: boolean | null = null;
 
+let studioSrc: AudioBufferSourceNode | null = null;
+
 export function stopSpeech() {
   if (typeof window === "undefined") return;
   talkGen += 1;
   identAudio?.pause();
+  try {
+    studioSrc?.stop();
+  } catch {
+    /* already stopped */
+  }
+  studioSrc = null;
   if (studioAudio) {
     studioAudio.pause();
     studioAudio.src = "";
@@ -255,6 +263,7 @@ function splitSentences(text: string) {
 async function playStudio(text: string, gen: number): Promise<boolean> {
   try {
     if (studioOk === false) return false;
+    unlockSound();
     const res = await fetch("/api/voice", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -265,28 +274,40 @@ async function playStudio(text: string, gen: number): Promise<boolean> {
       return false;
     }
     if (!res.ok) return false;
-    studioOk = true;
-    const blob = await res.blob();
+    const raw = await res.arrayBuffer();
     if (gen !== talkGen) return true;
-    const url = URL.createObjectURL(blob);
+    studioOk = true;
+    unlockSound();
+    if (!ctx) return false;
+    if (ctx.state === "suspended") await ctx.resume();
+    const buf = await ctx.decodeAudioData(raw.slice(0));
+    if (gen !== talkGen) return true;
+    try {
+      studioSrc?.stop();
+    } catch {
+      /* */
+    }
     await new Promise<void>((resolve) => {
-      studioAudio?.pause();
-      const a = new Audio(url);
-      studioAudio = a;
-      a.onended = () => {
-        URL.revokeObjectURL(url);
+      const src = ctx!.createBufferSource();
+      studioSrc = src;
+      src.buffer = buf;
+      src.connect(ctx!.destination);
+      src.onended = () => resolve();
+      try {
+        src.start();
+      } catch {
         resolve();
-      };
-      a.onerror = () => {
-        URL.revokeObjectURL(url);
-        resolve();
-      };
-      void a.play().catch(() => resolve());
+      }
     });
     return true;
   } catch {
     return false;
   }
+}
+
+export async function testVoice() {
+  unlockSound();
+  await speakRu("Стол на связи. Голос Алёна. Сигнал, отмена и зона будут с этой озвучкой.");
 }
 
 export async function speakRu(text: string, opts?: { ident?: boolean }): Promise<void> {

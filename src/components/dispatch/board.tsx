@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { SignalBook, StatsLink, StatsStrip } from "@/components/dispatch/book";
 import { FundStrip } from "@/components/fund-strip";
 import { SessionStrip } from "@/components/session-strip";
@@ -12,7 +13,7 @@ import { useDeskStore } from "@/lib/desk-store";
 import { isOpenAction, useDispatchStore } from "@/lib/dispatch-store";
 import { fetchDigest } from "@/lib/market/fetch";
 import { marketArt } from "@/lib/art";
-import { playDispatch, unlockSound } from "@/lib/sound";
+import { playDispatch, testVoice, unlockSound } from "@/lib/sound";
 import { ChatDock } from "@/components/desk/chat-dock";
 import { cn, formatPct, formatPrice } from "@/lib/utils";
 
@@ -22,6 +23,9 @@ export function DispatchBoard() {
   const log = useDispatchStore((s) => s.log);
   const soundOn = useDeskStore((s) => s.soundOn);
   const setSoundOn = useDeskStore((s) => s.setSoundOn);
+  const voiceOn = useDeskStore((s) => s.voiceOn);
+  const setVoiceOn = useDeskStore((s) => s.setVoiceOn);
+  const [studio, setStudio] = useState<boolean | null>(null);
   const q = useQuery({
     queryKey: ["dispatch-digest"],
     queryFn: () => fetchDigest(),
@@ -31,6 +35,13 @@ export function DispatchBoard() {
   const markets = q.data?.digest.markets ?? [];
   const fund = q.data?.digest.fund;
   const live = markets.filter((m) => isOpenAction(m.advice.action));
+
+  useEffect(() => {
+    fetch("/api/voice")
+      .then((r) => r.json())
+      .then((d: { studio?: boolean }) => setStudio(Boolean(d.studio)))
+      .catch(() => setStudio(false));
+  }, []);
 
   return (
     <div className="min-h-dvh">
@@ -53,11 +64,29 @@ export function DispatchBoard() {
             onClick={() => {
               unlockSound();
               setSoundOn(true);
+              setVoiceOn(true);
               setOnDuty(!onDuty);
+              if (!onDuty) void testVoice();
             }}
           >
             {onDuty ? <span className="emoji-live">🔔</span> : <span className="emoji-live">😴</span>}
             {onDuty ? "Сойти со смены" : "На смену"}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              unlockSound();
+              setVoiceOn(true);
+              void testVoice();
+            }}
+          >
+            Проба голоса
+          </Button>
+          <Button
+            variant={voiceOn ? "outline" : "ghost"}
+            onClick={() => setVoiceOn(!voiceOn)}
+          >
+            {voiceOn ? "Голос вкл" : "Голос выкл"}
           </Button>
           <Button
             variant="outline"
@@ -80,9 +109,14 @@ export function DispatchBoard() {
           </Button>
         </div>
         <p className="mt-3 text-sm text-dim">
+          {studio
+            ? "Студия Алёна на связи. Нажмите «Проба голоса» — браузер должен разрешить звук."
+            : studio === false
+              ? "Ключ Яндекса на этом деплое не виден. Говорит браузер."
+              : "Проверяю студию…"}{" "}
           {onDuty
-            ? "Смена открыта. Сигнал только если структура и фундамент не спорят. Звук + карточка, даже на другой странице."
-            : "Пока смена закрыта, звук не играет. Нажмите «На смену», браузер разрешит звук."}
+            ? "Смена открыта: сигнал, зона, отмена, стоп и тейк озвучиваются."
+            : "Пока смена закрыта, голос событий молчит."}
         </p>
         {fund ? (
           <div className="mt-6">
