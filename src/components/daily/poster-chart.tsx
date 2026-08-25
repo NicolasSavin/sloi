@@ -8,7 +8,7 @@ export function PosterChart({ chart, bias }: { chart: LeadChart; bias: "bull" | 
   const W = 1280;
   const H = 560;
   const L = 16;
-  const R = 200;
+  const R = 268;
   const T = 48;
   const B = 36;
   const innerW = W - L - R;
@@ -250,29 +250,31 @@ export function PosterChart({ chart, bias }: { chart: LeadChart; bias: "bull" | 
         <text x={xOf(Math.floor(candles.length * 0.18))} y={yOf(chHi[0]!) - 8} fill={stroke} fontSize="12" fontWeight="700" fontFamily="IBM Plex Sans, sans-serif">
           {down ? "Нисходящий канал" : "Восходящий канал"}
         </text>
-
-        <g transform={`translate(${W - R + 8}, ${T})`}>
-          <rect width="184" height="118" rx="8" fill="#0e1524" stroke="#334155" />
-          <text x="10" y="20" fill="#5eead4" fontSize="10" fontFamily="IBM Plex Mono, monospace">
-            {bias === "bear" ? "Приоритет SHORT" : bias === "bull" ? "Приоритет LONG" : "Внутри range"}
-          </text>
-          <text x="10" y="40" fill="#e2e8f0" fontSize="13" fontFamily="IBM Plex Mono, monospace">
-            {px(last.close)}
-          </text>
-          <text x="10" y="60" fill="#86efac" fontSize="10" fontFamily="IBM Plex Sans, sans-serif">
-            зелёный — Demand / FVG / BOS↑
-          </text>
-          <text x="10" y="76" fill="#fca5a5" fontSize="10" fontFamily="IBM Plex Sans, sans-serif">
-            красный — Supply / FVG / BOS↓
-          </text>
-          <text x="10" y="92" fill="#38bdf8" fontSize="10" fontFamily="IBM Plex Sans, sans-serif">
-            BSL/SSL — ликвидность
-          </text>
-          <text x="10" y="108" fill="#f1c40f" fontSize="10" fontFamily="IBM Plex Sans, sans-serif">
-            EQ · волны
-          </text>
-        </g>
       </svg>
+      <div className="grid gap-2 border-t border-[#2a3144] bg-[#0a101c] px-3 py-3 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="rounded-lg bg-[#12351f] px-3 py-2 ring-2 ring-[#2ecc71]">
+          <p className="text-base font-semibold text-[#86efac]">Demand / FVG / BOS↑</p>
+          <p className="text-xs text-[#bbf7d0]">зелёный — покупки крупняка</p>
+        </div>
+        <div className="rounded-lg bg-[#3a1218] px-3 py-2 ring-2 ring-[#e74c3c]">
+          <p className="text-base font-semibold text-[#fca5a5]">Supply / FVG / BOS↓</p>
+          <p className="text-xs text-[#fecaca]">красный — продажи крупняка</p>
+        </div>
+        <div className="rounded-lg bg-[#082f49] px-3 py-2 ring-2 ring-[#38bdf8]">
+          <p className="text-base font-semibold text-[#7dd3fc]">BSL / SSL</p>
+          <p className="text-xs text-[#bae6fd]">ликвидность · × свип стопов</p>
+        </div>
+        <div className="rounded-lg bg-[#3b2f0a] px-3 py-2 ring-2 ring-[#f1c40f]">
+          <p className="text-base font-semibold text-[#fde047]">EQ · волны</p>
+          <p className="text-xs text-[#fef08a]">середина диапазона и счёт 1–5</p>
+        </div>
+        <div className="rounded-lg bg-[#0e1524] px-3 py-2 ring-2 ring-[#5eead4]">
+          <p className="text-base font-semibold text-[#5eead4]">
+            {bias === "bear" ? "Приоритет SHORT" : bias === "bull" ? "Приоритет LONG" : "Внутри range"}
+          </p>
+          <p className="font-mono text-sm text-white">{px(last.close)}</p>
+        </div>
+      </div>
     </div>
   );
 }
