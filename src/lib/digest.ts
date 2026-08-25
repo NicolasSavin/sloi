@@ -320,69 +320,71 @@ export function levelsFromSnap(snap: SmcSnapshot, decimals: number): ChartLevel[
   });
 }
 
+const HUMAN_NAME: Record<string, string> = {
+  XAUUSD: "Золото",
+  XAGUSD: "Серебро",
+  EURUSD: "Евро",
+  GBPUSD: "Фунт",
+  USDJPY: "Иена",
+  USDCHF: "Франк",
+  AUDUSD: "Австралиец",
+  USDCAD: "Канадец",
+  NZDUSD: "Киви",
+  EURGBP: "Евро к фунту",
+  EURJPY: "Евро к иене",
+  GBPJPY: "Фунт к иене",
+  XTIUSD: "Нефть WTI",
+  XBRUSD: "Brent",
+  XNGUSD: "Газ",
+  SPY: "S&P 500",
+  QQQ: "Nasdaq",
+  IWM: "Russell",
+  DIA: "Dow",
+  ETHUSD: "Эфир",
+  LTCUSD: "Лайткоин",
+  BCHUSD: "Bitcoin Cash",
+  BTCUSD: "Биткоин",
+  XRPUSD: "Ripple",
+  TONUSD: "Тон",
+};
+
+function humanName(m: DigestMarket) {
+  return HUMAN_NAME[m.spec.id] ?? m.spec.label.replace("/USD", "").replace("USD/", "");
+}
+
 export function pairHeadline(m: DigestMarket, snap?: SmcSnapshot): string {
-  const pair = m.spec.label;
-  const px = (n: number) => formatPrice(n, m.spec.decimals);
+  const name = humanName(m);
   const ev = snap?.events.at(-1);
-  const pat = snap?.patterns[0];
   const wy = snap?.wyckoff;
   const swept = snap?.liquidity.find((l) => l.swept);
-  const wall = m.construction;
-  const entry = m.setup.entry;
+  const pat = snap?.patterns[0];
   const act = m.advice.action;
-  const zone =
-    act === "short" && entry != null
-      ? `от ${px(entry)}`
-      : act === "long" && entry != null
-        ? `к ${px(entry)}`
-        : "";
+  const up = m.changePct >= 0;
+  const run = Math.abs(m.changePct);
 
-  if (act === "short" && ev?.kind === "CHoCH") {
-    return `${pair}: CHoCH вниз у ${px(ev.price)} — раздают ${zone || "из премии"}`;
-  }
-  if (act === "long" && ev?.kind === "CHoCH") {
-    return `${pair}: CHoCH вверх у ${px(ev.price)} — набор ${zone || "из дисконта"}`;
-  }
-  if (act === "short" && wy?.event === "utad") {
-    return `${pair}: UTAD / раздача. Шорт ${zone || "от верха"}`;
-  }
-  if (act === "long" && wy?.event === "spring") {
-    return `${pair}: спринг снял стопы. Лонг ${zone || "от низа"}`;
-  }
-  if (act === "short" && swept?.side === "buy") {
-    return `${pair}: свип максимумов ${px(swept.price)}, ждут продажи`;
-  }
-  if (act === "long" && swept?.side === "sell") {
-    return `${pair}: свип минимумов ${px(swept.price)}, ждут набор`;
-  }
-  if (act === "short" && pat) {
-    return `${pair}: ${pat.name} — приоритет продаж ${zone}`.trim();
-  }
-  if (act === "long" && pat) {
-    return `${pair}: ${pat.name} — приоритет покупок ${zone}`.trim();
-  }
-  if (act === "short") {
-    return `${pair}: премия, крупняк раздаёт${zone ? ` ${zone}` : ""}`;
-  }
-  if (act === "long") {
-    return `${pair}: дисконт, крупняк набирает${zone ? ` ${zone}` : ""}`;
-  }
-  if (act === "skip") {
-    return `${pair}: ход есть, спред съедает цель — пауза`;
-  }
-  if (wall && wall.type !== "mixed") {
-    return `${pair}: стена ${wall.type === "call-wall" ? "коллов" : "путов"} у ${wall.strike ?? "страйка"} — без приказа`;
-  }
-  if (ev?.kind === "CHoCH") {
-    return `${pair}: смена характера у ${px(ev.price)}, приказа ещё нет`;
-  }
-  if (swept) {
-    return `${pair}: вынесли ${swept.side === "buy" ? "хай" : "лоу"} ${px(swept.price)}, ждём закрытие внутрь`;
-  }
-  if (m.bias === "range") {
-    return `${pair}: диапазон ${px(m.range.low)}–${px(m.range.high)}, середину не торгуем`;
-  }
-  return `${pair}: ждут край, цена ${px(m.lastClose)}`;
+  let line: string;
+  if (act === "long" && run > 0.35 && up) line = "акселерация роста";
+  else if (act === "short" && run > 0.35 && !up) line = "падение набирает ход";
+  else if (ev?.kind === "CHoCH" && ev.side === "bull") line = "неудачное падение";
+  else if (ev?.kind === "CHoCH" && ev.side === "bear") line = "рост сломался";
+  else if (wy?.event === "spring") line = "сняли стопы снизу и откупили";
+  else if (wy?.event === "utad") line = "вынос вершины, раздают";
+  else if (swept?.side === "sell") line = "вынесли дно и вернули";
+  else if (swept?.side === "buy") line = "ложный пробой вверх";
+  else if (act === "long" && m.premiumDiscount === "discount") line = "покупают на откате";
+  else if (act === "short" && m.premiumDiscount === "premium") line = "продают в силу";
+  else if (act === "long") line = "крупняк набирает";
+  else if (act === "short") line = "крупняк раздаёт";
+  else if (act === "skip") line = "ход есть, входить рано";
+  else if (m.construction?.type === "call-wall") line = "уперлись в стену коллов";
+  else if (m.construction?.type === "put-wall") line = "пол из путов держит";
+  else if (pat?.name.toLowerCase().includes("flag") || pat?.name.toLowerCase().includes("флаг")) {
+    line = up ? "флаг перед продолжением роста" : "флаг перед продолжением снижения";
+  } else if (m.bias === "range") line = "застыли в коридоре";
+  else if (up) line = "пока без выбранной стороны";
+  else line = "тихий откат, приказа нет";
+
+  return `${name}: ${line}`;
 }
 
 export function writeArticle(
