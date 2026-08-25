@@ -26,12 +26,12 @@ export function advise(snap: Pick<SmcSnapshot, "bias" | "localSetup" | "margin" 
   const target = snap.localSetup.targets[0] ?? null;
   const fmt = (n: number) => formatPrice(n, spec.decimals);
 
-  if (entry == null || stop == null || target == null || snap.bias === "range") {
+  if (entry == null || stop == null || target == null) {
     return {
       action: "wait",
       title: "Ждать край диапазона",
-      because: "Нет чистого направления или нет зоны входа. Спред в середине диапазона только увеличивает шум.",
-      therefore: "Советник не даёт сигнал, пока не будет слома структуры и запаса хода больше стоимости круга.",
+      because: "Нет зоны входа со стопом и целью. Спред в середине только увеличивает шум.",
+      therefore: "Лимитку не ставим, пока нет блока/FVG с запасом хода.",
       spread,
       roundTrip,
       grossRisk: null,

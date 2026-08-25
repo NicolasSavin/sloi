@@ -114,12 +114,8 @@ export function refineAdvice(
   if (!htf.ok) {
     return { ...advice, action: "wait", title: "Ждать: H4 против", therefore: htf.note };
   }
-  const trig = ltfTrigger(opts.h1, advice.action, opts.entry ?? 0);
-  if (!trig.ok) {
-    return { ...advice, action: "wait", title: "Ждать M15", therefore: trig.note };
-  }
   return {
     ...advice,
-    therefore: `${advice.therefore} ${htf.note} ${trig.note}${sess.note ? ` ${sess.note}.` : ""}`,
+    therefore: `${advice.therefore} ${htf.note} Лимит в зоне: если сценарий сломается — отложку снимем.${sess.note ? ` ${sess.note}.` : ""}`,
   };
 }

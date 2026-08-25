@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.20"
+#property version   "4.21"
 #property strict
 #property description "На графике: VWAP, профиль, футпринт бара, infusion/splash, Bid/Ask."
 
@@ -684,12 +684,17 @@ void MaybeTrade(int idx, int dir, double entry, double stop, double target, stri
    string key = s + verdict + TimeToStr(bar, TIME_DATE|TIME_MINUTES);
    if(key == g_lastKey[idx]) return;
    g_lastKey[idx] = key;
-   if(dir == 0) return;
+   if(dir == 0)
+     {
+      DeletePending(s);
+      return;
+     }
    if(g_alerts && !wasWait) {
      Alert("SLOI ", s, " ", verdict, " ", IntegerToString(spPts), "pt");
      PlaySound("alert.wav");
    }
    if(!g_auto) return;
+   DeletePending(s);
    if(OneTradeOnly > 0 && CountMine(s) >= OneTradeOnly) return;
    RefreshRates();
    int digits = DigitsOf(s);
@@ -779,6 +784,19 @@ void CloseOne()
    else if(type == OP_SELL) ok = OrderClose(ticket, lots, AskOf(s), SlippagePoints, C_BUY);
    else ok = OrderDelete(ticket);
    if(!ok) Print("SLOI close err ", GetLastError(), " #", ticket);
+  }
+
+void DeletePending(string s)
+  {
+   for(int i = OrdersTotal() - 1; i >= 0; i--)
+     {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
+      if(OrderMagicNumber() != Magic) continue;
+      if(OrderSymbol() != s) continue;
+      int type = OrderType();
+      if(type != OP_BUYLIMIT && type != OP_SELLLIMIT && type != OP_BUYSTOP && type != OP_SELLSTOP) continue;
+      if(!OrderDelete(OrderTicket())) Print("SLOI снять отложку ", s, " ", GetLastError());
+     }
   }
 
 void CloseMine(bool all)
