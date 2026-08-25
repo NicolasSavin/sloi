@@ -135,14 +135,14 @@ function NewsPage() {
 
           {article.originHref ? (
             <p className="mt-8 text-xs text-dim">
-              По мотивам {article.source}. Первоисточник —{" "}
+              Первоисточник:{" "}
               <a
                 href={article.originHref}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-accent hover:underline"
               >
-                здесь
+                {article.source} — оригинал
               </a>
               . Не инвестиционная рекомендация.
             </p>

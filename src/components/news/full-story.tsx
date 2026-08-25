@@ -22,15 +22,30 @@ export function FullStory({
   });
   return (
     <div className="mt-6">
-      {!open ? (
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="inline-flex h-11 items-center rounded-sm bg-accent px-4 text-sm font-medium text-accent-fg"
+      <div className="flex flex-wrap items-center gap-3">
+        {!open ? (
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="inline-flex h-11 items-center rounded-sm bg-accent px-4 text-sm font-medium text-accent-fg"
+          >
+            Читать полностью здесь
+          </button>
+        ) : null}
+        <a
+          href={q.data?.sourceUrl || href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex h-11 items-center rounded-sm px-4 text-sm text-accent ring-1 ring-accent/40"
         >
-          Читать полностью на этой странице
-        </button>
-      ) : null}
+          Оригинал у {source}
+        </a>
+      </div>
+      {q.data?.sourceUrl ? (
+        <p className="mt-2 break-all font-mono text-[11px] text-dim">{q.data.sourceUrl}</p>
+      ) : (
+        <p className="mt-2 break-all font-mono text-[11px] text-dim">{href}</p>
+      )}
       {open && q.isLoading ? <p className="mt-4 text-sm text-muted">Тяну полный текст, картинки и перевод…</p> : null}
       {open && q.data?.error ? (
         <p className="mt-4 text-sm text-muted">
