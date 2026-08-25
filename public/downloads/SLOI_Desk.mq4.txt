@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.24"
+#property version   "4.25"
 #property strict
 #property description "На графике: VWAP, профиль, футпринт бара, infusion/splash, Bid/Ask."
 
@@ -1055,7 +1055,7 @@ void DrawDesk()
    Lab("title", x + 14, y + 8, "SLOI DESK", C_GOLD, 12);
    Lab("hint", x + 150, y + 12, g_feedNote+"  "+IntegerToString(g_n)+"/"+IntegerToString(MAXSYM)+" пар  >> график  — свернуть", C_DIM, 8);
 
-   Btn("b_auto", x + 470, y + 8, 96, 22, g_auto ? "АВТО ВКЛ" : "АВТО ВЫКЛ", g_auto ? C_SEL : C_GOLD);
+   Btn("b_auto", x + 470, y + 8, 96, 22, g_auto ? "АВТО ВКЛ" : "АВТО ВЫКЛ", g_auto ? C_BUY : C_SEL);
    Btn("b_alrt", x + 572, y + 8, 96, 22, g_alerts ? "АЛЕРТ ВКЛ" : "АЛЕРТ ВЫКЛ", C_GOLD);
    Btn("b_min", x + 674, y + 8, 32, 22, "—", C_GOLD);
 
