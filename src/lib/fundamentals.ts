@@ -266,11 +266,17 @@ function wantedFor(id: string, fund: FundamentalSnap): "up" | "down" | "flat" {
     if (fund.risk === "risk-off") s -= 1;
     if ((fund.esChange ?? 0) > 0.5) s += 1;
     if ((fund.esChange ?? 0) < -0.5) s -= 1;
-  } else if (id === "EURJPY" || id === "GBPJPY") {
+  } else if (id === "EURJPY" || id === "GBPJPY" || id === "AUDJPY" || id === "CADJPY" || id === "NZDJPY") {
     if (fund.risk === "risk-on") s += 1;
     if (fund.risk === "risk-off") s -= 1;
   } else if (id === "EURGBP") {
     return "flat";
+  } else if (id === "EURCHF") {
+    if (fund.risk === "risk-off") s -= 1;
+    if (fund.risk === "risk-on") s += 1;
+  } else if (id === "EURAUD" || id === "GBPAUD") {
+    if (fund.risk === "risk-off") s += 1;
+    if (fund.risk === "risk-on") s -= 1;
   } else {
     if (fund.risk === "risk-on") s += 1;
     if (fund.risk === "risk-off") s -= 1;

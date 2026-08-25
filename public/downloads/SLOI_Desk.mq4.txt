@@ -27,7 +27,7 @@ input int     PanelX          = 8;
 input int     PanelY          = 18;
 
 #define P "SLOI_"
-#define MAXSYM 24
+#define MAXSYM 32
 
 string   g_sym[];
 int      g_n;
