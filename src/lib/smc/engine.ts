@@ -527,13 +527,33 @@ function buildSetup(
       obs.filter((z) => z.side === "bear"),
       last.close,
     );
-  const longWanted = trend === "up" || (trend === "range" && last.close <= range.eq);
-  const shortWanted = trend === "down" || (trend === "range" && last.close >= range.eq);
+  const width = Math.max(range.high - range.low, atr);
+  const longWanted = trend === "up" || (trend === "range" && last.close <= range.low + width * 0.22);
+  const shortWanted = trend === "down" || (trend === "range" && last.close >= range.high - width * 0.22);
+
+  if (!longWanted && !shortWanted) {
+    return {
+      thesis: "Середина диапазона. Края нет — сигнала нет.",
+      entry: null,
+      stop: null,
+      targets: [],
+      invalidation: "Ждём край или CHoCH.",
+    };
+  }
 
   if (longWanted && !shortWanted) {
     const zone = bullZ;
-    const entry = zone ? (zone.top + zone.bottom) / 2 : range.low + (range.high - range.low) * 0.3;
-    const stop = Math.min(zone?.bottom ?? range.low, entry) - atr * 0.5;
+    if (!zone) {
+      return {
+        thesis: "Бычья идея, но нет живого FVG/блока. Синтетический край не ставим.",
+        entry: null,
+        stop: null,
+        targets: [],
+        invalidation: "Ждём бычий блок или гэп.",
+      };
+    }
+    const entry = (zone.top + zone.bottom) / 2;
+    const stop = Math.min(zone.bottom, entry) - atr * 0.5;
     const buyLiq = liq.filter((l) => l.side === "buy").sort((a, b) => a.price - b.price);
     const targets = [range.eq, buyLiq.at(-1)?.price ?? range.high, range.high].filter(
       (t, i, a) => t > entry && a.indexOf(t) === i,
@@ -551,8 +571,17 @@ function buildSetup(
   }
   if (shortWanted) {
     const zone = bearZ;
-    const entry = zone ? (zone.top + zone.bottom) / 2 : range.high - (range.high - range.low) * 0.3;
-    const stop = Math.max(zone?.top ?? range.high, entry) + atr * 0.5;
+    if (!zone) {
+      return {
+        thesis: "Медвежья идея, но нет живого FVG/блока. Синтетический край не ставим.",
+        entry: null,
+        stop: null,
+        targets: [],
+        invalidation: "Ждём медвежий блок или гэп.",
+      };
+    }
+    const entry = (zone.top + zone.bottom) / 2;
+    const stop = Math.max(zone.top, entry) + atr * 0.5;
     const sellLiq = liq.filter((l) => l.side === "sell").sort((a, b) => b.price - a.price);
     const targets = [range.eq, sellLiq.at(-1)?.price ?? range.low, range.low].filter(
       (t, i, a) => t < entry && a.indexOf(t) === i,
@@ -568,15 +597,12 @@ function buildSetup(
       invalidation: "Закрытие выше стопа / последнего LH.",
     };
   }
-  const zone = bullZ;
-  const entry = zone ? (zone.top + zone.bottom) / 2 : range.low + (range.high - range.low) * 0.3;
-  const stop = Math.min(zone?.bottom ?? range.low, entry) - atr * 0.5;
   return {
-    thesis: "Нет чистого тренда — лимит от нижней половины диапазона.",
-    entry,
-    stop,
-    targets: [range.eq, range.high].filter((t) => t > entry).slice(0, 2),
-    invalidation: "Закрытие ниже стопа.",
+    thesis: "Нет чистого сценария.",
+    entry: null,
+    stop: null,
+    targets: [],
+    invalidation: "Ждём структуру.",
   };
 }
 

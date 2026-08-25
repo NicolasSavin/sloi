@@ -58,7 +58,7 @@ export function applyHold(markets: DigestMarket[]): DigestMarket[] {
     }
     const prev = hold.get(m.spec.id);
     if (!prev) return m;
-    if (/Стоп: новость|Стоп: крупная/.test(m.advice.title)) {
+    if (/Стоп: новость|Стоп: крупная|Слабое совпадение|Только час|Ждать зону|Ждать старший/.test(m.advice.title)) {
       hold.delete(m.spec.id);
       return m;
     }

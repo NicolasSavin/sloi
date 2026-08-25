@@ -318,6 +318,8 @@ export function gateAdvice(
     d1Bias?: "bullish" | "bearish" | "range";
     choch?: boolean;
     target?: number;
+    score?: number;
+    hasZone?: boolean;
   },
 ): Advice {
   const base = ctx?.id
@@ -333,6 +335,8 @@ export function gateAdvice(
         d1Bias: ctx.d1Bias,
         choch: ctx.choch,
         target: ctx.target,
+        score: ctx.score,
+        hasZone: ctx.hasZone,
       })
     : advice;
   if (halt?.active && !ctx?.id) {

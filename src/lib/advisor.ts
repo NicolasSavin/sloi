@@ -51,7 +51,7 @@ export function advise(snap: Pick<SmcSnapshot, "bias" | "localSetup" | "margin" 
   const covers = roundTrip > 0 ? grossReward / roundTrip : null;
   const netRr = netRisk > 0 ? netReward / netRisk : null;
 
-  if (netReward <= 0 || (covers != null && covers < 1.4) || (netRr != null && netRr < 0.9)) {
+  if (netReward <= 0 || (covers != null && covers < 1.8) || (netRr != null && netRr < 1.2)) {
     return {
       action: "skip",
       title: "Пропуск: спред съедает ход",

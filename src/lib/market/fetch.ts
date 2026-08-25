@@ -468,10 +468,20 @@ async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }
   const markets = rows.map((r) => {
     const wind = windFor(r.spec.id, fund);
     const ev = r.snap.events.at(-1);
+    const sideNow = r.market.advice.action;
     const choch =
-      ev?.kind === "CHoCH" &&
-      ((r.market.advice.action === "long" && ev.side === "bull") ||
-        (r.market.advice.action === "short" && ev.side === "bear"));
+      (ev?.kind === "CHoCH" &&
+        ((sideNow === "long" && ev.side === "bull") || (sideNow === "short" && ev.side === "bear"))) ||
+      r.snap.liquidity.some(
+        (l) =>
+          l.swept &&
+          ((sideNow === "long" && l.side === "sell") || (sideNow === "short" && l.side === "buy")),
+      );
+    const want: "bull" | "bear" | null = sideNow === "long" ? "bull" : sideNow === "short" ? "bear" : null;
+    const hasZone = Boolean(
+      want &&
+        [...r.snap.fvgs, ...r.snap.orderBlocks].some((z) => z.side === want && !z.mitigated),
+    );
     const ctx = {
       id: r.spec.id,
       session,
@@ -484,6 +494,8 @@ async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }
       d1Bias: d1bias.get(r.spec.id),
       choch,
       target: r.market.setup.targets[0] ?? undefined,
+      score: r.snap.score,
+      hasZone,
     };
     const advice = gateAdvice(r.market.advice, wind, fund.halt, ctx);
     return { ...r.market, wind, advice, htfBias: ctx.htfBias, d1Bias: ctx.d1Bias };

@@ -143,6 +143,8 @@ export function refineAdvice(
     d1Bias?: "bullish" | "bearish" | "range";
     choch?: boolean;
     target?: number;
+    score?: number;
+    hasZone?: boolean;
   },
 ): Advice {
   if (haltApplies(opts.id, opts.halt)) {
@@ -163,6 +165,31 @@ export function refineAdvice(
     return { ...advice, action: "wait", title: "Поздно: цена уже убежала", therefore: "Лимитку не догоняем." };
   }
   const stack = stackGrade(advice.action, opts.htfBias, opts.d1Bias, opts.choch);
+  const score = opts.score ?? 50;
+  if (!opts.hasZone) {
+    return {
+      ...advice,
+      action: "wait",
+      title: "Ждать зону",
+      therefore: "Нет живого блока или FVG. Пустой край не торгуем.",
+    };
+  }
+  if (score < 48 && !opts.choch) {
+    return {
+      ...advice,
+      action: "wait",
+      title: "Слабое совпадение слоёв",
+      therefore: `Счёт ${score}/100, нет CHoCH. Ждём, пока структура, зона и старший ТФ не сойдутся.`,
+    };
+  }
+  if (stack.grade === "H1" && !opts.choch && score < 62) {
+    return {
+      ...advice,
+      action: "wait",
+      title: "Только час — мало",
+      therefore: `${stack.note} Без CHoCH и счёта выше 62 лимитку не вешаем.`,
+    };
+  }
   if (stack.block === "all" && mode !== "MARKET") {
     return { ...advice, action: "wait", title: "Ждать старший ТФ", therefore: stack.note };
   }
