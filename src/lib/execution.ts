@@ -41,6 +41,34 @@ export function sessionAllows(id: string, session?: SessionSnap | null) {
   return { ok: false, note: "Тонкая Азия. Мажор FX не открываем до Лондона." };
 }
 
+export function stackGrade(
+  action: "long" | "short",
+  h4?: "bullish" | "bearish" | "range",
+  d1?: "bullish" | "bearish" | "range",
+): { grade: "D1" | "H4" | "H1"; block: "none" | "market" | "all"; note: string } {
+  const against = (b?: string) =>
+    (action === "long" && b === "bearish") || (action === "short" && b === "bullish");
+  const withUs = (b?: string) =>
+    (action === "long" && b === "bullish") || (action === "short" && b === "bearish");
+  const h4x = against(h4);
+  const d1x = against(d1);
+  const h4w = withUs(h4);
+  const d1w = withUs(d1);
+  if (h4x && d1x) {
+    return { grade: "H1", block: "all", note: "H4 и дневка против часа. Не берём." };
+  }
+  if (d1w && h4w) {
+    return { grade: "D1", block: "none", note: "H1+H4+D1 вместе. В зоне можно рынок." };
+  }
+  if (h4w && !d1x) {
+    return { grade: "H4", block: "none", note: "Час с четвёркой. Дневка не спорит." };
+  }
+  if (h4x || d1x) {
+    return { grade: "H1", block: "market", note: "Старший против — только лимит с часа." };
+  }
+  return { grade: "H1", block: "market", note: "Только час. Лимит к зоне, не догон." };
+}
+
 export function htfAllows(bias: "bullish" | "bearish" | "range" | undefined, action: "long" | "short") {
   if (!bias || bias === "range") return { ok: true, note: "H4 без стороны — часовик решает." };
   if (action === "long" && bias === "bearish") {
@@ -97,6 +125,7 @@ export function refineAdvice(
     stop?: number;
     last?: number;
     htfBias?: "bullish" | "bearish" | "range";
+    d1Bias?: "bullish" | "bearish" | "range";
   },
 ): Advice {
   if (haltApplies(opts.id, opts.halt)) {
@@ -116,19 +145,26 @@ export function refineAdvice(
   if (mode === "LATE") {
     return { ...advice, action: "wait", title: "Поздно: цена уже убежала", therefore: "Лимитку не догоняем." };
   }
-  const htf = htfAllows(opts.htfBias, advice.action);
-  if (!htf.ok && mode === "MARKET") {
-    return { ...advice, action: "wait", title: "Ждать: H4 против рынка", therefore: `${htf.note} Лимит против H4 можно, рынок — нет.` };
+  const stack = stackGrade(advice.action, opts.htfBias, opts.d1Bias);
+  if (stack.block === "all") {
+    return { ...advice, action: "wait", title: "Ждать старший ТФ", therefore: stack.note };
+  }
+  if (stack.block === "market" && mode === "MARKET") {
+    return { ...advice, action: "wait", title: "Ждать зону / старший ТФ", therefore: `${stack.note} Рынок с одного часа не шлём.` };
   }
   if (!sess.ok && mode === "MARKET") {
     return { ...advice, action: "wait", title: "Ждать сессию", therefore: sess.note };
   }
-  const bits = [
-    htf.ok ? htf.note : "H4 против — только лимитка.",
-    !sess.ok ? "Азия: только лимит." : sess.note,
-    "Ордер заранее, пока цена идёт к зоне.",
-  ]
-    .filter(Boolean)
-    .join(" ");
-  return { ...advice, therefore: `${advice.therefore} ${bits}` };
+  const bits = [stack.note, !sess.ok ? "Азия: только лимит." : sess.note].filter(Boolean).join(" ");
+  const title =
+    stack.grade === "D1"
+      ? advice.action === "long"
+        ? "Лонг H1+H4+D1"
+        : "Шорт H1+H4+D1"
+      : stack.grade === "H4"
+        ? advice.action === "long"
+          ? "Лонг H1+H4"
+          : "Шорт H1+H4"
+        : advice.title;
+  return { ...advice, title, therefore: `${advice.therefore} ${bits}` };
 }

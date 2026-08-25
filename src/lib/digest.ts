@@ -22,6 +22,7 @@ export interface DigestMarket {
   wind?: FundWind;
   construction?: OptionConstruction | null;
   htfBias?: SmcSnapshot["bias"];
+  d1Bias?: SmcSnapshot["bias"];
 }
 
 export interface ChartNote {

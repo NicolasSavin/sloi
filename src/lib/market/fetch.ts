@@ -136,6 +136,30 @@ function parseYahoo(raw: any, timeframe: Timeframe) {
   return validCandles(rows);
 }
 
+function candlesToDaily(h4: Candle[]): Candle[] {
+  const bucket = new Map<number, Candle[]>();
+  for (const c of h4) {
+    const key = Math.floor(c.time / 86400) * 86400;
+    const arr = bucket.get(key) ?? [];
+    arr.push(c);
+    bucket.set(key, arr);
+  }
+  const merged: Candle[] = [];
+  for (const [time, arr] of [...bucket.entries()].sort((a, b) => a[0] - b[0])) {
+    merged.push({
+      time,
+      open: arr[0]!.open,
+      high: Math.max(...arr.map((x) => x.high)),
+      low: Math.min(...arr.map((x) => x.low)),
+      close: arr[arr.length - 1]!.close,
+      volume: arr.reduce((s, x) => s + x.volume, 0),
+    });
+  }
+  return merged.filter(
+    (c) => Number.isFinite(c.open) && Number.isFinite(c.high) && Number.isFinite(c.low) && Number.isFinite(c.close),
+  );
+}
+
 function hash(s: string) {
   let h = 2166136261;
   for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
@@ -413,6 +437,13 @@ async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }
       return [p.symbol, snap.bias] as const;
     }),
   );
+  const d1bias = new Map(
+    h4s.map((p) => {
+      const d = candlesToDaily(p.candles);
+      const snap = d.length >= 8 ? analyzeMarket(d, null) : { bias: "range" as const };
+      return [p.symbol, snap.bias] as const;
+    }),
+  );
   const dxySnap = dxy ?? (await lastMove("DX=F"));
   const sentiment = buildSentiment({
     vix,
@@ -445,9 +476,10 @@ async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }
       last: r.market.lastClose,
       construction: r.market.construction,
       htfBias: h4bias.get(r.spec.id),
+      d1Bias: d1bias.get(r.spec.id),
     };
     const advice = gateAdvice(r.market.advice, wind, fund.halt, ctx);
-    return { ...r.market, wind, advice, htfBias: ctx.htfBias };
+    return { ...r.market, wind, advice, htfBias: ctx.htfBias, d1Bias: ctx.d1Bias };
   });
   const { applyHold, seedHold } = await import("@/lib/signal-hold");
   try {
