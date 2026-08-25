@@ -106,6 +106,25 @@ export function scriptOrder(m: {
   return `Сигнал по ${name}. ${side} лимитным ордером. ${when}.${logic}`;
 }
 
+export function scriptCancel(id: string, label: string, action: "long" | "short") {
+  const name = pairRu(id, label);
+  const side = action === "long" ? "покупку" : "продажу";
+  return `Отмена по ${name}. ${side} снимаем.`;
+}
+
+export function scriptReady(id: string, label: string, action: "long" | "short", pips: number) {
+  const name = pairRu(id, label);
+  const zone = action === "long" ? "зону покупки" : "зону продажи";
+  const near = pips <= 3 ? "уже в зоне" : `ещё около ${pips} пунктов`;
+  return `По ${name} заходи в ${zone}. Приготовиться. ${near}.`;
+}
+
+export function scriptFill(id: string, label: string, action: "long" | "short") {
+  const name = pairRu(id, label);
+  const side = action === "long" ? "Покупка" : "Продажа";
+  return `По ${name} лимитка сработала. ${side} в рынке.`;
+}
+
 export function scriptExit(hit: {
   symbol: string;
   label: string;

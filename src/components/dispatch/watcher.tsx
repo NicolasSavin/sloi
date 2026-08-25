@@ -3,7 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { isOpenAction, useDispatchStore } from "@/lib/dispatch-store";
 import { fetchDigest, fetchMarket } from "@/lib/market/fetch";
-import { playDispatch, scriptExit, scriptOrder, speakRu, unlockSound } from "@/lib/sound";
+import { fillMode } from "@/lib/execution";
+import { playDispatch, scriptCancel, scriptExit, scriptFill, scriptOrder, scriptReady, speakRu, unlockSound } from "@/lib/sound";
 import { newsAlertKey, newsAlertText } from "@/lib/calendar";
 import { useDeskStore } from "@/lib/desk-store";
 import { actionLabel } from "@/lib/advisor";
@@ -21,7 +22,7 @@ export function DispatchWatcher() {
   const clearFlash = useDispatchStore((s) => s.clearFlash);
   const voiceOn = useDeskStore((s) => s.voiceOn);
   const soundOn = useDeskStore((s) => s.soundOn);
-  const seen = useRef<Record<string, string>>({});
+  const seen = useRef<Record<string, { action: string; mode?: string; ready?: boolean; filled?: boolean }>>({});
   const closedVoice = useRef<Record<string, string>>({});
   const primed = useRef(false);
   const settling = useRef(false);
@@ -42,32 +43,68 @@ export function DispatchWatcher() {
     const markets = q.data?.digest.markets;
     if (!onDuty || !markets) return;
     if (!primed.current) {
-      for (const m of markets) seen.current[m.spec.id] = m.advice.action;
+      for (const m of markets) seen.current[m.spec.id] = { action: m.advice.action };
       primed.current = true;
       return;
     }
     for (const m of markets) {
-      const prev = seen.current[m.spec.id];
+      const prev = seen.current[m.spec.id] ?? { action: "wait" };
       const next = m.advice.action;
-      seen.current[m.spec.id] = next;
-      if (!isOpenAction(next)) continue;
-      if (prev === next) continue;
-      const hit = {
-        id: `${m.spec.id}-${next}-${Date.now()}`,
-        at: Date.now(),
-        symbol: m.spec.id,
-        label: m.spec.label,
-        action: next,
-        entry: m.setup.entry,
-        stop: m.setup.stop,
-        target: m.setup.targets[0] ?? null,
-        title: m.advice.title,
-        decimals: m.spec.decimals,
-        status: "open" as const,
-      };
-      pushHit(hit);
-      if (soundOn) playDispatch(next);
-      if (voiceOn) void speakRu(scriptOrder(m));
+      const live = isOpenAction(next);
+      const was = isOpenAction(prev.action as "long" | "short" | "wait" | "skip");
+      let mode: "LIMIT" | "MARKET" | "LATE" | undefined;
+      let pips = 0;
+      if (live && m.setup.entry != null && m.setup.stop != null) {
+        mode = fillMode(next, m.lastClose, m.setup.entry, m.setup.stop, m.setup.targets[0]);
+        pips = m.spec.pip > 0 ? Math.round(Math.abs(m.lastClose - m.setup.entry) / m.spec.pip) : 0;
+      }
+      if (was && !live) {
+        if (voiceOn) void speakRu(scriptCancel(m.spec.id, m.spec.label, prev.action as "long" | "short"));
+        seen.current[m.spec.id] = { action: next };
+        continue;
+      }
+      if (live && prev.action !== next) {
+        if (was && voiceOn) void speakRu(scriptCancel(m.spec.id, m.spec.label, prev.action as "long" | "short"));
+        const hit = {
+          id: `${m.spec.id}-${next}-${Date.now()}`,
+          at: Date.now(),
+          symbol: m.spec.id,
+          label: m.spec.label,
+          action: next,
+          entry: m.setup.entry,
+          stop: m.setup.stop,
+          target: m.setup.targets[0] ?? null,
+          title: m.advice.title,
+          decimals: m.spec.decimals,
+          status: "open" as const,
+        };
+        pushHit(hit);
+        if (soundOn) playDispatch(next);
+        if (voiceOn) void speakRu(scriptOrder(m));
+        seen.current[m.spec.id] = {
+          action: next,
+          mode,
+          ready: mode === "MARKET" || pips <= 4,
+          filled: mode === "MARKET",
+        };
+        continue;
+      }
+      if (live && prev.action === next) {
+        if (mode === "MARKET" && prev.mode === "LIMIT" && !prev.filled) {
+          if (voiceOn) void speakRu(scriptFill(m.spec.id, m.spec.label, next));
+          if (soundOn) playDispatch(next);
+          seen.current[m.spec.id] = { ...prev, mode, filled: true, ready: true };
+          continue;
+        }
+        if (mode === "LIMIT" && pips <= 8 && !prev.ready) {
+          if (voiceOn) void speakRu(scriptReady(m.spec.id, m.spec.label, next, pips));
+          seen.current[m.spec.id] = { ...prev, mode, ready: true };
+          continue;
+        }
+        seen.current[m.spec.id] = { ...prev, mode };
+        continue;
+      }
+      seen.current[m.spec.id] = { action: next, mode };
     }
   }, [q.data, onDuty, pushHit, soundOn, voiceOn]);
 
