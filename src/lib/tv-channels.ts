@@ -13,6 +13,8 @@ export interface TvChannel {
   foreign?: boolean;
   videos?: boolean;
   title?: string;
+  /** desk = разбор/обучение с зонами; news = фундамент; skip = не крутим как «прогноз». */
+  role?: "desk" | "news" | "skip";
 }
 
 export const RSS_NETS: TvChannel[] = [
@@ -23,6 +25,7 @@ export const RSS_NETS: TvChannel[] = [
     channelId: "UCnsDPgikxrcjytTy_mjb2pw",
     fallback: "x9pIUqArO_s",
     lang: "ru",
+    role: "desk",
   },
   {
     id: "sanchodt",
@@ -31,6 +34,7 @@ export const RSS_NETS: TvChannel[] = [
     channelId: "UCc2J9DJeaBVaTzIuFlUMdQg",
     fallback: "pewgrPZEb1Q",
     lang: "ru",
+    role: "skip",
   },
   {
     id: "zvezdin",
@@ -39,6 +43,7 @@ export const RSS_NETS: TvChannel[] = [
     channelId: "UCeboUXLKHz3eoZ3y5XvTqqg",
     fallback: "BgQqF2ZbPIY",
     lang: "ru",
+    role: "desk",
   },
   {
     id: "tradetoday",
@@ -47,6 +52,7 @@ export const RSS_NETS: TvChannel[] = [
     channelId: "UC_q-tHPBUpBpFTQ0Ggumm5A",
     fallback: "b2aHrVz3J3w",
     lang: "ru",
+    role: "skip",
   },
   {
     id: "finexpert",
@@ -55,6 +61,7 @@ export const RSS_NETS: TvChannel[] = [
     channelId: "UCCtXfq1Rrwdt8hj7QFGSZdQ",
     fallback: "C-XWolyd1r8",
     lang: "ru",
+    role: "skip",
   },
   {
     id: "tyukov",
@@ -63,6 +70,7 @@ export const RSS_NETS: TvChannel[] = [
     channelId: "UCQvAbe1wqthJ0Aa6bA0l2MQ",
     fallback: "dEve9-qyotk",
     lang: "ru",
+    role: "skip",
   },
   {
     id: "porter",
@@ -71,6 +79,7 @@ export const RSS_NETS: TvChannel[] = [
     channelId: "UCVTKU3mQsRbY30_7B-tO9Zg",
     fallback: "WmOSV00a0Fs",
     lang: "ru",
+    role: "skip",
   },
   {
     id: "rbc",
@@ -78,6 +87,7 @@ export const RSS_NETS: TvChannel[] = [
     kind: "youtube",
     channelId: "UCD23js7wHnyG_yhimDMpLpg",
     lang: "ru",
+    role: "news",
   },
   {
     id: "bcs",
@@ -85,6 +95,7 @@ export const RSS_NETS: TvChannel[] = [
     kind: "youtube",
     channelId: "UCdUwDSicdhcU9N8iap4c4Ow",
     lang: "ru",
+    role: "news",
   },
   {
     id: "tinvest",
@@ -92,6 +103,7 @@ export const RSS_NETS: TvChannel[] = [
     kind: "youtube",
     channelId: "UCSoHzhlpiQeheYOMk2D6Nog",
     lang: "ru",
+    role: "news",
   },
   {
     id: "investfuture",
@@ -99,6 +111,7 @@ export const RSS_NETS: TvChannel[] = [
     kind: "youtube",
     channelId: "UCQmYubm0bFtExa7Q9oHT6Rg",
     lang: "ru",
+    role: "news",
   },
   {
     id: "vedomosti",
@@ -107,6 +120,7 @@ export const RSS_NETS: TvChannel[] = [
     channelId: "UCQdb0kgNp10fVlHWbkqKO8w",
     fallback: "QsUuwCsWpWc",
     lang: "ru",
+    role: "news",
   },
   {
     id: "euroru",
@@ -115,12 +129,13 @@ export const RSS_NETS: TvChannel[] = [
     channelId: "UCFzJjgVicCtFxJ5B0P_ei8A",
     fallback: "j8z6woknGV8",
     lang: "ru",
+    role: "news",
   },
 ];
 
 export const TV_CHANNELS: TvChannel[] = [
   { id: "stratum", label: "Студия", kind: "reel", lang: "ru" },
-  ...RSS_NETS,
+  ...RSS_NETS.filter((n) => n.role !== "skip"),
 ];
 
 export function youtubeChannelPlaylist(channelId: string) {

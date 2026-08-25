@@ -41,7 +41,7 @@ async function rssClips(channelId: string): Promise<Clip[]> {
 export async function resolveTvChannels(): Promise<TvChannel[]> {
   const studio: TvChannel = { id: "stratum", label: "Студия", kind: "reel", lang: "ru" };
   const rows = await Promise.all(
-    RSS_NETS.map(async (net) => {
+    RSS_NETS.filter((n) => n.role !== "skip").map(async (net) => {
       const head: TvChannel[] = net.channelId
         ? [
             {
