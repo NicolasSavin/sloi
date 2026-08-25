@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.21"
+#property version   "4.22"
 #property strict
 #property description "На графике: VWAP, профиль, футпринт бара, infusion/splash, Bid/Ask."
 
@@ -17,7 +17,7 @@ input bool    AutoTrade       = false;
 input double  Lots            = 0.10;
 input int     Magic           = 220826;
 input int     SlippagePoints  = 20;
-input int     MaxSpreadPoints = 30;
+input int     MaxSpreadPoints = 80;
 input double  MaxSkewPct      = 0.12;
 input double  MinCover        = 1.8;
 input double  MinNetRR        = 1.0;
@@ -600,8 +600,8 @@ void ReadSite(string naked, int &dir, double &entry, double &stop, double &targe
 double SkewCap(string n, double fromFeed)
   {
    if(fromFeed > 0) return(fromFeed);
-   if(n == "XAUUSD") return(0.35);
-   if(n == "XAGUSD") return(0.40);
+   if(n == "XAUUSD") return(1.00);
+   if(n == "XAGUSD") return(1.20);
    if(n == "USOIL" || n == "XTIUSD" || n == "XBRUSD") return(0.40);
    if(n == "XNGUSD") return(0.80);
    if(StringFind(n, "BTC") >= 0 || StringFind(n, "ETH") >= 0) return(1.50);
@@ -633,10 +633,14 @@ void Scan(int idx, string &bias, string &verdict, string &why,
       double limSkew = SkewCap(Naked(s), skewFeed);
       if(dir != 0 && skew > limSkew)
         {
-         dir = 0;
-         verdict = "КОТИР";
-         why = bias+" > "+DoubleToStr(limSkew, 2)+"%";
-         return;
+         if(lim == 0)
+           {
+            dir = 0;
+            verdict = "КОТИР";
+            why = bias+" > "+DoubleToStr(limSkew, 2)+"%";
+            return;
+           }
+         why = "лимит, сверка "+bias;
         }
       if(dir == 0)
         {
@@ -650,7 +654,10 @@ void Scan(int idx, string &bias, string &verdict, string &why,
       if(dir == 0) { why = why+" · нет Yahoo"; return; }
      }
    if(dir == 0) return;
-   if(lim == 0 && spPts > g_maxSp) { dir = 0; verdict = "СПРЕД"; why = IntegerToString(spPts)+"п"; return; }
+   int capSp = g_maxSp;
+   if(Naked(s) == "XAUUSD") capSp = MathMax(capSp, 80);
+   if(Naked(s) == "XAGUSD") capSp = MathMax(capSp, 60);
+   if(lim == 0 && spPts > capSp) { dir = 0; verdict = "СПРЕД"; why = IntegerToString(spPts)+"п"; return; }
    double px = (dir > 0 ? AskOf(s) : BidOf(s));
    if(entry <= 0) entry = px;
    if(stop <= 0 || target <= 0) { dir = 0; verdict = "ЖДАТЬ"; why = "нет SL/TP"; return; }
@@ -682,20 +689,21 @@ void MaybeTrade(int idx, int dir, double entry, double stop, double target, stri
    g_prevV[idx] = verdict;
    datetime bar = iTime(s, g_tf, 0);
    string key = s + verdict + TimeToStr(bar, TIME_DATE|TIME_MINUTES);
-   if(key == g_lastKey[idx]) return;
-   g_lastKey[idx] = key;
    if(dir == 0)
      {
-      DeletePending(s);
+      if(key != g_lastKey[idx])
+        {
+         g_lastKey[idx] = key;
+         DeletePending(s);
+        }
       return;
      }
-   if(g_alerts && !wasWait) {
+   if(g_alerts && !wasWait && key != g_lastKey[idx]) {
      Alert("SLOI ", s, " ", verdict, " ", IntegerToString(spPts), "pt");
      PlaySound("alert.wav");
    }
-   if(!g_auto) return;
-   DeletePending(s);
-   if(OneTradeOnly > 0 && CountMine(s) >= OneTradeOnly) return;
+   if(!g_auto) { g_lastKey[idx] = key; return; }
+   if(OneTradeOnly > 0 && CountMine(s) >= OneTradeOnly) { g_lastKey[idx] = key; return; }
    RefreshRates();
    int digits = DigitsOf(s);
    int cmd = dir > 0 ? OP_BUY : OP_SELL;
@@ -706,10 +714,28 @@ void MaybeTrade(int idx, int dir, double entry, double stop, double target, stri
       if(dir > 0 && AskOf(s) > entry + zone) { cmd = OP_BUYLIMIT; px = NormalizeDouble(entry, digits); }
       if(dir < 0 && BidOf(s) < entry - zone) { cmd = OP_SELLLIMIT; px = NormalizeDouble(entry, digits); }
      }
+   if(cmd == OP_BUYLIMIT || cmd == OP_SELLLIMIT)
+     {
+      if(CountPending(s) > 0) { g_lastKey[idx] = key; return; }
+     }
    int ticket = OrderSend(s, cmd, g_lots, px, SlippagePoints,
                           NormalizeDouble(stop, digits), NormalizeDouble(target, digits),
                           "SLOI", Magic, 0, dir > 0 ? C_BUY : C_SEL);
    if(ticket < 0) Print("SLOI ", s, " err ", GetLastError());
+   else g_lastKey[idx] = key;
+  }
+
+int CountPending(string s)
+  {
+   int n = 0;
+   for(int i = OrdersTotal() - 1; i >= 0; i--)
+     {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
+      if(OrderSymbol() != s || OrderMagicNumber() != Magic) continue;
+      int ty = OrderType();
+      if(ty == OP_BUYLIMIT || ty == OP_SELLLIMIT || ty == OP_BUYSTOP || ty == OP_SELLSTOP) n++;
+     }
+   return(n);
   }
 
 void ManageBE()

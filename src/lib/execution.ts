@@ -4,8 +4,8 @@ import type { Candle } from "@/lib/market/types";
 import type { SessionSnap } from "@/lib/sessions";
 
 export function skewLimit(id: string) {
-  if (id === "XAUUSD") return 0.35;
-  if (id === "XAGUSD") return 0.4;
+  if (id === "XAUUSD") return 1.0;
+  if (id === "XAGUSD") return 1.2;
   if (id === "XTIUSD" || id === "XBRUSD" || id === "USOIL") return 0.4;
   if (id === "XNGUSD") return 0.8;
   if (/BTC/.test(id) || /ETH/.test(id)) return 1.5;
