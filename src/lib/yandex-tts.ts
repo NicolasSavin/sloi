@@ -1,14 +1,42 @@
 const TTS = "https://tts.api.cloud.yandex.net/speech/v1/tts:synthesize";
 
+const KEY_NAMES = ["YANDEX_API_KEY", "YANDEX_TTS_KEY", "YC_API_KEY", "SPEECHKIT_API_KEY"] as const;
+
+function envOf(name: string) {
+  try {
+    return String(process.env[name] ?? "").trim();
+  } catch {
+    return "";
+  }
+}
+
+export function yandexKeyName() {
+  return KEY_NAMES.find((n) => envOf(n).length > 8) ?? null;
+}
+
 export function yandexConfigured() {
-  return Boolean(process.env.YANDEX_API_KEY?.trim());
+  return Boolean(yandexKeyName());
+}
+
+export function yandexDebug() {
+  const names = Object.keys(process.env ?? {}).filter((k) =>
+    /yandex|speechkit|^YC_/i.test(k),
+  );
+  return {
+    studio: yandexConfigured(),
+    voice: envOf("YANDEX_VOICE") || "alena",
+    keyName: yandexKeyName(),
+    yandexNames: names,
+    groq: Boolean(envOf("GROQ_API_KEY")),
+  };
 }
 
 export async function synthesizeRu(text: string): Promise<ArrayBuffer | null> {
-  const key = process.env.YANDEX_API_KEY?.trim();
+  const keyName = yandexKeyName();
+  const key = keyName ? envOf(keyName) : "";
   if (!key || !text.trim()) return null;
-  const voice = process.env.YANDEX_VOICE?.trim() || "alena";
-  const folder = process.env.YANDEX_FOLDER_ID?.trim();
+  const voice = envOf("YANDEX_VOICE") || "alena";
+  const folder = envOf("YANDEX_FOLDER_ID");
   const body = new URLSearchParams({
     text: text.slice(0, 4500),
     lang: "ru-RU",

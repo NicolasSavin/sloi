@@ -1,17 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { synthesizeRu, yandexConfigured } from "@/lib/yandex-tts";
+import { synthesizeRu, yandexConfigured, yandexDebug } from "@/lib/yandex-tts";
 
 export const Route = createFileRoute("/api/voice")({
   server: {
     handlers: {
       GET: async () =>
         Response.json({
-          studio: yandexConfigured(),
-          voice: process.env.YANDEX_VOICE?.trim() || "alena",
+          ...yandexDebug(),
         }),
       POST: async ({ request }) => {
         if (!yandexConfigured()) {
-          return Response.json({ error: "no-studio" }, { status: 503 });
+          return Response.json({ error: "no-studio", ...yandexDebug() }, { status: 503 });
         }
         let text = "";
         try {
