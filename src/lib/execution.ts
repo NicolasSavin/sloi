@@ -108,26 +108,27 @@ export function refineAdvice(
     };
   }
   if (advice.action !== "long" && advice.action !== "short") return advice;
-  const htf = htfAllows(opts.htfBias, advice.action);
-  if (!htf.ok) {
-    return { ...advice, action: "wait", title: "Ждать: H4 против", therefore: htf.note };
-  }
   const sess = sessionAllows(opts.id, opts.session);
   const last = opts.last ?? opts.h1?.at(-1)?.close ?? opts.entry ?? 0;
   const entry = opts.entry ?? last;
   const stop = opts.stop ?? 0;
   const mode = fillMode(advice.action, last, entry, stop);
+  if (mode === "LATE") {
+    return { ...advice, action: "wait", title: "Поздно: цена уже убежала", therefore: "Лимитку не догоняем." };
+  }
+  const htf = htfAllows(opts.htfBias, advice.action);
+  if (!htf.ok && mode === "MARKET") {
+    return { ...advice, action: "wait", title: "Ждать: H4 против рынка", therefore: `${htf.note} Лимит против H4 можно, рынок — нет.` };
+  }
   if (!sess.ok && mode === "MARKET") {
     return { ...advice, action: "wait", title: "Ждать сессию", therefore: sess.note };
   }
-  const asia =
-    !sess.ok && mode === "LIMIT"
-      ? " Азия тонкая — только лимитка, рынок не шлём."
-      : sess.note
-        ? ` ${sess.note}.`
-        : "";
-  return {
-    ...advice,
-    therefore: `${advice.therefore} ${htf.note} Лимит в зоне: сценарий сломался — отложку снимем.${asia}`,
-  };
+  const bits = [
+    htf.ok ? htf.note : "H4 против — только лимитка.",
+    !sess.ok ? "Азия: только лимит." : sess.note,
+    "Ордер заранее, пока цена идёт к зоне.",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return { ...advice, therefore: `${advice.therefore} ${bits}` };
 }

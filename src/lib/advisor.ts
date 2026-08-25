@@ -51,7 +51,7 @@ export function advise(snap: Pick<SmcSnapshot, "bias" | "localSetup" | "margin" 
   const covers = roundTrip > 0 ? grossReward / roundTrip : null;
   const netRr = netRisk > 0 ? netReward / netRisk : null;
 
-  if (netReward <= 0 || (covers != null && covers < 1.8) || (netRr != null && netRr < 1)) {
+  if (netReward <= 0 || (covers != null && covers < 1.4) || (netRr != null && netRr < 0.9)) {
     return {
       action: "skip",
       title: "Пропуск: спред съедает ход",
@@ -104,61 +104,19 @@ export function advise(snap: Pick<SmcSnapshot, "bias" | "localSetup" | "margin" 
     };
   }
   const fight = snap.patterns?.find((p) => (p.side === "bear" && side === "long") || (p.side === "bull" && side === "short"));
-  if (fight) {
-    return {
-      action: "wait",
-      title: `Ждать: ${fight.name} против входа`,
-      because: fight.because,
-      therefore: fight.therefore,
-      spread,
-      roundTrip,
-      grossRisk,
-      grossReward,
-      netRisk,
-      netReward,
-      netRr,
-      covers,
-    };
-  }
-
-  if (snap.margin?.where === "upper" && side === "long") {
-    return {
-      action: "wait",
-      title: "Ждать: лонг в верхней марже",
-      because: `Цена в ${snap.margin.upper.name.toLowerCase()} (${fmt(snap.margin.upper.bottom)}–${fmt(snap.margin.upper.top)}). ${snap.margin.upper.hint}`,
-      therefore: "Догонять лонг здесь — кормить стопы и маржин-коллы. Ждём выноса максимума и возврата внутрь.",
-      spread,
-      roundTrip,
-      grossRisk,
-      grossReward,
-      netRisk,
-      netReward,
-      netRr,
-      covers,
-    };
-  }
-  if (snap.margin?.where === "lower" && side === "short") {
-    return {
-      action: "wait",
-      title: "Ждать: шорт в нижней марже",
-      because: `Цена в ${snap.margin.lower.name.toLowerCase()} (${fmt(snap.margin.lower.bottom)}–${fmt(snap.margin.lower.top)}). ${snap.margin.lower.hint}`,
-      therefore: "Шортить здесь — стоять в чужой марже. Ждём выноса минимума и возврата внутрь.",
-      spread,
-      roundTrip,
-      grossRisk,
-      grossReward,
-      netRisk,
-      netReward,
-      netRr,
-      covers,
-    };
-  }
+  const marginNote =
+    snap.margin?.where === "upper" && side === "long"
+      ? " Цена в верхней марже — лимитка ниже, не рынок."
+      : snap.margin?.where === "lower" && side === "short"
+        ? " Цена в нижней марже — лимитка выше, не рынок."
+        : "";
+  const patNote = fight ? ` На графике ${fight.name} против — лимит всё равно, рынок нет.` : "";
 
   return {
     action: side,
-    title: side === "long" ? "Лонг после спреда ещё жив" : "Шорт после спреда ещё жив",
+    title: side === "long" ? "Лимит на покупку в зоне" : "Лимит на продажу в зоне",
     because: `Вход ${fmt(entry)}, стоп ${fmt(stop)}, цель ${fmt(target)}. Круг ${fmt(roundTrip)}.`,
-    therefore: `Чистый риск ${fmt(netRisk)}, чистая цель ${fmt(netReward)}, RR ${netRr?.toFixed(2)}. Сигнал имеет смысл только от реакции в зоне, не от рынка.`,
+    therefore: `Чистый RR ${netRr?.toFixed(2)}. Ордер вешаем заранее, пока цена идёт к зоне.${marginNote}${patNote}`,
     spread,
     roundTrip,
     grossRisk,

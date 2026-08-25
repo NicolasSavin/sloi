@@ -509,60 +509,74 @@ function buildSetup(
   range: { high: number; low: number; eq: number },
   atr: number,
 ): LocalSetup {
-  if (trend === "up" && pd !== "premium") {
-    const zone =
-      nearestZone(
-        fvgs.filter((z) => z.side === "bull"),
-        last.close,
-      ) ??
-      nearestZone(
-        obs.filter((z) => z.side === "bull"),
-        last.close,
-      );
-    const entry = zone ? (zone.top + zone.bottom) / 2 : last.close;
-    const stop = Math.min(zone?.bottom ?? last.close, last.close) - atr * 0.6;
+  const bullZ =
+    nearestZone(
+      fvgs.filter((z) => z.side === "bull"),
+      last.close,
+    ) ??
+    nearestZone(
+      obs.filter((z) => z.side === "bull"),
+      last.close,
+    );
+  const bearZ =
+    nearestZone(
+      fvgs.filter((z) => z.side === "bear"),
+      last.close,
+    ) ??
+    nearestZone(
+      obs.filter((z) => z.side === "bear"),
+      last.close,
+    );
+  const longWanted = trend === "up" || (trend === "range" && last.close <= range.eq);
+  const shortWanted = trend === "down" || (trend === "range" && last.close >= range.eq);
+
+  if (longWanted && !shortWanted) {
+    const zone = bullZ;
+    const entry = zone ? (zone.top + zone.bottom) / 2 : range.low + (range.high - range.low) * 0.3;
+    const stop = Math.min(zone?.bottom ?? range.low, entry) - atr * 0.5;
     const buyLiq = liq.filter((l) => l.side === "buy").sort((a, b) => a.price - b.price);
-    const targets = [range.eq, buyLiq.at(-1)?.price ?? range.high].filter(
+    const targets = [range.eq, buyLiq.at(-1)?.price ?? range.high, range.high].filter(
       (t, i, a) => t > entry && a.indexOf(t) === i,
     );
     return {
-      thesis: "Лонг от дисконта/OTE в восходящей структуре. Ищем реакцию в бычьем FVG или order block.",
+      thesis:
+        pd === "premium"
+          ? "Структура вверх. Лимит в дисконт — цена ещё не в зоне, ордер уже рабочий."
+          : "Лонг от дисконта / бычьего блока. Реакция в зоне, не догон.",
       entry,
       stop,
       targets: targets.slice(0, 3),
-      invalidation: "Закрытие ниже последнего HL / order block.",
+      invalidation: "Закрытие ниже стопа / последнего HL.",
     };
   }
-  if (trend === "down" && pd !== "discount") {
-    const zone =
-      nearestZone(
-        fvgs.filter((z) => z.side === "bear"),
-        last.close,
-      ) ??
-      nearestZone(
-        obs.filter((z) => z.side === "bear"),
-        last.close,
-      );
-    const entry = zone ? (zone.top + zone.bottom) / 2 : last.close;
-    const stop = Math.max(zone?.top ?? last.close, last.close) + atr * 0.6;
+  if (shortWanted) {
+    const zone = bearZ;
+    const entry = zone ? (zone.top + zone.bottom) / 2 : range.high - (range.high - range.low) * 0.3;
+    const stop = Math.max(zone?.top ?? range.high, entry) + atr * 0.5;
     const sellLiq = liq.filter((l) => l.side === "sell").sort((a, b) => b.price - a.price);
-    const targets = [range.eq, sellLiq.at(-1)?.price ?? range.low].filter(
+    const targets = [range.eq, sellLiq.at(-1)?.price ?? range.low, range.low].filter(
       (t, i, a) => t < entry && a.indexOf(t) === i,
     );
     return {
-      thesis: "Шорт из премии в нисходящей структуре. Возврат в медвежий FVG / order block.",
+      thesis:
+        pd === "discount"
+          ? "Структура вниз. Лимит в премию — цена ещё не в зоне, ордер уже рабочий."
+          : "Шорт из премии / медвежьего блока. Реакция в зоне, не догон.",
       entry,
       stop,
       targets: targets.slice(0, 3),
-      invalidation: "Закрытие выше последнего LH / order block.",
+      invalidation: "Закрытие выше стопа / последнего LH.",
     };
   }
+  const zone = bullZ;
+  const entry = zone ? (zone.top + zone.bottom) / 2 : range.low + (range.high - range.low) * 0.3;
+  const stop = Math.min(zone?.bottom ?? range.low, entry) - atr * 0.5;
   return {
-    thesis: "Диапазон. Ждём свип ликвидности и CHoCH, не торгуем середину без смещения.",
-    entry: null,
-    stop: null,
-    targets: [range.high, range.low],
-    invalidation: "Импульс с закрытием за пределами dealing range.",
+    thesis: "Нет чистого тренда — лимит от нижней половины диапазона.",
+    entry,
+    stop,
+    targets: [range.eq, range.high].filter((t) => t > entry).slice(0, 2),
+    invalidation: "Закрытие ниже стопа.",
   };
 }
 

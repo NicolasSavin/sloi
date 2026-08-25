@@ -30,7 +30,7 @@ export const DEFAULT_EA: EaSettings = {
   autoTrade: true,
   lots: 0.1,
   maxSpread: 80,
-  minCover: 2.2,
+  minCover: 1.4,
   alerts: true,
 };
 

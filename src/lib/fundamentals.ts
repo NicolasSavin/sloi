@@ -346,35 +346,23 @@ export function gateAdvice(
     wall.type !== "mixed" &&
     ((base.action === "long" && wall.wanted === "down") ||
       (base.action === "short" && wall.wanted === "up"));
-  if (againstWall && wall) {
-    return {
-      ...base,
-      action: "wait",
-      title: "Ждать: опционная конструкция против",
-      therefore: `${wall.why} Техника даёт ${base.action === "long" ? "лонг" : "шорт"} — приказ не шлём.`,
-    };
-  }
   const against =
     (base.action === "long" && wind.wanted === "down") ||
     (base.action === "short" && wind.wanted === "up");
-  if (against) {
-    return {
-      ...base,
-      action: "wait",
-      title: "Ждать: фундамент против структуры",
-      therefore: `Техника даёт ${base.action === "long" ? "лонг" : "шорт"}, но ${wind.note} Сигнал не открываем, пока макро не совпадёт с зоной.`,
-    };
-  }
   const withWind =
     (base.action === "long" && wind.wanted === "up") ||
     (base.action === "short" && wind.wanted === "down");
-  const wallBit = wall ? ` Конструкция ${wall.ticker}: ${wall.type === "call-wall" ? "стена коллов" : wall.type === "put-wall" ? "стена путов" : "смешанный OI"} ${wall.strike ?? ""}.` : "";
-  return {
-    ...base,
-    therefore: withWind
-      ? `${base.therefore} Макро попутный.${wallBit}`
-      : `${base.therefore} ${wind.note}${wallBit}`,
-  };
+  const wallBit = wall
+    ? ` Конструкция ${wall.ticker}: ${wall.type === "call-wall" ? "стена коллов" : wall.type === "put-wall" ? "стена путов" : "смешанный OI"} ${wall.strike ?? ""}.`
+    : "";
+  const caution = againstWall
+    ? ` Опцион против — лимитка есть, размер не раздуваем.`
+    : against
+      ? ` Макро встречный — лимит в зоне, рынок не догоняем.`
+      : withWind
+        ? ` Макро попутный.`
+        : ` ${wind.note}`;
+  return { ...base, therefore: `${base.therefore}${caution}${wallBit}` };
 }
 
 export function windLabel(kind: FundWindKind) {

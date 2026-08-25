@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.25"
+#property version   "4.26"
 #property strict
 #property description "На графике: VWAP, профиль, футпринт бара, infusion/splash, Bid/Ask."
 
@@ -19,7 +19,7 @@ input int     Magic           = 220826;
 input int     SlippagePoints  = 20;
 input int     MaxSpreadPoints = 80;
 input double  MaxSkewPct      = 0.12;
-input double  MinCover        = 1.8;
+input double  MinCover        = 1.4;
 input double  MinNetRR        = 1.0;
 input int     OneTradeOnly    = 1;
 input bool    AlertsOn        = true;
