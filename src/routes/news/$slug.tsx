@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppNav } from "@/components/app-nav";
 import { LiveShot } from "@/components/live-shot";
+import { FullStory } from "@/components/news/full-story";
 import { fetchArticle } from "@/lib/market/fetch";
 import { formatPct, formatPrice } from "@/lib/utils";
 
@@ -81,16 +82,12 @@ function NewsPage() {
               </p>
             )}
             {article.originHref ? (
-              <p className="mt-5">
-                <a
-                  href={article.originHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-accent underline-offset-2 hover:underline"
-                >
-                  Читать новость у {article.source}
-                </a>
-              </p>
+              <FullStory
+                href={article.originHref}
+                foreign={article.foreign}
+                title={article.originTitle || article.title}
+                source={article.source}
+              />
             ) : null}
           </section>
 

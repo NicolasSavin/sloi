@@ -533,6 +533,15 @@ export const fetchArticle = createServerFn({ method: "GET" })
     return { article, quotes: home.quotes };
   });
 
+export const fetchFullStory = createServerFn({ method: "POST" })
+  .validator((input: unknown) =>
+    z.object({ href: z.string().min(8).max(2000), foreign: z.boolean().optional(), title: z.string().max(240).optional() }).parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { loadFullStory } = await import("@/lib/news-full");
+    return loadFullStory(data.href, data.foreign, data.title);
+  });
+
 let homeCache: { at: number; data: HomePayload } | null = null;
 const HOME_TTL = 45_000;
 
