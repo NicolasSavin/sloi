@@ -177,16 +177,22 @@ export function playDispatch(tone: SignalTone) {
   window.setTimeout(() => playSignal(tone), 320);
 }
 
+let talkGen = 0;
+let identAudio: HTMLAudioElement | null = null;
+let studioAudio: HTMLAudioElement | null = null;
+let voicesCache: SpeechSynthesisVoice[] = [];
+let studioOk: boolean | null = null;
+
 export function stopSpeech() {
   if (typeof window === "undefined") return;
   talkGen += 1;
   identAudio?.pause();
+  if (studioAudio) {
+    studioAudio.pause();
+    studioAudio.src = "";
+  }
   window.speechSynthesis?.cancel();
 }
-
-let talkGen = 0;
-let identAudio: HTMLAudioElement | null = null;
-let voicesCache: SpeechSynthesisVoice[] = [];
 
 function scoreRu(v: SpeechSynthesisVoice) {
   const n = `${v.name} ${v.lang}`.toLowerCase();
@@ -246,16 +252,57 @@ function splitSentences(text: string) {
     .filter(Boolean);
 }
 
+async function playStudio(text: string, gen: number): Promise<boolean> {
+  try {
+    if (studioOk === false) return false;
+    const res = await fetch("/api/voice", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+    if (res.status === 503) {
+      studioOk = false;
+      return false;
+    }
+    if (!res.ok) return false;
+    studioOk = true;
+    const blob = await res.blob();
+    if (gen !== talkGen) return true;
+    const url = URL.createObjectURL(blob);
+    await new Promise<void>((resolve) => {
+      studioAudio?.pause();
+      const a = new Audio(url);
+      studioAudio = a;
+      a.onended = () => {
+        URL.revokeObjectURL(url);
+        resolve();
+      };
+      a.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve();
+      };
+      void a.play().catch(() => resolve());
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function speakRu(text: string, opts?: { ident?: boolean }): Promise<void> {
-  if (typeof window === "undefined" || !window.speechSynthesis) return;
+  if (typeof window === "undefined") return;
   const gen = ++talkGen;
-  window.speechSynthesis.cancel();
+  window.speechSynthesis?.cancel();
+  studioAudio?.pause();
   if (opts?.ident) await playIdent();
   if (gen !== talkGen) return;
+  const said = forVoice(text);
+  if (await playStudio(said, gen)) return;
+  if (!window.speechSynthesis) return;
   await waitVoices();
   if (gen !== talkGen) return;
   const voice = pickRu();
-  const parts = splitSentences(forVoice(text));
+  const parts = splitSentences(said);
   for (const part of parts) {
     if (gen !== talkGen) return;
     await new Promise<void>((resolve) => {
