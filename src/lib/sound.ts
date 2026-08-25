@@ -5,37 +5,49 @@ export type SignalTone = "long" | "short";
 const PAIR_RU: Record<string, string> = {
   XAUUSD: "золото",
   XAGUSD: "серебро",
-  EURUSD: "евро доллар",
-  GBPUSD: "фунт доллар",
-  USDJPY: "доллар иена",
-  USDCHF: "доллар франк",
-  AUDUSD: "австралиец",
-  USDCAD: "канадец",
-  NZDUSD: "киви",
-  EURGBP: "евро фунт",
-  EURJPY: "евро иена",
-  GBPJPY: "фунт иена",
-  AUDJPY: "австралиец иена",
-  CADJPY: "канадец иена",
-  NZDJPY: "киви иена",
-  EURCHF: "евро франк",
-  EURAUD: "евро австралиец",
-  GBPAUD: "фунт австралиец",
-  XTIUSD: "нефть ВТИ",
-  XBRUSD: "brent",
-  XNGUSD: "газ",
+  EURUSD: "евро",
+  GBPUSD: "фунт",
+  USDJPY: "иена",
+  USDCHF: "франк",
+  AUDUSD: "австралийский доллар",
+  USDCAD: "канадский доллар",
+  NZDUSD: "новозеландский доллар",
+  EURGBP: "евро к фунту",
+  EURJPY: "евро к иене",
+  GBPJPY: "фунт к иене",
+  AUDJPY: "австралиец к иене",
+  CADJPY: "канадец к иене",
+  NZDJPY: "киви к иене",
+  EURCHF: "евро к франку",
+  EURAUD: "евро к австралийцу",
+  GBPAUD: "фунт к австралийцу",
+  XTIUSD: "нефть марки вити",
+  XBRUSD: "нефть брент",
+  XNGUSD: "природный газ",
   ETHUSD: "эфир",
   BTCUSD: "биткоин",
   LTCUSD: "лайткоин",
   BCHUSD: "биткоин кэш",
   XRPUSD: "рипл",
-  TONUSD: "тон",
-  SPY: "эс энд пи",
-  QQQ: "наздак",
+  TONUSD: "тонкоин",
+  SPY: "индекс эс энд пи",
+  QQQ: "индекс наздак",
+  IWM: "расел",
+  DIA: "индекс дау",
 };
 
-function pairRu(id: string, label: string) {
-  return PAIR_RU[id] ?? label.replace("/", " ");
+export function pairRu(id: string, label: string) {
+  return PAIR_RU[id] ?? label.replace("/", " к ");
+}
+
+function shortWhy(raw?: string) {
+  if (!raw) return "";
+  const t = forVoice(raw)
+    .replace(/\d+[.,]\d{3,}/g, "уровня")
+    .split(/(?<=[.!?])\s+/)[0]
+    ?.trim() ?? "";
+  if (t.length < 12) return "";
+  return t.length > 140 ? `${t.slice(0, 136)}.` : t;
 }
 
 export function forVoice(text: string) {
@@ -62,22 +74,25 @@ export function forVoice(text: string) {
 export function scriptOrder(m: {
   spec: { id: string; label: string; pip: number };
   lastClose: number;
-  advice: { action: "long" | "short" | "wait" | "skip" };
+  advice: { action: "long" | "short" | "wait" | "skip"; therefore?: string };
   setup: { entry: number | null; stop: number | null; targets: number[] };
+  story?: { doing?: string };
 }): string {
   const name = pairRu(m.spec.id, m.spec.label);
   if (m.advice.action !== "long" && m.advice.action !== "short") {
-    return `${name}. Сейчас ждём. Ордер не открываем.`;
+    return `По ${name} ждём. Ордер не открываем.`;
   }
   const side = m.advice.action === "long" ? "покупка" : "продажа";
   const entry = m.setup.entry;
   const stop = m.setup.stop ?? entry ?? m.lastClose;
-  if (entry == null) return `${name}. ${side}. Зону ещё считаем.`;
+  if (entry == null) return `По ${name} ${side}. Зону ещё считаем.`;
   const mode = fillMode(m.advice.action, m.lastClose, entry, stop, m.setup.targets[0]);
   const dist = Math.abs(m.lastClose - entry);
   const pips = m.spec.pip > 0 ? Math.round(dist / m.spec.pip) : 0;
+  const why = shortWhy(m.story?.doing || m.advice.therefore);
+  const logic = why ? ` Логика: ${why}` : "";
   if (mode === "MARKET") {
-    return `Сигнал по ${name}. ${side} по рынку. Вход сейчас.`;
+    return `Сигнал по ${name}. ${side} по рынку. Вход сейчас.${logic}`;
   }
   if (mode === "LATE") {
     return `По ${name} поздно. ${side} не догоняем.`;
@@ -88,7 +103,23 @@ export function scriptOrder(m: {
       : pips <= 25
         ? `до входа примерно ${pips} пунктов`
         : `до зоны ещё ${pips} пунктов, ордер подождёт`;
-  return `Сигнал по ${name}. ${side} лимитным ордером. ${when}.`;
+  return `Сигнал по ${name}. ${side} лимитным ордером. ${when}.${logic}`;
+}
+
+export function scriptExit(hit: {
+  symbol: string;
+  label: string;
+  action: "long" | "short";
+  status?: string;
+}): string {
+  const name = pairRu(hit.symbol, hit.label);
+  const side = hit.action === "long" ? "покупка" : "продажа";
+  if (hit.status === "target") return `По ${name} сделка закрыта по тейку. ${side} дошла до цели.`;
+  if (hit.status === "stop") return `По ${name} сделка закрыта по стопу. ${side} не удержалась.`;
+  if (hit.status === "halt") return `По ${name} ордер сняли из‑за новости. Это не стоп и не тейк.`;
+  if (hit.status === "reverse") return `По ${name} сценарий сняли: характер против. Лимитку убрали.`;
+  if (hit.status === "expired") return `По ${name} вход так и не дали. Сделка не состоялась.`;
+  return `По ${name} ордер закрыт.`;
 }
 
 let ctx: AudioContext | null = null;

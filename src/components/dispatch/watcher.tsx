@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { isOpenAction, useDispatchStore } from "@/lib/dispatch-store";
 import { fetchDigest, fetchMarket } from "@/lib/market/fetch";
-import { playDispatch, scriptOrder, speakRu, unlockSound } from "@/lib/sound";
+import { playDispatch, scriptExit, scriptOrder, speakRu, unlockSound } from "@/lib/sound";
 import { newsAlertKey, newsAlertText } from "@/lib/calendar";
 import { useDeskStore } from "@/lib/desk-store";
 import { actionLabel } from "@/lib/advisor";
@@ -22,6 +22,7 @@ export function DispatchWatcher() {
   const voiceOn = useDeskStore((s) => s.voiceOn);
   const soundOn = useDeskStore((s) => s.soundOn);
   const seen = useRef<Record<string, string>>({});
+  const closedVoice = useRef<Record<string, string>>({});
   const primed = useRef(false);
   const settling = useRef(false);
   const newsSeen = useRef("");
@@ -88,13 +89,21 @@ export function DispatchWatcher() {
           const market = digest.markets.find((m) => m.spec.id === h.symbol);
           return settleHit(h, market, halt, byId.get(h.symbol));
         });
+        for (const h of next) {
+          const st = h.status ?? "open";
+          if (st === "open") continue;
+          if (closedVoice.current[h.id] === st) continue;
+          closedVoice.current[h.id] = st;
+          if (voiceOn) void speakRu(scriptExit(h));
+          if (soundOn) playDispatch(st === "target" ? "long" : "short");
+        }
         patchHits(next);
       } finally {
         settling.current = false;
       }
     };
     void run();
-  }, [q.data, patchHits]);
+  }, [q.data, patchHits, voiceOn, soundOn]);
 
   useEffect(() => {
     if (!onDuty) primed.current = false;
