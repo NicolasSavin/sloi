@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.22"
+#property version   "4.23"
 #property strict
 #property description "На графике: VWAP, профиль, футпринт бара, infusion/splash, Bid/Ask."
 
@@ -13,7 +13,7 @@ input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  WatchList       = "EURUSD,GBPUSD,USDJPY,USDCHF,AUDUSD,USDCAD,NZDUSD,EURGBP,EURJPY,GBPJPY,AUDJPY,CADJPY,NZDJPY,EURCHF,EURAUD,GBPAUD,XAUUSD,XAGUSD,XTIUSD,XBRUSD,XNGUSD,ETHUSD,LTCUSD,BCHUSD,BTCUSD,XRPUSD,TONUSD";
 input string  BrokerSuffix    = ".cs";
 input int     WorkTF          = 60;
-input bool    AutoTrade       = false;
+input bool    AutoTrade       = true;
 input double  Lots            = 0.10;
 input int     Magic           = 220826;
 input int     SlippagePoints  = 20;
@@ -702,7 +702,16 @@ void MaybeTrade(int idx, int dir, double entry, double stop, double target, stri
      Alert("SLOI ", s, " ", verdict, " ", IntegerToString(spPts), "pt");
      PlaySound("alert.wav");
    }
-   if(!g_auto) { g_lastKey[idx] = key; return; }
+   if(!g_auto)
+     {
+      if(g_alerts && key != g_lastKey[idx])
+        {
+         Alert("SLOI ", s, " ", verdict, " — АВТО ВЫКЛ, ордер не шлём. Нажмите АВТО ВКЛ.");
+         PlaySound("alert.wav");
+        }
+      g_lastKey[idx] = key;
+      return;
+     }
    if(OneTradeOnly > 0 && CountMine(s) >= OneTradeOnly) { g_lastKey[idx] = key; return; }
    RefreshRates();
    int digits = DigitsOf(s);
@@ -1033,6 +1042,7 @@ void DrawDesk()
       int dir = 0, spPts = 0;
       double entry = 0, stop = 0, target = 0;
       Scan(i, bias, verdict, why, dir, entry, stop, target, spPts);
+      if(!g_auto && dir != 0) why = "АВТО ВЫКЛ";
       MaybeTrade(i, dir, entry, stop, target, verdict, spPts);
 
       int ry = y + setH + head + i * rowH;
