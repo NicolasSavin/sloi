@@ -483,6 +483,7 @@ async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }
       htfBias: h4bias.get(r.spec.id),
       d1Bias: d1bias.get(r.spec.id),
       choch,
+      target: r.market.setup.targets[0] ?? undefined,
     };
     const advice = gateAdvice(r.market.advice, wind, fund.halt, ctx);
     return { ...r.market, wind, advice, htfBias: ctx.htfBias, d1Bias: ctx.d1Bias };

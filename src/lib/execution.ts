@@ -116,7 +116,8 @@ export function fillMode(
   target?: number,
 ): "LIMIT" | "MARKET" | "LATE" {
   const risk = Math.abs(entry - stop);
-  const zone = risk * 0.5;
+  const toTp = target != null ? Math.abs(target - entry) : 0;
+  const zone = Math.max(risk, toTp * 0.2);
   if (!Number.isFinite(zone) || zone <= 0) return "LIMIT";
   if (action === "long") {
     if (target != null && target > entry && last > entry + (target - entry) * 0.45) return "LATE";
@@ -141,6 +142,7 @@ export function refineAdvice(
     htfBias?: "bullish" | "bearish" | "range";
     d1Bias?: "bullish" | "bearish" | "range";
     choch?: boolean;
+    target?: number;
   },
 ): Advice {
   if (haltApplies(opts.id, opts.halt)) {
@@ -156,19 +158,18 @@ export function refineAdvice(
   const last = opts.last ?? opts.h1?.at(-1)?.close ?? opts.entry ?? 0;
   const entry = opts.entry ?? last;
   const stop = opts.stop ?? 0;
-  const mode = fillMode(advice.action, last, entry, stop);
+  const mode = fillMode(advice.action, last, entry, stop, opts.target);
   if (mode === "LATE") {
     return { ...advice, action: "wait", title: "Поздно: цена уже убежала", therefore: "Лимитку не догоняем." };
   }
   const stack = stackGrade(advice.action, opts.htfBias, opts.d1Bias, opts.choch);
-  if (stack.block === "all") {
+  if (stack.block === "all" && mode !== "MARKET") {
     return { ...advice, action: "wait", title: "Ждать старший ТФ", therefore: stack.note };
   }
-  if (stack.block === "market" && mode === "MARKET") {
-    return { ...advice, action: "wait", title: "Ждать зону / старший ТФ", therefore: `${stack.note} Рынок с одного часа не шлём.` };
-  }
-  if (!sess.ok && mode === "MARKET") {
-    return { ...advice, action: "wait", title: "Ждать сессию", therefore: sess.note };
+  if (mode === "MARKET") {
+    const bits = [stack.note, "Цена в зоне — рынок, не отложка."].filter(Boolean).join(" ");
+    const title = advice.action === "long" ? "Рынок: лонг в зоне" : "Рынок: шорт в зоне";
+    return { ...advice, title, therefore: `${advice.therefore} ${bits}` };
   }
   const bits = [stack.note, !sess.ok ? "Азия: только лимит." : sess.note].filter(Boolean).join(" ");
   const title =

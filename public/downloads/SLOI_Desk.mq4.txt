@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.27"
+#property version   "4.28"
 #property strict
 #property description "На графике: VWAP, профиль, футпринт бара, infusion/splash, Bid/Ask."
 
@@ -781,7 +781,7 @@ void MaybeTrade(int idx, int dir, double entry, double stop, double target, stri
    double px = dir > 0 ? AskOf(s) : BidOf(s);
    if(g_lim[idx] > 0 && entry > 0)
      {
-      double zone = MathAbs(entry - stop) * 0.5;
+      double zone = MathAbs(entry - stop);
       if(dir > 0 && AskOf(s) > entry + zone) { cmd = OP_BUYLIMIT; px = NormalizeDouble(entry, digits); }
       if(dir < 0 && BidOf(s) < entry - zone) { cmd = OP_SELLLIMIT; px = NormalizeDouble(entry, digits); }
      }
