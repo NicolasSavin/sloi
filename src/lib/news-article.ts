@@ -1,4 +1,4 @@
-import type { DigestMarket } from "@/lib/digest";
+import { pairHeadline, type DigestMarket } from "@/lib/digest";
 import { marketArt } from "@/lib/art";
 import type { HomeQuote } from "@/lib/home";
 import type { NewsArticle, NewsImpact, NewsItem } from "@/lib/news";
@@ -159,9 +159,7 @@ export function buildArticle(item: NewsItem, quotes: HomeQuote[]): NewsArticle {
 }
 
 function deskHeadline(m: DigestMarket): string {
-  if (m.advice.action === "long") return `${m.spec.label}: крупняк набирает с дисконта`;
-  if (m.advice.action === "short") return `${m.spec.label}: премия, крупняк раздаёт`;
-  return `${m.spec.label}: пауза у края диапазона`;
+  return pairHeadline(m);
 }
 
 export function buildDeskArticles(

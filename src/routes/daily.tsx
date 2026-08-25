@@ -8,6 +8,7 @@ import { fetchDigest } from "@/lib/market/fetch";
 import { marketArt } from "@/lib/art";
 import { actionLabel } from "@/lib/advisor";
 import { Badge } from "@/components/ui/badge";
+import { pairHeadline } from "@/lib/digest";
 import { formatPct, formatPrice } from "@/lib/utils";
 
 export const Route = createFileRoute("/daily")({
@@ -81,8 +82,11 @@ function DailyPage() {
         </section>
 
         <article className="panel-volume mt-10 rounded-xl p-5 sm:p-8">
+          <p className="font-mono text-xs tracking-[0.2em] text-accent">{digest.article.kicker}</p>
+          <h2 className="mt-2 text-3xl font-medium">{digest.article.title}</h2>
+          <p className="mt-3 text-muted">{digest.article.dek}</p>
           {digest.article.body.split("\n\n").map((p) => (
-            <p key={p.slice(0, 24)} className="mt-4 text-base leading-relaxed first:mt-0">
+            <p key={p.slice(0, 24)} className="mt-4 text-base leading-relaxed">
               {p}
             </p>
           ))}
@@ -98,7 +102,7 @@ function DailyPage() {
                 </div>
                 <div className="p-4">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium">{m.spec.label}</span>
+                    <span className="text-sm font-medium leading-snug">{pairHeadline(m)}</span>
                     <Badge tone={m.bias === "bullish" ? "bull" : m.bias === "bearish" ? "bear" : "warn"}>
                       {actionLabel(m.advice.action)}
                     </Badge>

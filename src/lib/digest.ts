@@ -83,6 +83,7 @@ export interface PosterSetup {
 
 export interface DailyPoster {
   pair: string;
+  headline: string;
   price: string;
   dateLabel: string;
   atr: string;
@@ -319,6 +320,71 @@ export function levelsFromSnap(snap: SmcSnapshot, decimals: number): ChartLevel[
   });
 }
 
+export function pairHeadline(m: DigestMarket, snap?: SmcSnapshot): string {
+  const pair = m.spec.label;
+  const px = (n: number) => formatPrice(n, m.spec.decimals);
+  const ev = snap?.events.at(-1);
+  const pat = snap?.patterns[0];
+  const wy = snap?.wyckoff;
+  const swept = snap?.liquidity.find((l) => l.swept);
+  const wall = m.construction;
+  const entry = m.setup.entry;
+  const act = m.advice.action;
+  const zone =
+    act === "short" && entry != null
+      ? `от ${px(entry)}`
+      : act === "long" && entry != null
+        ? `к ${px(entry)}`
+        : "";
+
+  if (act === "short" && ev?.kind === "CHoCH") {
+    return `${pair}: CHoCH вниз у ${px(ev.price)} — раздают ${zone || "из премии"}`;
+  }
+  if (act === "long" && ev?.kind === "CHoCH") {
+    return `${pair}: CHoCH вверх у ${px(ev.price)} — набор ${zone || "из дисконта"}`;
+  }
+  if (act === "short" && wy?.event === "utad") {
+    return `${pair}: UTAD / раздача. Шорт ${zone || "от верха"}`;
+  }
+  if (act === "long" && wy?.event === "spring") {
+    return `${pair}: спринг снял стопы. Лонг ${zone || "от низа"}`;
+  }
+  if (act === "short" && swept?.side === "buy") {
+    return `${pair}: свип максимумов ${px(swept.price)}, ждут продажи`;
+  }
+  if (act === "long" && swept?.side === "sell") {
+    return `${pair}: свип минимумов ${px(swept.price)}, ждут набор`;
+  }
+  if (act === "short" && pat) {
+    return `${pair}: ${pat.name} — приоритет продаж ${zone}`.trim();
+  }
+  if (act === "long" && pat) {
+    return `${pair}: ${pat.name} — приоритет покупок ${zone}`.trim();
+  }
+  if (act === "short") {
+    return `${pair}: премия, крупняк раздаёт${zone ? ` ${zone}` : ""}`;
+  }
+  if (act === "long") {
+    return `${pair}: дисконт, крупняк набирает${zone ? ` ${zone}` : ""}`;
+  }
+  if (act === "skip") {
+    return `${pair}: ход есть, спред съедает цель — пауза`;
+  }
+  if (wall && wall.type !== "mixed") {
+    return `${pair}: стена ${wall.type === "call-wall" ? "коллов" : "путов"} у ${wall.strike ?? "страйка"} — без приказа`;
+  }
+  if (ev?.kind === "CHoCH") {
+    return `${pair}: смена характера у ${px(ev.price)}, приказа ещё нет`;
+  }
+  if (swept) {
+    return `${pair}: вынесли ${swept.side === "buy" ? "хай" : "лоу"} ${px(swept.price)}, ждём закрытие внутрь`;
+  }
+  if (m.bias === "range") {
+    return `${pair}: диапазон ${px(m.range.low)}–${px(m.range.high)}, середину не торгуем`;
+  }
+  return `${pair}: ждут край, цена ${px(m.lastClose)}`;
+}
+
 export function writeArticle(
   lead: DigestMarket,
   others: DigestMarket[],
@@ -332,6 +398,7 @@ export function writeArticle(
     .slice(0, 4)
     .map((m) => m.spec.label)
     .join(", ");
+  const title = pairHeadline(lead, leadSnap);
 
   const body = [
     fund.halt.active ? fund.halt.line : "",
@@ -361,8 +428,8 @@ export function writeArticle(
 
   return {
     kicker: `Крупняк · ${dateLabel(date)}`,
-    title: `${name}. Что делает крупный игрок`,
-    dek: "Одна история: структура, фундамент и сентимент — что он сделал, чего ждёт, к чему это приведёт.",
+    title,
+    dek: `${name}: что сделал крупный, чего ждёт, чем кончится. Не шаблон «полный разбор».`,
     body,
   };
 }
@@ -401,6 +468,7 @@ export function buildPoster(lead: DigestMarket, snap: SmcSnapshot, date: string)
   const invalid = snap.trend === "down" ? snap.dealingRange.high : snap.dealingRange.low;
   return {
     pair: spec.label,
+    headline: pairHeadline(lead, snap),
     price: px(lead.lastClose),
     dateLabel: shortDate(date),
     atr: `≈ ${atrPips} ${spec.kind === "fx" ? "pips" : "пунктов"}`,

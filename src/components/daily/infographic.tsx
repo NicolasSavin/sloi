@@ -161,8 +161,11 @@ export function DailyInfographic({ digest }: { digest: DailyDigest }) {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-4xl">
-              {p.pair.toUpperCase()} — РАСШИРЕННЫЙ ПОЛНЫЙ РАЗБОР {p.dateLabel}
+              {p.headline}
             </h1>
+            <p className="mt-2 font-mono text-[11px] tracking-[0.18em] text-slate-500">
+              {p.pair.toUpperCase()} · {p.dateLabel}
+            </p>
             <div className="mt-3 flex flex-wrap items-end gap-3">
               <p className="font-display text-5xl font-medium leading-none sm:text-7xl">≈ {p.price}</p>
               <span className="mb-1 rounded-md bg-[#14b8c6] px-2 py-1 font-mono text-[10px] font-bold tracking-widest text-[#042226]">
