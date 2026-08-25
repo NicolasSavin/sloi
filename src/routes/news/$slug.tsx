@@ -50,8 +50,7 @@ function NewsPage() {
           <div className="news-veil absolute inset-0" />
           <div className="relative mx-auto flex min-h-80 max-w-3xl flex-col justify-end px-4 py-10 sm:min-h-[28rem] sm:px-6 sm:py-14">
             <p className="font-mono text-xs tracking-[0.18em] text-accent">
-              {article.foreign ? "ИНТЕРПРЕТАЦИЯ · " : ""}
-              {article.tag} · {article.source}
+              НОВОСТЬ · {article.tag} · {article.source}
               {timeLabel(article.published) ? ` · ${timeLabel(article.published)}` : ""}
             </p>
             <h1 className="mt-3 text-4xl font-medium leading-tight sm:text-6xl">{article.title}</h1>
@@ -60,9 +59,44 @@ function NewsPage() {
         </header>
 
         <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6 sm:py-14">
+          <section className="panel-volume mb-10 rounded-xl p-5 sm:p-8">
+            <p className="font-mono text-xs tracking-[0.22em] text-accent">ФАКТ ЛЕНТЫ</p>
+            <p className="mt-2 text-sm text-dim">
+              {article.source}
+              {timeLabel(article.published) ? ` · ${timeLabel(article.published)}` : ""}
+              {article.foreign ? " · оригинал на иностранном" : ""}
+            </p>
+            <blockquote className="mt-4 text-2xl font-medium leading-snug">
+              {article.originTitle || article.title}
+            </blockquote>
+            {article.body.length ? (
+              article.body.map((p) => (
+                <p key={p.slice(0, 40)} className="mt-4 text-base leading-relaxed text-muted">
+                  {p}
+                </p>
+              ))
+            ) : (
+              <p className="mt-4 text-base leading-relaxed text-muted">
+                Лента отдала только заголовок. Полный текст — у источника, мы его не переписываем.
+              </p>
+            )}
+            {article.originHref ? (
+              <p className="mt-5">
+                <a
+                  href={article.originHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-accent underline-offset-2 hover:underline"
+                >
+                  Читать новость у {article.source}
+                </a>
+              </p>
+            ) : null}
+          </section>
+
           {article.impact ? (
             <section className="panel-volume mb-10 rounded-xl p-5 sm:p-8">
-              <p className="font-mono text-xs tracking-[0.22em] text-accent">ОЦЕНКА ВЛИЯНИЯ</p>
+              <p className="font-mono text-xs tracking-[0.22em] text-accent">ОЦЕНКА ВЛИЯНИЯ SLOI</p>
               <p className="mt-2 text-2xl">
                 {article.impact.pairLabel}: {article.impact.weight},{" "}
                 {article.impact.tone === "bull" ? "в плюс" : article.impact.tone === "bear" ? "в минус" : "нейтрально"}
@@ -70,12 +104,6 @@ function NewsPage() {
               <p className="mt-3 text-base leading-relaxed text-muted">{article.impact.line}</p>
             </section>
           ) : null}
-          {article.body.map((p) => (
-            <p key={p.slice(0, 40)} className="mt-5 text-base leading-relaxed first:mt-0">
-              {p}
-            </p>
-          ))}
-
           <section className="panel-volume mt-10 rounded-xl p-5 sm:p-8">
             <p className="font-mono text-xs tracking-[0.22em] text-accent">КАК ЧИТАЕТ SLOI</p>
             <h2 className="mt-2 text-2xl">Что это значит для рынка</h2>

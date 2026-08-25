@@ -123,26 +123,21 @@ function buildImpact(item: NewsItem, q: HomeQuote | undefined): NewsImpact {
 }
 
 export function buildArticle(item: NewsItem, quotes: HomeQuote[]): NewsArticle {
-  const title = rusTitle(item);
+  const ru = rusTitle(item);
   const q = relatedQuote(item, quotes);
-  const tape = tapeLine(q);
   const foreign = item.foreign;
   const impact = buildImpact(item, q);
+  const factTitle = item.originTitle || item.title;
+  const snippet = (item.snippet || "").trim();
+  const snippetIsTitle = !snippet || snippet === factTitle || snippet === item.title;
 
-  const dek = impact.line;
+  const dek = snippetIsTitle
+    ? `${item.source}${foreign ? " · оригинал на иностранном" : ""}`
+    : snippet.slice(0, 280);
 
   const body: string[] = [];
-  body.push(
-    foreign
-      ? `${item.source} (оригинал на иностранном). Смысл: ${title || item.title}. Текст не копируем.`
-      : `${item.source}: «${item.title}».`,
-  );
-  if (item.snippet) body.push(item.snippet.slice(0, 420));
-  body.push(`Оценка влияния: ${impact.line}`);
-  body.push(tape);
-  body.push(
-    "Это новость и оценка фона, не приказ. Сделку стол даёт отдельно, после сверки с графиком и брокером.",
-  );
+  if (!snippetIsTitle) body.push(snippet.slice(0, 900));
+  else if (foreign && ru) body.push(`Смысл заголовка: ${ru}`);
 
   const take = {
     doing: `Лента дала факт. По ${impact.pairLabel} тон ${impact.tone === "bull" ? "в пользу роста" : impact.tone === "bear" ? "в пользу снижения" : "нейтральный"}, вес — ${impact.weight}.`,
@@ -152,7 +147,8 @@ export function buildArticle(item: NewsItem, quotes: HomeQuote[]): NewsArticle {
 
   return {
     ...item,
-    title: title || item.title,
+    title: ru || factTitle,
+    originTitle: factTitle,
     dek,
     body,
     take,
