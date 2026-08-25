@@ -23,6 +23,7 @@ import { Route as ApiArchiveDotjsonRouteImport } from './routes/api/archive[.]js
 import { Route as ApiBrokerRouteImport } from './routes/api/broker'
 import { Route as ApiEaDotmq4RouteImport } from './routes/api/ea[.]mq4'
 import { Route as ApiSignalsDottxtRouteImport } from './routes/api/signals[.]txt'
+import { Route as ApiVoiceRouteImport } from './routes/api/voice'
 import { Route as NewsIndexRouteImport } from './routes/news/index'
 import { Route as NewsSlugRouteImport } from './routes/news/$slug'
 
@@ -96,6 +97,11 @@ const ApiSignalsDottxtRoute = ApiSignalsDottxtRouteImport.update({
   path: '/api/signals.txt',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiVoiceRoute = ApiVoiceRouteImport.update({
+  id: '/api/voice',
+  path: '/api/voice',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const NewsIndexRoute = NewsIndexRouteImport.update({
   id: '/news/',
   path: '/news/',
@@ -122,6 +128,7 @@ export interface FileRoutesByFullPath {
   '/api/broker': typeof ApiBrokerRoute
   '/api/ea.mq4': typeof ApiEaDotmq4Route
   '/api/signals.txt': typeof ApiSignalsDottxtRoute
+  '/api/voice': typeof ApiVoiceRoute
   '/news/$slug': typeof NewsSlugRoute
   '/news/': typeof NewsIndexRoute
 }
@@ -140,6 +147,7 @@ export interface FileRoutesByTo {
   '/api/broker': typeof ApiBrokerRoute
   '/api/ea.mq4': typeof ApiEaDotmq4Route
   '/api/signals.txt': typeof ApiSignalsDottxtRoute
+  '/api/voice': typeof ApiVoiceRoute
   '/news/$slug': typeof NewsSlugRoute
   '/news': typeof NewsIndexRoute
 }
@@ -159,6 +167,7 @@ export interface FileRoutesById {
   '/api/broker': typeof ApiBrokerRoute
   '/api/ea.mq4': typeof ApiEaDotmq4Route
   '/api/signals.txt': typeof ApiSignalsDottxtRoute
+  '/api/voice': typeof ApiVoiceRoute
   '/news/$slug': typeof NewsSlugRoute
   '/news/': typeof NewsIndexRoute
 }
@@ -179,6 +188,7 @@ export interface FileRouteTypes {
     | '/api/broker'
     | '/api/ea.mq4'
     | '/api/signals.txt'
+    | '/api/voice'
     | '/news/$slug'
     | '/news/'
   fileRoutesByTo: FileRoutesByTo
@@ -197,6 +207,7 @@ export interface FileRouteTypes {
     | '/api/broker'
     | '/api/ea.mq4'
     | '/api/signals.txt'
+    | '/api/voice'
     | '/news/$slug'
     | '/news'
   id:
@@ -215,6 +226,7 @@ export interface FileRouteTypes {
     | '/api/broker'
     | '/api/ea.mq4'
     | '/api/signals.txt'
+    | '/api/voice'
     | '/news/$slug'
     | '/news/'
   fileRoutesById: FileRoutesById
@@ -234,6 +246,7 @@ export interface RootRouteChildren {
   ApiBrokerRoute: typeof ApiBrokerRoute
   ApiEaDotmq4Route: typeof ApiEaDotmq4Route
   ApiSignalsDottxtRoute: typeof ApiSignalsDottxtRoute
+  ApiVoiceRoute: typeof ApiVoiceRoute
   NewsSlugRoute: typeof NewsSlugRoute
   NewsIndexRoute: typeof NewsIndexRoute
 }
@@ -338,6 +351,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSignalsDottxtRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/voice': {
+      id: '/api/voice'
+      path: '/api/voice'
+      fullPath: '/api/voice'
+      preLoaderRoute: typeof ApiVoiceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/news/': {
       id: '/news/'
       path: '/news'
@@ -370,6 +390,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiBrokerRoute: ApiBrokerRoute,
   ApiEaDotmq4Route: ApiEaDotmq4Route,
   ApiSignalsDottxtRoute: ApiSignalsDottxtRoute,
+  ApiVoiceRoute: ApiVoiceRoute,
   NewsSlugRoute: NewsSlugRoute,
   NewsIndexRoute: NewsIndexRoute,
 }
