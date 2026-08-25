@@ -453,16 +453,17 @@ const LINES = {
   ],
 };
 
-const TAIL = [
-  "и это уже не шум",
-  "смотрите не тикер, а край",
-  "история на этот час",
-  "пока структура жива",
-  "без погони за ценой",
-  "к обеду картина может смениться",
-  "это про крупняка, не про индикатор",
-  "одна история, не три сигнала",
-];
+const AS: Record<keyof typeof LINES, string[]> = {
+  runUp: ["как на пружине", "без права на передышку", "ровно, без истерики"],
+  runDn: ["как камень с полки", "без торга о цене", "тихо и тяжело"],
+  failDn: ["как недожатый тормоз", "вынесли и не удержали", "медведям не хватило закрытия"],
+  failUp: ["как вспышка без тепла", "дошли и отдали", "ралли без закрепления"],
+  buyDip: ["как набор в тишине", "скидку не оставляют пустой", "ждут своё, не чужое"],
+  sellRally: ["дорогое снова не берут", "с верхней полки", "силу не путают с покупкой"],
+  range: ["как маятник в комнате", "коридор без сюжета", "ждущий режим"],
+  skip: ["ход тонкий, как спред", "лучше пусто, чем в минус с круга", "карта есть — входа нет"],
+  wait: ["пока без сюжета", "стол молчит не зря", "не тикер, а пауза"],
+};
 
 export function pairHeadline(m: DigestMarket, snap?: SmcSnapshot): string {
   const name = humanName(m);
@@ -474,21 +475,21 @@ export function pairHeadline(m: DigestMarket, snap?: SmcSnapshot): string {
   const run = Math.abs(m.changePct);
   const up = m.changePct >= 0;
 
-  let bank = LINES.wait;
-  if (act === "long" && run > 0.28 && up) bank = LINES.runUp;
-  else if (act === "short" && run > 0.28 && !up) bank = LINES.runDn;
-  else if (ev?.kind === "CHoCH" && ev.side === "bull") bank = LINES.failDn;
-  else if (ev?.kind === "CHoCH" && ev.side === "bear") bank = LINES.failUp;
-  else if (wy?.event === "spring" || swept?.side === "sell") bank = LINES.failDn;
-  else if (wy?.event === "utad" || swept?.side === "buy") bank = LINES.failUp;
-  else if (act === "long") bank = LINES.buyDip;
-  else if (act === "short") bank = LINES.sellRally;
-  else if (act === "skip") bank = LINES.skip;
-  else if (m.bias === "range") bank = LINES.range;
+  let bank: keyof typeof LINES = "wait";
+  if (act === "long" && run > 0.28 && up) bank = "runUp";
+  else if (act === "short" && run > 0.28 && !up) bank = "runDn";
+  else if (ev?.kind === "CHoCH" && ev.side === "bull") bank = "failDn";
+  else if (ev?.kind === "CHoCH" && ev.side === "bear") bank = "failUp";
+  else if (wy?.event === "spring" || swept?.side === "sell") bank = "failDn";
+  else if (wy?.event === "utad" || swept?.side === "buy") bank = "failUp";
+  else if (act === "long") bank = "buyDip";
+  else if (act === "short") bank = "sellRally";
+  else if (act === "skip") bank = "skip";
+  else if (m.bias === "range") bank = "range";
 
-  const line = take(bank, n);
-  const tail = take(TAIL, n >> 8);
-  if ((n >> 5) % 3 === 0) return `${name}: ${line}, ${tail}`;
+  const line = take(LINES[bank], n);
+  const as = take(AS[bank], n >> 7);
+  if ((n >> 3) % 2 === 0) return `${name}: ${line} — ${as}`;
   return `${name}: ${line}`;
 }
 
