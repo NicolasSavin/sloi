@@ -352,38 +352,143 @@ function humanName(m: DigestMarket) {
   return HUMAN_NAME[m.spec.id] ?? m.spec.label.replace("/USD", "").replace("USD/", "");
 }
 
+function salt(m: DigestMarket, snap?: SmcSnapshot) {
+  const t = Math.floor(Date.now() / (8 * 60_000));
+  const s = `${m.spec.id}:${Math.round(m.lastClose * 1e4)}:${t}:${m.advice.action}:${m.bias}:${snap?.events.at(-1)?.kind ?? ""}`;
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
+  return h >>> 0;
+}
+
+function take(list: string[], n: number) {
+  return list[n % list.length]!;
+}
+
+const LINES = {
+  runUp: [
+    "акселерация роста",
+    "ещё один рывок вверх",
+    "покупатели не отпускают",
+    "разгон без оглядки",
+    "быки добавили газ",
+    "волна вверх не выдыхается",
+    "тянут без права на дешёвое",
+    "рост уже не похож на откат",
+  ],
+  runDn: [
+    "падение набирает ход",
+    "продавцы не дают отдышаться",
+    "снижение ускорилось",
+    "медведи добавили вес",
+    "ушли вниз без торга",
+    "распродажа не выглядит шуткой",
+    "ловят на каждом отскоке",
+    "дно сегодня не ищут",
+  ],
+  failDn: [
+    "неудачное падение",
+    "продавцы не дожали",
+    "шорт сломался на фитиле",
+    "вынесли вниз и откупили",
+    "медведям не хватило закрытия",
+    "падение не подтвердили",
+    "откуп пришёл быстрее продавцов",
+    "дно не отдали",
+  ],
+  failUp: [
+    "рост сломался",
+    "быкам не дали закрепиться",
+    "вынос вверх оказался пустым",
+    "ралли остановили на хаях",
+    "лонг не подтвердили закрытием",
+    "верхушка не устояла",
+    "покупателей сняли стопами",
+    "отскок кончился вхолостую",
+  ],
+  buyDip: [
+    "покупают на откате",
+    "набор с дисконта",
+    "ждут дешевле, не догоняют",
+    "крупняк стоит ниже рынка",
+    "откат кормят лимитками",
+    "берут с нижней половины",
+    "не гонятся за ценой",
+    "скидку не оставляют пустой",
+  ],
+  sellRally: [
+    "продают в силу",
+    "раздают из премии",
+    "наверху снова предложения",
+    "ралли кормят продажами",
+    "не покупают дорогое",
+    "ждут повыше, чтобы отдать",
+    "с верхней половины не дружат",
+    "сила — не повод догонять лонг",
+  ],
+  range: [
+    "застыли в коридоре",
+    "середину сегодня не торгуют",
+    "ждут край, не шум",
+    "боковик без выбранной стороны",
+    "коридор держит обе стороны",
+    "пока это не тренд, а пауза",
+    "выхода из диапазона нет",
+    "сидят на руках до края",
+  ],
+  skip: [
+    "ход есть, входить рано",
+    "спред съест эту цель",
+    "картинка есть, сделки нет",
+    "лучше пропуск, чем тонкий вход",
+    "запас хода слишком короткий",
+    "не плата за круг сегодня",
+  ],
+  wait: [
+    "пока без выбранной стороны",
+    "тихий час, приказа нет",
+    "карта есть, команды нет",
+    "крупняк сторону ещё не показал",
+    "ждём реакцию, не тикер",
+    "сегодня это фон, не вход",
+  ],
+};
+
+const TAIL = [
+  "и это уже не шум",
+  "смотрите не тикер, а край",
+  "история на этот час",
+  "пока структура жива",
+  "без погони за ценой",
+  "к обеду картина может смениться",
+  "это про крупняка, не про индикатор",
+  "одна история, не три сигнала",
+];
+
 export function pairHeadline(m: DigestMarket, snap?: SmcSnapshot): string {
   const name = humanName(m);
+  const n = salt(m, snap);
   const ev = snap?.events.at(-1);
   const wy = snap?.wyckoff;
   const swept = snap?.liquidity.find((l) => l.swept);
-  const pat = snap?.patterns[0];
   const act = m.advice.action;
-  const up = m.changePct >= 0;
   const run = Math.abs(m.changePct);
+  const up = m.changePct >= 0;
 
-  let line: string;
-  if (act === "long" && run > 0.35 && up) line = "акселерация роста";
-  else if (act === "short" && run > 0.35 && !up) line = "падение набирает ход";
-  else if (ev?.kind === "CHoCH" && ev.side === "bull") line = "неудачное падение";
-  else if (ev?.kind === "CHoCH" && ev.side === "bear") line = "рост сломался";
-  else if (wy?.event === "spring") line = "сняли стопы снизу и откупили";
-  else if (wy?.event === "utad") line = "вынос вершины, раздают";
-  else if (swept?.side === "sell") line = "вынесли дно и вернули";
-  else if (swept?.side === "buy") line = "ложный пробой вверх";
-  else if (act === "long" && m.premiumDiscount === "discount") line = "покупают на откате";
-  else if (act === "short" && m.premiumDiscount === "premium") line = "продают в силу";
-  else if (act === "long") line = "крупняк набирает";
-  else if (act === "short") line = "крупняк раздаёт";
-  else if (act === "skip") line = "ход есть, входить рано";
-  else if (m.construction?.type === "call-wall") line = "уперлись в стену коллов";
-  else if (m.construction?.type === "put-wall") line = "пол из путов держит";
-  else if (pat?.name.toLowerCase().includes("flag") || pat?.name.toLowerCase().includes("флаг")) {
-    line = up ? "флаг перед продолжением роста" : "флаг перед продолжением снижения";
-  } else if (m.bias === "range") line = "застыли в коридоре";
-  else if (up) line = "пока без выбранной стороны";
-  else line = "тихий откат, приказа нет";
+  let bank = LINES.wait;
+  if (act === "long" && run > 0.28 && up) bank = LINES.runUp;
+  else if (act === "short" && run > 0.28 && !up) bank = LINES.runDn;
+  else if (ev?.kind === "CHoCH" && ev.side === "bull") bank = LINES.failDn;
+  else if (ev?.kind === "CHoCH" && ev.side === "bear") bank = LINES.failUp;
+  else if (wy?.event === "spring" || swept?.side === "sell") bank = LINES.failDn;
+  else if (wy?.event === "utad" || swept?.side === "buy") bank = LINES.failUp;
+  else if (act === "long") bank = LINES.buyDip;
+  else if (act === "short") bank = LINES.sellRally;
+  else if (act === "skip") bank = LINES.skip;
+  else if (m.bias === "range") bank = LINES.range;
 
+  const line = take(bank, n);
+  const tail = take(TAIL, n >> 8);
+  if ((n >> 5) % 3 === 0) return `${name}: ${line}, ${tail}`;
   return `${name}: ${line}`;
 }
 
