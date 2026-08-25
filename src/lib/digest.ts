@@ -3,7 +3,7 @@ import type { Candle, OptionConstruction, OptionsSnapshot, SymbolSpec } from "@/
 import { buildConstruction } from "@/lib/options";
 import type { FundWind, FundamentalSnap } from "@/lib/fundamentals";
 import type { SentimentSnap } from "@/lib/sentiment";
-import type { LocalSetup, MarketStory, SmcSnapshot, Zone } from "@/lib/smc/engine";
+import type { LocalSetup, LiquidityPool, MarketStory, SmcSnapshot, StructureEvent, Zone } from "@/lib/smc/engine";
 import { formatPrice } from "@/lib/utils";
 
 export interface DigestMarket {
@@ -48,6 +48,8 @@ export interface LeadChart {
   levels: ChartLevel[];
   zones: Zone[];
   waves: { time: number; price: number; label: string }[];
+  events: StructureEvent[];
+  liquidity: LiquidityPool[];
   trend: "up" | "down" | "range";
   decimals: number;
   margin: {
@@ -544,6 +546,8 @@ export function chartFromSnap(snap: SmcSnapshot, candles: Candle[], decimals: nu
     levels: levelsFromSnap(snap, decimals),
     zones: [...snap.fvgs.slice(-4), ...snap.orderBlocks.slice(-3)],
     waves: snap.waves.slice(-6),
+    events: snap.events.slice(-8),
+    liquidity: snap.liquidity.filter((l) => l.equal || l.swept).slice(-6),
     trend: snap.trend,
     decimals,
     margin: {

@@ -6,16 +6,16 @@ export function PosterChart({ chart, bias }: { chart: LeadChart; bias: "bull" | 
     return <div className="flex h-[380px] items-center justify-center text-sm text-dim">Нет свечей для картины</div>;
   }
   const W = 1280;
-  const H = 520;
+  const H = 560;
   const L = 16;
-  const R = 210;
-  const T = 44;
-  const B = 28;
+  const R = 200;
+  const T = 48;
+  const B = 36;
   const innerW = W - L - R;
   const innerH = H - T - B;
   const maxH = Math.max(...candles.map((c) => c.high));
   const minL = Math.min(...candles.map((c) => c.low));
-  const pad = (maxH - minL) * 0.12 || 0.0001;
+  const pad = (maxH - minL) * 0.14 || 0.0001;
   const hi = maxH + pad;
   const lo = minL - pad;
   const span = hi - lo || 1;
@@ -23,6 +23,14 @@ export function PosterChart({ chart, bias }: { chart: LeadChart; bias: "bull" | 
   const yOf = (p: number) => T + ((hi - p) / span) * innerH;
   const last = candles.at(-1)!;
   const cw = Math.max(3.2, innerW / candles.length - 1.8);
+  const t0 = candles[0]!.time;
+  const t1 = last.time;
+  const xTime = (time: number) => {
+    if (time <= t0) return L;
+    if (time >= t1) return L + innerW;
+    const i = candles.findIndex((c) => c.time >= time);
+    return xOf(i < 0 ? candles.length - 1 : i);
+  };
   const tIdx = (time: number) => {
     const i = candles.findIndex((c) => c.time >= time);
     return i < 0 ? candles.length - 1 : i;
@@ -33,32 +41,37 @@ export function PosterChart({ chart, bias }: { chart: LeadChart; bias: "bull" | 
   const chHi = [first.high, mid.high, last.high];
   const chLo = [first.low, mid.low, last.low];
   const down = chart.trend !== "up";
-  const fill = down ? "rgba(232, 72, 72, 0.16)" : "rgba(46, 204, 113, 0.14)";
   const stroke = down ? "#e74c3c" : "#2ecc71";
+  const px = (n: number) => n.toFixed(Math.min(5, chart.decimals));
 
+  const eq = chart.levels.find((l) => l.name === "EQ");
+  const entry = chart.levels.find((l) => l.name === "вход" || l.id === "entry");
+  const stop = chart.levels.find((l) => l.name === "стоп" || l.id === "stop");
+  const ote = chart.levels.find((l) => l.name === "0.62");
+
+  const zones = chart.zones.slice(-6);
+  const events = chart.events.slice(-6);
+  const liq = chart.liquidity.slice(-5);
   const waves = chart.waves.slice(-5);
-  const callouts = [
-    ...chart.notes.slice(0, 3).map((n) => ({
-      x: xOf(tIdx(n.time)),
-      y: yOf(n.price),
-      title: n.name,
-      sub: n.hint,
-      tone: n.tone,
-    })),
-  ];
 
   return (
     <div className="overflow-hidden rounded-xl border border-[#2a3144] bg-[#07090f]">
-      <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Инфографика графика">
+      <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="SMC на графике">
         <defs>
           <linearGradient id="chFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={stroke} stopOpacity="0.22" />
-            <stop offset="100%" stopColor={stroke} stopOpacity="0.04" />
+            <stop offset="0%" stopColor={stroke} stopOpacity="0.14" />
+            <stop offset="100%" stopColor={stroke} stopOpacity="0.02" />
           </linearGradient>
+          <pattern id="fvgHatchBull" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(35)">
+            <line x1="0" y1="0" x2="0" y2="6" stroke="#2ecc71" strokeWidth="1.2" opacity="0.55" />
+          </pattern>
+          <pattern id="fvgHatchBear" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(-35)">
+            <line x1="0" y1="0" x2="0" y2="6" stroke="#e74c3c" strokeWidth="1.2" opacity="0.55" />
+          </pattern>
         </defs>
         <rect width={W} height={H} fill="#07090f" />
-        <text x={L} y={26} fill="#5eead4" fontFamily="IBM Plex Mono, monospace" fontSize="13" letterSpacing="2.4">
-          ГРАФИЧЕСКИЕ + ГАРМОНИЧЕСКИЕ ПАТТЕРНЫ (ПОЯСНЕНИЯ НА ГРАФИКЕ)
+        <text x={L} y={28} fill="#5eead4" fontFamily="IBM Plex Mono, monospace" fontSize="13" letterSpacing="2.2">
+          SMC НА ГРАФИКЕ · БЛОКИ · FVG · BOS/CHoCH · ЛИКВИДНОСТЬ
         </text>
 
         <path
@@ -69,14 +82,115 @@ export function PosterChart({ chart, bias }: { chart: LeadChart; bias: "bull" | 
           d={`M ${xOf(0)} ${yOf(chHi[0]!)} L ${xOf(Math.floor(candles.length * 0.45))} ${yOf(chHi[1]!)} L ${xOf(candles.length - 1)} ${yOf(chHi[2]!)}`}
           fill="none"
           stroke={stroke}
-          strokeWidth="3"
+          strokeWidth="2"
+          opacity="0.55"
         />
         <path
           d={`M ${xOf(0)} ${yOf(chLo[0]!)} L ${xOf(Math.floor(candles.length * 0.45))} ${yOf(chLo[1]!)} L ${xOf(candles.length - 1)} ${yOf(chLo[2]!)}`}
           fill="none"
           stroke={stroke}
-          strokeWidth="3"
+          strokeWidth="2"
+          opacity="0.55"
         />
+
+        {chart.margin.upper.active ? (
+          <rect
+            x={L}
+            y={yOf(chart.margin.upper.top)}
+            width={innerW}
+            height={Math.max(4, yOf(chart.margin.upper.bottom) - yOf(chart.margin.upper.top))}
+            fill="rgba(231,76,60,0.08)"
+          />
+        ) : null}
+        {chart.margin.lower.active ? (
+          <rect
+            x={L}
+            y={yOf(chart.margin.lower.top)}
+            width={innerW}
+            height={Math.max(4, yOf(chart.margin.lower.bottom) - yOf(chart.margin.lower.top))}
+            fill="rgba(46,204,113,0.08)"
+          />
+        ) : null}
+
+        {zones.map((z) => {
+          const x1 = xTime(z.startTime);
+          const x2 = Math.max(x1 + 28, xTime(z.endTime || t1));
+          const y1 = yOf(z.top);
+          const y2 = yOf(z.bottom);
+          const top = Math.min(y1, y2);
+          const h = Math.max(10, Math.abs(y2 - y1));
+          const bull = z.side === "bull";
+          const fvg = z.kind === "fvg";
+          const label = fvg ? "FVG" : bull ? "Demand / OB" : "Supply / OB";
+          return (
+            <g key={z.id}>
+              <rect
+                x={x1}
+                y={top}
+                width={Math.min(innerW - (x1 - L), Math.max(36, x2 - x1 + innerW * 0.12))}
+                height={h}
+                fill={fvg ? (bull ? "url(#fvgHatchBull)" : "url(#fvgHatchBear)") : bull ? "rgba(46,204,113,0.22)" : "rgba(231,76,60,0.22)"}
+                stroke={bull ? "#2ecc71" : "#e74c3c"}
+                strokeWidth="1.4"
+                strokeDasharray={fvg ? "4 3" : undefined}
+              />
+              <text
+                x={x1 + 8}
+                y={top + 14}
+                fill={bull ? "#86efac" : "#fca5a5"}
+                fontSize="11"
+                fontFamily="IBM Plex Sans, sans-serif"
+                fontWeight="700"
+              >
+                {label}
+              </text>
+            </g>
+          );
+        })}
+
+        {eq ? (
+          <g>
+            <line x1={L} x2={L + innerW} y1={yOf(eq.price)} y2={yOf(eq.price)} stroke="#f1c40f" strokeDasharray="6 5" strokeWidth="1.4" />
+            <text x={L + 8} y={yOf(eq.price) - 6} fill="#f1c40f" fontSize="11" fontFamily="IBM Plex Mono, monospace">
+              EQ {eq.priceLabel}
+            </text>
+          </g>
+        ) : null}
+        {ote ? (
+          <line x1={L} x2={L + innerW} y1={yOf(ote.price)} y2={yOf(ote.price)} stroke="#5eead4" strokeDasharray="2 6" strokeWidth="1" opacity="0.7" />
+        ) : null}
+        {entry ? (
+          <g>
+            <line x1={L} x2={L + innerW} y1={yOf(entry.price)} y2={yOf(entry.price)} stroke="#e2e8f0" strokeWidth="1.6" />
+            <text x={L + innerW - 8} y={yOf(entry.price) - 6} textAnchor="end" fill="#e2e8f0" fontSize="11" fontFamily="IBM Plex Mono, monospace">
+              вход {entry.priceLabel}
+            </text>
+          </g>
+        ) : null}
+        {stop ? (
+          <line x1={L} x2={L + innerW} y1={yOf(stop.price)} y2={yOf(stop.price)} stroke="#e74c3c" strokeDasharray="4 4" strokeWidth="1.3" />
+        ) : null}
+
+        {liq.map((l, i) => {
+          const y = yOf(l.price);
+          const buy = l.side === "buy";
+          return (
+            <g key={`${l.side}-${l.time}-${i}`}>
+              <line
+                x1={L}
+                x2={L + innerW}
+                y1={y}
+                y2={y}
+                stroke={buy ? "#38bdf8" : "#fb7185"}
+                strokeDasharray="1 5"
+                strokeWidth="1.3"
+              />
+              <text x={L + innerW + 8} y={y + 4} fill={buy ? "#38bdf8" : "#fb7185"} fontSize="11" fontFamily="IBM Plex Mono, monospace">
+                {buy ? "BSL" : "SSL"} {l.swept ? "× свип" : ""} {px(l.price)}
+              </text>
+            </g>
+          );
+        })}
 
         {candles.map((c, i) => {
           const x = xOf(i);
@@ -96,9 +210,32 @@ export function PosterChart({ chart, bias }: { chart: LeadChart; bias: "bull" | 
           );
         })}
 
+        {events.map((e, i) => {
+          const x = xTime(e.time);
+          const y = yOf(e.price);
+          const up = e.side === "bull";
+          return (
+            <g key={`${e.kind}-${e.time}-${i}`}>
+              <path
+                d={up ? `M ${x} ${y + 16} L ${x - 8} ${y + 2} L ${x + 8} ${y + 2} Z` : `M ${x} ${y - 16} L ${x - 8} ${y - 2} L ${x + 8} ${y - 2} Z`}
+                fill={up ? "#2ecc71" : "#e74c3c"}
+              />
+              <text
+                x={x + 12}
+                y={up ? y + 22 : y - 20}
+                fill={up ? "#86efac" : "#fca5a5"}
+                fontSize="12"
+                fontWeight="700"
+                fontFamily="IBM Plex Sans, sans-serif"
+              >
+                {e.kind}
+              </text>
+            </g>
+          );
+        })}
+
         {waves.map((w) => {
-          const i = tIdx(w.time);
-          const x = xOf(i);
+          const x = xOf(tIdx(w.time));
           const y = yOf(w.price);
           return (
             <g key={`${w.label}-${w.time}`}>
@@ -110,29 +247,29 @@ export function PosterChart({ chart, bias }: { chart: LeadChart; bias: "bull" | 
           );
         })}
 
-        {callouts.map((c, i) => (
-          <g key={`${c.title}-${i}`}>
-            <line x1={c.x} x2={Math.min(c.x + 90, W - R - 10)} y1={c.y} y2={c.y - 28} stroke="#5eead4" strokeWidth="1.4" />
-            <text x={Math.min(c.x + 96, W - R)} y={c.y - 32} fill="#5eead4" fontSize="12" fontFamily="IBM Plex Sans, sans-serif" fontWeight="600">
-              {c.title}
-            </text>
-            <text x={Math.min(c.x + 96, W - R)} y={c.y - 16} fill="#94a3b8" fontSize="10" fontFamily="IBM Plex Sans, sans-serif">
-              {c.sub}
-            </text>
-          </g>
-        ))}
-
-        <text x={xOf(Math.floor(candles.length * 0.22))} y={yOf(chHi[0]!) - 10} fill="#e74c3c" fontSize="13" fontWeight="700" fontFamily="IBM Plex Sans, sans-serif">
-          {down ? "Нисходящий канал / Expanding Range" : "Восходящий канал"}
+        <text x={xOf(Math.floor(candles.length * 0.18))} y={yOf(chHi[0]!) - 8} fill={stroke} fontSize="12" fontWeight="700" fontFamily="IBM Plex Sans, sans-serif">
+          {down ? "Нисходящий канал" : "Восходящий канал"}
         </text>
 
-        <g transform={`translate(${W - R + 12}, ${T})`}>
-          <rect width="186" height="52" rx="8" fill="#0e1524" stroke="#5eead4" />
-          <text x="10" y="20" fill="#5eead4" fontSize="11" fontFamily="IBM Plex Mono, monospace">
+        <g transform={`translate(${W - R + 8}, ${T})`}>
+          <rect width="184" height="118" rx="8" fill="#0e1524" stroke="#334155" />
+          <text x="10" y="20" fill="#5eead4" fontSize="10" fontFamily="IBM Plex Mono, monospace">
             {bias === "bear" ? "Приоритет SHORT" : bias === "bull" ? "Приоритет LONG" : "Внутри range"}
           </text>
-          <text x="10" y="38" fill="#e2e8f0" fontSize="12" fontFamily="IBM Plex Mono, monospace">
-            {last.close.toFixed(Math.min(5, chart.decimals))}
+          <text x="10" y="40" fill="#e2e8f0" fontSize="13" fontFamily="IBM Plex Mono, monospace">
+            {px(last.close)}
+          </text>
+          <text x="10" y="60" fill="#86efac" fontSize="10" fontFamily="IBM Plex Sans, sans-serif">
+            зелёный — Demand / FVG / BOS↑
+          </text>
+          <text x="10" y="76" fill="#fca5a5" fontSize="10" fontFamily="IBM Plex Sans, sans-serif">
+            красный — Supply / FVG / BOS↓
+          </text>
+          <text x="10" y="92" fill="#38bdf8" fontSize="10" fontFamily="IBM Plex Sans, sans-serif">
+            BSL/SSL — ликвидность
+          </text>
+          <text x="10" y="108" fill="#f1c40f" fontSize="10" fontFamily="IBM Plex Sans, sans-serif">
+            EQ · волны
           </text>
         </g>
       </svg>
