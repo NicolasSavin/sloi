@@ -74,16 +74,19 @@ export function OrderHud({
   decimals: number;
   loading?: boolean;
 }) {
+  const live = order?.action === "long" || order?.action === "short";
   const side = order ? actionLabel(order.action) : loading ? "гружу стол…" : "нет ленты";
-  const entry = setup?.entry != null ? formatPrice(setup.entry, decimals) : "—";
-  const stop = setup?.stop != null ? formatPrice(setup.stop, decimals) : "—";
-  const tp = setup?.targets[0] != null ? formatPrice(setup.targets[0], decimals) : "—";
+  const entry = live && setup?.entry != null ? formatPrice(setup.entry, decimals) : null;
+  const stop = live && setup?.stop != null ? formatPrice(setup.stop, decimals) : null;
+  const tp = live && setup?.targets[0] != null ? formatPrice(setup.targets[0], decimals) : null;
   return (
     <div className="pointer-events-none absolute inset-x-0 top-12 z-30 px-2">
       <div className="max-w-xl rounded-md border border-accent/40 bg-bg px-3 py-2 shadow-[var(--shadow-volume)]">
-        <p className="font-mono text-[10px] tracking-[0.16em] text-accent">ПРИКАЗ ДИСПЕТЧЕРА · ДЕРЖИМ, ПОКА НЕ СМЕНИТ</p>
+        <p className="font-mono text-[10px] tracking-[0.16em] text-accent">
+          {live ? "ПРИКАЗ ДИСПЕТЧЕРА · ДЕРЖИМ, ПОКА НЕ СМЕНИТ" : "ПРИКАЗ ДИСПЕТЧЕРА"}
+        </p>
         <p className="mt-1 text-sm font-medium">
-          {side} · вход {entry} · стоп {stop} · цель {tp}
+          {live ? `${side} · вход ${entry} · стоп ${stop} · цель ${tp}` : `${side}. Зоны на графике — карта, не ордер.`}
         </p>
       </div>
     </div>

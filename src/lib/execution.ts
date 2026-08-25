@@ -94,6 +94,8 @@ export function refineAdvice(
     session?: SessionSnap | null;
     h1?: Candle[];
     entry?: number;
+    stop?: number;
+    last?: number;
     htfBias?: "bullish" | "bearish" | "range";
   },
 ): Advice {
@@ -105,17 +107,27 @@ export function refineAdvice(
       therefore: `${opts.halt?.line ?? "Календарь."} Другие пары без этой валюты не глушу.`,
     };
   }
-  const sess = sessionAllows(opts.id, opts.session);
-  if (!sess.ok && (advice.action === "long" || advice.action === "short")) {
-    return { ...advice, action: "wait", title: "Ждать сессию", therefore: sess.note };
-  }
   if (advice.action !== "long" && advice.action !== "short") return advice;
   const htf = htfAllows(opts.htfBias, advice.action);
   if (!htf.ok) {
     return { ...advice, action: "wait", title: "Ждать: H4 против", therefore: htf.note };
   }
+  const sess = sessionAllows(opts.id, opts.session);
+  const last = opts.last ?? opts.h1?.at(-1)?.close ?? opts.entry ?? 0;
+  const entry = opts.entry ?? last;
+  const stop = opts.stop ?? 0;
+  const mode = fillMode(advice.action, last, entry, stop);
+  if (!sess.ok && mode === "MARKET") {
+    return { ...advice, action: "wait", title: "Ждать сессию", therefore: sess.note };
+  }
+  const asia =
+    !sess.ok && mode === "LIMIT"
+      ? " Азия тонкая — только лимитка, рынок не шлём."
+      : sess.note
+        ? ` ${sess.note}.`
+        : "";
   return {
     ...advice,
-    therefore: `${advice.therefore} ${htf.note} Лимит в зоне: если сценарий сломается — отложку снимем.${sess.note ? ` ${sess.note}.` : ""}`,
+    therefore: `${advice.therefore} ${htf.note} Лимит в зоне: сценарий сломался — отложку снимем.${asia}`,
   };
 }

@@ -202,10 +202,22 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
             </div>
           </div>
           <div className="mx-4 mt-2 rounded-lg bg-elevated px-4 py-3">
-            <p className="font-mono text-[10px] tracking-[0.18em] text-accent">ПРИКАЗ ДИСПЕТЧЕРА ДЕРЖИМ, ПОКА НЕ СМЕНИТ</p>
+            <p className="font-mono text-[10px] tracking-[0.18em] text-accent">
+              {order?.action === "long" || order?.action === "short"
+                ? "ПРИКАЗ ДИСПЕТЧЕРА · ДЕРЖИМ, ПОКА НЕ СМЕНИТ"
+                : "ПРИКАЗ ДИСПЕТЧЕРА"}
+            </p>
             <p className="mt-1 text-sm font-medium">
-              {digestQ.isLoading ? "гружу стол…" : order ? actionLabel(order.action) : "лента ещё не пришла"}
-              {deskMarket?.setup.entry != null ? ` · вход ${formatPrice(deskMarket.setup.entry, spec.decimals)}` : ""}
+              {digestQ.isLoading
+                ? "гружу стол…"
+                : order
+                  ? actionLabel(order.action)
+                  : "лента ещё не пришла"}
+              {(order?.action === "long" || order?.action === "short") && deskMarket?.setup.entry != null
+                ? ` · вход ${formatPrice(deskMarket.setup.entry, spec.decimals)}`
+                : order && order.action !== "long" && order.action !== "short"
+                  ? " · зоны на графике — карта, не ордер"
+                  : ""}
             </p>
             <p className="mt-1 text-xs leading-relaxed text-muted">
               {order?.therefore || order?.title || "Карта графика — не приказ. Ждём строку диспетчера."}

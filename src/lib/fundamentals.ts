@@ -311,6 +311,8 @@ export function gateAdvice(
     session?: SessionSnap | null;
     h1?: Candle[];
     entry?: number;
+    stop?: number;
+    last?: number;
     construction?: OptionConstruction | null;
     htfBias?: "bullish" | "bearish" | "range";
   },
@@ -322,6 +324,8 @@ export function gateAdvice(
         session: ctx.session,
         h1: ctx.h1,
         entry: ctx.entry,
+        stop: ctx.stop,
+        last: ctx.last,
         htfBias: ctx.htfBias,
       })
     : advice;

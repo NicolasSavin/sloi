@@ -441,6 +441,8 @@ async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }
       session,
       h1: undefined,
       entry: r.market.setup.entry ?? undefined,
+      stop: r.market.setup.stop ?? undefined,
+      last: r.market.lastClose,
       construction: r.market.construction,
       htfBias: h4bias.get(r.spec.id),
     };
