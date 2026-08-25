@@ -975,6 +975,7 @@ void DrawDesk()
          int dir = 0, spPts = 0;
          double entry = 0, stop = 0, target = 0;
          Scan(i, bias, verdict, why, dir, entry, stop, target, spPts);
+         if(!g_auto && dir != 0) why = "АВТО ВЫКЛ";
          MaybeTrade(i, dir, entry, stop, target, verdict, spPts);
         }
       ManageBE();
