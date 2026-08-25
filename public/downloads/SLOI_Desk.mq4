@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.23"
+#property version   "4.24"
 #property strict
 #property description "На графике: VWAP, профиль, футпринт бара, infusion/splash, Bid/Ask."
 
@@ -419,6 +419,65 @@ int    SpreadPt(string s)
   }
 string Px(string s, double v) { return(DoubleToStr(v, DigitsOf(s))); }
 
+int SlipFor(string s)
+  {
+   int sp = SpreadPt(s);
+   return(MathMax(SlippagePoints, sp + 20));
+  }
+
+double StopAway(string s, int dir, double px, double sl)
+  {
+   double pt = PointOf(s);
+   double lvl = MarketInfo(s, MODE_STOPLEVEL) * pt;
+   double spr = SpreadPr(s);
+   double need = MathMax(lvl, spr) * 1.2;
+   if(need <= 0) return(sl);
+   if(dir > 0 && (sl <= 0 || px - sl < need)) return(NormalizeDouble(px - need, DigitsOf(s)));
+   if(dir < 0 && (sl <= 0 || sl - px < need)) return(NormalizeDouble(px + need, DigitsOf(s)));
+   return(NormalizeDouble(sl, DigitsOf(s)));
+  }
+
+double TakeAway(string s, int dir, double px, double tp)
+  {
+   double pt = PointOf(s);
+   double lvl = MarketInfo(s, MODE_STOPLEVEL) * pt;
+   double spr = SpreadPr(s);
+   double need = MathMax(lvl, spr) * 1.2;
+   if(need <= 0) return(tp);
+   if(dir > 0 && (tp <= 0 || tp - px < need)) return(NormalizeDouble(px + need * 2.0, DigitsOf(s)));
+   if(dir < 0 && (tp <= 0 || px - tp < need)) return(NormalizeDouble(px - need * 2.0, DigitsOf(s)));
+   return(NormalizeDouble(tp, DigitsOf(s)));
+  }
+
+int SendOrder(string s, int cmd, double lots, double px, double sl, double tp, string cmt, color clr)
+  {
+   int dir = (cmd == OP_BUY || cmd == OP_BUYLIMIT || cmd == OP_BUYSTOP) ? 1 : -1;
+   sl = StopAway(s, dir, px, sl);
+   tp = TakeAway(s, dir, px, tp);
+   int slip = SlipFor(s);
+   int ticket = OrderSend(s, cmd, lots, px, slip, sl, tp, cmt, Magic, 0, clr);
+   if(ticket < 0)
+     {
+      int err = GetLastError();
+      if(err == 130)
+        {
+         ticket = OrderSend(s, cmd, lots, px, slip, 0, 0, cmt, Magic, 0, clr);
+         if(ticket > 0)
+           {
+            if(!OrderModify(ticket, px, sl, tp, 0, clr))
+               Print("SLOI modify ", s, " ", GetLastError());
+           }
+         else err = GetLastError();
+        }
+      if(ticket < 0)
+        {
+         Print("SLOI ", s, " err ", err);
+         Alert("SLOI ", s, " ошибка ", err, " спред ", SpreadPt(s), "п  slip ", slip);
+        }
+     }
+   return(ticket);
+  }
+
 int CountMine(string s)
   {
    int n = 0;
@@ -655,9 +714,15 @@ void Scan(int idx, string &bias, string &verdict, string &why,
      }
    if(dir == 0) return;
    int capSp = g_maxSp;
-   if(Naked(s) == "XAUUSD") capSp = MathMax(capSp, 80);
-   if(Naked(s) == "XAGUSD") capSp = MathMax(capSp, 60);
+   string naked = Naked(s);
+   if(naked == "XAUUSD") capSp = MathMax(capSp, 80);
+   if(naked == "XAGUSD") capSp = MathMax(capSp, 60);
+   bool crypto = (StringFind(naked, "BTC") >= 0 || StringFind(naked, "ETH") >= 0 || StringFind(naked, "LTC") >= 0
+      || StringFind(naked, "BCH") >= 0 || StringFind(naked, "XRP") >= 0 || StringFind(naked, "TON") >= 0);
+   if(crypto) capSp = MathMax(capSp, 2500);
    if(lim == 0 && spPts > capSp) { dir = 0; verdict = "СПРЕД"; why = IntegerToString(spPts)+"п"; return; }
+   if(crypto && mid > 0 && spread / mid * 100.0 > 1.2)
+     { dir = 0; verdict = "СПРЕД"; why = DoubleToStr(spread / mid * 100.0, 2)+"%"; return; }
    double px = (dir > 0 ? AskOf(s) : BidOf(s));
    if(entry <= 0) entry = px;
    if(stop <= 0 || target <= 0) { dir = 0; verdict = "ЖДАТЬ"; why = "нет SL/TP"; return; }
@@ -727,11 +792,10 @@ void MaybeTrade(int idx, int dir, double entry, double stop, double target, stri
      {
       if(CountPending(s) > 0) { g_lastKey[idx] = key; return; }
      }
-   int ticket = OrderSend(s, cmd, g_lots, px, SlippagePoints,
+   int ticket = SendOrder(s, cmd, g_lots, px,
                           NormalizeDouble(stop, digits), NormalizeDouble(target, digits),
-                          "SLOI", Magic, 0, dir > 0 ? C_BUY : C_SEL);
-   if(ticket < 0) Print("SLOI ", s, " err ", GetLastError());
-   else g_lastKey[idx] = key;
+                          "SLOI", dir > 0 ? C_BUY : C_SEL);
+   if(ticket > 0) g_lastKey[idx] = key;
   }
 
 int CountPending(string s)
@@ -801,10 +865,8 @@ void ManualTrade(int dir)
    ReadSite(Naked(s), d, entry, stop, target, siteLast, verdict, why, skewCap, lim);
    double sl = (stop > 0 ? NormalizeDouble(stop, digits) : 0);
    double tp = (target > 0 ? NormalizeDouble(target, digits) : 0);
-   int ticket = OrderSend(s, cmd, lots, px, SlippagePoints, sl, tp,
-                          "SLOI manual", Magic, 0, dir > 0 ? C_BUY : C_SEL);
-   if(ticket < 0) Print("SLOI ручной ", s, " err ", GetLastError());
-   else Alert("SLOI ", (dir > 0 ? "КУПИТЬ " : "ПРОДАТЬ "), s, " #", ticket);
+   int ticket = SendOrder(s, cmd, lots, px, sl, tp, "SLOI manual", dir > 0 ? C_BUY : C_SEL);
+   if(ticket > 0) Alert("SLOI ", (dir > 0 ? "КУПИТЬ " : "ПРОДАТЬ "), s, " #", ticket);
   }
 
 void CloseOne()
