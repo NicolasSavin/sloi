@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { isOpenAction, useDispatchStore } from "@/lib/dispatch-store";
 import { fetchDigest, fetchMarket } from "@/lib/market/fetch";
-import { playDispatch, speakRu, unlockSound } from "@/lib/sound";
+import { playDispatch, scriptOrder, speakRu, unlockSound } from "@/lib/sound";
 import { newsAlertKey, newsAlertText } from "@/lib/calendar";
 import { useDeskStore } from "@/lib/desk-store";
 import { actionLabel } from "@/lib/advisor";
@@ -66,9 +66,7 @@ export function DispatchWatcher() {
       };
       pushHit(hit);
       if (soundOn) playDispatch(next);
-      if (voiceOn) {
-        void speakRu(`Сигнал. ${m.spec.label}. ${next === "long" ? "Лонг" : "Шорт"}. ${m.advice.title}`);
-      }
+      if (voiceOn) void speakRu(scriptOrder(m));
     }
   }, [q.data, onDuty, pushHit, soundOn, voiceOn]);
 
