@@ -5,12 +5,12 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.19"
+#property version   "4.20"
 #property strict
 #property description "На графике: VWAP, профиль, футпринт бара, infusion/splash, Bid/Ask."
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
-input string  WatchList       = "EURUSD,GBPUSD,USDJPY,USDCHF,AUDUSD,USDCAD,NZDUSD,EURJPY,GBPJPY,XAUUSD,XAGUSD,XTIUSD,XBRUSD,XNGUSD,ETHUSD,LTCUSD,BCHUSD,BTCUSD,XRPUSD,TONUSD";
+input string  WatchList       = "EURUSD,GBPUSD,USDJPY,USDCHF,AUDUSD,USDCAD,NZDUSD,EURGBP,EURJPY,GBPJPY,AUDJPY,CADJPY,NZDJPY,EURCHF,EURAUD,GBPAUD,XAUUSD,XAGUSD,XTIUSD,XBRUSD,XNGUSD,ETHUSD,LTCUSD,BCHUSD,BTCUSD,XRPUSD,TONUSD";
 input string  BrokerSuffix    = ".cs";
 input int     WorkTF          = 60;
 input bool    AutoTrade       = false;
@@ -480,7 +480,54 @@ void PullFeed()
      }
    g_feed = CharArrayToString(result, 0, WHOLE_ARRAY, CP_UTF8);
    g_feedNote = (StringFind(g_feed, "SLOI") >= 0 || StringLen(g_feed) > 8 ? "сайт ок" : "пустая лента");
+   SeedFromFeed();
    PushTape();
+  }
+
+void AddSym(string s)
+  {
+   if(StringLen(s) < 3) return;
+   for(int i = 0; i < g_n; i++)
+      if(g_sym[i] == s || Naked(g_sym[i]) == Naked(s)) return;
+   if(g_n >= MAXSYM) return;
+   SymbolSelect(s, true);
+   ArrayResize(g_sym, g_n + 1);
+   g_sym[g_n] = s;
+   g_lastKey[g_n] = "";
+   g_prevV[g_n] = "";
+   g_lastBar[g_n] = 0;
+   g_n++;
+  }
+
+void SeedFromFeed()
+  {
+   string lines[];
+   int n = StringSplit(g_feed, '\n', lines);
+   for(int i = 0; i < n; i++)
+     {
+      string line = lines[i];
+      if(StringLen(line) < 6) continue;
+      if(StringGetCharacter(line, 0) == '#') continue;
+      string parts[];
+      if(StringSplit(line, ' ', parts) < 1) continue;
+      string id = parts[0];
+      if(StringLen(id) < 5) continue;
+      string s = id;
+      if(StringLen(g_suffix) > 0)
+        {
+         string a = id + g_suffix;
+         string b = (StringFind(g_suffix, ".") == 0 ? a : id + "." + g_suffix);
+         SymbolSelect(id, true);
+         SymbolSelect(a, true);
+         SymbolSelect(b, true);
+         if(BidOf(a) > 0 || AskOf(a) > 0) s = a;
+         else if(BidOf(b) > 0 || AskOf(b) > 0) s = b;
+         else if(BidOf(id) > 0 || AskOf(id) > 0) s = id;
+         else s = a;
+        }
+      else SymbolSelect(id, true);
+      AddSym(s);
+     }
   }
 
 void PushTape()
