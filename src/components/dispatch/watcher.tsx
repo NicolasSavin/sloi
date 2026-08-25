@@ -100,15 +100,46 @@ export function DispatchWatcher() {
       }
       if (live && prev.action === next) {
         if (mode === "MARKET" && prev.mode === "LIMIT" && !prev.filled) {
-          if (voiceOn) void speakRu(scriptFill(m.spec.id, m.spec.label, next));
+          if (voiceOn) void speakRu(scriptFill(m.spec.id, m.spec.label, next, {
+            entry: m.setup.entry,
+            stop: m.setup.stop,
+            target: m.setup.targets[0],
+            pip: m.spec.pip,
+          }));
           if (soundOn) playDispatch(next);
-          void deskToast("SLOI · вход", scriptFill(m.spec.id, m.spec.label, next), { tag: m.spec.id });
+          void deskToast(
+            "SLOI · вход",
+            scriptFill(m.spec.id, m.spec.label, next, {
+              entry: m.setup.entry,
+              stop: m.setup.stop,
+              target: m.setup.targets[0],
+              pip: m.spec.pip,
+            }),
+            { tag: m.spec.id },
+          );
           seen.current[m.spec.id] = { ...prev, mode, filled: true, ready: true };
           continue;
         }
         if (mode === "LIMIT" && pips <= 8 && !prev.ready) {
-          if (voiceOn) void speakRu(scriptReady(m.spec.id, m.spec.label, next, pips));
-          void deskToast("SLOI · зона", scriptReady(m.spec.id, m.spec.label, next, pips), { tag: `${m.spec.id}-ready` });
+          if (voiceOn)
+            void speakRu(
+              scriptReady(m.spec.id, m.spec.label, next, pips, {
+                entry: m.setup.entry,
+                stop: m.setup.stop,
+                target: m.setup.targets[0],
+                pip: m.spec.pip,
+              }),
+            );
+          void deskToast(
+            "SLOI · зона",
+            scriptReady(m.spec.id, m.spec.label, next, pips, {
+              entry: m.setup.entry,
+              stop: m.setup.stop,
+              target: m.setup.targets[0],
+              pip: m.spec.pip,
+            }),
+            { tag: `${m.spec.id}-ready` },
+          );
           seen.current[m.spec.id] = { ...prev, mode, ready: true };
           continue;
         }
@@ -142,11 +173,12 @@ export function DispatchWatcher() {
           if (st === "open") continue;
           if (closedVoice.current[h.id] === st) continue;
           closedVoice.current[h.id] = st;
-          if (voiceOn) void speakRu(scriptExit(h));
+          const pip = digest.markets.find((m) => m.spec.id === h.symbol)?.spec.pip;
+          if (voiceOn) void speakRu(scriptExit({ ...h, pip }));
           if (soundOn) playDispatch(st === "target" ? "long" : "short");
           void deskToast(
             st === "target" ? "SLOI · тейк" : st === "stop" ? "SLOI · стоп" : "SLOI · закрыто",
-            scriptExit(h),
+            scriptExit({ ...h, pip }),
             { tag: h.symbol },
           );
         }

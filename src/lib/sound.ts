@@ -1,4 +1,5 @@
 import { fillMode } from "@/lib/execution";
+import { resolvedIana } from "@/lib/tz";
 
 export type SignalTone = "long" | "short";
 
@@ -40,6 +41,40 @@ export function pairRu(id: string, label: string) {
   return PAIR_RU[id] ?? label.replace("/", " к ");
 }
 
+function speakClock(at = Date.now()) {
+  try {
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+      timeZone: resolvedIana(),
+    }).formatToParts(new Date(at));
+    const h = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+    const m = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
+    const hs = h === 1 || h === 21 ? "час" : h % 10 >= 2 && h % 10 <= 4 && (h < 10 || h > 20) ? "часа" : "часов";
+    const ms = m === 1 ? "минута" : m % 10 >= 2 && m % 10 <= 4 && (m < 10 || m > 20) ? "минуты" : "минут";
+    if (m === 0) return `В ${h} ${hs}.`;
+    return `В ${h} ${hs} ${m} ${ms}.`;
+  } catch {
+    return "";
+  }
+}
+
+function toPips(dist: number, pip: number) {
+  if (!(pip > 0) || !Number.isFinite(dist)) return 0;
+  return Math.max(1, Math.round(Math.abs(dist) / pip));
+}
+
+function rrLine(entry?: number | null, stop?: number | null, target?: number | null, pip?: number) {
+  if (entry == null || pip == null || !(pip > 0)) return "";
+  const risk = stop != null ? toPips(entry - stop, pip) : 0;
+  const gain = target != null ? toPips(target - entry, pip) : 0;
+  if (risk && gain) return `Риск ${risk} пунктов, цель плюс ${gain} пунктов.`;
+  if (gain) return `Цель плюс ${gain} пунктов.`;
+  if (risk) return `Риск ${risk} пунктов.`;
+  return "";
+}
+
 function shortWhy(raw?: string) {
   if (!raw) return "";
   const t = forVoice(raw)
@@ -78,24 +113,26 @@ export function scriptOrder(m: {
   setup: { entry: number | null; stop: number | null; targets: number[] };
   story?: { doing?: string };
 }): string {
+  const at = speakClock();
   const name = pairRu(m.spec.id, m.spec.label);
   if (m.advice.action !== "long" && m.advice.action !== "short") {
-    return `По ${name} ждём. Ордер не открываем.`;
+    return `${at} По ${name} ждём. Ордер не открываем.`;
   }
   const side = m.advice.action === "long" ? "покупка" : "продажа";
   const entry = m.setup.entry;
   const stop = m.setup.stop ?? entry ?? m.lastClose;
-  if (entry == null) return `По ${name} ${side}. Зону ещё считаем.`;
+  if (entry == null) return `${at} По ${name} ${side}. Зону ещё считаем.`;
   const mode = fillMode(m.advice.action, m.lastClose, entry, stop, m.setup.targets[0]);
   const dist = Math.abs(m.lastClose - entry);
-  const pips = m.spec.pip > 0 ? Math.round(dist / m.spec.pip) : 0;
+  const pips = toPips(dist, m.spec.pip);
   const why = shortWhy(m.story?.doing || m.advice.therefore);
   const logic = why ? ` Логика: ${why}` : "";
+  const rr = rrLine(entry, m.setup.stop, m.setup.targets[0], m.spec.pip);
   if (mode === "MARKET") {
-    return `Сигнал по ${name}. ${side} по рынку. Вход сейчас.${logic}`;
+    return `${at} Сигнал по ${name}. ${side} по рынку. Вход сейчас. ${rr}${logic}`;
   }
   if (mode === "LATE") {
-    return `По ${name} поздно. ${side} не догоняем.`;
+    return `${at} По ${name} поздно. ${side} не догоняем.`;
   }
   const when =
     pips <= 4
@@ -103,26 +140,39 @@ export function scriptOrder(m: {
       : pips <= 25
         ? `до входа примерно ${pips} пунктов`
         : `до зоны ещё ${pips} пунктов, ордер подождёт`;
-  return `Сигнал по ${name}. ${side} лимитным ордером. ${when}.${logic}`;
+  return `${at} Сигнал по ${name}. ${side} лимитным ордером. ${when}. ${rr}${logic}`;
 }
 
 export function scriptCancel(id: string, label: string, action: "long" | "short") {
   const name = pairRu(id, label);
   const side = action === "long" ? "покупку" : "продажу";
-  return `Отмена по ${name}. ${side} снимаем.`;
+  return `${speakClock()} Отмена по ${name}. ${side} снимаем.`;
 }
 
-export function scriptReady(id: string, label: string, action: "long" | "short", pips: number) {
+export function scriptReady(
+  id: string,
+  label: string,
+  action: "long" | "short",
+  pips: number,
+  rr?: { entry?: number | null; stop?: number | null; target?: number | null; pip?: number },
+) {
   const name = pairRu(id, label);
   const zone = action === "long" ? "зону покупки" : "зону продажи";
   const near = pips <= 3 ? "уже в зоне" : `ещё около ${pips} пунктов`;
-  return `По ${name} заходи в ${zone}. Приготовиться. ${near}.`;
+  const line = rrLine(rr?.entry, rr?.stop, rr?.target, rr?.pip);
+  return `${speakClock()} По ${name} заходи в ${zone}. Приготовиться. ${near}. ${line}`.trim();
 }
 
-export function scriptFill(id: string, label: string, action: "long" | "short") {
+export function scriptFill(
+  id: string,
+  label: string,
+  action: "long" | "short",
+  rr?: { entry?: number | null; stop?: number | null; target?: number | null; pip?: number },
+) {
   const name = pairRu(id, label);
   const side = action === "long" ? "Покупка" : "Продажа";
-  return `По ${name} лимитка сработала. ${side} в рынке.`;
+  const line = rrLine(rr?.entry, rr?.stop, rr?.target, rr?.pip);
+  return `${speakClock()} По ${name} лимитка сработала. ${side} в рынке. ${line}`.trim();
 }
 
 export function scriptExit(hit: {
@@ -130,15 +180,43 @@ export function scriptExit(hit: {
   label: string;
   action: "long" | "short";
   status?: string;
+  entry?: number | null;
+  stop?: number | null;
+  target?: number | null;
+  exit?: number | null;
+  closedAt?: number;
+  pip?: number;
+  decimals?: number;
 }): string {
+  const at = speakClock(hit.closedAt ?? Date.now());
   const name = pairRu(hit.symbol, hit.label);
   const side = hit.action === "long" ? "покупка" : "продажа";
-  if (hit.status === "target") return `По ${name} сделка закрыта по тейку. ${side} дошла до цели.`;
-  if (hit.status === "stop") return `По ${name} сделка закрыта по стопу. ${side} не удержалась.`;
-  if (hit.status === "halt") return `По ${name} ордер сняли из‑за новости. Это не стоп и не тейк.`;
-  if (hit.status === "reverse") return `По ${name} сценарий сняли: характер против. Лимитку убрали.`;
-  if (hit.status === "expired") return `По ${name} вход так и не дали. Сделка не состоялась.`;
-  return `По ${name} ордер закрыт.`;
+  const pip =
+    hit.pip && hit.pip > 0
+      ? hit.pip
+      : hit.decimals != null
+        ? hit.decimals >= 4
+          ? 0.0001
+          : 0.01
+        : 0;
+  const moved =
+    hit.entry != null && hit.exit != null && pip
+      ? toPips(hit.exit - hit.entry, pip)
+      : hit.entry != null && hit.stop != null && hit.status === "stop" && pip
+        ? toPips(hit.entry - hit.stop, pip)
+        : hit.entry != null && hit.target != null && hit.status === "target" && pip
+          ? toPips(hit.target - hit.entry, pip)
+          : 0;
+  if (hit.status === "target") {
+    return `${at} По ${name} сделка закрыта по тейку. Плюс около ${moved || "нескольких"} пунктов.`;
+  }
+  if (hit.status === "stop") {
+    return `${at} По ${name} сделка закрыта по стопу. Минус около ${moved || "нескольких"} пунктов.`;
+  }
+  if (hit.status === "halt") return `${at} По ${name} ордер сняли из‑за новости. Это не стоп и не тейк.`;
+  if (hit.status === "reverse") return `${at} По ${name} сценарий сняли: характер против. Лимитку убрали.`;
+  if (hit.status === "expired") return `${at} По ${name} вход так и не дали. Сделка не состоялась.`;
+  return `${at} По ${name} ордер закрыт. ${side}.`;
 }
 
 let ctx: AudioContext | null = null;
