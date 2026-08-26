@@ -670,9 +670,11 @@ export function buildPoster(lead: DigestMarket, snap: SmcSnapshot, date: string)
           { icon: "🐂", label: long.priority ? "LONG приоритет" : "LONG контртренд", value: `вход ${long.entry}` },
           { icon: "📌", label: "EQ / края", value: `${px(snap.dealingRange.low)} · ${px(snap.dealingRange.eq)} · ${px(snap.dealingRange.high)}` },
           {
-            icon: "📏",
-            label: "Fib 0.62 / 0.79",
-            value: `${px(snap.dealingRange.high - (snap.dealingRange.high - snap.dealingRange.low) * 0.618)} · ${px(snap.dealingRange.high - (snap.dealingRange.high - snap.dealingRange.low) * 0.786)}`,
+            icon: "🎯",
+            label: "Max pain / OI",
+            value: lead.construction
+              ? `${lead.construction.ticker} ${lead.construction.maxPain != null ? (lead.construction.maxPain >= 50 ? lead.construction.maxPain.toFixed(0) : lead.construction.maxPain.toFixed(2)) : "—"} · ${lead.construction.type === "call-wall" ? "стена коллов" : lead.construction.type === "put-wall" ? "стена путов" : "смешанный OI"}`
+              : "цепочка GLD/SLV сейчас пустая",
           },
         ],
         footer: lead.advice.therefore,

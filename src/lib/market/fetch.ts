@@ -272,10 +272,14 @@ let optCache = new Map<string, { at: number; data: MarketPayload["options"] }>()
 
 async function loadOptions(ticker: string) {
   const hit = optCache.get(ticker);
-  if (hit && Date.now() - hit.at < 300_000) return hit.data;
-  const raw = await getJson(`https://query1.finance.yahoo.com/v7/finance/options/${encodeURIComponent(ticker)}`, 4500);
-  const { parseYahooOptions } = await import("@/lib/options");
-  const data = parseYahooOptions(raw, ticker);
+  if (hit && Date.now() - hit.at < 15 * 60_000) return hit.data;
+  const { parseYahooOptions, parseCboeOptions } = await import("@/lib/options");
+  const cboe = await getJson(`https://cdn.cboe.com/api/global/delayed_quotes/options/${encodeURIComponent(ticker)}.json`, 12000);
+  let data = parseCboeOptions(cboe, ticker);
+  if (!data) {
+    const raw = await getJson(`https://query1.finance.yahoo.com/v7/finance/options/${encodeURIComponent(ticker)}`, 4500);
+    data = parseYahooOptions(raw, ticker);
+  }
   optCache.set(ticker, { at: Date.now(), data });
   return data;
 }

@@ -109,6 +109,71 @@ export function parseYahooOptions(raw: unknown, ticker: string): OptionsSnapshot
   };
 }
 
+function occParts(code: string) {
+  const m = /^([A-Z]+)(\d{6})([CP])(\d{8})$/.exec(code.replace(/\s/g, ""));
+  if (!m) return null;
+  const ymd = m[2];
+  const expiry = `20${ymd.slice(0, 2)}-${ymd.slice(2, 4)}-${ymd.slice(4, 6)}`;
+  return { expiry, cp: m[3] as "C" | "P", strike: Number(m[4]) / 1000 };
+}
+
+export function parseCboeOptions(raw: unknown, ticker: string): OptionsSnapshot | null {
+  const pack = raw as { data?: { current_price?: number; options?: { option?: string; open_interest?: number; volume?: number; iv?: number }[] } };
+  const list = pack?.data?.options;
+  const spot = num(pack?.data?.current_price);
+  if (!spot || !Array.isArray(list) || list.length < 8) return null;
+  const today = new Date().toISOString().slice(0, 10);
+  const parsed = list
+    .map((row) => {
+      const occ = occParts(String(row.option ?? ""));
+      if (!occ || occ.strike <= 0) return null;
+      return { ...occ, oi: num(row.open_interest), vol: num(row.volume), iv: num(row.iv) };
+    })
+    .filter((x): x is NonNullable<typeof x> => x != null);
+  if (parsed.length < 8) return null;
+  const byExp = new Map<string, number>();
+  for (const r of parsed) byExp.set(r.expiry, (byExp.get(r.expiry) ?? 0) + r.oi);
+  const live = [...byExp.keys()].filter((e) => e >= today).sort();
+  const expiry = live[0] ?? [...byExp.keys()].sort().at(-1);
+  if (!expiry) return null;
+  const near = parsed.filter((r) => r.expiry === expiry);
+  const calls = near.filter((r) => r.cp === "C").map((r) => ({ strike: r.strike, openInterest: r.oi, volume: r.vol, impliedVolatility: r.iv }));
+  const puts = near.filter((r) => r.cp === "P").map((r) => ({ strike: r.strike, openInterest: r.oi, volume: r.vol, impliedVolatility: r.iv }));
+  const byStrike = new Map<number, OptionsRow>();
+  for (const c of calls) {
+    const row = byStrike.get(c.strike) ?? { strike: c.strike, expiry, callOi: 0, putOi: 0, callVol: 0, putVol: 0, markIv: null as number | null };
+    row.callOi += num(c.openInterest);
+    row.callVol += num(c.volume);
+    row.markIv = num(c.impliedVolatility) || row.markIv;
+    byStrike.set(c.strike, row);
+  }
+  for (const p of puts) {
+    const row = byStrike.get(p.strike) ?? { strike: p.strike, expiry, callOi: 0, putOi: 0, callVol: 0, putVol: 0, markIv: null as number | null };
+    row.putOi += num(p.openInterest);
+    row.putVol += num(p.volume);
+    byStrike.set(p.strike, row);
+  }
+  const rows = [...byStrike.values()].sort((a, b) => a.strike - b.strike);
+  const callOi = rows.reduce((s, r) => s + r.callOi, 0);
+  const putOi = rows.reduce((s, r) => s + r.putOi, 0);
+  const putCall = callOi > 0 ? putOi / callOi : null;
+  const magnets = [...rows].sort((a, b) => b.callOi + b.putOi - (a.callOi + a.putOi)).slice(0, 3).map((r) => r.strike);
+  const pain = maxPain(calls, puts);
+  const band = rows.filter((r) => Math.abs(r.strike - spot) / spot < 0.18 || r.callOi + r.putOi > 0);
+  const keep = band.filter((r) => r.callOi + r.putOi > 0).slice(0, 80);
+  return {
+    currency: ticker,
+    spot,
+    maxPain: pain,
+    callOi,
+    putOi,
+    putCall,
+    magnetStrikes: magnets,
+    rows: keep.length ? keep : rows.slice(0, 80),
+    note: `Опционы ${ticker} CBOE, экспирация ${expiry}${pain != null ? `, max pain ${pain >= 50 ? pain.toFixed(0) : pain.toFixed(2)}` : ""}.`,
+  };
+}
+
 export interface ConstructionView {
   strike: number;
   expiry: string;
