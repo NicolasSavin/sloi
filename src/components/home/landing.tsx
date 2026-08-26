@@ -18,7 +18,7 @@ export function Landing({ data }: { data: HomePayload }) {
         <SessionStrip />
         <HomeCalStrip />
       </div>
-      <HomeLeadPoster />
+      <HomeLeadPoster quotes={data.quotes} />
       <section className="relative overflow-hidden">
         <img src="/art/strata.jpg" alt="" className="absolute inset-0 h-full w-full object-cover opacity-40" />
         <div className="absolute inset-0 bg-gradient-to-r from-bg via-bg/75 to-bg/30" />
