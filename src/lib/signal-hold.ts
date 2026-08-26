@@ -58,7 +58,7 @@ export function applyHold(markets: DigestMarket[]): DigestMarket[] {
     }
     const prev = hold.get(m.spec.id);
     if (!prev) return m;
-    if (/Стоп: новость|Стоп: крупная|Слабое совпадение|Только час|Ждать зону|Ждать старший|Пауза после стопа/.test(m.advice.title)) {
+    if (/Стоп: новость|Стоп: крупная|Пауза после стопа/.test(m.advice.title)) {
       hold.delete(m.spec.id);
       return m;
     }
@@ -89,7 +89,7 @@ export function applyHold(markets: DigestMarket[]): DigestMarket[] {
         action: prev.action,
         title: "Держим приказ",
         therefore:
-          "Лимитка не снимается из‑за шума 45 секунд. Держим, пока стоп жив или не будет встречный CHoCH.",
+          "Приказ с сайта не снимаем из‑за шума, «поздно» или слабого счёта. Снимаем только стоп, новость или встречный характер.",
       },
       setup: {
         ...m.setup,
