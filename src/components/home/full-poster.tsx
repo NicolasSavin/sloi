@@ -65,6 +65,112 @@ function today() {
   return `${dd}.${mm}.${d.getUTCFullYear()}`;
 }
 
+function StaticChart({
+  side,
+  sl,
+  entry,
+  tp,
+  price,
+}: {
+  side: Tape["side"];
+  sl: string;
+  entry: string;
+  tp: string;
+  price: string;
+}) {
+  const sell = side !== "BUY";
+  return (
+    <g>
+      <rect x="40" y="258" width="1000" height="280" rx="8" fill="#081018" stroke="#1ec8e6" strokeWidth="2" />
+      <text x="56" y="280" fill="#3ecbff" fontSize="13" fontFamily="IBM Plex Mono, monospace" letterSpacing="2">
+        СТАТИЧНЫЙ ГРАФИК · ЗОНЫ · СТРЕЛКИ
+      </text>
+
+      {/* BSL */}
+      <text x="520" y="298" textAnchor="middle" fill="#fb7185" fontSize="11" fontFamily="IBM Plex Mono, monospace">
+        BUY-SIDE LIQUIDITY {sl}
+      </text>
+
+      {/* supply zone */}
+      <rect x="520" y="306" width="360" height="36" fill="#7f1d1d" opacity="0.85" />
+      <text x="700" y="322" textAnchor="middle" fill="#fecaca" fontSize="12" fontWeight="700">
+        SUPPLY / OB
+      </text>
+      <text x="700" y="336" textAnchor="middle" fill="#fff" fontSize="11">
+        {sl}
+      </text>
+
+      {/* dashed levels */}
+      <line x1="70" y1="324" x2="1010" y2="324" stroke="#ef4444" strokeDasharray="5 4" strokeWidth="1.2" />
+      <line x1="70" y1="390" x2="1010" y2="390" stroke="#fbbf24" strokeDasharray="4 4" strokeWidth="1.2" />
+      <line x1="70" y1="456" x2="1010" y2="456" stroke="#22c55e" strokeDasharray="5 4" strokeWidth="1.2" />
+
+      {/* price path */}
+      <polyline
+        points="80,430 140,400 200,418 260,360 320,388 380,340 440,368 500,330 560,350 620,318 680,370 740,348 800,400 860,380 920,420 980,400"
+        fill="none"
+        stroke="#e2e8f0"
+        strokeWidth="2.4"
+      />
+
+      {/* current price marker */}
+      <circle cx="800" cy="400" r="6" fill="#3ecbff" />
+      <text x="814" y="396" fill="#3ecbff" fontSize="12" fontWeight="700">
+        NOW {price}
+      </text>
+
+      {/* demand zone */}
+      <rect x="80" y="448" width="280" height="36" fill="#14532d" opacity="0.9" />
+      <text x="220" y="464" textAnchor="middle" fill="#bbf7d0" fontSize="12" fontWeight="700">
+        DEMAND / OB
+      </text>
+      <text x="220" y="478" textAnchor="middle" fill="#fff" fontSize="11">
+        {tp}
+      </text>
+
+      <text x="520" y="528" textAnchor="middle" fill="#fb7185" fontSize="11" fontFamily="IBM Plex Mono, monospace">
+        SELL-SIDE LIQUIDITY {tp}
+      </text>
+
+      {/* arrows */}
+      {sell ? (
+        <g>
+          <path d="M500 350 L500 440" stroke="#ef4444" strokeWidth="2.4" markerEnd="url(#arrRed)" />
+          <text x="510" y="400" fill="#f87171" fontSize="12" fontWeight="700">
+            шорт {entry}
+          </text>
+          <path d="M860 400 L860 456" stroke="#22c55e" strokeWidth="2" markerEnd="url(#arrGreen)" />
+          <text x="872" y="430" fill="#86efac" fontSize="11">
+            TP {tp}
+          </text>
+          <path d="M620 318 L620 306" stroke="#fbbf24" strokeWidth="2" markerEnd="url(#arrGold)" />
+          <text x="628" y="302" fill="#fde68a" fontSize="11">
+            SL {sl}
+          </text>
+        </g>
+      ) : (
+        <g>
+          <path d="M500 430 L500 350" stroke="#22c55e" strokeWidth="2.4" markerEnd="url(#arrGreen)" />
+          <text x="510" y="390" fill="#86efac" fontSize="12" fontWeight="700">
+            лонг {entry}
+          </text>
+          <path d="M860 400 L860 324" stroke="#22c55e" strokeWidth="2" markerEnd="url(#arrGreen)" />
+          <text x="872" y="360" fill="#86efac" fontSize="11">
+            TP {sl}
+          </text>
+        </g>
+      )}
+
+      <text x="70" y="392" fill="#fbbf24" fontSize="11">
+        ENTRY {entry}
+      </text>
+      <text x="70" y="458" fill="#4ade80" fontSize="11">
+        TARGET
+      </text>
+    </g>
+  );
+}
+
 function OnePoster({ t, quote }: { t: Tape; quote?: HomeQuote }) {
   const px = quote?.price && quote.price > 0 ? quote.price : t.last || t.entry;
   const pair = labelOf(t.id);
@@ -79,186 +185,152 @@ function OnePoster({ t, quote }: { t: Tape; quote?: HomeQuote }) {
   const mid = fmt((t.entry + (t.tp || t.entry)) / 2, t.id);
 
   return (
-    <svg viewBox="0 0 1080 1480" className="block h-auto w-full" role="img" aria-label={`${pair} полный разбор`}>
-      <rect width="1080" height="1480" fill="#07111f" />
-      <rect x="24" y="24" width="1032" height="1432" fill="none" stroke="#12304a" strokeWidth="2" />
+    <svg viewBox="0 0 1080 1760" className="block h-auto w-full" role="img" aria-label={`${pair} полный разбор`}>
+      <defs>
+        <marker id="arrRed" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+          <path d="M0,0 L8,4 L0,8 Z" fill="#ef4444" />
+        </marker>
+        <marker id="arrGreen" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+          <path d="M0,0 L8,4 L0,8 Z" fill="#22c55e" />
+        </marker>
+        <marker id="arrGold" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+          <path d="M0,0 L8,4 L0,8 Z" fill="#fbbf24" />
+        </marker>
+      </defs>
+      <rect width="1080" height="1760" fill="#07111f" />
+      <rect x="24" y="24" width="1032" height="1712" fill="none" stroke="#12304a" strokeWidth="2" />
 
-      <text x="540" y="78" textAnchor="middle" fill="#ffffff" fontSize="36" fontWeight="800" fontFamily="IBM Plex Sans, sans-serif">
+      <text x="540" y="70" textAnchor="middle" fill="#ffffff" fontSize="34" fontWeight="800" fontFamily="IBM Plex Sans, sans-serif">
         {pair} — ПОЛНЫЙ РАЗБОР {date}
       </text>
-      <text x="540" y="108" textAnchor="middle" fill="#3ecbff" fontSize="13" letterSpacing="3" fontFamily="IBM Plex Mono, monospace">
+      <text x="540" y="98" textAnchor="middle" fill="#3ecbff" fontSize="13" letterSpacing="3" fontFamily="IBM Plex Mono, monospace">
         АНАЛИЗ • СТРУКТУРА • ПАТТЕРНЫ • СЕТАПЫ • УРОВНИ
       </text>
-      <text x="540" y="148" textAnchor="middle" fill="#3ecbff" fontSize="12" letterSpacing="4" fontFamily="IBM Plex Mono, monospace">
+      <text x="540" y="128" textAnchor="middle" fill="#3ecbff" fontSize="12" letterSpacing="4" fontFamily="IBM Plex Mono, monospace">
         ТЕКУЩАЯ ЦЕНА
       </text>
-      <text x="540" y="214" textAnchor="middle" fill="#3ecbff" fontSize="72" fontWeight="800" fontFamily="IBM Plex Sans, sans-serif">
+      <text x="540" y="188" textAnchor="middle" fill="#3ecbff" fontSize="64" fontWeight="800" fontFamily="IBM Plex Sans, sans-serif">
         ≈ {price}
       </text>
-      <text x="540" y="244" textAnchor="middle" fill="#64748b" fontSize="13" fontFamily="IBM Plex Mono, monospace">
+      <text x="540" y="218" textAnchor="middle" fill="#64748b" fontSize="13" fontFamily="IBM Plex Mono, monospace">
         {side === "WAIT" ? "приказ ЖДАТЬ" : side === "BUY" ? "приказ ЛОНГ" : "приказ ШОРТ"}
       </text>
 
-      {/* column 1 SMC */}
-      <rect x="40" y="270" width="320" height="560" rx="8" fill="#081828" stroke="#1ec8e6" strokeWidth="3" />
-      <text x="58" y="304" fill="#1ec8e6" fontSize="16" fontWeight="700" fontFamily="IBM Plex Mono, monospace">
+      <StaticChart side={side} sl={sl} entry={entry} tp={tp} price={price} />
+
+      <rect x="40" y="556" width="320" height="500" rx="8" fill="#081828" stroke="#1ec8e6" strokeWidth="3" />
+      <text x="58" y="588" fill="#1ec8e6" fontSize="16" fontWeight="700" fontFamily="IBM Plex Mono, monospace">
         SMC SMART MONEY
       </text>
-      <text x="200" y="338" textAnchor="middle" fill="#ff6b6b" fontSize="11" fontFamily="IBM Plex Mono, monospace">
-        BUY-SIDE {hi}
+      <text x="200" y="624" textAnchor="middle" fill="#ff6b6b" fontSize="11">
+        BSL {hi}
       </text>
-      <rect x="190" y="348" width="140" height="40" fill="#7a1d28" />
-      <text x="260" y="366" textAnchor="middle" fill="#fecaca" fontSize="11">
-        SUPPLY
+      <rect x="170" y="634" width="140" height="36" fill="#7a1d28" />
+      <text x="240" y="656" textAnchor="middle" fill="#fff" fontSize="12">
+        SUPPLY {sl}
       </text>
-      <text x="260" y="382" textAnchor="middle" fill="#fff" fontSize="11">
-        {sl}
+      <polyline points="56,710 90,690 124,718 158,678 192,708 226,668 260,698 294,680" fill="none" stroke="#cbd5e1" strokeWidth="2" />
+      <rect x="56" y="740" width="150" height="36" fill="#0f4a3a" />
+      <text x="131" y="762" textAnchor="middle" fill="#fff" fontSize="12">
+        DEMAND {tp}
       </text>
-      <polyline
-        points="56,430 80,410 104,438 128,400 152,428 176,392 200,420 224,404 248,430 272,412 296,436 320,418"
-        fill="none"
-        stroke="#cbd5e1"
-        strokeWidth="2"
-      />
-      <rect x="56" y="470" width="150" height="40" fill="#0f4a3a" />
-      <text x="131" y="488" textAnchor="middle" fill="#bbf7d0" fontSize="11">
-        DEMAND / OB
+      <text x="200" y="808" textAnchor="middle" fill="#ff6b6b" fontSize="11">
+        SSL {lo}
       </text>
-      <text x="131" y="504" textAnchor="middle" fill="#fff" fontSize="11">
-        {tp}
-      </text>
-      <text x="200" y="540" textAnchor="middle" fill="#ff6b6b" fontSize="11" fontFamily="IBM Plex Mono, monospace">
-        SELL-SIDE {lo}
-      </text>
-      <text x="200" y="580" textAnchor="middle" fill="#94a3b8" fontSize="12">
+      <text x="200" y="860" textAnchor="middle" fill="#94a3b8" fontSize="13">
         вход {entry}
       </text>
-      <text x="200" y="602" textAnchor="middle" fill="#94a3b8" fontSize="12">
-        стоп {sl} · цель {tp}
-      </text>
-      <text x="200" y="780" textAnchor="middle" fill="#64748b" fontSize="11">
-        ликвидность и блоки внутри range
+      <text x="200" y="882" textAnchor="middle" fill="#94a3b8" fontSize="13">
+        SL {sl} · TP {tp}
       </text>
 
-      {/* column 2 waves */}
-      <rect x="380" y="270" width="320" height="560" rx="8" fill="#12081f" stroke="#8b5cf6" strokeWidth="3" />
-      <text x="398" y="304" fill="#c4b5fd" fontSize="16" fontWeight="700" fontFamily="IBM Plex Mono, monospace">
+      <rect x="380" y="556" width="320" height="500" rx="8" fill="#12081f" stroke="#8b5cf6" strokeWidth="3" />
+      <text x="398" y="588" fill="#c4b5fd" fontSize="16" fontWeight="700" fontFamily="IBM Plex Mono, monospace">
         ВОЛНЫ ЭЛЛИОТТА
       </text>
-      <polygon points="410,380 470,330 530,470 590,410 660,720" fill="#5b2ad6" opacity="0.35" />
-      <polyline points="410,380 470,330 530,470 590,410 660,720" fill="none" stroke="#c4a4ff" strokeWidth="3" />
-      <circle cx="410" cy="380" r="12" fill="#12081f" stroke="#c4a4ff" />
-      <text x="410" y="385" textAnchor="middle" fill="#fff" fontSize="12">
-        1
-      </text>
-      <circle cx="470" cy="330" r="12" fill="#12081f" stroke="#c4a4ff" />
-      <text x="470" y="335" textAnchor="middle" fill="#fff" fontSize="12">
-        2
-      </text>
-      <circle cx="530" cy="470" r="12" fill="#12081f" stroke="#c4a4ff" />
-      <text x="530" y="475" textAnchor="middle" fill="#fff" fontSize="12">
-        3
-      </text>
-      <circle cx="590" cy="410" r="12" fill="#12081f" stroke="#c4a4ff" />
-      <text x="590" y="415" textAnchor="middle" fill="#fff" fontSize="12">
-        4
-      </text>
-      <circle cx="660" cy="720" r="12" fill="#12081f" stroke="#c4a4ff" />
-      <text x="660" y="725" textAnchor="middle" fill="#fff" fontSize="12">
-        5
-      </text>
-      <text x="470" y="318" fill="#e9d5ff" fontSize="11">
+      <polygon points="410,650 470,600 530,740 590,680 660,980" fill="#5b2ad6" opacity="0.35" />
+      <polyline points="410,650 470,600 530,740 590,680 660,980" fill="none" stroke="#c4a4ff" strokeWidth="3" />
+      {[
+        [410, 650, "1"],
+        [470, 600, "2"],
+        [530, 740, "3"],
+        [590, 680, "4"],
+        [660, 980, "5"],
+      ].map(([x, y, n]) => (
+        <g key={String(n)}>
+          <circle cx={x as number} cy={y as number} r="12" fill="#12081f" stroke="#c4a4ff" />
+          <text x={x as number} y={(y as number) + 5} textAnchor="middle" fill="#fff" fontSize="12">
+            {n}
+          </text>
+        </g>
+      ))}
+      <text x="470" y="588" fill="#e9d5ff" fontSize="11">
         {hi}
       </text>
-      <text x="590" y="398" fill="#e9d5ff" fontSize="11">
-        {mid}
-      </text>
-      <text x="540" y="800" textAnchor="middle" fill="#94a3b8" fontSize="12">
-        цель 5 → {lo}
+      <text x="540" y="1028" textAnchor="middle" fill="#94a3b8" fontSize="12">
+        цель 5 → {lo} · mid {mid}
       </text>
 
-      {/* column 3 patterns */}
-      <rect x="720" y="270" width="320" height="560" rx="8" fill="#1a1206" stroke="#f59e0b" strokeWidth="3" />
-      <text x="738" y="304" fill="#fbbf24" fontSize="16" fontWeight="700" fontFamily="IBM Plex Mono, monospace">
+      <rect x="720" y="556" width="320" height="500" rx="8" fill="#1a1206" stroke="#f59e0b" strokeWidth="3" />
+      <text x="738" y="588" fill="#fbbf24" fontSize="16" fontWeight="700" fontFamily="IBM Plex Mono, monospace">
         ПАТТЕРНЫ
       </text>
-      <text x="738" y="334" fill="#fbbf24" fontSize="12">
-        ГРАФИЧЕСКИЕ
-      </text>
-      <path d="M740 360 L1000 380 L1000 420 L740 400 Z" fill="none" stroke="#ef4444" strokeWidth="2" />
-      <polyline points="750,392 780,378 810,388 840,368 870,384 900,370 930,382" fill="none" stroke="#cbd5e1" strokeWidth="2" />
-      <text x="740" y="450" fill="#e2e8f0" fontSize="13">
+      <path d="M740 620 L1000 640 L1000 680 L740 660 Z" fill="none" stroke="#ef4444" strokeWidth="2" />
+      <polyline points="750,652 790,638 830,648 870,628 910,644" fill="none" stroke="#cbd5e1" strokeWidth="2" />
+      <text x="740" y="710" fill="#e2e8f0" fontSize="13">
         канал / range
       </text>
-
-      <polyline points="740,500 770,540 800,498 830,540 860,500" fill="none" stroke="#cbd5e1" strokeWidth="2" />
-      <line x1="740" y1="492" x2="860" y2="492" stroke="#22c55e" strokeDasharray="4 3" />
-      <text x="880" y="520" fill="#e2e8f0" fontSize="13">
+      <polyline points="740,760 770,800 800,758 830,800 860,760" fill="none" stroke="#cbd5e1" strokeWidth="2" />
+      <line x1="740" y1="752" x2="860" y2="752" stroke="#22c55e" strokeDasharray="4 3" />
+      <text x="880" y="780" fill="#e2e8f0" fontSize="13">
         double bottom
       </text>
-
-      <line x1="740" y1="580" x2="900" y2="590" stroke="#ef4444" strokeWidth="2" />
-      <line x1="740" y1="640" x2="900" y2="600" stroke="#ef4444" strokeWidth="2" />
-      <polyline points="750,620 780,608 810,616 840,600 870,612" fill="none" stroke="#cbd5e1" strokeWidth="2" />
-      <text x="740" y="668" fill="#e2e8f0" fontSize="13">
+      <line x1="740" y1="840" x2="900" y2="850" stroke="#ef4444" strokeWidth="2" />
+      <line x1="740" y1="900" x2="900" y2="860" stroke="#ef4444" strokeWidth="2" />
+      <text x="740" y="928" fill="#e2e8f0" fontSize="13">
         triangle
       </text>
-
-      <text x="738" y="704" fill="#f472b6" fontSize="12">
-        ГАРМОНИЧЕСКИЕ
-      </text>
-      <polyline points="740,740 780,720 820,748 860,728" fill="none" stroke="#60a5fa" strokeWidth="2" />
-      <text x="880" y="738" fill="#93c5fd" fontSize="12">
+      <polyline points="740,970 780,950 820,978 860,958" fill="none" stroke="#60a5fa" strokeWidth="2" />
+      <text x="880" y="968" fill="#93c5fd" fontSize="12">
         AB=CD
       </text>
-      <polyline points="740,790 780,770 820,798 860,778" fill="none" stroke="#fb7185" strokeWidth="2" />
-      <text x="880" y="790" fill="#fda4af" fontSize="12">
-        crab / fly
-      </text>
 
-      {/* bottom ATR + setups */}
-      <rect x="40" y="850" width="500" height="360" rx="8" fill="#081828" stroke="#1ec8e6" strokeWidth="3" />
-      <text x="58" y="884" fill="#fbbf24" fontSize="16" fontWeight="700" fontFamily="IBM Plex Mono, monospace">
+      <rect x="40" y="1076" width="500" height="360" rx="8" fill="#081828" stroke="#1ec8e6" strokeWidth="3" />
+      <text x="58" y="1110" fill="#fbbf24" fontSize="16" fontWeight="700" fontFamily="IBM Plex Mono, monospace">
         ATR + СЕТАПЫ
       </text>
       {[18, 22, 16, 28, 24, 34, 30, 42, 36, 48].map((h, i) => (
-        <rect key={i} x={58 + i * 16} y={980 - h} width="12" height={h} fill="#f59e0b" />
+        <rect key={i} x={58 + i * 16} y={1206 - h} width="12" height={h} fill="#f59e0b" />
       ))}
-      <text x="58" y="1000" fill="#fbbf24" fontSize="12">
-        DAILY ATR
-      </text>
-
-      <rect x="250" y="920" width="130" height="160" rx="6" fill="#2a1014" stroke="#ef4444" />
-      <text x="315" y="948" textAnchor="middle" fill="#f87171" fontSize="13" fontWeight="700">
+      <rect x="250" y="1146" width="130" height="160" rx="6" fill="#2a1014" stroke="#ef4444" />
+      <text x="315" y="1174" textAnchor="middle" fill="#f87171" fontSize="13" fontWeight="700">
         SHORT
       </text>
-      <text x="315" y="978" textAnchor="middle" fill="#e2e8f0" fontSize="12">
+      <text x="315" y="1204" textAnchor="middle" fill="#e2e8f0" fontSize="12">
         {side === "SELL" ? entry : sl}
       </text>
-      <text x="315" y="1000" textAnchor="middle" fill="#94a3b8" fontSize="11">
+      <text x="315" y="1226" textAnchor="middle" fill="#94a3b8" fontSize="11">
         SL {side === "SELL" ? sl : hi}
       </text>
-      <text x="315" y="1022" textAnchor="middle" fill="#94a3b8" fontSize="11">
+      <text x="315" y="1248" textAnchor="middle" fill="#94a3b8" fontSize="11">
         TP {side === "SELL" ? tp : lo}
       </text>
-
-      <rect x="390" y="920" width="130" height="160" rx="6" fill="#0d2a18" stroke="#22c55e" />
-      <text x="455" y="948" textAnchor="middle" fill="#4ade80" fontSize="13" fontWeight="700">
+      <rect x="390" y="1146" width="130" height="160" rx="6" fill="#0d2a18" stroke="#22c55e" />
+      <text x="455" y="1174" textAnchor="middle" fill="#4ade80" fontSize="13" fontWeight="700">
         LONG
       </text>
-      <text x="455" y="978" textAnchor="middle" fill="#e2e8f0" fontSize="12">
+      <text x="455" y="1204" textAnchor="middle" fill="#e2e8f0" fontSize="12">
         {side === "BUY" ? entry : tp}
       </text>
-      <text x="455" y="1000" textAnchor="middle" fill="#94a3b8" fontSize="11">
+      <text x="455" y="1226" textAnchor="middle" fill="#94a3b8" fontSize="11">
         SL {lo}
       </text>
-      <text x="455" y="1022" textAnchor="middle" fill="#94a3b8" fontSize="11">
+      <text x="455" y="1248" textAnchor="middle" fill="#94a3b8" fontSize="11">
         TP {hi}
       </text>
 
-      {/* levels */}
-      <rect x="560" y="850" width="480" height="360" rx="8" fill="#081828" stroke="#1ec8e6" strokeWidth="3" />
-      <text x="578" y="884" fill="#1ec8e6" fontSize="16" fontWeight="700" fontFamily="IBM Plex Mono, monospace">
+      <rect x="560" y="1076" width="480" height="360" rx="8" fill="#081828" stroke="#1ec8e6" strokeWidth="3" />
+      <text x="578" y="1110" fill="#1ec8e6" fontSize="16" fontWeight="700" fontFamily="IBM Plex Mono, monospace">
         КЛЮЧЕВЫЕ УРОВНИ
       </text>
       {[
@@ -269,17 +341,17 @@ function OnePoster({ t, quote }: { t: Tape; quote?: HomeQuote }) {
         [tp, "Target / SSL", "#6d28d9"],
       ].map(([val, name, col], i) => (
         <g key={String(name)}>
-          <rect x="578" y={910 + i * 48} width="150" height="32" rx="4" fill={String(col)} />
-          <text x="653" y={932 + i * 48} textAnchor="middle" fill="#fff" fontSize="13" fontFamily="IBM Plex Mono, monospace">
+          <rect x="578" y={1136 + i * 48} width="150" height="32" rx="4" fill={String(col)} />
+          <text x="653" y={1158 + i * 48} textAnchor="middle" fill="#fff" fontSize="13" fontFamily="IBM Plex Mono, monospace">
             {val}
           </text>
-          <text x="748" y={932 + i * 48} fill="#cbd5e1" fontSize="14">
+          <text x="748" y={1158 + i * 48} fill="#cbd5e1" fontSize="14">
             {name}
           </text>
         </g>
       ))}
 
-      <text x="540" y="1260" textAnchor="middle" fill="#3ecbff" fontSize="13" letterSpacing="2" fontFamily="IBM Plex Mono, monospace">
+      <text x="540" y="1490" textAnchor="middle" fill="#3ecbff" fontSize="13" letterSpacing="2" fontFamily="IBM Plex Mono, monospace">
         SMC + ELLIOTT + PATTERNS + ATR · НЕ ЯВЛЯЕТСЯ РЕКОМЕНДАЦИЕЙ
       </text>
     </svg>
