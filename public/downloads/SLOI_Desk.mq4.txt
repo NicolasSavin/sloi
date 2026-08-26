@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.32"
+#property version   "4.33"
 #property strict
 #property description "На графике: VWAP, профиль, футпринт бара, infusion/splash, Bid/Ask."
 
@@ -15,6 +15,11 @@ input string  BrokerSuffix    = ".cs";
 input int     WorkTF          = 60;
 input bool    AutoTrade       = true;
 input double  Lots            = 0.10;
+input bool    RiskOn          = false;
+input double  RiskPercent     = 1.0;
+input bool    Martingale      = false;
+input double  MartMult        = 2.0;
+input int     MartMax         = 2;
 input int     Magic           = 220826;
 input int     SlippagePoints  = 20;
 input int     MaxSpreadPoints = 80;
@@ -43,6 +48,11 @@ string g_url;
 int    g_tf;
 bool   g_auto;
 double g_lots;
+bool   g_riskOn;
+double g_riskPct;
+bool   g_mart;
+double g_martMult;
+int    g_martMax;
 int    g_maxSp;
 double g_skew;
 bool   g_alerts;
@@ -72,6 +82,11 @@ int OnInit()
    g_tf     = WorkTF;
    g_auto   = AutoTrade;
    g_lots   = Lots;
+   g_riskOn = RiskOn;
+   g_riskPct = RiskPercent;
+   g_mart = Martingale;
+   g_martMult = MartMult;
+   g_martMax = MartMax;
    g_maxSp  = MaxSpreadPoints;
    g_skew   = MaxSkewPct;
    g_alerts = AlertsOn;
@@ -82,7 +97,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.19: кнопки Купить/Продать/Закрыть. Сделки с сайта или вручную по этому графику.");
+   Print("SLOI 4.33: лот или риск%, мартин только по паре после стопа.");
    return(INIT_SUCCEEDED);
   }
 
@@ -120,6 +135,19 @@ void OnChartEvent(const int id, const long &lparam, const double &dparam, const 
       DrawDesk();
       return;
      }
+   if(sparam == P+"b_risk")
+     {
+      g_riskOn = !g_riskOn;
+      g_seeded = false;
+      DrawDesk();
+      return;
+     }
+   if(sparam == P+"b_mart")
+     {
+      g_mart = !g_mart;
+      DrawDesk();
+      return;
+     }
    if(sparam == P+"b_ok")
      {
       ApplyEdits();
@@ -149,7 +177,8 @@ void ApplyEdits()
    double l = StringToDouble(lots);
    int    s = (int)StringToInteger(sp);
    int    t = (int)StringToInteger(tf);
-   if(l > 0) g_lots = l;
+   if(g_riskOn) { if(l > 0 && l <= 10) g_riskPct = l; }
+   else if(l > 0) g_lots = l;
    if(s > 0) g_maxSp = s;
    if(t == 15 || t == 30 || t == 60 || t == 240 || t == 1440) g_tf = t;
    g_suffix = suf;
@@ -803,7 +832,8 @@ void MaybeTrade(int idx, int dir, double entry, double stop, double target, stri
       return;
      }
    if(cmd == OP_BUYLIMIT || cmd == OP_SELLLIMIT) DeletePending(s);
-   int ticket = SendOrder(s, cmd, g_lots, px,
+   double lots = LotFor(s, entry, stop);
+   int ticket = SendOrder(s, cmd, lots, px,
                           NormalizeDouble(stop, digits), NormalizeDouble(target, digits),
                           "SLOI", dir > 0 ? C_BUY : C_SEL);
    if(ticket > 0) g_lastKey[idx] = key;
@@ -880,6 +910,76 @@ bool RecentLoss(string s, int minutes)
    return(false);
   }
 
+double NormalizeLot(string s, double lots)
+  {
+   double minl = MarketInfo(s, MODE_MINLOT);
+   double maxl = MarketInfo(s, MODE_MAXLOT);
+   double step = MarketInfo(s, MODE_LOTSTEP);
+   if(minl <= 0) minl = 0.01;
+   if(maxl <= 0) maxl = 100;
+   if(step <= 0) step = 0.01;
+   lots = MathFloor(lots / step + 1e-8) * step;
+   if(lots < minl) lots = minl;
+   if(lots > maxl) lots = maxl;
+   return(NormalizeDouble(lots, 2));
+  }
+
+int LossStreak(string s)
+  {
+   if(!g_mart) return(0);
+   datetime before = TimeCurrent() + 1;
+   int streak = 0;
+   int cap = MathMax(1, g_martMax);
+   for(int k = 0; k < cap; k++)
+     {
+      datetime best = 0;
+      double prof = 0;
+      bool found = false;
+      int n = OrdersHistoryTotal();
+      for(int i = 0; i < n; i++)
+        {
+         if(!OrderSelect(i, SELECT_BY_POS, MODE_HISTORY)) continue;
+         if(OrderMagicNumber() != Magic || OrderSymbol() != s) continue;
+         int ty = OrderType();
+         if(ty != OP_BUY && ty != OP_SELL) continue;
+         datetime ct = OrderCloseTime();
+         if(ct <= 0 || ct >= before) continue;
+         if(ct >= best)
+           {
+            best = ct;
+            prof = OrderProfit() + OrderSwap() + OrderCommission();
+            found = true;
+           }
+        }
+      if(!found) break;
+      if(prof >= 0) break;
+      streak++;
+      before = best;
+     }
+   return(streak);
+  }
+
+double LotFor(string s, double entry, double stop)
+  {
+   double lots = g_lots;
+   if(lots <= 0) lots = Lots;
+   if(g_riskOn && entry > 0 && stop > 0)
+     {
+      double dist = MathAbs(entry - stop);
+      double tickv = MarketInfo(s, MODE_TICKVALUE);
+      double ticks = MarketInfo(s, MODE_TICKSIZE);
+      double money = AccountEquity() * g_riskPct / 100.0;
+      if(dist > 0 && tickv > 0 && ticks > 0 && money > 0)
+         lots = money / (dist / ticks * tickv);
+     }
+   int st = LossStreak(s);
+   if(st > 0 && g_martMult > 1)
+     {
+      for(int i = 0; i < st; i++) lots *= g_martMult;
+     }
+   return(NormalizeLot(s, lots));
+  }
+
 void ManageBE()
   {
    for(int i = OrdersTotal() - 1; i >= 0; i--)
@@ -921,8 +1021,6 @@ void ManualTrade(int dir)
    string s = Symbol();
    SymbolSelect(s, true);
    RefreshRates();
-   double lots = g_lots;
-   if(lots <= 0) lots = Lots;
    int digits = DigitsOf(s);
    int cmd = dir > 0 ? OP_BUY : OP_SELL;
    double px = dir > 0 ? AskOf(s) : BidOf(s);
@@ -932,6 +1030,7 @@ void ManualTrade(int dir)
    string verdict, why;
    int lim = 0;
    ReadSite(Naked(s), d, entry, stop, target, siteLast, verdict, why, skewCap, lim);
+   double lots = LotFor(s, entry, stop);
    double sl = (stop > 0 ? NormalizeDouble(stop, digits) : 0);
    double tp = (target > 0 ? NormalizeDouble(target, digits) : 0);
    int ticket = SendOrder(s, cmd, lots, px, sl, tp, "SLOI manual", dir > 0 ? C_BUY : C_SEL);
@@ -1114,7 +1213,7 @@ void DrawDesk()
       ChartRedraw();
       return;
      }
-   int w = 790;
+   int w = 840;
    int setH = 142;
    int rowH = 20;
    int head = 22;
@@ -1130,19 +1229,20 @@ void DrawDesk()
 
    bool seed = !g_seeded;
    g_seeded = true;
-   Lab("l_lots", x + 14, y + 38, "лот", C_DIM, 8);
-   Edit("e_lots", x + 40, y + 36, 50, 20, DoubleToStr(g_lots, 2), seed);
+   Btn("b_risk", x + 14, y + 36, 58, 20, g_riskOn ? "РИСК%" : "ЛОТ", C_GOLD);
+   Edit("e_lots", x + 76, y + 36, 50, 20, g_riskOn ? DoubleToStr(g_riskPct, 2) : DoubleToStr(g_lots, 2), seed);
 
-   Lab("l_sp", x + 100, y + 38, "макс спред", C_DIM, 8);
-   Edit("e_spread", x + 170, y + 36, 44, 20, IntegerToString(g_maxSp), seed);
+   Lab("l_sp", x + 132, y + 38, "макс спред", C_DIM, 8);
+   Edit("e_spread", x + 200, y + 36, 44, 20, IntegerToString(g_maxSp), seed);
 
-   Lab("l_tf", x + 224, y + 38, "TF мин", C_DIM, 8);
-   Edit("e_tf", x + 270, y + 36, 50, 20, IntegerToString(g_tf), seed);
+   Lab("l_tf", x + 250, y + 38, "TF", C_DIM, 8);
+   Edit("e_tf", x + 272, y + 36, 44, 20, IntegerToString(g_tf), seed);
 
-   Lab("l_suf", x + 330, y + 38, "суффикс", C_DIM, 8);
-   Edit("e_suf", x + 384, y + 36, 70, 20, g_suffix, seed);
+   Lab("l_suf", x + 322, y + 38, "суф", C_DIM, 8);
+   Edit("e_suf", x + 348, y + 36, 56, 20, g_suffix, seed);
 
-   Btn("b_ok", x + 470, y + 36, 90, 22, "ПРИМЕНИТЬ", C_GOLD);
+   Btn("b_mart", x + 410, y + 36, 90, 22, g_mart ? "МАРТ ВКЛ" : "МАРТ ВЫКЛ", g_mart ? C_WAIT : C_OFF);
+   Btn("b_ok", x + 506, y + 36, 90, 22, "ПРИМЕНИТЬ", C_GOLD);
 
    Lab("l_list", x + 14, y + 64, "пары", C_DIM, 8);
    Edit("e_list", x + 50, y + 62, 654, 20, g_watch, seed);
@@ -1163,7 +1263,8 @@ void DrawDesk()
    Lab("h4", hx+250, hy, "ВХОД",    C_DIM, 8);
    Lab("h5", hx+350, hy, "СТОП",    C_DIM, 8);
    Lab("h6", hx+450, hy, "ЦЕЛЬ",    C_DIM, 8);
-   Lab("h7", hx+550, hy, "ВЕРДИКТ", C_DIM, 8);
+   Lab("h7", hx+530, hy, "ВЕРДИКТ", C_DIM, 8);
+   Lab("h8", hx+700, hy, "ЛОТ", C_DIM, 8);
 
    string cmt = "SLOI DESK | лента "+g_feedNote+" | авто "+(g_auto?"ВКЛ":"ВЫКЛ")+" | макс спред "+IntegerToString(g_maxSp)+"п\n";
    cmt += "СИМВОЛ     СПРЕД  СТРУКТ   ВХОД        СТОП        ЦЕЛЬ        ВЕРДИКТ\n";
@@ -1186,7 +1287,12 @@ void DrawDesk()
       Lab("e"+IntegerToString(i), hx+250, ry, entry > 0 ? Px(s, entry) : "—", C_FG, 9);
       Lab("k"+IntegerToString(i), hx+350, ry, stop > 0 ? Px(s, stop) : "—", C_SEL, 9);
       Lab("t"+IntegerToString(i), hx+450, ry, target > 0 ? Px(s, target) : "—", C_BUY, 9);
-      Lab("v"+IntegerToString(i), hx+550, ry, verdict+"  "+why, VClr(verdict), 9);
+      int st = LossStreak(s);
+      double showLot = (dir != 0 || st > 0) ? LotFor(s, entry, stop) : g_lots;
+      string martBit = "";
+      if(g_mart && st > 0) martBit = " МАРТ x"+IntegerToString((int)MathRound(MathPow(g_martMult, st)));
+      Lab("v"+IntegerToString(i), hx+530, ry, verdict+"  "+why+martBit, VClr(verdict), 9);
+      Lab("o"+IntegerToString(i), hx+700, ry, DoubleToStr(showLot, 2), st > 0 ? C_WAIT : C_FG, 9);
       Btn("g"+IntegerToString(i), x + w - 72, ry - 1, 58, 18, ">>", C_GOLD);
 
       cmt += s;
