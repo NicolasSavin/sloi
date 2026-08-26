@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.34"
+#property version   "4.35"
 #property strict
 #property description "На графике: VWAP, профиль, футпринт бара, infusion/splash, Bid/Ask."
 
@@ -33,6 +33,8 @@ input double  MinCover        = 1.0;
 input double  MinNetRR        = 0.8;
 input int     OneTradeOnly    = 1;
 input int     CoolMinutes     = 0;
+input bool    FixForeign      = true;
+input string  ForeignTag      = "WS";
 input bool    AlertsOn        = true;
 input int     PanelX          = 8;
 input int     PanelY          = 18;
@@ -112,7 +114,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.34: лот отдельно FX / золото / серебро / газ / нефть / крипта.");
+   Print("SLOI 4.35: чужие WS подтягиваю под стол или закрываю, если WAIT.");
    return(INIT_SUCCEEDED);
   }
 
@@ -167,6 +169,12 @@ void OnChartEvent(const int id, const long &lparam, const double &dparam, const 
      {
       ApplyEdits();
       g_seeded = false;
+      DrawDesk();
+      return;
+     }
+   if(sparam == P+"b_ws")
+     {
+      CloseForeignAll();
       DrawDesk();
       return;
      }
@@ -872,9 +880,11 @@ int CountMarket(string s)
    for(int i = OrdersTotal() - 1; i >= 0; i--)
      {
       if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
-      if(OrderSymbol() != s || OrderMagicNumber() != Magic) continue;
+      if(OrderSymbol() != s) continue;
       int ty = OrderType();
-      if(ty == OP_BUY || ty == OP_SELL) n++;
+      if(ty != OP_BUY && ty != OP_SELL) continue;
+      if(OrderMagicNumber() == Magic) { n++; continue; }
+      if(FixForeign && IsForeign()) n++;
      }
    return(n);
   }
@@ -1125,6 +1135,61 @@ void CloseMine(bool all)
    Alert("SLOI ", (all ? "закрыть всё: " : "закрыть прибыль: "), n);
   }
 
+bool IsForeign()
+  {
+   if(OrderMagicNumber() == Magic) return(false);
+   string c = OrderComment();
+   if(StringLen(ForeignTag) <= 0) return(true);
+   if(StringFind(c, ForeignTag) >= 0) return(true);
+   if(StringFind(c, "WS") >= 0) return(true);
+   if(StringFind(c, "world") >= 0 || StringFind(c, "World") >= 0) return(true);
+   return(false);
+  }
+
+void AlignForeign(string s, int dir, double stop, double target)
+  {
+   if(!FixForeign) return;
+   int digits = DigitsOf(s);
+   for(int i = OrdersTotal() - 1; i >= 0; i--)
+     {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
+      if(OrderSymbol() != s) continue;
+      if(!IsForeign()) continue;
+      int ty = OrderType();
+      bool buy = (ty == OP_BUY || ty == OP_BUYLIMIT || ty == OP_BUYSTOP);
+      bool sel = (ty == OP_SELL || ty == OP_SELLLIMIT || ty == OP_SELLSTOP);
+      if(dir == 0)
+        {
+         CloseOne();
+         continue;
+        }
+      if((dir > 0 && sel) || (dir < 0 && buy))
+        {
+         CloseOne();
+         continue;
+        }
+      if(ty != OP_BUY && ty != OP_SELL) continue;
+      double sl = (stop > 0 ? NormalizeDouble(stop, digits) : OrderStopLoss());
+      double tp = (target > 0 ? NormalizeDouble(target, digits) : OrderTakeProfit());
+      if(MathAbs(OrderStopLoss() - sl) < PointOf(s) * 2 && MathAbs(OrderTakeProfit() - tp) < PointOf(s) * 2) continue;
+      if(!OrderModify(OrderTicket(), OrderOpenPrice(), sl, tp, 0, C_GOLD))
+         Print("SLOI WS modify ", s, " ", GetLastError());
+     }
+  }
+
+void CloseForeignAll()
+  {
+   int n = 0;
+   for(int i = OrdersTotal() - 1; i >= 0; i--)
+     {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
+      if(!IsForeign()) continue;
+      CloseOne();
+      n++;
+     }
+   if(n > 0) Alert("SLOI снял чужие WS: ", n);
+  }
+
 void Wipe()
   {
    for(int i = ObjectsTotal() - 1; i >= 0; i--)
@@ -1247,6 +1312,7 @@ void DrawDesk()
          double entry = 0, stop = 0, target = 0;
          Scan(i, bias, verdict, why, dir, entry, stop, target, spPts);
          if(!g_auto && dir != 0) why = "АВТО ВЫКЛ";
+         AlignForeign(g_sym[i], dir, stop, target);
          MaybeTrade(i, dir, entry, stop, target, verdict, spPts);
         }
       ManageBE();
@@ -1306,8 +1372,9 @@ void DrawDesk()
    Btn("b_buy",  x + 50,  y + 132, 100, 24, "КУПИТЬ", C_BUY);
    Btn("b_sell", x + 158, y + 132, 100, 24, "ПРОДАТЬ", C_SEL);
    Btn("b_cp",   x + 266, y + 132, 150, 24, "ЗАКРЫТЬ ПРИБЫЛЬ", C_GOLD);
-   Btn("b_ca",   x + 424, y + 132, 130, 24, "ЗАКРЫТЬ ВСЁ", C_SEL);
-   Lab("l_man", x + 564, y + 136, "FX/AU/AG/газ/нефть — разные лоты", C_DIM, 8);
+   Btn("b_ca",   x + 424, y + 132, 110, 24, "ЗАКРЫТЬ ВСЁ", C_SEL);
+   Btn("b_ws",   x + 540, y + 132, 100, 24, "СНЯТЬ WS", C_WAIT);
+   Lab("l_man", x + 648, y + 136, "WS→стол", C_DIM, 8);
 
    int hx = x + 14;
    int hy = y + setH + 2;
@@ -1330,6 +1397,7 @@ void DrawDesk()
       double entry = 0, stop = 0, target = 0;
       Scan(i, bias, verdict, why, dir, entry, stop, target, spPts);
       if(!g_auto && dir != 0) why = "АВТО ВЫКЛ";
+      AlignForeign(g_sym[i], dir, stop, target);
       MaybeTrade(i, dir, entry, stop, target, verdict, spPts);
 
       int ry = y + setH + head + i * rowH;

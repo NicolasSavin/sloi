@@ -8,8 +8,8 @@ function readyEa() {
   src = src.replace("#define MAXSYM 24", "#define MAXSYM 32");
   src = src.replace('#property version   "4.16"', '#property version   "4.20"');
   src = src.replace('#property version   "4.18"', '#property version   "4.20"');
-  src = src.replace('#property version   "4.32"', '#property version   "4.34"');
-  src = src.replace('#property version   "4.33"', '#property version   "4.34"');
+  src = src.replace('#property version   "4.33"', '#property version   "4.35"');
+  src = src.replace('#property version   "4.34"', '#property version   "4.35"');
   src = src.replace(
     "      string s = parts[i];\n      if(StringLen(g_suffix) > 0 && StringFind(s, g_suffix) < 0)",
     "      string s = parts[i];\n      if(StringLen(s) < 3) continue;\n      if(StringLen(g_suffix) > 0 && StringFind(s, g_suffix) < 0)",
