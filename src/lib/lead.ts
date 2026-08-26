@@ -1,7 +1,14 @@
-import type { DigestMarket } from "@/lib/digest";
+type LeadLike = {
+  lastClose: number;
+  score: number;
+  spec: { kind: string };
+  setup: { entry: number | null; stop: number | null };
+  advice: { action: string; title: string; netRr: number | null };
+  wind?: { kind: string };
+};
 
-/** Чем выше — тем охотнее пара на постере главной / Сегодня. */
-export function leadScore(m: DigestMarket): number {
+/** Живой приказ + близость к зоне + RR. Это лид главной / Сегодня. */
+export function leadScore(m: LeadLike): number {
   const live = m.advice.action === "long" || m.advice.action === "short";
   const e = m.setup.entry;
   const s = m.setup.stop;
@@ -24,7 +31,7 @@ export function leadScore(m: DigestMarket): number {
   return n;
 }
 
-export function pickLead(markets: DigestMarket[]): DigestMarket {
+export function pickLead<T extends LeadLike>(markets: T[]): T {
   const ranked = [...markets].sort((a, b) => leadScore(b) - leadScore(a) || b.score - a.score);
   return ranked[0]!;
 }
