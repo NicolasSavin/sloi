@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.29"
+#property version   "4.30"
 #property strict
 #property description "На графике: VWAP, профиль, футпринт бара, infusion/splash, Bid/Ask."
 
@@ -19,10 +19,10 @@ input int     Magic           = 220826;
 input int     SlippagePoints  = 20;
 input int     MaxSpreadPoints = 80;
 input double  MaxSkewPct      = 0.12;
-input double  MinCover        = 1.8;
-input double  MinNetRR        = 1.2;
+input double  MinCover        = 1.5;
+input double  MinNetRR        = 1.05;
 input int     OneTradeOnly    = 1;
-input int     CoolMinutes     = 120;
+input int     CoolMinutes     = 50;
 input bool    AlertsOn        = true;
 input int     PanelX          = 8;
 input int     PanelY          = 18;
@@ -432,8 +432,8 @@ double StopAway(string s, int dir, double px, double sl)
    double lvl = MarketInfo(s, MODE_STOPLEVEL) * pt;
    double spr = SpreadPr(s);
    double atr = iATR(s, PERIOD_H1, 14, 1);
-   double need = MathMax(lvl, spr * 3.5);
-   if(atr > 0) need = MathMax(need, atr * 0.7);
+   double need = MathMax(lvl, spr * 2.5);
+   if(atr > 0) need = MathMax(need, atr * 0.55);
    if(need <= 0) return(sl);
    if(dir > 0 && (sl <= 0 || px - sl < need)) return(NormalizeDouble(px - need, DigitsOf(s)));
    if(dir < 0 && (sl <= 0 || sl - px < need)) return(NormalizeDouble(px + need, DigitsOf(s)));
@@ -786,8 +786,8 @@ void MaybeTrade(int idx, int dir, double entry, double stop, double target, stri
    double risk = MathAbs(entry - stop);
    if(entry > 0 && risk > 0)
      {
-      if(dir > 0 && AskOf(s) > entry + risk * 0.28) { cmd = OP_BUYLIMIT; px = NormalizeDouble(entry, digits); }
-      if(dir < 0 && BidOf(s) < entry - risk * 0.28) { cmd = OP_SELLLIMIT; px = NormalizeDouble(entry, digits); }
+      if(dir > 0 && AskOf(s) > entry + risk * 0.4) { cmd = OP_BUYLIMIT; px = NormalizeDouble(entry, digits); }
+      if(dir < 0 && BidOf(s) < entry - risk * 0.4) { cmd = OP_SELLLIMIT; px = NormalizeDouble(entry, digits); }
      }
    DeleteWrongPending(s, dir);
    if((cmd == OP_BUYLIMIT || cmd == OP_SELLLIMIT) && SamePending(s, dir, px))
@@ -888,7 +888,7 @@ void ManageBE()
       if(risk <= 0) continue;
       string s = OrderSymbol();
       int digits = DigitsOf(s);
-      if(type == OP_BUY && BidOf(s) - open >= risk * 1.5)
+      if(type == OP_BUY && BidOf(s) - open >= risk * 1.25)
         {
          double be = NormalizeDouble(open + SpreadPr(s), digits);
          if(sl < be)
@@ -897,7 +897,7 @@ void ManageBE()
                Print("SLOI BE buy ", GetLastError());
            }
         }
-      if(type == OP_SELL && open - AskOf(s) >= risk * 1.5)
+      if(type == OP_SELL && open - AskOf(s) >= risk * 1.25)
         {
          double be = NormalizeDouble(open - SpreadPr(s), digits);
          if(sl == 0 || sl > be)

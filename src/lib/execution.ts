@@ -116,7 +116,7 @@ export function fillMode(
   target?: number,
 ): "LIMIT" | "MARKET" | "LATE" {
   const risk = Math.abs(entry - stop);
-  const zone = risk * 0.28;
+  const zone = risk * 0.4;
   if (!Number.isFinite(zone) || zone <= 0) return "LIMIT";
   if (action === "long") {
     if (target != null && target > entry && last > entry + (target - entry) * 0.45) return "LATE";
@@ -173,7 +173,7 @@ export function refineAdvice(
       therefore: "Нет живого блока или FVG. Пустой край не торгуем.",
     };
   }
-  if (score < 48 && !opts.choch) {
+  if (score < 42 && !opts.choch) {
     return {
       ...advice,
       action: "wait",
@@ -181,12 +181,12 @@ export function refineAdvice(
       therefore: `Счёт ${score}/100, нет CHoCH. Ждём, пока структура, зона и старший ТФ не сойдутся.`,
     };
   }
-  if (stack.grade === "H1" && !opts.choch && score < 62) {
+  if (stack.grade === "H1" && !opts.choch && score < 54) {
     return {
       ...advice,
       action: "wait",
       title: "Только час — мало",
-      therefore: `${stack.note} Без CHoCH и счёта выше 62 лимитку не вешаем.`,
+      therefore: `${stack.note} Без CHoCH и счёта выше 54 лимитку не вешаем.`,
     };
   }
   if (stack.block === "all" && mode !== "MARKET") {
