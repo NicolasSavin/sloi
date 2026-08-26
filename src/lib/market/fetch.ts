@@ -564,7 +564,11 @@ export async function renderSignalFeed() {
       if (isHeld(m.spec.id)) mode = "LIMIT";
       else side = "WAIT";
     }
-    if (side !== "WAIT" && mode === "MARKET" && !sessionAllows(m.spec.id, session).ok) mode = "LIMIT";
+    if (side !== "WAIT" && mode === "MARKET" && !sessionAllows(m.spec.id, session).ok) {
+      const risk = Math.abs(e - s);
+      const away = Math.abs(last - e);
+      if (risk > 0 && away > risk * 0.35) mode = "LIMIT";
+    }
     lines.push(`${m.spec.id} ${side} ${e} ${s} ${t} ${last} SKEW ${cap} MODE ${mode === "LATE" ? "WAIT" : mode}`);
   }
   return `${lines.join("\n")}\n`;

@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.31"
+#property version   "4.32"
 #property strict
 #property description "На графике: VWAP, профиль, футпринт бара, infusion/splash, Bid/Ask."
 
@@ -460,7 +460,14 @@ int SendOrder(string s, int cmd, double lots, double px, double sl, double tp, s
    if(ticket < 0)
      {
       int err = GetLastError();
-      if(err == 130)
+      if((cmd == OP_BUYLIMIT || cmd == OP_SELLLIMIT) && (err == 130 || err == 148 || err == 4110))
+        {
+         cmd = (dir > 0 ? OP_BUY : OP_SELL);
+         px = dir > 0 ? AskOf(s) : BidOf(s);
+         ticket = OrderSend(s, cmd, lots, px, slip, sl, tp, cmt, Magic, 0, clr);
+         err = ticket < 0 ? GetLastError() : 0;
+        }
+      if(ticket < 0 && err == 130)
         {
          ticket = OrderSend(s, cmd, lots, px, slip, 0, 0, cmt, Magic, 0, clr);
          if(ticket > 0)
@@ -784,8 +791,10 @@ void MaybeTrade(int idx, int dir, double entry, double stop, double target, stri
    double risk = MathAbs(entry - stop);
    if(g_lim[idx] > 0 && entry > 0 && risk > 0)
      {
-      if(dir > 0 && AskOf(s) > entry) { cmd = OP_BUYLIMIT; px = NormalizeDouble(entry, digits); }
-      if(dir < 0 && BidOf(s) < entry) { cmd = OP_SELLLIMIT; px = NormalizeDouble(entry, digits); }
+      double near = MathMax(SpreadPr(s) * 2.0, MarketInfo(s, MODE_STOPLEVEL) * PointOf(s));
+      near = MathMax(near, risk * 0.3);
+      if(dir > 0 && AskOf(s) > entry + near) { cmd = OP_BUYLIMIT; px = NormalizeDouble(entry, digits); }
+      if(dir < 0 && BidOf(s) < entry - near) { cmd = OP_SELLLIMIT; px = NormalizeDouble(entry, digits); }
      }
    DeleteWrongPending(s, dir);
    if((cmd == OP_BUYLIMIT || cmd == OP_SELLLIMIT) && SamePending(s, dir, px))
