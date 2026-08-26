@@ -62,70 +62,66 @@ function today() {
 
 function CandleSnap({ sell, sl, entry, tp, price }: { sell: boolean; sl: string; entry: string; tp: string; price: string }) {
   const bars = [
-    [1, 42, 18, 8],
-    [0, 38, 22, 12],
-    [1, 48, 16, 6],
-    [1, 36, 20, 10],
-    [0, 44, 14, 8],
-    [1, 52, 18, 4],
-    [1, 40, 22, 10],
-    [0, 34, 16, 8],
-    [1, 46, 20, 6],
-    [1, 32, 18, 9],
-    [0, 38, 14, 7],
-    [1, 28, 16, 8],
-    [1, 36, 12, 5],
-    [0, 30, 18, 9],
-    [1, 24, 14, 6],
-    [1, 34, 16, 8],
-    [0, 22, 12, 5],
-    [1, 28, 18, 7],
-    [1, 20, 14, 6],
-    [0, 26, 10, 4],
-    [1, 18, 12, 5],
-    [1, 22, 16, 7],
+    [42, 18, 8],
+    [38, 22, 12],
+    [48, 16, 6],
+    [36, 20, 10],
+    [44, 14, 8],
+    [52, 18, 4],
+    [40, 22, 10],
+    [34, 16, 8],
+    [46, 20, 6],
+    [32, 18, 9],
+    [38, 14, 7],
+    [28, 16, 8],
+    [36, 12, 5],
+    [30, 18, 9],
+    [24, 14, 6],
+    [34, 16, 8],
+    [22, 12, 5],
+    [28, 18, 7],
+    [20, 14, 6],
+    [26, 10, 4],
+    [18, 12, 5],
+    [22, 16, 7],
   ];
   return (
     <g>
-      <rect x="36" y="620" width="1008" height="360" rx="10" fill="#071018" stroke="#1a3a55" strokeWidth="2" />
-      <text x="52" y="646" fill="#22d3ee" fontSize="14" fontWeight="700" letterSpacing="1.2">
-        ГРАФИЧЕСКИЕ + ГАРМОНИЧЕСКИЕ ПАТТЕРНЫ (ПОЯСНЕНИЯ НА ГРАФИКЕ)
+      <rect x="36" y="620" width="1008" height="360" rx="10" fill="url(#chartBg)" stroke="#3f1d24" strokeWidth="2" />
+      <text x="52" y="646" fill="#fda4af" fontSize="14" fontWeight="700" letterSpacing="1.2">
+        СНИМОК ГРАФИКА · КРАСНЫЕ СВЕЧИ · ЗОНЫ И СТРЕЛКИ
       </text>
-      {/* descending channel */}
-      <path d="M70 690 L760 780 L760 840 L70 750 Z" fill="rgba(239,68,68,0.08)" stroke="#ef4444" strokeWidth="2" />
-      <text x="86" y="708" fill="#f87171" fontSize="13" fontWeight="700">
+      <path d="M70 690 L760 780 L760 840 L70 750 Z" fill="url(#zoneRed)" stroke="#fb7185" strokeWidth="1.6" />
+      <text x="86" y="708" fill="#fecaca" fontSize="13" fontWeight="700">
         Нисходящий канал / Expanding Range
       </text>
-      <text x="520" y="768" fill="#38bdf8" fontSize="12">
-        Descending Triangle
-      </text>
-      {/* candles */}
-      {bars.map(([dn, body, wickU, wickD], i) => {
-        const x = 80 + i * 28;
-        const base = 820 - i * 4;
+      {bars.map(([body, wickU, wickD], i) => {
+        const x = 72 + i * 30;
+        const base = 828 - i * 4.2;
         const top = base - body;
-        const color = dn ? "#ef4444" : "#22c55e";
+        const h = Math.max(body, 6);
         return (
-          <g key={i}>
-            <line x1={x + 5} y1={top - wickU} x2={x + 5} y2={base + wickD} stroke={color} strokeWidth="1.4" />
-            <rect x={x} y={top} width="10" height={Math.max(body, 4)} fill={color} />
+          <g key={i} filter="url(#glow)">
+            <line x1={x + 7} y1={top - wickU} x2={x + 7} y2={base + wickD} stroke="url(#wickGrad)" strokeWidth="2" />
+            <rect x={x} y={top} width="14" height={h} rx="2" fill="url(#candleRed)" stroke="#fecaca" strokeWidth="0.4" />
+            <rect x={x} y={top} width="5" height={h} rx="2" fill="url(#candleShine)" opacity="0.45" />
           </g>
         );
       })}
-      <text x="700" y="700" fill="#fbbf24" fontSize="12" fontWeight="700">
+      <text x="700" y="700" fill="#fde68a" fontSize="12" fontWeight="700">
         Supply {sl}
       </text>
-      <text x="620" y="880" fill="#a78bfa" fontSize="12">
+      <text x="620" y="880" fill="#f9a8d4" fontSize="12">
         Double Bottom? {tp}
       </text>
-      <text x="780" y="820" fill="#22d3ee" fontSize="13" fontWeight="700">
+      <text x="780" y="820" fill="#fda4af" fontSize="13" fontWeight="700">
         NOW {price}
       </text>
-      <path d={sell ? "M900 760 L900 880" : "M900 860 L900 720"} stroke={sell ? "#ef4444" : "#22c55e"} strokeWidth="3" markerEnd="url(#arrMain)" />
-      <text x="914" y="820" fill={sell ? "#f87171" : "#4ade80"} fontSize="13" fontWeight="700">
+      <path d={sell ? "M900 760 L900 880" : "M900 860 L900 720"} stroke="#fb7185" strokeWidth="3" markerEnd="url(#arrMain)" />
+      <text x="914" y="820" fill="#fecaca" fontSize="13" fontWeight="700">
         {sell ? `SHORT ${entry}` : `LONG ${entry}`}
       </text>
-      <text x="52" y="960" fill="#94a3b8" fontSize="12">
+      <text x="52" y="960" fill="#fda4af" fontSize="12">
         SL {sl} · ENTRY {entry} · TP {tp}
       </text>
     </g>
@@ -147,8 +143,37 @@ function OnePoster({ t, quote }: { t: Tape; quote?: HomeQuote }) {
   return (
     <svg viewBox="0 0 1080 1680" className="block h-auto w-full" role="img" aria-label={`${pair} разбор`}>
       <defs>
+        <linearGradient id="candleRed" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#fecaca" />
+          <stop offset="28%" stopColor="#f43f5e" />
+          <stop offset="70%" stopColor="#be123c" />
+          <stop offset="100%" stopColor="#4c0519" />
+        </linearGradient>
+        <linearGradient id="candleShine" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#fff1f2" />
+          <stop offset="100%" stopColor="#fb7185" stopOpacity="0" />
+        </linearGradient>
+        <linearGradient id="wickGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#fecdd3" />
+          <stop offset="100%" stopColor="#9f1239" />
+        </linearGradient>
+        <linearGradient id="zoneRed" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#fb7185" stopOpacity="0.18" />
+          <stop offset="100%" stopColor="#881337" stopOpacity="0.08" />
+        </linearGradient>
+        <linearGradient id="chartBg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#1c0a10" />
+          <stop offset="100%" stopColor="#0a0610" />
+        </linearGradient>
+        <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur stdDeviation="1.2" result="b" />
+          <feMerge>
+            <feMergeNode in="b" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
         <marker id="arrMain" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
-          <path d="M0,0 L8,4 L0,8 Z" fill={sell ? "#ef4444" : "#22c55e"} />
+          <path d="M0,0 L8,4 L0,8 Z" fill="#fb7185" />
         </marker>
       </defs>
       <rect width="1080" height="1680" fill="#020617" />
@@ -182,7 +207,6 @@ function OnePoster({ t, quote }: { t: Tape; quote?: HomeQuote }) {
         {sell ? "Медвежий" : "Бычий"}
       </text>
 
-      {/* 4 columns */}
       <rect x="24" y="170" width="250" height="430" rx="10" fill="#041018" stroke="#22d3ee" strokeWidth="2" />
       <text x="40" y="198" fill="#22d3ee" fontSize="13" fontWeight="800">
         1. SMC SMART MONEY
@@ -295,9 +319,6 @@ function OnePoster({ t, quote }: { t: Tape; quote?: HomeQuote }) {
       <text x="834" y="486" fill="#bbf7d0" fontSize="13">
         TP {hi}
       </text>
-      <text x="820" y="564" fill="#86efac" fontSize="11">
-        лонг только после BOS вверх
-      </text>
 
       <CandleSnap sell={sell} sl={sl} entry={entry} tp={tp} price={price} />
 
@@ -340,9 +361,6 @@ function OnePoster({ t, quote }: { t: Tape; quote?: HomeQuote }) {
       <text x="52" y="1230" fill="#4ade80" fontSize="16" fontWeight="800">
         LONG · вход {t.side === "BUY" ? entry : tp} · SL {lo} · TP {hi}
       </text>
-      <text x="52" y="1270" fill="#94a3b8" fontSize="13">
-        Приказ диспетчера: {t.side}
-      </text>
 
       <rect x="552" y="1130" width="492" height="220" rx="10" fill="#071018" stroke="#1e3a5f" />
       <text x="568" y="1160" fill="#67e8f9" fontSize="14" fontWeight="800">
@@ -366,7 +384,7 @@ function OnePoster({ t, quote }: { t: Tape; quote?: HomeQuote }) {
       ))}
 
       <text x="540" y="1400" textAnchor="middle" fill="#64748b" fontSize="12">
-        РИСК 0.5–1% · СЛЕДИТЬ ЗА ОБЪЁМОМ НА ПРОБОЯХ · НЕ ЯВЛЯЕТСЯ РЕКОМЕНДАЦИЕЙ
+        РИСК 0.5–1% · НЕ ЯВЛЯЕТСЯ РЕКОМЕНДАЦИЕЙ
       </text>
     </svg>
   );
