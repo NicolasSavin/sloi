@@ -172,3 +172,16 @@ export async function archivePayload() {
   const log = await getArchiveAsync();
   return { log, stats: bookStats(log), at: Date.now(), durable: Boolean(process.env.DATABASE_URL) };
 }
+
+export function stoppedMap(ms = 50 * 60_000) {
+  const now = Date.now();
+  const out = new Map<string, number>();
+  for (const h of mem()) {
+    if (h.status !== "stop") continue;
+    const at = h.closedAt ?? h.at;
+    if (now - at > ms) continue;
+    const prev = out.get(h.symbol) ?? 0;
+    if (at > prev) out.set(h.symbol, at);
+  }
+  return out;
+}

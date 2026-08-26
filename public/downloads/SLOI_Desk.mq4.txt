@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.30"
+#property version   "4.31"
 #property strict
 #property description "На графике: VWAP, профиль, футпринт бара, infusion/splash, Bid/Ask."
 
@@ -19,10 +19,10 @@ input int     Magic           = 220826;
 input int     SlippagePoints  = 20;
 input int     MaxSpreadPoints = 80;
 input double  MaxSkewPct      = 0.12;
-input double  MinCover        = 1.5;
-input double  MinNetRR        = 1.05;
+input double  MinCover        = 1.0;
+input double  MinNetRR        = 0.8;
 input int     OneTradeOnly    = 1;
-input int     CoolMinutes     = 50;
+input int     CoolMinutes     = 0;
 input bool    AlertsOn        = true;
 input int     PanelX          = 8;
 input int     PanelY          = 18;
@@ -431,9 +431,7 @@ double StopAway(string s, int dir, double px, double sl)
    double pt = PointOf(s);
    double lvl = MarketInfo(s, MODE_STOPLEVEL) * pt;
    double spr = SpreadPr(s);
-   double atr = iATR(s, PERIOD_H1, 14, 1);
-   double need = MathMax(lvl, spr * 2.5);
-   if(atr > 0) need = MathMax(need, atr * 0.55);
+   double need = MathMax(lvl, spr * 1.15);
    if(need <= 0) return(sl);
    if(dir > 0 && (sl <= 0 || px - sl < need)) return(NormalizeDouble(px - need, DigitsOf(s)));
    if(dir < 0 && (sl <= 0 || sl - px < need)) return(NormalizeDouble(px + need, DigitsOf(s)));
@@ -784,10 +782,10 @@ void MaybeTrade(int idx, int dir, double entry, double stop, double target, stri
    int cmd = dir > 0 ? OP_BUY : OP_SELL;
    double px = dir > 0 ? AskOf(s) : BidOf(s);
    double risk = MathAbs(entry - stop);
-   if(entry > 0 && risk > 0)
+   if(g_lim[idx] > 0 && entry > 0 && risk > 0)
      {
-      if(dir > 0 && AskOf(s) > entry + risk * 0.4) { cmd = OP_BUYLIMIT; px = NormalizeDouble(entry, digits); }
-      if(dir < 0 && BidOf(s) < entry - risk * 0.4) { cmd = OP_SELLLIMIT; px = NormalizeDouble(entry, digits); }
+      if(dir > 0 && AskOf(s) > entry) { cmd = OP_BUYLIMIT; px = NormalizeDouble(entry, digits); }
+      if(dir < 0 && BidOf(s) < entry) { cmd = OP_SELLLIMIT; px = NormalizeDouble(entry, digits); }
      }
    DeleteWrongPending(s, dir);
    if((cmd == OP_BUYLIMIT || cmd == OP_SELLLIMIT) && SamePending(s, dir, px))

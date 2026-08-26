@@ -58,7 +58,7 @@ export function applyHold(markets: DigestMarket[]): DigestMarket[] {
     }
     const prev = hold.get(m.spec.id);
     if (!prev) return m;
-    if (/Стоп: новость|Стоп: крупная|Слабое совпадение|Только час|Ждать зону|Ждать старший/.test(m.advice.title)) {
+    if (/Стоп: новость|Стоп: крупная|Слабое совпадение|Только час|Ждать зону|Ждать старший|Пауза после стопа/.test(m.advice.title)) {
       hold.delete(m.spec.id);
       return m;
     }
@@ -96,6 +96,25 @@ export function applyHold(markets: DigestMarket[]): DigestMarket[] {
         entry: prev.entry,
         stop: prev.stop,
         targets: prev.target ? [prev.target, ...m.setup.targets.slice(1)] : m.setup.targets,
+      },
+    };
+  });
+}
+
+export function applyCool(markets: DigestMarket[], stopped: Map<string, number>, ms = 50 * 60_000): DigestMarket[] {
+  const now = Date.now();
+  return markets.map((m) => {
+    const at = stopped.get(m.spec.id);
+    if (at == null || now - at > ms) return m;
+    if (m.advice.action !== "long" && m.advice.action !== "short") return m;
+    const min = Math.max(1, Math.round((ms - (now - at)) / 60_000));
+    return {
+      ...m,
+      advice: {
+        ...m.advice,
+        action: "wait",
+        title: "Пауза после стопа",
+        therefore: `Сайт: по этой паре стоп ${min} мин назад. Не входим, пока не выйдет пауза.`,
       },
     };
   });

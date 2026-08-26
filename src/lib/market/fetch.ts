@@ -500,14 +500,21 @@ async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }
     const advice = gateAdvice(r.market.advice, wind, fund.halt, ctx);
     return { ...r.market, wind, advice, htfBias: ctx.htfBias, d1Bias: ctx.d1Bias };
   });
-  const { applyHold, seedHold } = await import("@/lib/signal-hold");
+  const { applyHold, seedHold, applyCool } = await import("@/lib/signal-hold");
   try {
     const { getArchiveAsync } = await import("@/lib/archive-store");
     seedHold(await getArchiveAsync());
   } catch {
     /* archive optional */
   }
-  const held = applyHold(markets);
+  let stops = new Map<string, number>();
+  try {
+    const arch = await import("@/lib/archive-store");
+    stops = arch.stoppedMap();
+  } catch {
+    /* */
+  }
+  const held = applyCool(applyHold(markets), stops);
   const leadMarket = pickLead(held);
   const leadRow = rows.find((r) => r.spec.id === leadMarket.spec.id) ?? rows[0]!;
   const { parseTgChannel } = await import("@/lib/tg-options");
