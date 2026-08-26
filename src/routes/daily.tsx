@@ -56,10 +56,7 @@ function DailyPage() {
   const setSymbol = useDeskStore((s) => s.setSymbol);
   const picked = digest.markets.find((m) => m.spec.id === symbol) ?? digest.lead;
   const others = digest.markets.filter((m) => m.spec.id !== picked.spec.id);
-  const article =
-    picked.spec.id === digest.lead.spec.id
-      ? digest.article
-      : writeArticle(picked, others, digest.date, digest.sentiment, digest.fund);
+  const article = writeArticle(picked, others, digest.date, digest.sentiment, digest.fund);
   return (
     <div className="min-h-dvh">
       <AppNav />
@@ -94,6 +91,7 @@ function DailyPage() {
           <p className="font-mono text-xs tracking-[0.2em] text-accent">{article.kicker}</p>
           <h2 className="mt-2 text-3xl font-medium">{article.title}</h2>
           <p className="mt-3 text-muted">{article.dek}</p>
+          <p className="mt-2 font-mono text-[11px] text-dim">Текст ниже только про {picked.spec.id}, не про лид дня.</p>
           {article.body.split("\n\n").map((p) => (
             <p key={p.slice(0, 24)} className="mt-4 text-base leading-relaxed">
               {p}

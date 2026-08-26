@@ -511,9 +511,9 @@ export function writeArticle(
     .join("\n\n");
 
   return {
-    kicker: `Крупняк · ${dateLabel(date)}`,
+    kicker: `${lead.spec.id} · ${dateLabel(date)}`,
     title,
-    dek: `${name}: что сделал крупный, чего ждёт, чем кончится. Не шаблон «полный разбор».`,
+    dek: `${name} (${lead.spec.id}): что сделал крупный, чего ждёт, чем кончится. Не шаблон «полный разбор».`,
     body,
   };
 }

@@ -123,26 +123,27 @@ export function DailyInfographic({
   const extra = useQuery({
     queryKey: ["daily-pair", id, "1h"],
     queryFn: () => fetchMarket({ data: { symbol: id, timeframe: "1h" } }),
-    enabled: !isLead,
+    enabled: Boolean(id),
     staleTime: 45_000,
   });
 
   const built = useMemo(() => {
-    if (isLead || !extra.data?.candles.length) return null;
+    if (!extra.data?.candles.length) return null;
     const snap = analyzeMarket(extra.data.candles, extra.data.options, extra.data.trades);
     const market = toDigestMarket(picked.spec, snap, picked.spec.spread, extra.data.candles.at(-1), extra.data.options);
     return {
       poster: buildPoster(market, snap, todayKey()),
       chart: chartFromSnap(snap, extra.data.candles, picked.spec.decimals),
     };
-  }, [isLead, extra.data, picked.spec]);
+  }, [extra.data, picked.spec]);
 
-  const p = built?.poster ?? digest.poster;
-  const chart = built?.chart ?? digest.chart;
-  const down = p.biasTone === "bear";
+  const p = built?.poster ?? (id === digest.lead.spec.id ? digest.poster : null);
+  const chart = built?.chart ?? (id === digest.lead.spec.id ? digest.chart : null);
+  const down = p?.biasTone === "bear";
 
-  const pills =
-    p.patternPills.length >= 3
+  const pills = !p
+    ? []
+    : p.patternPills.length >= 3
       ? p.patternPills.slice(0, 4)
       : [
           { title: down ? "Нисходящий канал" : "Восходящий канал", text: "Цена внутри. Пробой по тренду усиливает, против — пересмотр." },
@@ -170,7 +171,10 @@ export function DailyInfographic({
             </button>
           ))}
         </div>
-
+        {!p || !chart ? (
+          <p className="py-16 font-mono text-sm text-slate-500">Собираю разбор {id}…</p>
+        ) : (
+          <>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-4xl">
@@ -296,6 +300,8 @@ export function DailyInfographic({
             ℹ Образовательный материал. Не рекомендация к сделке.
           </div>
         </div>
+          </>
+        )}
       </div>
     </figure>
   );
