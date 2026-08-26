@@ -19,9 +19,20 @@ export function isHeld(id: string) {
   return bag().has(id);
 }
 
-const MAX_MS = 4 * 60 * 60_000;
+/** Держим приказ дольше — не мигаем WAIT каждые 20 мин. */
+const MAX_MS = 6 * 60 * 60_000;
 
-export function seedHold(rows: { symbol: string; action: "long" | "short"; entry: number | null; stop: number | null; target: number | null; at?: number; status?: string }[]) {
+export function seedHold(
+  rows: {
+    symbol: string;
+    action: "long" | "short";
+    entry: number | null;
+    stop: number | null;
+    target: number | null;
+    at?: number;
+    status?: string;
+  }[],
+) {
   const hold = bag();
   if (hold.size) return;
   for (const r of rows) {
@@ -37,6 +48,11 @@ export function seedHold(rows: { symbol: string; action: "long" | "short"; entry
   }
 }
 
+/**
+ * Пока есть живой приказ (или hold) — не отдаём WAIT из‑за шума H1.
+ * Снимаем только: новость/пауза после стопа, цена пробила stop, 6ч, или встречный
+ * живой приказ (лонг→шорт) с новым entry.
+ */
 export function applyHold(markets: DigestMarket[]): DigestMarket[] {
   const hold = bag();
   const now = Date.now();
@@ -44,9 +60,29 @@ export function applyHold(markets: DigestMarket[]): DigestMarket[] {
     const live = m.advice.action === "long" || m.advice.action === "short";
     const entry = m.setup.entry;
     const stop = m.setup.stop;
+    const prev = hold.get(m.spec.id);
+
     if (live && entry != null && stop != null) {
-      const prev = hold.get(m.spec.id);
       const action = m.advice.action as "long" | "short";
+      // Встречный живой приказ — принимаем (разворот), не «шум WAIT».
+      if (prev && prev.action !== action) {
+        hold.set(m.spec.id, {
+          action,
+          entry,
+          stop,
+          target: m.setup.targets[0] ?? 0,
+          since: now,
+        });
+        return {
+          ...m,
+          advice: {
+            ...m.advice,
+            therefore:
+              (m.advice.therefore ?? "") +
+              " Смена стороны: новый приказ сменил предыдущий hold.",
+          },
+        };
+      }
       hold.set(m.spec.id, {
         action,
         entry,
@@ -54,11 +90,25 @@ export function applyHold(markets: DigestMarket[]): DigestMarket[] {
         target: m.setup.targets[0] ?? 0,
         since: prev?.action === action ? prev.since : now,
       });
+      // Уже в hold той же стороны — плашка «держим».
+      if (prev?.action === action) {
+        return {
+          ...m,
+          advice: {
+            ...m.advice,
+            title: "Держим приказ",
+            therefore:
+              "Приказ не снимаем из‑за шума H1. Снимаем только стоп, новость, 6ч или встречный приказ.",
+          },
+        };
+      }
       return m;
     }
-    const prev = hold.get(m.spec.id);
+
     if (!prev) return m;
-    if (/Стоп: новость|Стоп: крупная|Пауза после стопа/.test(m.advice.title)) {
+
+    // Жёсткие причины снять hold
+    if (/Стоп: новость|Стоп: крупная|Пауза после стопа|Торговля запрещена/.test(m.advice.title)) {
       hold.delete(m.spec.id);
       return m;
     }
@@ -74,14 +124,8 @@ export function applyHold(markets: DigestMarket[]): DigestMarket[] {
       hold.delete(m.spec.id);
       return m;
     }
-    if (prev.action === "long" && m.bias === "bearish") {
-      hold.delete(m.spec.id);
-      return m;
-    }
-    if (prev.action === "short" && m.bias === "bullish") {
-      hold.delete(m.spec.id);
-      return m;
-    }
+
+    // WAIT / слабый счёт / bias flip — НЕ снимаем. Держим прежние уровни.
     return {
       ...m,
       advice: {
@@ -89,7 +133,7 @@ export function applyHold(markets: DigestMarket[]): DigestMarket[] {
         action: prev.action,
         title: "Держим приказ",
         therefore:
-          "Приказ с сайта не снимаем из‑за шума, «поздно» или слабого счёта. Снимаем только стоп, новость или встречный характер.",
+          "Стол не мигает WAIT: приказ с сайта держим. Снимаем только стоп, новость, 6 часов или встречный живой приказ.",
       },
       setup: {
         ...m.setup,
@@ -101,7 +145,11 @@ export function applyHold(markets: DigestMarket[]): DigestMarket[] {
   });
 }
 
-export function applyCool(markets: DigestMarket[], stopped: Map<string, number>, ms = 50 * 60_000): DigestMarket[] {
+export function applyCool(
+  markets: DigestMarket[],
+  stopped: Map<string, number>,
+  ms = 50 * 60_000,
+): DigestMarket[] {
   const now = Date.now();
   return markets.map((m) => {
     const at = stopped.get(m.spec.id);
