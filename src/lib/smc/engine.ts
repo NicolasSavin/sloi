@@ -553,7 +553,7 @@ function buildSetup(
       };
     }
     const entry = (zone.top + zone.bottom) / 2;
-    const stop = Math.min(zone.bottom, entry) - atr * 0.5;
+    const stop = Math.min(zone.bottom, entry) - atr * 1.0;
     const buyLiq = liq.filter((l) => l.side === "buy").sort((a, b) => a.price - b.price);
     const targets = [range.eq, buyLiq.at(-1)?.price ?? range.high, range.high].filter(
       (t, i, a) => t > entry && a.indexOf(t) === i,
@@ -581,7 +581,7 @@ function buildSetup(
       };
     }
     const entry = (zone.top + zone.bottom) / 2;
-    const stop = Math.max(zone.top, entry) + atr * 0.5;
+    const stop = Math.max(zone.top, entry) + atr * 1.0;
     const sellLiq = liq.filter((l) => l.side === "sell").sort((a, b) => b.price - a.price);
     const targets = [range.eq, sellLiq.at(-1)?.price ?? range.low, range.low].filter(
       (t, i, a) => t < entry && a.indexOf(t) === i,

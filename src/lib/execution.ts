@@ -116,8 +116,7 @@ export function fillMode(
   target?: number,
 ): "LIMIT" | "MARKET" | "LATE" {
   const risk = Math.abs(entry - stop);
-  const toTp = target != null ? Math.abs(target - entry) : 0;
-  const zone = Math.max(risk, toTp * 0.2);
+  const zone = risk * 0.28;
   if (!Number.isFinite(zone) || zone <= 0) return "LIMIT";
   if (action === "long") {
     if (target != null && target > entry && last > entry + (target - entry) * 0.45) return "LATE";

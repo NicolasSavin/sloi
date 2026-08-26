@@ -537,7 +537,9 @@ async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }
 export async function renderSignalFeed() {
   const { digest } = await assembleDigest();
   const { brokerSkewPct } = await import("@/lib/broker-tape");
-  const { skewLimit, fillMode } = await import("@/lib/execution");
+  const { skewLimit, fillMode, sessionAllows } = await import("@/lib/execution");
+  const { sessionNow } = await import("@/lib/sessions");
+  const session = sessionNow();
   const { isHeld } = await import("@/lib/signal-hold");
   const lines = [`# SLOI v2 H1`, `# ${new Date().toISOString()}`, `# last=Yahoo  SKEW=макс%  MODE=LIMIT|MARKET  TF=60`];
   for (const m of digest.markets) {
@@ -555,6 +557,7 @@ export async function renderSignalFeed() {
       if (isHeld(m.spec.id)) mode = "LIMIT";
       else side = "WAIT";
     }
+    if (side !== "WAIT" && mode === "MARKET" && !sessionAllows(m.spec.id, session).ok) mode = "LIMIT";
     lines.push(`${m.spec.id} ${side} ${e} ${s} ${t} ${last} SKEW ${cap} MODE ${mode === "LATE" ? "WAIT" : mode}`);
   }
   return `${lines.join("\n")}\n`;
