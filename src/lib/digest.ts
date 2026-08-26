@@ -474,7 +474,7 @@ export function writeArticle(
   date: string,
   sentiment: SentimentSnap,
   fund: FundamentalSnap,
-  leadSnap: SmcSnapshot,
+  leadSnap?: SmcSnapshot,
 ) {
   const name = lead.spec.label;
   const othersBit = others
@@ -485,26 +485,27 @@ export function writeArticle(
 
   const body = [
     fund.halt.active ? fund.halt.line : "",
+    `${name}. ${lead.advice.title}. ${lead.advice.therefore}`,
+    lead.story.doing,
+    lead.story.waiting,
+    leadSnap?.wyckoff ? `${leadSnap.wyckoff.name}. ${leadSnap.wyckoff.therefore}` : "",
+    leadSnap?.patterns[0] ? `${leadSnap.patterns[0].name}: ${leadSnap.patterns[0].therefore}` : "",
+    leadSnap?.flow.cvdDiv ? leadSnap.flow.cvdDiv.therefore : leadSnap?.flow.events[0]?.therefore ?? "",
+    leadSnap?.margin.where === "upper"
+      ? `Сейчас верхняя маржа ${formatPrice(leadSnap.margin.upper.bottom, lead.spec.decimals)}–${formatPrice(leadSnap.margin.upper.top, lead.spec.decimals)}: ${leadSnap.margin.upper.hint}`
+      : leadSnap?.margin.where === "lower"
+        ? `Сейчас нижняя маржа ${formatPrice(leadSnap.margin.lower.bottom, lead.spec.decimals)}–${formatPrice(leadSnap.margin.lower.top, lead.spec.decimals)}: ${leadSnap.margin.lower.hint}`
+        : "",
     fund.plain.simple,
     fund.plain.why,
     fund.plain.so,
-    lead.story.doing,
-    lead.story.waiting,
-    leadSnap.wyckoff ? `${leadSnap.wyckoff.name}. ${leadSnap.wyckoff.therefore}` : "",
-    leadSnap.patterns[0] ? `${leadSnap.patterns[0].name}: ${leadSnap.patterns[0].therefore}` : "",
-    leadSnap.flow.cvdDiv ? leadSnap.flow.cvdDiv.therefore : leadSnap.flow.events[0]?.therefore ?? "",
-    leadSnap.margin.where === "upper"
-      ? `Сейчас верхняя маржа ${formatPrice(leadSnap.margin.upper.bottom, lead.spec.decimals)}–${formatPrice(leadSnap.margin.upper.top, lead.spec.decimals)}: ${leadSnap.margin.upper.hint}`
-      : leadSnap.margin.where === "lower"
-        ? `Сейчас нижняя маржа ${formatPrice(leadSnap.margin.lower.bottom, lead.spec.decimals)}–${formatPrice(leadSnap.margin.lower.top, lead.spec.decimals)}: ${leadSnap.margin.lower.hint}`
-        : "",
     sentiment.line,
     lead.story.leadsTo,
     lead.wind?.note ?? "",
     othersBit
-      ? `На остальных рынках дня (${othersBit}) тот же принцип: не середина, а край, где крупняк либо набирает, либо раздаёт.`
+      ? `Макро общее. По парам дня (${othersBit}) смотрите свой край, не эту статью.`
       : "",
-    "Это карта снимка, не приказ открыть сделку. Живой спред — только в эксперте MT4 на вашем счёте.",
+    "Это карта снимка выбранной пары, не приказ. Живой спред — в эксперте MT4.",
   ]
     .filter(Boolean)
     .join("\n\n");

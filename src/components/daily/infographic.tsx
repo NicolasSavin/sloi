@@ -102,8 +102,21 @@ const BAR: Record<string, string> = {
   neutral: "from-[#22d3ee] to-[#155e75]",
 };
 
-export function DailyInfographic({ digest }: { digest: DailyDigest }) {
-  const [id, setId] = useState(digest.lead.spec.id);
+export function DailyInfographic({
+  digest,
+  selectedId,
+  onSelect,
+}: {
+  digest: DailyDigest;
+  selectedId?: string;
+  onSelect?: (id: string) => void;
+}) {
+  const [local, setLocal] = useState(digest.lead.spec.id);
+  const id = selectedId ?? local;
+  const setId = (next: string) => {
+    setLocal(next);
+    onSelect?.(next);
+  };
   const isLead = id === digest.lead.spec.id;
   const picked = digest.markets.find((m) => m.spec.id === id) ?? digest.lead;
 
