@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.35"
+#property version   "4.36"
 #property strict
 #property description "На графике: VWAP, профиль, футпринт бара, infusion/splash, Bid/Ask."
 
@@ -33,7 +33,7 @@ input double  MinCover        = 1.0;
 input double  MinNetRR        = 0.8;
 input int     OneTradeOnly    = 1;
 input int     CoolMinutes     = 0;
-input bool    FixForeign      = true;
+input bool    FixForeign      = false;
 input string  ForeignTag      = "WS";
 input bool    AlertsOn        = true;
 input int     PanelX          = 8;
