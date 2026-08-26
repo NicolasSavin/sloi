@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.33"
+#property version   "4.34"
 #property strict
 #property description "На графике: VWAP, профиль, футпринт бара, infusion/splash, Bid/Ask."
 
@@ -14,7 +14,12 @@ input string  WatchList       = "EURUSD,GBPUSD,USDJPY,USDCHF,AUDUSD,USDCAD,NZDUS
 input string  BrokerSuffix    = ".cs";
 input int     WorkTF          = 60;
 input bool    AutoTrade       = true;
-input double  Lots            = 0.10;
+input double  Lots            = 0.03;
+input double  LotGold         = 0.01;
+input double  LotSilver       = 0.01;
+input double  LotGas          = 0.10;
+input double  LotOil          = 0.03;
+input double  LotCrypto       = 0.01;
 input bool    RiskOn          = false;
 input double  RiskPercent     = 1.0;
 input bool    Martingale      = false;
@@ -48,6 +53,11 @@ string g_url;
 int    g_tf;
 bool   g_auto;
 double g_lots;
+double g_lotXau;
+double g_lotXag;
+double g_lotGas;
+double g_lotOil;
+double g_lotCry;
 bool   g_riskOn;
 double g_riskPct;
 bool   g_mart;
@@ -82,6 +92,11 @@ int OnInit()
    g_tf     = WorkTF;
    g_auto   = AutoTrade;
    g_lots   = Lots;
+   g_lotXau = LotGold;
+   g_lotXag = LotSilver;
+   g_lotGas = LotGas;
+   g_lotOil = LotOil;
+   g_lotCry = LotCrypto;
    g_riskOn = RiskOn;
    g_riskPct = RiskPercent;
    g_mart = Martingale;
@@ -97,7 +112,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.33: лот или риск%, мартин только по паре после стопа.");
+   Print("SLOI 4.34: лот отдельно FX / золото / серебро / газ / нефть / крипта.");
    return(INIT_SUCCEEDED);
   }
 
@@ -179,6 +194,18 @@ void ApplyEdits()
    int    t = (int)StringToInteger(tf);
    if(g_riskOn) { if(l > 0 && l <= 10) g_riskPct = l; }
    else if(l > 0) g_lots = l;
+   double fx = StringToDouble(ObjectGetString(0, P+"e_fx", OBJPROP_TEXT));
+   if(fx > 0) g_lots = fx;
+   double xa = StringToDouble(ObjectGetString(0, P+"e_xau", OBJPROP_TEXT));
+   double xg = StringToDouble(ObjectGetString(0, P+"e_xag", OBJPROP_TEXT));
+   double gs = StringToDouble(ObjectGetString(0, P+"e_gas", OBJPROP_TEXT));
+   double ol = StringToDouble(ObjectGetString(0, P+"e_oil", OBJPROP_TEXT));
+   double cr = StringToDouble(ObjectGetString(0, P+"e_cry", OBJPROP_TEXT));
+   if(xa > 0) g_lotXau = xa;
+   if(xg > 0) g_lotXag = xg;
+   if(gs > 0) g_lotGas = gs;
+   if(ol > 0) g_lotOil = ol;
+   if(cr > 0) g_lotCry = cr;
    if(s > 0) g_maxSp = s;
    if(t == 15 || t == 30 || t == 60 || t == 240 || t == 1440) g_tf = t;
    g_suffix = suf;
@@ -959,10 +986,23 @@ int LossStreak(string s)
    return(streak);
   }
 
+double LotOf(string s)
+  {
+   string n = Naked(s);
+   if(StringFind(n, "XAU") >= 0) return(g_lotXau);
+   if(StringFind(n, "XAG") >= 0) return(g_lotXag);
+   if(StringFind(n, "XNG") >= 0) return(g_lotGas);
+   if(StringFind(n, "XTI") >= 0 || StringFind(n, "XBR") >= 0 || StringFind(n, "USOIL") >= 0) return(g_lotOil);
+   if(StringFind(n, "BTC") >= 0 || StringFind(n, "ETH") >= 0 || StringFind(n, "LTC") >= 0
+      || StringFind(n, "BCH") >= 0 || StringFind(n, "XRP") >= 0 || StringFind(n, "TON") >= 0)
+      return(g_lotCry);
+   return(g_lots);
+  }
+
 double LotFor(string s, double entry, double stop)
   {
-   double lots = g_lots;
-   if(lots <= 0) lots = Lots;
+   double cap = LotOf(s);
+   double lots = cap;
    if(g_riskOn && entry > 0 && stop > 0)
      {
       double dist = MathAbs(entry - stop);
@@ -971,6 +1011,7 @@ double LotFor(string s, double entry, double stop)
       double money = AccountEquity() * g_riskPct / 100.0;
       if(dist > 0 && tickv > 0 && ticks > 0 && money > 0)
          lots = money / (dist / ticks * tickv);
+      if(cap > 0 && lots > cap) lots = cap;
      }
    int st = LossStreak(s);
    if(st > 0 && g_martMult > 1)
@@ -1214,7 +1255,7 @@ void DrawDesk()
       return;
      }
    int w = 840;
-   int setH = 142;
+   int setH = 164;
    int rowH = 20;
    int head = 22;
    int h = setH + head + rowH * g_n + 16;
@@ -1244,16 +1285,29 @@ void DrawDesk()
    Btn("b_mart", x + 410, y + 36, 90, 22, g_mart ? "МАРТ ВКЛ" : "МАРТ ВЫКЛ", g_mart ? C_WAIT : C_OFF);
    Btn("b_ok", x + 506, y + 36, 90, 22, "ПРИМЕНИТЬ", C_GOLD);
 
-   Lab("l_list", x + 14, y + 64, "пары", C_DIM, 8);
-   Edit("e_list", x + 50, y + 62, 654, 20, g_watch, seed);
-   Lab("l_url", x + 14, y + 86, "лента", C_DIM, 8);
-   Edit("e_url", x + 50, y + 84, 654, 20, g_url, seed);
+   Lab("l_fx", x + 14, y + 62, "FX", C_DIM, 8);
+   Edit("e_fx", x + 36, y + 60, 44, 20, DoubleToStr(g_lots, 2), seed);
+   Lab("l_xau", x + 86, y + 62, "AU", C_DIM, 8);
+   Edit("e_xau", x + 110, y + 60, 44, 20, DoubleToStr(g_lotXau, 2), seed);
+   Lab("l_xag", x + 160, y + 62, "AG", C_DIM, 8);
+   Edit("e_xag", x + 184, y + 60, 44, 20, DoubleToStr(g_lotXag, 2), seed);
+   Lab("l_gas", x + 234, y + 62, "ГАЗ", C_DIM, 8);
+   Edit("e_gas", x + 262, y + 60, 44, 20, DoubleToStr(g_lotGas, 2), seed);
+   Lab("l_oil", x + 312, y + 62, "НЕФТЬ", C_DIM, 8);
+   Edit("e_oil", x + 354, y + 60, 44, 20, DoubleToStr(g_lotOil, 2), seed);
+   Lab("l_cry", x + 404, y + 62, "КРИП", C_DIM, 8);
+   Edit("e_cry", x + 444, y + 60, 44, 20, DoubleToStr(g_lotCry, 2), seed);
 
-   Btn("b_buy",  x + 50,  y + 110, 100, 24, "КУПИТЬ", C_BUY);
-   Btn("b_sell", x + 158, y + 110, 100, 24, "ПРОДАТЬ", C_SEL);
-   Btn("b_cp",   x + 266, y + 110, 150, 24, "ЗАКРЫТЬ ПРИБЫЛЬ", C_GOLD);
-   Btn("b_ca",   x + 424, y + 110, 130, 24, "ЗАКРЫТЬ ВСЁ", C_SEL);
-   Lab("l_man", x + 564, y + 114, "этот график / magic", C_DIM, 8);
+   Lab("l_list", x + 14, y + 86, "пары", C_DIM, 8);
+   Edit("e_list", x + 50, y + 84, 720, 20, g_watch, seed);
+   Lab("l_url", x + 14, y + 108, "лента", C_DIM, 8);
+   Edit("e_url", x + 50, y + 106, 720, 20, g_url, seed);
+
+   Btn("b_buy",  x + 50,  y + 132, 100, 24, "КУПИТЬ", C_BUY);
+   Btn("b_sell", x + 158, y + 132, 100, 24, "ПРОДАТЬ", C_SEL);
+   Btn("b_cp",   x + 266, y + 132, 150, 24, "ЗАКРЫТЬ ПРИБЫЛЬ", C_GOLD);
+   Btn("b_ca",   x + 424, y + 132, 130, 24, "ЗАКРЫТЬ ВСЁ", C_SEL);
+   Lab("l_man", x + 564, y + 136, "FX/AU/AG/газ/нефть — разные лоты", C_DIM, 8);
 
    int hx = x + 14;
    int hy = y + setH + 2;
@@ -1288,7 +1342,7 @@ void DrawDesk()
       Lab("k"+IntegerToString(i), hx+350, ry, stop > 0 ? Px(s, stop) : "—", C_SEL, 9);
       Lab("t"+IntegerToString(i), hx+450, ry, target > 0 ? Px(s, target) : "—", C_BUY, 9);
       int st = LossStreak(s);
-      double showLot = (dir != 0 || st > 0) ? LotFor(s, entry, stop) : g_lots;
+      double showLot = (dir != 0 || st > 0) ? LotFor(s, entry, stop) : LotOf(s);
       string martBit = "";
       if(g_mart && st > 0) martBit = " МАРТ x"+IntegerToString((int)MathRound(MathPow(g_martMult, st)));
       Lab("v"+IntegerToString(i), hx+530, ry, verdict+"  "+why+martBit, VClr(verdict), 9);
