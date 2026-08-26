@@ -3,6 +3,7 @@ import { AppNav } from "@/components/app-nav";
 import { NewsBoard } from "@/components/home/news";
 import { QuoteBoard } from "@/components/home/quotes";
 import { Ticker } from "@/components/home/ticker";
+import { HomeLeadPoster } from "@/components/home/lead-poster";
 import { SessionStrip } from "@/components/session-strip";
 import { HomeCalStrip } from "@/components/home/cal-strip";
 import { DOMAIN } from "@/lib/brand";
@@ -17,6 +18,7 @@ export function Landing({ data }: { data: HomePayload }) {
         <SessionStrip />
         <HomeCalStrip />
       </div>
+      <HomeLeadPoster />
       <section className="relative overflow-hidden">
         <img src="/art/strata.jpg" alt="" className="absolute inset-0 h-full w-full object-cover opacity-40" />
         <div className="absolute inset-0 bg-gradient-to-r from-bg via-bg/75 to-bg/30" />
@@ -36,34 +38,19 @@ export function Landing({ data }: { data: HomePayload }) {
             >
               Диспетчер
             </Link>
-            <Link
-              to="/news"
-              className="inline-flex h-11 items-center rounded-sm px-5 text-sm shadow-[var(--shadow-border)]"
-            >
+            <Link to="/news" className="inline-flex h-11 items-center rounded-sm px-5 text-sm shadow-[var(--shadow-border)]">
               Новости
             </Link>
-            <Link
-              to="/tv"
-              className="inline-flex h-11 items-center rounded-sm px-5 text-sm shadow-[var(--shadow-border)]"
-            >
+            <Link to="/tv" className="inline-flex h-11 items-center rounded-sm px-5 text-sm shadow-[var(--shadow-border)]">
               ТВ-эфир
             </Link>
-            <Link
-              to="/desk"
-              className="inline-flex h-11 items-center rounded-sm px-5 text-sm shadow-[var(--shadow-border)]"
-            >
+            <Link to="/desk" className="inline-flex h-11 items-center rounded-sm px-5 text-sm shadow-[var(--shadow-border)]">
               Открыть график
             </Link>
-            <Link
-              to="/daily"
-              className="inline-flex h-11 items-center rounded-sm px-5 text-sm shadow-[var(--shadow-border)]"
-            >
+            <Link to="/daily" className="inline-flex h-11 items-center rounded-sm px-5 text-sm shadow-[var(--shadow-border)]">
               Разбор сегодня
             </Link>
-            <Link
-              to="/advisor"
-              className="inline-flex h-11 items-center rounded-sm px-5 text-sm text-muted hover:text-fg"
-            >
+            <Link to="/advisor" className="inline-flex h-11 items-center rounded-sm px-5 text-sm text-muted hover:text-fg">
               Эксперт MT4
             </Link>
           </div>
