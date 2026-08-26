@@ -1,261 +1,335 @@
-import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
 import { fetchDigest } from "@/lib/market/fetch";
-import { fetchMarket } from "@/lib/market/fetch";
-import { analyzeMarket } from "@/lib/smc/engine";
-import { buildPoster, toDigestMarket, todayKey, type DailyPoster } from "@/lib/digest";
 import { actionLabel } from "@/lib/advisor";
-import { cn } from "@/lib/utils";
+import type { DailyPoster } from "@/lib/digest";
 
-function MiniStructure({ down }: { down: boolean }) {
+function StructureMap({ supply, demand, bsl, ssl }: { supply: string; demand: string; bsl: string; ssl: string }) {
   return (
-    <svg viewBox="0 0 220 90" className="mt-3 h-24 w-full">
-      <text x="110" y="12" textAnchor="middle" fill="#ef4444" fontSize="8" fontFamily="monospace">
-        BUY-SIDE LIQUIDITY
+    <svg viewBox="0 0 280 130" className="mt-3 w-full">
+      <text x="140" y="12" textAnchor="middle" fill="#ff5b5b" fontSize="8" fontFamily="ui-monospace,monospace" letterSpacing="0.6">
+        BUY-SIDE LIQUIDITY {bsl}
       </text>
-      <rect x="130" y="18" width="70" height="16" rx="2" fill="rgba(239,68,68,0.35)" stroke="#ef4444" />
-      <text x="165" y="29" textAnchor="middle" fill="#fecaca" fontSize="7">
+      <path d="M8 48 L28 40 L48 52 L68 36 L88 50 L108 30 L128 46 L148 28 L168 44 L188 34 L208 48 L228 38 L252 58" fill="none" stroke="#c9d4e8" strokeWidth="1.6" />
+      <rect x="168" y="18" width="96" height="22" fill="#7a1d28" opacity="0.85" />
+      <text x="216" y="27" textAnchor="middle" fill="#ffb4b4" fontSize="7" fontFamily="ui-monospace,monospace">
         SUPPLY
       </text>
-      <path
-        d={down ? "M12 28 L40 40 L70 32 L100 48 L130 38 L160 55 L190 48 L208 62" : "M12 62 L40 50 L70 58 L100 42 L130 52 L160 35 L190 42 L208 28"}
-        fill="none"
-        stroke="#94a3b8"
-        strokeWidth="1.6"
-      />
-      <rect x="20" y="58" width="80" height="14" rx="2" fill="rgba(34,197,94,0.3)" stroke="#22c55e" />
-      <text x="60" y="68" textAnchor="middle" fill="#bbf7d0" fontSize="7">
+      <text x="216" y="37" textAnchor="middle" fill="#ffd0d0" fontSize="7" fontFamily="ui-monospace,monospace">
+        {supply}
+      </text>
+      <rect x="28" y="78" width="110" height="22" fill="#0f4a3a" opacity="0.9" />
+      <text x="83" y="87" textAnchor="middle" fill="#9ff3d0" fontSize="7" fontFamily="ui-monospace,monospace">
         DEMAND / OB
       </text>
-      <text x="110" y="86" textAnchor="middle" fill="#22d3ee" fontSize="8" fontFamily="monospace">
-        SELL-SIDE LIQUIDITY
+      <text x="83" y="97" textAnchor="middle" fill="#c6ffe8" fontSize="7" fontFamily="ui-monospace,monospace">
+        {demand}
+      </text>
+      <text x="140" y="124" textAnchor="middle" fill="#ff4d4d" fontSize="8" fontFamily="ui-monospace,monospace">
+        SELL-SIDE LIQUIDITY {ssl}
       </text>
     </svg>
   );
 }
 
-function WaveSketch({ down }: { down: boolean }) {
-  const ys = down ? [22, 10, 34, 18, 48] : [42, 28, 36, 14, 8];
-  const pts = [12, 48, 84, 120, 156].map((x, i) => `${x},${ys[i]}`).join(" ");
+function WaveMap({ high, mid, low, invalid }: { high: string; mid: string; low: string; invalid: string }) {
   return (
-    <svg viewBox="0 0 170 58" className="mt-3 h-16 w-full">
-      <polyline points={pts} fill="none" stroke="#c4a4ff" strokeWidth="2" />
-      {[12, 48, 84, 120, 156].map((x, i) => (
-        <g key={x}>
-          <circle cx={x} cy={ys[i]} r="7" fill="#1a1030" stroke="#c4a4ff" />
-          <text x={x} y={ys[i]! + 3} textAnchor="middle" fill="#c4a4ff" fontSize="8">
-            {i + 1}
+    <svg viewBox="0 0 260 150" className="mt-2 w-full">
+      <polygon points="20,28 70,8 118,78 168,48 214,128" fill="#5b2ad6" opacity="0.35" />
+      <polyline points="20,28 70,8 118,78 168,48 214,128" fill="none" stroke="#c4a4ff" strokeWidth="2.2" />
+      {[
+        [20, 28, "1"],
+        [70, 8, "2"],
+        [118, 78, "3"],
+        [168, 48, "4"],
+        [214, 128, "5"],
+      ].map(([x, y, n]) => (
+        <g key={String(n)}>
+          <circle cx={x as number} cy={y as number} r="8" fill="#12081f" stroke="#c4a4ff" />
+          <text x={x as number} y={(y as number) + 3} textAnchor="middle" fill="#e9d5ff" fontSize="8">
+            {n}
           </text>
         </g>
+      ))}
+      <text x="70" y="0" fill="#e9d5ff" fontSize="8" fontFamily="ui-monospace,monospace">
+        {high}
+      </text>
+      <text x="216" y="18" fill="#fda4af" fontSize="8" fontFamily="ui-monospace,monospace">
+        {invalid}
+      </text>
+      <text x="216" y="62" fill="#e9d5ff" fontSize="8" fontFamily="ui-monospace,monospace">
+        {mid}
+      </text>
+      <text x="216" y="144" fill="#e9d5ff" fontSize="8" fontFamily="ui-monospace,monospace">
+        {low}
+      </text>
+    </svg>
+  );
+}
+
+function PatternCol() {
+  return (
+    <div className="space-y-3">
+      <p className="flex items-center gap-2 font-mono text-[11px] tracking-[0.16em] text-[#ffb15a]">
+        ■ ГРАФИЧЕСКИЕ
+      </p>
+      <div className="flex gap-2">
+        <svg viewBox="0 0 70 40" className="h-10 w-[70px] shrink-0">
+          <path d="M4 6 L66 16 L66 28 L4 18 Z" fill="none" stroke="#ef4444" strokeWidth="1.4" />
+          <polyline points="8,20 18,14 28,18 38,10 48,16 58,8" fill="none" stroke="#cbd5e1" strokeWidth="1.2" />
+          <text x="62" y="36" fill="#94a3b8" fontSize="7">
+            (3)
+          </text>
+        </svg>
+        <p className="text-[11px] leading-snug text-slate-300">
+          <span className="block font-semibold text-[#ffb15a]">НИСХОДЯЩИЙ КАНАЛ</span>
+          Цена внутри расширяющегося диапазона. Пробой вниз усиливает медвежий сценарий.
+        </p>
+      </div>
+      <div className="flex gap-2">
+        <svg viewBox="0 0 70 40" className="h-10 w-[70px] shrink-0">
+          <polyline points="6,10 18,28 30,12 42,28 54,10" fill="none" stroke="#cbd5e1" strokeWidth="1.3" />
+          <line x1="6" y1="8" x2="56" y2="8" stroke="#22c55e" strokeDasharray="2 2" />
+          <text x="4" y="38" fill="#94a3b8" fontSize="7">
+            (3)
+          </text>
+          <text x="40" y="38" fill="#94a3b8" fontSize="7">
+            (4)
+          </text>
+        </svg>
+        <p className="text-[11px] leading-snug text-slate-300">
+          <span className="block font-semibold text-[#ffb15a]">DOUBLE BOTTOM (НЕ ПОДТВЕРЖДЁН)</span>
+          Для подтверждения нужен пробой neckline.
+        </p>
+      </div>
+      <div className="flex gap-2">
+        <svg viewBox="0 0 70 40" className="h-10 w-[70px] shrink-0">
+          <polyline points="8,8 58,14" fill="none" stroke="#ef4444" strokeWidth="1.3" />
+          <polyline points="8,30 58,16" fill="none" stroke="#ef4444" strokeWidth="1.3" />
+          <polyline points="12,22 22,16 32,20 42,12 52,18" fill="none" stroke="#cbd5e1" strokeWidth="1.2" />
+          <text x="2" y="38" fill="#94a3b8" fontSize="7">
+            (3)
+          </text>
+          <text x="52" y="38" fill="#94a3b8" fontSize="7">
+            (5)
+          </text>
+        </svg>
+        <p className="text-[11px] leading-snug text-slate-300">
+          <span className="block font-semibold text-[#ffb15a]">DESCENDING TRIANGLE</span>
+          Lower highs + поддержка. Пробой вниз = усиление продаж.
+        </p>
+      </div>
+      <p className="flex items-center gap-2 font-mono text-[11px] tracking-[0.16em] text-[#ff7ad9]">
+        ◆ ГАРМОНИЧЕСКИЕ
+      </p>
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-[11px] leading-snug text-slate-300">
+          Нет идеального завершённого Gartley/Bat.
+          <br />
+          Возможен AB=CD внутри range.
+        </p>
+        <svg viewBox="0 0 70 40" className="h-10 w-[70px] shrink-0">
+          <polyline points="8,28 22,8 36,24 58,16" fill="none" stroke="#60a5fa" strokeWidth="1.4" />
+          <text x="6" y="36" fill="#93c5fd" fontSize="7">
+            A
+          </text>
+          <text x="20" y="7" fill="#93c5fd" fontSize="7">
+            B
+          </text>
+          <text x="34" y="36" fill="#93c5fd" fontSize="7">
+            C
+          </text>
+          <text x="56" y="14" fill="#93c5fd" fontSize="7">
+            D
+          </text>
+        </svg>
+      </div>
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-[11px] leading-snug text-slate-300">
+          Потенциал Bearish Butterfly/Crab при росте к верху range.
+        </p>
+        <svg viewBox="0 0 70 40" className="h-10 w-[70px] shrink-0">
+          <polyline points="8,10 24,30 40,8 58,28" fill="none" stroke="#fb7185" strokeWidth="1.4" />
+          <text x="6" y="8" fill="#fda4af" fontSize="7">
+            A
+          </text>
+          <text x="22" y="38" fill="#fda4af" fontSize="7">
+            B
+          </text>
+          <text x="38" y="7" fill="#fda4af" fontSize="7">
+            C
+          </text>
+          <text x="56" y="38" fill="#fda4af" fontSize="7">
+            D
+          </text>
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+function AtrBars() {
+  const hs = [10, 14, 12, 18, 16, 22, 20, 28, 24, 36];
+  return (
+    <svg viewBox="0 0 90 44" className="h-11 w-[90px]">
+      {hs.map((h, i) => (
+        <rect key={i} x={i * 9} y={44 - h} width="7" height={h} fill="#f59e0b" />
       ))}
     </svg>
   );
 }
 
-function PatternSketches() {
-  return (
-    <div className="mt-2 space-y-2">
-      <div className="flex items-start gap-2">
-        <svg viewBox="0 0 56 28" className="h-8 w-14 shrink-0">
-          <path d="M4 6 L52 14 L52 22 L4 14 Z" fill="rgba(231,76,60,0.25)" stroke="#e74c3c" strokeWidth="1.2" />
-          <path d="M8 16 L18 12 L28 15 L38 10 L48 13" fill="none" stroke="#94a3b8" strokeWidth="1" />
-        </svg>
-        <p className="text-[10px] leading-snug text-slate-300">
-          <span className="font-mono text-[#f0a36a]">КАНАЛ / RANGE</span>
-          <br />
-          Цена внутри. Пробой по тренду усиливает сценарий.
-        </p>
-      </div>
-      <div className="flex items-start gap-2">
-        <svg viewBox="0 0 56 28" className="h-8 w-14 shrink-0">
-          <path d="M6 8 L18 20 L30 10 L42 20 L50 12" fill="none" stroke="#94a3b8" strokeWidth="1.2" />
-          <line x1="6" y1="22" x2="50" y2="22" stroke="#22c55e" strokeDasharray="2 2" />
-        </svg>
-        <p className="text-[10px] leading-snug text-slate-300">
-          <span className="font-mono text-[#f0a36a]">DOUBLE BOTTOM</span>
-          <br />
-          Нужен пробой шеи — пока не подтверждён.
-        </p>
-      </div>
-      <div className="flex items-start gap-2">
-        <svg viewBox="0 0 56 28" className="h-8 w-14 shrink-0">
-          <path d="M8 6 L48 10 L28 24 Z" fill="none" stroke="#e74c3c" strokeWidth="1.2" />
-          <path d="M12 18 L22 14 L32 16 L40 12" fill="none" stroke="#94a3b8" strokeWidth="1" />
-        </svg>
-        <p className="text-[10px] leading-snug text-slate-300">
-          <span className="font-mono text-[#f0a36a]">ТРЕУГОЛЬНИК</span>
-          <br />
-          Сжатие к краю. Пробой = сценарий дня.
-        </p>
-      </div>
-    </div>
-  );
+function rowOf(card: { rows: { label: string; value: string }[] } | undefined, label: string) {
+  return card?.rows.find((r) => r.label.toLowerCase().includes(label.toLowerCase()))?.value ?? "—";
 }
 
-function SetupBlock({
-  side,
-  priority,
-  entry,
-  sl,
-  tp1,
-  tp2,
-}: {
-  side: "short" | "long";
-  priority: boolean;
-  entry: string;
-  sl: string;
-  tp1: string;
-  tp2: string;
-}) {
-  const short = side === "short";
-  return (
-    <div
-      className={cn(
-        "rounded-lg px-3 py-2.5",
-        short ? "bg-[#3a1218] ring-1 ring-[#e74c3c]/" : "bg-[#12351f] ring-1 ring-[#2ecc71]",
-      )}
-    >
-      <p className="font-mono text-[11px] tracking-wide">
-        {short ? "↓ SHORT СЕТАП" : "↑ LONG СЕТАП"}
-        {priority ? (
-          <span className="ml-2 rounded bg-black/40 px-1.5 py-0.5 text-[9px]">приоритет</span>
-        ) : (
-          <span className="ml-2 rounded bg-black/40 px-1.5 py-0.5 text-[9px]">контртренд</span>
-        )}
-      </p>
-      <p className="mt-1 font-mono text-[11px] leading-relaxed text-slate-200">
-        {entry} | SL {sl}
-        <br />
-        TP {tp1} / {tp2}
-      </p>
-    </div>
-  );
-}
-
-function PosterBody({ p, action }: { p: DailyPoster; action: string }) {
-  const down = p.biasTone === "bear";
+function PosterBoard({ p, action }: { p: DailyPoster; action: string }) {
   const smc = p.cards.find((c) => c.kicker === "1") ?? p.cards[0];
-  const elliot = p.cards.find((c) => c.kicker === "2") ?? p.cards[1];
-  const patterns = p.cards.find((c) => c.kicker === "3") ?? p.cards[2];
+  const el = p.cards.find((c) => c.kicker === "2") ?? p.cards[1];
+  const supply = rowOf(smc, "Supply");
+  const demand = rowOf(smc, "Demand");
+  const bsl = rowOf(smc, "Buy-side");
+  const ssl = rowOf(smc, "Sell-side");
+  const short = p.setups.find((s) => s.side === "short");
+  const long = p.setups.find((s) => s.side === "long");
+  const high = p.levels[0]?.price ?? "—";
+  const low = p.levels.at(-1)?.price ?? "—";
+  const mid = p.levels[2]?.price ?? p.price;
 
   return (
-    <figure className="overflow-hidden rounded-2xl border border-[#1e293b] bg-[#05070c] text-[#e8eef7] shadow-[0_24px_80px_-24px_rgba(56,189,248,0.4)]">
-      <div className="px-4 py-5 sm:px-6 sm:py-6">
-        <div className="text-center">
-          <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl md:text-4xl">
+    <figure className="overflow-hidden rounded-none border border-[#12304a] bg-[#07111f] text-[#e8eef8]" style={{ fontFamily: "IBM Plex Sans, sans-serif" }}>
+      <div className="px-4 py-5 sm:px-7 sm:py-6">
+        <header className="text-center">
+          <h1 className="text-[22px] font-extrabold tracking-wide text-white sm:text-[34px]">
             {p.pair.toUpperCase()} — ПОЛНЫЙ РАЗБОР {p.dateLabel}
           </h1>
-          <p className="mt-2 font-mono text-[10px] tracking-[0.2em] text-slate-500 sm:text-[11px]">
-            АНАЛИЗ · СТРУКТУРА · ПАТТЕРНЫ · СЕТАПЫ · КЛЮЧЕВЫЕ УРОВНИ
+          <p className="mt-1 font-mono text-[11px] tracking-[0.22em] text-[#3ecbff] sm:text-[12px]">
+            АНАЛИЗ • СТРУКТУРА • ПАТТЕРНЫ • СЕТАПЫ • КЛЮЧЕВЫЕ УРОВНИ
           </p>
-          <p className="mt-4 font-mono text-[10px] tracking-[0.18em] text-[#22d3ee]">ТЕКУЩАЯ ЦЕНА</p>
-          <p className="mt-1 font-display text-5xl font-medium leading-none text-[#22d3ee] sm:text-6xl">≈ {p.price}</p>
-          <p className="mt-2 font-mono text-[10px] text-slate-500">
-            H1 · приказ {action} · {p.headline}
-          </p>
-        </div>
+          <p className="mt-3 font-mono text-[11px] tracking-[0.2em] text-[#3ecbff]">ТЕКУЩАЯ ЦЕНА</p>
+          <p className="mt-1 text-[52px] font-black leading-none text-[#3ecbff] sm:text-[64px]">≈ {p.price}</p>
+          <p className="mt-1 font-mono text-[10px] text-slate-500">приказ {action}</p>
+        </header>
 
-        <div className="mt-6 grid gap-3 lg:grid-cols-3">
-          <section className="rounded-xl bg-[#0a1628] p-4 ring-1 ring-[#14b8c6]/40">
-            <p className="flex items-center gap-2 font-mono text-[11px] tracking-[0.14em] text-[#22d3ee]">
-              <span className="inline-flex size-6 items-center justify-center rounded-full bg-[#14b8c6] text-[11px] font-bold text-[#042226]">
-                1
-              </span>
-              SMC SMART MONEY
+        <div className="mt-5 grid gap-3 lg:grid-cols-3">
+          <section className="rounded-md border-2 border-[#1ec8e6] bg-[#081828] p-4">
+            <p className="flex items-center gap-2 font-mono text-[13px] font-bold tracking-wide text-[#1ec8e6]">
+              ◆ SMC SMART MONEY
             </p>
-            <ul className="mt-3 space-y-1.5 text-[12px] leading-snug text-slate-300">
-              {(smc?.rows ?? []).slice(0, 7).map((r) => (
-                <li key={r.label}>
-                  <span className="text-slate-500">{r.label}: </span>
-                  {r.value}
-                </li>
-              ))}
-            </ul>
-            <MiniStructure down={down} />
-            <p className="mt-2 text-[11px] leading-relaxed text-slate-400">{smc?.footer}</p>
-          </section>
-
-          <section className="rounded-xl bg-[#120a1c] p-4 ring-1 ring-[#a78bfa]/40">
-            <p className="flex items-center gap-2 font-mono text-[11px] tracking-[0.14em] text-[#c4a4ff]">
-              <span className="inline-flex size-6 items-center justify-center rounded-full bg-[#c4a4ff] text-[11px] font-bold text-[#1a1030]">
-                2
-              </span>
-              ВОЛНЫ ЭЛЛИОТТА
-            </p>
-            <ul className="mt-3 space-y-1.5 text-[12px] leading-snug text-slate-300">
-              {(elliot?.rows ?? []).map((r) => (
-                <li key={r.label}>
-                  <span className="text-slate-500">{r.label}: </span>
-                  {r.value}
-                </li>
-              ))}
-            </ul>
-            <WaveSketch down={down} />
-            <p className="mt-2 text-[11px] leading-relaxed text-slate-400">{elliot?.footer}</p>
-          </section>
-
-          <section className="rounded-xl bg-[#1a1008] p-4 ring-1 ring-[#f0a36a]/40">
-            <p className="flex items-center gap-2 font-mono text-[11px] tracking-[0.14em] text-[#f0a36a]">
-              <span className="inline-flex size-6 items-center justify-center rounded-full bg-[#f0a36a] text-[11px] font-bold text-[#2a150c]">
-                3
-              </span>
-              ПАТТЕРНЫ С ОБЪЯСНЕНИЯМИ
-            </p>
-            <p className="mt-2 font-mono text-[10px] tracking-wide text-slate-500">ГРАФИЧЕСКИЕ</p>
-            <PatternSketches />
-            <p className="mt-3 font-mono text-[10px] tracking-wide text-slate-500">ГАРМОНИЧЕСКИЕ</p>
-            <ul className="mt-1 space-y-1 text-[11px] leading-snug text-slate-300">
-              {(patterns?.rows ?? []).slice(0, 3).map((r) => (
-                <li key={r.label}>
-                  <span className="text-[#f0a36a]">{r.label}</span> — {r.value}
-                </li>
-              ))}
-            </ul>
-            <p className="mt-2 text-[11px] leading-relaxed text-slate-400">{patterns?.footer}</p>
-          </section>
-        </div>
-
-        <div className="mt-4 grid gap-3 lg:grid-cols-2">
-          <section className="rounded-xl bg-[#0c1220] p-4 ring-1 ring-[#1e293b]">
-            <p className="font-mono text-[11px] tracking-[0.16em] text-[#5eead4]">ATR + ТОРГОВЫЕ СЕТАПЫ</p>
-            <p className="mt-2 text-sm">
-              <span className="font-mono text-lg text-white">{p.atr}</span>
-              <span className="ml-2 text-xs text-slate-500">{p.atrNote}</span>
-            </p>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              {p.setups.map((s) => (
-                <SetupBlock key={s.side} {...s} />
-              ))}
-            </div>
-            <p className="mt-3 text-[11px] text-slate-500">{p.risk}</p>
-          </section>
-
-          <section className="rounded-xl bg-[#0c1220] p-4 ring-1 ring-[#1e293b]">
-            <p className="font-mono text-[11px] tracking-[0.16em] text-[#5eead4]">КЛЮЧЕВЫЕ УРОВНИ</p>
-            <ul className="mt-3 space-y-2.5">
-              {p.levels.map((lv) => (
-                <li key={lv.name} className="flex items-center gap-3">
-                  <div
-                    className={cn(
-                      "min-w-[6.5rem] rounded-md px-2.5 py-1.5 text-center font-mono text-sm font-semibold tabular-nums",
-                      lv.tone === "bear" && "bg-gradient-to-r from-[#e74c3c] to-[#7f1d1d]",
-                      lv.tone === "bull" && "bg-gradient-to-r from-[#22c55e] to-[#14532d]",
-                      lv.tone === "neutral" && "bg-gradient-to-r from-[#22d3ee] to-[#155e75]",
-                    )}
-                  >
-                    {lv.price}
-                  </div>
-                  <span className="text-xs text-slate-400">
-                    <span className="text-slate-200">{lv.name}</span> · {lv.hint}
+            <ul className="mt-3 space-y-2 text-[12.5px] leading-snug text-slate-200">
+              {(smc?.rows ?? []).slice(0, 6).map((r) => (
+                <li key={r.label} className="flex gap-2">
+                  <span className="mt-1 size-1.5 shrink-0 rounded-full bg-[#1ec8e6]" />
+                  <span>
+                    <b className="text-white">{r.label}:</b> {r.value}
                   </span>
                 </li>
               ))}
             </ul>
+            <StructureMap supply={supply} demand={demand} bsl={bsl} ssl={ssl} />
+            <p className="mt-2 text-[11px] text-slate-400">{smc?.footer}</p>
+          </section>
+
+          <section className="rounded-md border-2 border-[#8b5cf6] bg-[#12081f] p-4">
+            <p className="flex items-center gap-2 font-mono text-[13px] font-bold tracking-wide text-[#c4b5fd]">
+              ≈ ВОЛНЫ ЭЛЛИОТТА
+            </p>
+            <ul className="mt-3 space-y-2 text-[12.5px] leading-snug text-slate-200">
+              {(el?.rows ?? []).map((r) => (
+                <li key={r.label} className="flex gap-2">
+                  <span className="mt-1 size-1.5 shrink-0 rounded-full bg-[#c4b5fd]" />
+                  <span>
+                    <b className="text-white">{r.label}:</b> {r.value}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <WaveMap high={high} mid={mid} low={low} invalid={high} />
+            <p className="mt-2 text-[11px] text-slate-400">{el?.footer}</p>
+          </section>
+
+          <section className="rounded-md border-2 border-[#f59e0b] bg-[#1a1206] p-4">
+            <p className="flex items-center gap-2 font-mono text-[13px] font-bold tracking-wide text-[#fbbf24]">
+              ▣ ПАТТЕРНЫ С ОБЪЯСНЕНИЯМИ
+            </p>
+            <div className="mt-3">
+              <PatternCol />
+            </div>
           </section>
         </div>
 
-        <p className="mt-4 text-center font-mono text-[10px] tracking-wide text-slate-600">
+        <div className="mt-3 grid gap-3 lg:grid-cols-2">
+          <section className="rounded-md border-2 border-[#1ec8e6] bg-[#081828] p-4">
+            <p className="flex items-center gap-2 font-mono text-[13px] font-bold tracking-wide text-[#fbbf24]">
+              █ ATR + ТОРГОВЫЕ СЕТАПЫ
+            </p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-[auto_1fr_1fr]">
+              <div className="rounded-md bg-[#1a1408] p-3 ring-1 ring-[#f59e0b]/50">
+                <p className="font-mono text-[10px] tracking-wide text-[#fbbf24]">DAILY ATR</p>
+                <p className="mt-1 text-lg font-bold text-white">{p.atr}</p>
+                <p className="text-[10px] text-slate-400">{p.atrNote}</p>
+                <div className="mt-2">
+                  <AtrBars />
+                </div>
+              </div>
+              <div className="rounded-md bg-[#2a1014] p-3 ring-1 ring-[#ef4444]">
+                <p className="font-mono text-[11px] font-bold text-[#f87171]">▼ SHORT CETAP</p>
+                <p className="mt-2 font-mono text-[12px] leading-relaxed">
+                  {short?.entry}
+                  <br />
+                  SL {short?.sl}
+                  <br />
+                  TP {short?.tp1} / {short?.tp2}
+                </p>
+                <p className="mt-2 text-[11px] text-slate-400">Продажи от supply zone. SL выше локального максимума.</p>
+              </div>
+              <div className="rounded-md bg-[#0d2a18] p-3 ring-1 ring-[#22c55e]">
+                <p className="font-mono text-[11px] font-bold text-[#4ade80]">▲ LONG CETAP</p>
+                <p className="mt-2 font-mono text-[12px] leading-relaxed">
+                  {long?.entry}
+                  <br />
+                  SL {long?.sl}
+                  <br />
+                  TP {long?.tp1} / {long?.tp2}
+                </p>
+                <p className="mt-2 text-[11px] text-slate-400">Покупки от demand / double bottom. SL ниже края range.</p>
+              </div>
+            </div>
+            <p className="mt-3 text-[11px] text-slate-500">{p.risk}</p>
+          </section>
+
+          <section className="rounded-md border-2 border-[#1ec8e6] bg-[#081828] p-4">
+            <p className="flex items-center gap-2 font-mono text-[13px] font-bold tracking-wide text-[#1ec8e6]">
+              ☰ КЛЮЧЕВЫЕ УРОВНИ
+            </p>
+            <ul className="mt-4 space-y-3">
+              {p.levels.map((lv) => (
+                <li key={lv.name} className="flex items-center gap-3">
+                  <div
+                    className={
+                      lv.tone === "bear"
+                        ? "min-w-[7.2rem] rounded bg-gradient-to-r from-[#2563eb] to-[#1e3a8a] px-3 py-1.5 text-center font-mono text-sm font-bold"
+                        : lv.tone === "bull"
+                          ? "min-w-[7.2rem] rounded bg-gradient-to-r from-[#7c3aed] to-[#4c1d95] px-3 py-1.5 text-center font-mono text-sm font-bold"
+                          : "min-w-[7.2rem] rounded bg-gradient-to-r from-[#0ea5e9] to-[#075985] px-3 py-1.5 text-center font-mono text-sm font-bold"
+                    }
+                  >
+                    {lv.price}
+                  </div>
+                  <span className="text-[12px] text-slate-300">
+                    {lv.name} / {lv.hint}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-4 flex flex-wrap gap-4 font-mono text-[10px] text-slate-500">
+              <span className="text-[#f87171]">● RESISTANCE / SUPPLY</span>
+              <span className="text-[#22d3ee]">● SUPPORT / DEMAND</span>
+              <span className="text-[#c084fc]">● LIQUIDITY / BREAK</span>
+            </p>
+          </section>
+        </div>
+
+        <p className="mt-4 text-center font-mono text-[11px] tracking-[0.14em] text-[#3ecbff]">
           SMC + ELLIOTT + PATTERNS + ATR · НЕ ЯВЛЯЕТСЯ ТОРГОВОЙ РЕКОМЕНДАЦИЕЙ
         </p>
       </div>
@@ -265,53 +339,24 @@ function PosterBody({ p, action }: { p: DailyPoster; action: string }) {
 
 export function HomeFullPoster() {
   const q = useQuery({
-    queryKey: ["home-digest-full"],
+    queryKey: ["dispatch-digest"],
     queryFn: () => fetchDigest(),
     staleTime: 45_000,
-    refetchInterval: 60_000,
+    refetchInterval: 90_000,
+    retry: 1,
   });
   const digest = q.data?.digest;
-  const lead = digest?.lead;
-
-  const live = useQuery({
-    queryKey: ["home-poster-pair", lead?.spec.id, "1h"],
-    queryFn: () => fetchMarket({ data: { symbol: lead!.spec.id, timeframe: "1h" } }),
-    enabled: Boolean(lead?.spec.id),
-    staleTime: 45_000,
-  });
-
-  const built = useMemo(() => {
-    if (!lead || !live.data?.candles.length) return null;
-    const snap = analyzeMarket(live.data.candles, live.data.options, live.data.trades);
-    const market = toDigestMarket(lead.spec, snap, lead.spec.spread, live.data.candles.at(-1), live.data.options);
-    return {
-      poster: buildPoster(market, snap, todayKey()),
-      action: actionLabel(market.advice.action),
-    };
-  }, [lead, live.data]);
-
-  const poster = built?.poster ?? (digest ? digest.poster : null);
-  const action = built?.action ?? (lead ? actionLabel(lead.advice.action) : "—");
+  const poster = digest?.poster ?? null;
+  const action = digest?.lead ? actionLabel(digest.lead.advice.action) : "—";
 
   return (
-    <section className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-      <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="font-mono text-[11px] tracking-[0.22em] text-accent">СЕГОДНЯ · ПОЛНЫЙ РАЗБОР</p>
-          <h2 className="mt-1 text-2xl font-medium">Актуальная пара стола</h2>
-          <p className="mt-1 text-sm text-muted">
-            Тот же стиль, что на эталонном постере: SMC · Эллиотт · паттерны · сетапы · уровни. Пара — лид с живым
-            приказом.
-          </p>
-        </div>
-        <Link to="/daily" className="font-mono text-xs text-accent underline-offset-4 hover:underline">
-          выпуск и статья →
-        </Link>
-      </div>
+    <section className="mx-auto max-w-[1100px] px-3 py-6 sm:px-6">
       {poster ? (
-        <PosterBody p={poster} action={action} />
+        <PosterBoard p={poster} action={action} />
       ) : (
-        <p className="rounded-2xl border border-border px-4 py-16 text-center text-sm text-muted">Собираю постер…</p>
+        <p className="rounded-md border border-[#12304a] bg-[#07111f] px-4 py-16 text-center text-sm text-slate-400">
+          {q.isError ? "Дайджест не отдал постер. Обновите страницу." : "Собираю постер…"}
+        </p>
       )}
     </section>
   );
