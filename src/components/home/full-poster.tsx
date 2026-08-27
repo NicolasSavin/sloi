@@ -1,4 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
+import { fetchMarket } from "@/lib/market/fetch";
+import type { Candle } from "@/lib/market/types";
 import type { HomeQuote } from "@/lib/home";
 
 interface Tape {
@@ -60,76 +62,90 @@ function today() {
   return `${String(d.getUTCDate()).padStart(2, "0")}.${String(d.getUTCMonth() + 1).padStart(2, "0")}.${d.getUTCFullYear()}`;
 }
 
-function CandleSnap({ sell, sl, entry, tp, price }: { sell: boolean; sl: string; entry: string; tp: string; price: string }) {
-  const bars = [
-    [42, 18, 8],
-    [38, 22, 12],
-    [48, 16, 6],
-    [36, 20, 10],
-    [44, 14, 8],
-    [52, 18, 4],
-    [40, 22, 10],
-    [34, 16, 8],
-    [46, 20, 6],
-    [32, 18, 9],
-    [38, 14, 7],
-    [28, 16, 8],
-    [36, 12, 5],
-    [30, 18, 9],
-    [24, 14, 6],
-    [34, 16, 8],
-    [22, 12, 5],
-    [28, 18, 7],
-    [20, 14, 6],
-    [26, 10, 4],
-    [18, 12, 5],
-    [22, 16, 7],
-  ];
+function CandleSnap({
+  sell,
+  slN,
+  entryN,
+  tpN,
+  sl,
+  entry,
+  tp,
+  price,
+  candles,
+  source,
+}: {
+  sell: boolean;
+  slN: number;
+  entryN: number;
+  tpN: number;
+  sl: string;
+  entry: string;
+  tp: string;
+  price: string;
+  candles: Candle[];
+  source?: string;
+}) {
+  const bars = candles.slice(-36);
+  const highs = bars.map((c) => c.high);
+  const lows = bars.map((c) => c.low);
+  const extra = [slN, entryN, tpN].filter((n) => Number.isFinite(n) && n > 0);
+  const max = Math.max(...highs, ...extra);
+  const min = Math.min(...lows, ...extra.filter((n) => n > 0));
+  const pad = (max - min) * 0.08 || 1;
+  const topP = max + pad;
+  const botP = min - pad;
+  const y0 = 668;
+  const y1 = 948;
+  const yOf = (p: number) => y0 + ((topP - p) / (topP - botP || 1)) * (y1 - y0);
+  const w = bars.length ? Math.min(22, 900 / bars.length) : 14;
+
   return (
     <g>
-      <rect x="36" y="620" width="1008" height="360" rx="10" fill="url(#chartBg)" stroke="#3f1d24" strokeWidth="2" />
-      <text x="52" y="646" fill="#fda4af" fontSize="14" fontWeight="700" letterSpacing="1.2">
-        СНИМОК ГРАФИКА · КРАСНЫЕ СВЕЧИ · ЗОНЫ И СТРЕЛКИ
+      <rect x="36" y="620" width="1008" height="360" rx="10" fill="url(#chartBg)" stroke="#1e3a5f" strokeWidth="2" />
+      <text x="52" y="646" fill="#67e8f9" fontSize="13" fontWeight="700" letterSpacing="1">
+        СНИМОК H1 · {source === "demo" ? "резерв" : source ?? "live"} · бычьи / медвежьи
       </text>
-      <path d="M70 690 L760 780 L760 840 L70 750 Z" fill="url(#zoneRed)" stroke="#fb7185" strokeWidth="1.6" />
-      <text x="86" y="708" fill="#fecaca" fontSize="13" fontWeight="700">
-        Нисходящий канал / Expanding Range
-      </text>
-      {bars.map(([body, wickU, wickD], i) => {
-        const x = 72 + i * 30;
-        const base = 828 - i * 4.2;
-        const top = base - body;
-        const h = Math.max(body, 6);
+      {Number.isFinite(slN) && slN > 0 && (
+        <line x1="60" y1={yOf(slN)} x2="980" y2={yOf(slN)} stroke="#fb7185" strokeDasharray="5 4" strokeWidth="1.2" />
+      )}
+      {Number.isFinite(entryN) && entryN > 0 && (
+        <line x1="60" y1={yOf(entryN)} x2="980" y2={yOf(entryN)} stroke="#fbbf24" strokeDasharray="4 4" strokeWidth="1.2" />
+      )}
+      {Number.isFinite(tpN) && tpN > 0 && (
+        <line x1="60" y1={yOf(tpN)} x2="980" y2={yOf(tpN)} stroke="#4ade80" strokeDasharray="5 4" strokeWidth="1.2" />
+      )}
+      {bars.map((c, i) => {
+        const x = 60 + i * w;
+        const bull = c.close >= c.open;
+        const bodyTop = yOf(Math.max(c.open, c.close));
+        const bodyBot = yOf(Math.min(c.open, c.close));
+        const h = Math.max(2.2, bodyBot - bodyTop);
         return (
-          <g key={i} filter="url(#glow)">
-            <line x1={x + 7} y1={top - wickU} x2={x + 7} y2={base + wickD} stroke="url(#wickGrad)" strokeWidth="2" />
-            <rect x={x} y={top} width="14" height={h} rx="2" fill="url(#candleRed)" stroke="#fecaca" strokeWidth="0.4" />
-            <rect x={x} y={top} width="5" height={h} rx="2" fill="url(#candleShine)" opacity="0.45" />
+          <g key={c.time} filter="url(#glow)">
+            <line x1={x + w * 0.4} y1={yOf(c.high)} x2={x + w * 0.4} y2={yOf(c.low)} stroke={bull ? "url(#wickGreen)" : "url(#wickGrad)"} strokeWidth="1.6" />
+            <rect x={x} y={bodyTop} width={Math.max(6, w * 0.72)} height={h} rx="1.5" fill={bull ? "url(#candleGreen)" : "url(#candleRed)"} />
+            <rect x={x} y={bodyTop} width={Math.max(2, w * 0.22)} height={h} rx="1.5" fill={bull ? "url(#shineGreen)" : "url(#candleShine)"} opacity="0.4" />
           </g>
         );
       })}
-      <text x="700" y="700" fill="#fde68a" fontSize="12" fontWeight="700">
-        Supply {sl}
+      <text x="990" y={yOf(slN) + 4} fill="#fda4af" fontSize="11">
+        SL {sl}
       </text>
-      <text x="620" y="880" fill="#f9a8d4" fontSize="12">
-        Double Bottom? {tp}
+      <text x="990" y={yOf(entryN) + 4} fill="#fde68a" fontSize="11">
+        IN {entry}
       </text>
-      <text x="780" y="820" fill="#fda4af" fontSize="13" fontWeight="700">
-        NOW {price}
+      <text x="990" y={yOf(tpN) + 4} fill="#86efac" fontSize="11">
+        TP {tp}
       </text>
-      <path d={sell ? "M900 760 L900 880" : "M900 860 L900 720"} stroke="#fb7185" strokeWidth="3" markerEnd="url(#arrMain)" />
-      <text x="914" y="820" fill="#fecaca" fontSize="13" fontWeight="700">
-        {sell ? `SHORT ${entry}` : `LONG ${entry}`}
-      </text>
-      <text x="52" y="960" fill="#fda4af" fontSize="12">
-        SL {sl} · ENTRY {entry} · TP {tp}
+      <text x="52" y="966" fill="#94a3b8" fontSize="12">
+        NOW {price} · {sell ? `SHORT ${entry}` : `LONG ${entry}`}
       </text>
     </g>
   );
 }
 
-function OnePoster({ t, quote }: { t: Tape; quote?: HomeQuote }) {
-  const px = quote?.price && quote.price > 0 ? quote.price : t.last || t.entry;
+function OnePoster({ t, quote, candles, source }: { t: Tape; quote?: HomeQuote; candles: Candle[]; source?: string }) {
+  const px = quote?.price && quote.price > 0 ? quote.price : candles.at(-1)?.close || t.last || t.entry;
   const pair = labelOf(t.id);
   const date = today();
   const sell = t.side !== "BUY";
@@ -145,39 +161,43 @@ function OnePoster({ t, quote }: { t: Tape; quote?: HomeQuote }) {
       <defs>
         <linearGradient id="candleRed" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#fecaca" />
-          <stop offset="28%" stopColor="#f43f5e" />
-          <stop offset="70%" stopColor="#be123c" />
+          <stop offset="35%" stopColor="#f43f5e" />
           <stop offset="100%" stopColor="#4c0519" />
+        </linearGradient>
+        <linearGradient id="candleGreen" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#bbf7d0" />
+          <stop offset="35%" stopColor="#22c55e" />
+          <stop offset="100%" stopColor="#052e16" />
         </linearGradient>
         <linearGradient id="candleShine" x1="0" y1="0" x2="1" y2="0">
           <stop offset="0%" stopColor="#fff1f2" />
           <stop offset="100%" stopColor="#fb7185" stopOpacity="0" />
         </linearGradient>
+        <linearGradient id="shineGreen" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#ecfdf5" />
+          <stop offset="100%" stopColor="#22c55e" stopOpacity="0" />
+        </linearGradient>
         <linearGradient id="wickGrad" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#fecdd3" />
           <stop offset="100%" stopColor="#9f1239" />
         </linearGradient>
-        <linearGradient id="zoneRed" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#fb7185" stopOpacity="0.18" />
-          <stop offset="100%" stopColor="#881337" stopOpacity="0.08" />
+        <linearGradient id="wickGreen" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#bbf7d0" />
+          <stop offset="100%" stopColor="#166534" />
         </linearGradient>
         <linearGradient id="chartBg" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#1c0a10" />
+          <stop offset="0%" stopColor="#071018" />
           <stop offset="100%" stopColor="#0a0610" />
         </linearGradient>
-        <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
-          <feGaussianBlur stdDeviation="1.2" result="b" />
+        <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur stdDeviation="0.8" result="b" />
           <feMerge>
             <feMergeNode in="b" />
             <feMergeNode in="SourceGraphic" />
           </feMerge>
         </filter>
-        <marker id="arrMain" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
-          <path d="M0,0 L8,4 L0,8 Z" fill="#fb7185" />
-        </marker>
       </defs>
       <rect width="1080" height="1680" fill="#020617" />
-
       <text x="36" y="56" fill="#e2e8f0" fontSize="28" fontWeight="800">
         {pair} — РАСШИРЕННЫЙ ПОЛНЫЙ РАЗБОР {date}
       </text>
@@ -189,15 +209,14 @@ function OnePoster({ t, quote }: { t: Tape; quote?: HomeQuote }) {
         CURRENT PRICE
       </text>
       <text x="36" y="146" fill="#64748b" fontSize="12">
-        ({date} — данные диспетчера, приказ {t.side === "WAIT" ? "ЖДАТЬ" : t.side === "BUY" ? "ЛОНГ" : "ШОРТ"})
+        ({date} — диспетчер {t.side === "WAIT" ? "ЖДАТЬ" : t.side === "BUY" ? "ЛОНГ" : "ШОРТ"} · H1 слепок)
       </text>
-
       <rect x="700" y="70" width="160" height="78" rx="8" fill="#0b1220" stroke="#1e3a5f" />
       <text x="716" y="94" fill="#67e8f9" fontSize="12">
-        ATR Daily
+        ATR / H1
       </text>
-      <text x="716" y="118" fill="#e2e8f0" fontSize="16" fontWeight="700">
-        спред + ход
+      <text x="716" y="118" fill="#e2e8f0" fontSize="15" fontWeight="700">
+        {candles.length} свечей
       </text>
       <rect x="876" y="70" width="168" height="78" rx="8" fill="#0b1220" stroke="#1e3a5f" />
       <text x="892" y="94" fill={sell ? "#f87171" : "#4ade80"} fontSize="12">
@@ -211,32 +230,17 @@ function OnePoster({ t, quote }: { t: Tape; quote?: HomeQuote }) {
       <text x="40" y="198" fill="#22d3ee" fontSize="13" fontWeight="800">
         1. SMC SMART MONEY
       </text>
-      <text x="40" y="230" fill="#cbd5e1" fontSize="13">
-        Demand / OB
-      </text>
       <text x="40" y="250" fill="#67e8f9" fontSize="14" fontWeight="700">
-        {tp}
-      </text>
-      <text x="40" y="286" fill="#cbd5e1" fontSize="13">
-        Supply Zone
+        Demand {tp}
       </text>
       <text x="40" y="306" fill="#fda4af" fontSize="14" fontWeight="700">
-        {sl}
-      </text>
-      <text x="40" y="342" fill="#cbd5e1" fontSize="13">
-        Buy-side liquidity
+        Supply {sl}
       </text>
       <text x="40" y="362" fill="#fda4af" fontSize="13">
-        выше {hi}
-      </text>
-      <text x="40" y="398" fill="#cbd5e1" fontSize="13">
-        Sell-side liquidity
+        BSL выше {hi}
       </text>
       <text x="40" y="418" fill="#fda4af" fontSize="13">
-        ниже {lo}
-      </text>
-      <text x="40" y="460" fill="#67e8f9" fontSize="12">
-        Bias: {sell ? "приоритет продаж от supply" : "приоритет покупок от demand"}
+        SSL ниже {lo}
       </text>
 
       <rect x="284" y="170" width="250" height="430" rx="10" fill="#10081c" stroke="#a855f7" strokeWidth="2" />
@@ -244,146 +248,48 @@ function OnePoster({ t, quote }: { t: Tape; quote?: HomeQuote }) {
         2. ВОЛНЫ ЭЛЛИОТТА
       </text>
       <polyline points="310,260 350,230 400,320 450,280 510,480" fill="none" stroke="#c084fc" strokeWidth="3" />
-      {[
-        [310, 260, "1"],
-        [350, 230, "2"],
-        [400, 320, "3"],
-        [450, 280, "4"],
-        [510, 480, "5"],
-      ].map(([x, y, n]) => (
-        <g key={String(n)}>
-          <circle cx={x as number} cy={y as number} r="11" fill="#1e1033" stroke="#c084fc" />
-          <text x={x as number} y={(y as number) + 4} textAnchor="middle" fill="#fff" fontSize="11">
-            {n}
-          </text>
-        </g>
-      ))}
       <text x="300" y="540" fill="#e9d5ff" fontSize="13">
-        цель волны 5 → {lo}
-      </text>
-      <text x="300" y="564" fill="#fda4af" fontSize="12">
-        инвалидация {hi}
+        цель 5 → {lo}
       </text>
 
       <rect x="544" y="170" width="250" height="430" rx="10" fill="#1a0b10" stroke="#ef4444" strokeWidth="2" />
       <text x="560" y="198" fill="#fca5a5" fontSize="12" fontWeight="800">
         3. ПАТТЕРНЫ
       </text>
-      <path d="M560 230 L760 250 L760 280 L560 260 Z" fill="none" stroke="#ef4444" strokeWidth="2" />
       <text x="560" y="304" fill="#fecaca" fontSize="12">
-        Нисходящий канал
+        канал / triangle / AB=CD
       </text>
-      <polyline points="560,340 590,370 620,338 650,370 680,342" fill="none" stroke="#e2e8f0" strokeWidth="2" />
-      <text x="560" y="396" fill="#fecaca" fontSize="12">
-        Double Bottom?
-      </text>
-      <line x1="560" y1="430" x2="720" y2="438" stroke="#ef4444" />
-      <line x1="560" y1="470" x2="720" y2="444" stroke="#ef4444" />
-      <text x="560" y="494" fill="#fecaca" fontSize="12">
-        Descending Triangle
-      </text>
-      <text x="560" y="540" fill="#93c5fd" fontSize="12">
-        AB=CD внутри range
-      </text>
-      <text x="560" y="564" fill="#f9a8d4" fontSize="12">
-        Butterfly / Crab у {sl}
+      <text x="560" y="340" fill="#fecaca" fontSize="12">
+        по слепку H1, не схема
       </text>
 
       <rect x="804" y="170" width="252" height="430" rx="10" fill="#06140c" stroke="#22c55e" strokeWidth="2" />
       <text x="820" y="198" fill="#86efac" fontSize="12" fontWeight="800">
-        4. СЕТАПЫ + УРОВНИ
+        4. СЕТАПЫ
       </text>
-      <rect x="820" y="220" width="220" height="150" rx="8" fill="#3f0d12" />
       <text x="834" y="246" fill="#f87171" fontSize="14" fontWeight="800">
-        SHORT {t.side === "SELL" ? "(приоритет)" : ""}
+        SHORT {sell ? entry : sl}
       </text>
       <text x="834" y="274" fill="#fecaca" fontSize="13">
-        Вход {sell ? entry : sl}
+        SL {sl} TP {tp}
       </text>
-      <text x="834" y="298" fill="#fecaca" fontSize="13">
-        SL {sl}
-      </text>
-      <text x="834" y="322" fill="#fecaca" fontSize="13">
-        TP {tp}
-      </text>
-      <rect x="820" y="384" width="220" height="150" rx="8" fill="#052e16" />
       <text x="834" y="410" fill="#4ade80" fontSize="14" fontWeight="800">
-        LONG {t.side === "BUY" ? "(приоритет)" : ""}
+        LONG {t.side === "BUY" ? entry : tp}
       </text>
       <text x="834" y="438" fill="#bbf7d0" fontSize="13">
-        Вход {t.side === "BUY" ? entry : tp}
-      </text>
-      <text x="834" y="462" fill="#bbf7d0" fontSize="13">
-        SL {lo}
-      </text>
-      <text x="834" y="486" fill="#bbf7d0" fontSize="13">
-        TP {hi}
+        SL {lo} TP {hi}
       </text>
 
-      <CandleSnap sell={sell} sl={sl} entry={entry} tp={tp} price={price} />
+      <CandleSnap sell={sell} slN={t.sl} entryN={t.entry} tpN={t.tp} sl={sl} entry={entry} tp={tp} price={price} candles={candles} source={source} />
 
-      <rect x="36" y="1000" width="240" height="110" rx="8" fill="#1a0b10" stroke="#ef4444" />
-      <text x="50" y="1028" fill="#f87171" fontSize="12" fontWeight="700">
-        КАНАЛ / RANGE
+      <rect x="36" y="1000" width="1008" height="80" rx="8" fill="#071018" stroke="#1e3a5f" />
+      <text x="52" y="1034" fill="#67e8f9" fontSize="14" fontWeight="800">
+        SHORT · {sell ? entry : sl} / SL {sl} / TP {tp}    LONG · {t.side === "BUY" ? entry : tp} / SL {lo} / TP {hi}
       </text>
-      <text x="50" y="1056" fill="#fecaca" fontSize="12">
-        Пробой вниз = усиление {sell ? "шорта" : "коррекции"}
+      <text x="52" y="1060" fill="#94a3b8" fontSize="12">
+        свечи = последние 36 часов пары диспетчера
       </text>
-      <rect x="288" y="1000" width="240" height="110" rx="8" fill="#0b1220" stroke="#38bdf8" />
-      <text x="302" y="1028" fill="#7dd3fc" fontSize="12" fontWeight="700">
-        DOUBLE BOTTOM
-      </text>
-      <text x="302" y="1056" fill="#bae6fd" fontSize="12">
-        {tp} — нужен пробой neckline
-      </text>
-      <rect x="540" y="1000" width="240" height="110" rx="8" fill="#1a1408" stroke="#f59e0b" />
-      <text x="554" y="1028" fill="#fbbf24" fontSize="12" fontWeight="700">
-        TRIANGLE
-      </text>
-      <text x="554" y="1056" fill="#fde68a" fontSize="12">
-        сжатие у {lo} → сценарий пробоя
-      </text>
-      <rect x="792" y="1000" width="252" height="110" rx="8" fill="#1a1020" stroke="#c084fc" />
-      <text x="806" y="1028" fill="#e9d5ff" fontSize="12" fontWeight="700">
-        ГАРМОНИКА
-      </text>
-      <text x="806" y="1056" fill="#ddd6fe" fontSize="12">
-        AB=CD / Crab у {sl}
-      </text>
-
-      <rect x="36" y="1130" width="500" height="220" rx="10" fill="#071018" stroke="#1e3a5f" />
-      <text x="52" y="1160" fill="#67e8f9" fontSize="14" fontWeight="800">
-        ТОРГОВЫЕ СЕТАПЫ + УРОВНИ
-      </text>
-      <text x="52" y="1196" fill="#f87171" fontSize="16" fontWeight="800">
-        SHORT · вход {sell ? entry : sl} · SL {sl} · TP {tp}
-      </text>
-      <text x="52" y="1230" fill="#4ade80" fontSize="16" fontWeight="800">
-        LONG · вход {t.side === "BUY" ? entry : tp} · SL {lo} · TP {hi}
-      </text>
-
-      <rect x="552" y="1130" width="492" height="220" rx="10" fill="#071018" stroke="#1e3a5f" />
-      <text x="568" y="1160" fill="#67e8f9" fontSize="14" fontWeight="800">
-        КЛЮЧЕВЫЕ УРОВНИ
-      </text>
-      {[
-        [hi, "Resistance / supply", "#2563eb"],
-        [sl, "Supply (приоритет)", "#7c3aed"],
-        [price, "Current zone", "#0891b2"],
-        [tp, "Demand / target", "#6d28d9"],
-      ].map(([val, name, col], i) => (
-        <g key={String(name)}>
-          <rect x="568" y={1176 + i * 38} width="150" height="28" rx="4" fill={String(col)} />
-          <text x="643" y={1196 + i * 38} textAnchor="middle" fill="#fff" fontSize="13" fontWeight="700">
-            {val}
-          </text>
-          <text x="736" y={1196 + i * 38} fill="#cbd5e1" fontSize="13">
-            {name}
-          </text>
-        </g>
-      ))}
-
-      <text x="540" y="1400" textAnchor="middle" fill="#64748b" fontSize="12">
+      <text x="540" y="1140" textAnchor="middle" fill="#64748b" fontSize="12">
         РИСК 0.5–1% · НЕ ЯВЛЯЕТСЯ РЕКОМЕНДАЦИЕЙ
       </text>
     </svg>
@@ -391,7 +297,7 @@ function OnePoster({ t, quote }: { t: Tape; quote?: HomeQuote }) {
 }
 
 export function HomeFullPoster({ quotes = [] }: { quotes?: HomeQuote[] }) {
-  const q = useQuery({
+  const tape = useQuery({
     queryKey: ["home-signals-poster"],
     queryFn: async () => {
       const res = await fetch("/api/signals.txt", { cache: "no-store" });
@@ -401,15 +307,23 @@ export function HomeFullPoster({ quotes = [] }: { quotes?: HomeQuote[] }) {
     staleTime: 20_000,
     refetchInterval: 30_000,
   });
-  const lead = q.data?.length ? pickLead(q.data, quotes) : null;
+  const lead = tape.data?.length ? pickLead(tape.data, quotes) : null;
+  const mkt = useQuery({
+    queryKey: ["home-poster-ohlc", lead?.id],
+    enabled: Boolean(lead?.id),
+    queryFn: () => fetchMarket({ data: { symbol: lead!.id, timeframe: "1h" } }),
+    staleTime: 40_000,
+    refetchInterval: 60_000,
+  });
   const quote = lead ? quotes.find((x) => x.id === lead.id) : undefined;
+  const candles = mkt.data?.candles ?? [];
   return (
     <section className="mx-auto max-w-[1100px] px-3 py-4 sm:px-6">
-      {lead ? (
-        <OnePoster t={lead} quote={quote} />
+      {lead && candles.length >= 8 ? (
+        <OnePoster t={lead} quote={quote} candles={candles} source={mkt.data?.source} />
       ) : (
         <p className="border border-[#12304a] bg-[#020617] px-4 py-10 text-center text-sm text-slate-400">
-          {q.isError ? "Лента сигналов не ответила." : "Собираю постер…"}
+          {tape.isError || mkt.isError ? "Не удалось снять слепок H1." : "Снимаю актуальный график…"}
         </p>
       )}
     </section>
