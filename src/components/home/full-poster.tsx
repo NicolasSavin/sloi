@@ -121,8 +121,8 @@ function CandleSnap({
   const pad = (max - min) * 0.1 || 1;
   const topP = max + pad;
   const botP = min - pad;
-  const y0 = 668;
-  const y1 = 930;
+  const y0 = 392;
+  const y1 = 678;
   const yOf = (p: number) => y0 + ((topP - p) / (topP - botP || 1)) * (y1 - y0);
   const w = bars.length ? Math.min(18, 900 / bars.length) : 14;
   const xOf = (time: number) => {
@@ -134,25 +134,15 @@ function CandleSnap({
 
   return (
     <g>
-      <rect x="36" y="620" width="1008" height="360" rx="10" fill="url(#chartBg)" stroke="#1e3a5f" strokeWidth="2" />
-      <text x="52" y="646" fill="#67e8f9" fontSize="13" fontWeight="700">
+      <rect x="36" y="348" width="1008" height="360" rx="10" fill="url(#chartBg)" stroke="#1e3a5f" strokeWidth="2" />
+      <text x="52" y="372" fill="#67e8f9" fontSize="13" fontWeight="700">
         СЛЕПОК H1 · {source === "demo" ? "резерв" : source ?? "live"} · разметка по свингам
       </text>
       {sh.length >= 2 && (
-        <polyline
-          points={sh.map((s) => `${xOf(s.time)},${yOf(s.price)}`).join(" ")}
-          fill="none"
-          stroke="#ef4444"
-          strokeWidth="1.8"
-        />
+        <polyline points={sh.map((s) => `${xOf(s.time)},${yOf(s.price)}`).join(" ")} fill="none" stroke="#ef4444" strokeWidth="1.8" />
       )}
       {slw.length >= 2 && (
-        <polyline
-          points={slw.map((s) => `${xOf(s.time)},${yOf(s.price)}`).join(" ")}
-          fill="none"
-          stroke="#22c55e"
-          strokeWidth="1.8"
-        />
+        <polyline points={slw.map((s) => `${xOf(s.time)},${yOf(s.price)}`).join(" ")} fill="none" stroke="#22c55e" strokeWidth="1.8" />
       )}
       {Number.isFinite(slN) && slN > 0 && <line x1="60" y1={yOf(slN)} x2="980" y2={yOf(slN)} stroke="#fb7185" strokeDasharray="5 4" />}
       {Number.isFinite(entryN) && entryN > 0 && <line x1="60" y1={yOf(entryN)} x2="980" y2={yOf(entryN)} stroke="#fbbf24" strokeDasharray="4 4" />}
@@ -191,7 +181,7 @@ function CandleSnap({
           </text>
         </g>
       ))}
-      <text x="52" y="966" fill="#94a3b8" fontSize="12">
+      <text x="52" y="696" fill="#94a3b8" fontSize="12">
         NOW {price} · {sell ? `SHORT ${entry}` : `LONG ${entry}`} · {hits.map((h) => h.name).join(" · ") || "чистый range"}
       </text>
     </g>
@@ -212,7 +202,7 @@ function OnePoster({ t, quote, candles, source }: { t: Tape; quote?: HomeQuote; 
   const hits = detectPatterns(swingsOf(candles.slice(-48)), atrOf(candles.slice(-48)), candles.slice(-48));
 
   return (
-    <svg viewBox="0 0 1080 1500" className="block h-auto w-full" role="img" aria-label={`${pair} разбор`}>
+    <svg viewBox="0 0 1080 860" className="block h-auto w-full" role="img" aria-label={`${pair} разбор`}>
       <defs>
         <linearGradient id="candleRed" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#fecaca" />
@@ -237,81 +227,87 @@ function OnePoster({ t, quote, candles, source }: { t: Tape; quote?: HomeQuote; 
           <stop offset="100%" stopColor="#0a0610" />
         </linearGradient>
       </defs>
-      <rect width="1080" height="1500" fill="#020617" />
-      <text x="36" y="56" fill="#e2e8f0" fontSize="28" fontWeight="800">
-        {pair} — РАСШИРЕННЫЙ ПОЛНЫЙ РАЗБОР {date}
+      <rect width="1080" height="860" fill="#020617" />
+      <text x="36" y="42" fill="#e2e8f0" fontSize="24" fontWeight="800">
+        {pair} — ПОЛНЫЙ РАЗБОР {date}
       </text>
-      <text x="36" y="118" fill="#22d3ee" fontSize="56" fontWeight="800">
+      <text x="36" y="86" fill="#22d3ee" fontSize="36" fontWeight="800">
         ≈ {price}
       </text>
-      <text x="36" y="146" fill="#64748b" fontSize="12">
-        диспетчер {t.side === "WAIT" ? "ЖДАТЬ" : t.side === "BUY" ? "ЛОНГ" : "ШОРТ"} · разметка с живого H1
+      <text x="320" y="82" fill="#64748b" fontSize="12">
+        {t.side === "WAIT" ? "ЖДАТЬ" : t.side === "BUY" ? "ЛОНГ" : "ШОРТ"} · H1
       </text>
 
-      <rect x="24" y="170" width="250" height="430" rx="10" fill="#041018" stroke="#22d3ee" strokeWidth="2" />
-      <text x="40" y="198" fill="#22d3ee" fontSize="13" fontWeight="800">
+      <rect x="24" y="108" width="250" height="220" rx="8" fill="#041018" stroke="#22d3ee" strokeWidth="2" />
+      <text x="40" y="132" fill="#22d3ee" fontSize="13" fontWeight="800">
         1. SMC
       </text>
-      <text x="40" y="250" fill="#67e8f9" fontSize="14">
+      <text x="40" y="162" fill="#67e8f9" fontSize="14">
         Demand {tp}
       </text>
-      <text x="40" y="290" fill="#fda4af" fontSize="14">
+      <text x="40" y="186" fill="#fda4af" fontSize="14">
         Supply {sl}
       </text>
-      <text x="40" y="340" fill="#94a3b8" fontSize="12">
-        BSL {hi} · SSL {lo}
+      <text x="40" y="214" fill="#94a3b8" fontSize="12">
+        BSL {hi}
+      </text>
+      <text x="40" y="236" fill="#94a3b8" fontSize="12">
+        SSL {lo}
       </text>
 
-      <rect x="284" y="170" width="250" height="430" rx="10" fill="#10081c" stroke="#a855f7" strokeWidth="2" />
-      <text x="300" y="198" fill="#d8b4fe" fontSize="13" fontWeight="800">
+      <rect x="284" y="108" width="250" height="220" rx="8" fill="#10081c" stroke="#a855f7" strokeWidth="2" />
+      <text x="300" y="132" fill="#d8b4fe" fontSize="13" fontWeight="800">
         2. СВИНГИ H1
       </text>
-      <text x="300" y="250" fill="#e9d5ff" fontSize="13">
-        красная линия — хаи
+      <text x="300" y="164" fill="#e9d5ff" fontSize="13">
+        красная — хаи
       </text>
-      <text x="300" y="274" fill="#e9d5ff" fontSize="13">
+      <text x="300" y="188" fill="#e9d5ff" fontSize="13">
         зелёная — лои
       </text>
-      <text x="300" y="320" fill="#c4b5fd" fontSize="12">
-        не схема, а последние 3+3
+      <text x="300" y="220" fill="#c4b5fd" fontSize="12">
+        последние 3+3
       </text>
 
-      <rect x="544" y="170" width="250" height="430" rx="10" fill="#1a0b10" stroke="#ef4444" strokeWidth="2" />
-      <text x="560" y="198" fill="#fca5a5" fontSize="12" fontWeight="800">
-        3. ПАТТЕРНЫ НА ГРАФИКЕ
+      <rect x="544" y="108" width="250" height="220" rx="8" fill="#1a0b10" stroke="#ef4444" strokeWidth="2" />
+      <text x="560" y="132" fill="#fca5a5" fontSize="12" fontWeight="800">
+        3. ПАТТЕРНЫ
       </text>
       {hits.length ? (
-        hits.slice(0, 5).map((h, i) => (
-          <text key={h.id} x="560" y={240 + i * 36} fill="#fecaca" fontSize="13">
+        hits.slice(0, 4).map((h, i) => (
+          <text key={h.id} x="560" y={160 + i * 22} fill="#fecaca" fontSize="13">
             {h.name} · {h.side === "bear" ? "медв" : "бык"}
           </text>
         ))
       ) : (
-        <text x="560" y="250" fill="#fecaca" fontSize="13">
-          чистый range, фигуры нет
+        <text x="560" y="168" fill="#fecaca" fontSize="13">
+          чистый range
         </text>
       )}
 
-      <rect x="804" y="170" width="252" height="430" rx="10" fill="#06140c" stroke="#22c55e" strokeWidth="2" />
-      <text x="820" y="198" fill="#86efac" fontSize="12" fontWeight="800">
+      <rect x="804" y="108" width="252" height="220" rx="8" fill="#06140c" stroke="#22c55e" strokeWidth="2" />
+      <text x="820" y="132" fill="#86efac" fontSize="12" fontWeight="800">
         4. СЕТАП
       </text>
-      <text x="834" y="246" fill="#f87171" fontSize="14" fontWeight="800">
+      <text x="820" y="164" fill="#f87171" fontSize="14" fontWeight="800">
         SHORT {sell ? entry : sl}
       </text>
-      <text x="834" y="274" fill="#fecaca" fontSize="13">
-        SL {sl} TP {tp}
+      <text x="820" y="188" fill="#fecaca" fontSize="13">
+        SL {sl} · TP {tp}
       </text>
-      <text x="834" y="410" fill="#4ade80" fontSize="14" fontWeight="800">
+      <text x="820" y="224" fill="#4ade80" fontSize="14" fontWeight="800">
         LONG {t.side === "BUY" ? entry : tp}
+      </text>
+      <text x="820" y="248" fill="#bbf7d0" fontSize="13">
+        SL {lo} · TP {hi}
       </text>
 
       <CandleSnap sell={sell} slN={t.sl} entryN={t.entry} tpN={t.tp} sl={sl} entry={entry} tp={tp} price={price} candles={candles} source={source} />
 
-      <text x="52" y="1036" fill="#94a3b8" fontSize="13">
+      <text x="52" y="740" fill="#94a3b8" fontSize="13">
         {hits[0]?.because ?? "Канал по фактическим хаям/лоям H1."}
       </text>
-      <text x="540" y="1080" textAnchor="middle" fill="#64748b" fontSize="12">
+      <text x="540" y="780" textAnchor="middle" fill="#64748b" fontSize="12">
         НЕ ЯВЛЯЕТСЯ РЕКОМЕНДАЦИЕЙ
       </text>
     </svg>
