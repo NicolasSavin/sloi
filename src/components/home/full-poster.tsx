@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchMarket } from "@/lib/market/fetch";
 import { detectPatterns } from "@/lib/smc/patterns";
-import type { Swing } from "@/lib/smc/engine";
+import { analyzeMarket, type Swing } from "@/lib/smc/engine";
 import type { Candle } from "@/lib/market/types";
 import type { HomeQuote } from "@/lib/home";
 
@@ -111,11 +111,23 @@ function CandleSnap({
   source?: string;
 }) {
   const bars = candles.slice(-48);
+  const snap = analyzeMarket(candles);
   const swings = swingsOf(bars);
   const hits = detectPatterns(swings, atrOf(bars), bars);
+  const obs = snap.orderBlocks.filter((z) => !z.mitigated).slice(-4);
+  const fvgs = snap.fvgs.filter((z) => !z.mitigated).slice(-4);
+  const liq = snap.liquidity.slice(-6);
+  const evs = snap.events.slice(-3);
   const highs = bars.map((c) => c.high);
   const lows = bars.map((c) => c.low);
-  const extra = [slN, entryN, tpN, ...hits.flatMap((h) => h.points.map((p) => p.price))].filter((n) => Number.isFinite(n) && n > 0);
+  const extra = [
+    slN,
+    entryN,
+    tpN,
+    ...obs.flatMap((z) => [z.top, z.bottom]),
+    ...fvgs.flatMap((z) => [z.top, z.bottom]),
+    ...liq.map((l) => l.price),
+  ].filter((n) => Number.isFinite(n) && n > 0);
   const max = Math.max(...highs, ...extra);
   const min = Math.min(...lows, ...extra.filter((n) => n > 0));
   const pad = (max - min) * 0.1 || 1;
@@ -136,14 +148,46 @@ function CandleSnap({
     <g>
       <rect x="36" y="348" width="1008" height="360" rx="10" fill="url(#chartBg)" stroke="#1e3a5f" strokeWidth="2" />
       <text x="52" y="372" fill="#67e8f9" fontSize="13" fontWeight="700">
-        СЛЕПОК H1 · {source === "demo" ? "резерв" : source ?? "live"} · разметка по свингам
+        SMC H1 · {source === "demo" ? "резерв" : source ?? "live"} · OB / FVG / BSL-SSL / BOS
       </text>
-      {sh.length >= 2 && (
-        <polyline points={sh.map((s) => `${xOf(s.time)},${yOf(s.price)}`).join(" ")} fill="none" stroke="#ef4444" strokeWidth="1.8" />
-      )}
-      {slw.length >= 2 && (
-        <polyline points={slw.map((s) => `${xOf(s.time)},${yOf(s.price)}`).join(" ")} fill="none" stroke="#22c55e" strokeWidth="1.8" />
-      )}
+      {obs.map((z) => {
+        const x = xOf(z.startTime);
+        const y = yOf(z.top);
+        const h = Math.max(6, yOf(z.bottom) - yOf(z.top));
+        const bull = z.side === "bull";
+        return (
+          <g key={z.id}>
+            <rect x={x} y={y} width={Math.max(40, 980 - x)} height={h} fill={bull ? "#14532d" : "#7f1d1d"} opacity="0.35" />
+            <text x={x + 6} y={y + 12} fill={bull ? "#86efac" : "#fecaca"} fontSize="10" fontWeight="700">
+              {bull ? "DEMAND OB" : "SUPPLY OB"}
+            </text>
+          </g>
+        );
+      })}
+      {fvgs.map((z) => {
+        const x = xOf(z.startTime);
+        const y = yOf(z.top);
+        const h = Math.max(4, yOf(z.bottom) - yOf(z.top));
+        return (
+          <g key={z.id}>
+            <rect x={x} y={y} width={Math.max(28, 980 - x)} height={h} fill="#38bdf8" opacity="0.22" />
+            <text x={x + 6} y={y + 11} fill="#7dd3fc" fontSize="10">
+              FVG {z.side === "bull" ? "бык" : "медв"}
+            </text>
+          </g>
+        );
+      })}
+      {liq.map((l, i) => (
+        <g key={`${l.side}-${l.time}-${i}`}>
+          <line x1="60" y1={yOf(l.price)} x2="980" y2={yOf(l.price)} stroke={l.side === "buy" ? "#fb7185" : "#f472b6"} strokeDasharray="2 3" strokeWidth="1" opacity="0.7" />
+          <text x="62" y={yOf(l.price) - 3} fill="#fda4af" fontSize="10">
+            {l.side === "buy" ? "BSL" : "SSL"}
+            {l.swept ? " swept" : ""}
+          </text>
+        </g>
+      ))}
+      {sh.length >= 2 && <polyline points={sh.map((s) => `${xOf(s.time)},${yOf(s.price)}`).join(" ")} fill="none" stroke="#ef4444" strokeWidth="1.4" />}
+      {slw.length >= 2 && <polyline points={slw.map((s) => `${xOf(s.time)},${yOf(s.price)}`).join(" ")} fill="none" stroke="#22c55e" strokeWidth="1.4" />}
       {Number.isFinite(slN) && slN > 0 && <line x1="60" y1={yOf(slN)} x2="980" y2={yOf(slN)} stroke="#fb7185" strokeDasharray="5 4" />}
       {Number.isFinite(entryN) && entryN > 0 && <line x1="60" y1={yOf(entryN)} x2="980" y2={yOf(entryN)} stroke="#fbbf24" strokeDasharray="4 4" />}
       {Number.isFinite(tpN) && tpN > 0 && <line x1="60" y1={yOf(tpN)} x2="980" y2={yOf(tpN)} stroke="#4ade80" strokeDasharray="5 4" />}
@@ -160,29 +204,29 @@ function CandleSnap({
           </g>
         );
       })}
+      {evs.map((e) => (
+        <g key={`${e.kind}-${e.time}`}>
+          <circle cx={xOf(e.time)} cy={yOf(e.price)} r="5" fill={e.side === "bull" ? "#22c55e" : "#ef4444"} stroke="#fff" />
+          <text x={xOf(e.time) + 8} y={yOf(e.price) - 6} fill="#e2e8f0" fontSize="11" fontWeight="700">
+            {e.kind}
+          </text>
+        </g>
+      ))}
       {hits.map((hit) => (
         <g key={hit.id}>
           <polyline
             points={hit.points.map((p) => `${xOf(p.time)},${yOf(p.price)}`).join(" ")}
             fill="none"
             stroke={hit.family === "harmonic" ? "#c084fc" : hit.side === "bear" ? "#fb7185" : "#38bdf8"}
-            strokeWidth="2.2"
+            strokeWidth="1.8"
           />
-          {hit.points.map((p) => (
-            <g key={p.label + p.time}>
-              <circle cx={xOf(p.time)} cy={yOf(p.price)} r="4" fill="#020617" stroke="#e2e8f0" />
-              <text x={xOf(p.time) + 6} y={yOf(p.price) - 6} fill="#e2e8f0" fontSize="10">
-                {p.label}
-              </text>
-            </g>
-          ))}
-          <text x={xOf(hit.points.at(-1)!.time)} y={yOf(hit.points.at(-1)!.price) + 16} fill="#fde68a" fontSize="11" fontWeight="700">
+          <text x={xOf(hit.points.at(-1)!.time)} y={yOf(hit.points.at(-1)!.price) + 14} fill="#fde68a" fontSize="10">
             {hit.name}
           </text>
         </g>
       ))}
       <text x="52" y="696" fill="#94a3b8" fontSize="12">
-        NOW {price} · {sell ? `SHORT ${entry}` : `LONG ${entry}`} · {hits.map((h) => h.name).join(" · ") || "чистый range"}
+        NOW {price} · {sell ? `SHORT ${entry}` : `LONG ${entry}`} · OB {obs.length} · FVG {fvgs.length} · {evs.at(-1)?.kind ?? "—"}
       </text>
     </g>
   );
@@ -197,8 +241,9 @@ function OnePoster({ t, quote, candles, source }: { t: Tape; quote?: HomeQuote; 
   const sl = fmt(t.sl, t.id);
   const tp = fmt(t.tp, t.id);
   const price = fmt(px, t.id);
-  const hi = fmt(Math.max(t.sl, t.entry, px), t.id);
-  const lo = fmt(Math.min(t.tp || px, px, t.entry), t.id);
+  const snap = analyzeMarket(candles);
+  const liveOb = snap.orderBlocks.filter((z) => !z.mitigated).slice(-2);
+  const liveFvg = snap.fvgs.filter((z) => !z.mitigated).slice(-2);
   const hits = detectPatterns(swingsOf(candles.slice(-48)), atrOf(candles.slice(-48)), candles.slice(-48));
 
   return (
@@ -235,38 +280,37 @@ function OnePoster({ t, quote, candles, source }: { t: Tape; quote?: HomeQuote; 
         ≈ {price}
       </text>
       <text x="320" y="82" fill="#64748b" fontSize="12">
-        {t.side === "WAIT" ? "ЖДАТЬ" : t.side === "BUY" ? "ЛОНГ" : "ШОРТ"} · H1
+        {t.side === "WAIT" ? "ЖДАТЬ" : t.side === "BUY" ? "ЛОНГ" : "ШОРТ"} · H1 SMC
       </text>
 
       <rect x="24" y="108" width="250" height="220" rx="8" fill="#041018" stroke="#22d3ee" strokeWidth="2" />
       <text x="40" y="132" fill="#22d3ee" fontSize="13" fontWeight="800">
-        1. SMC
+        1. SMC на графике
       </text>
-      <text x="40" y="162" fill="#67e8f9" fontSize="14">
-        Demand {tp}
+      <text x="40" y="158" fill="#fda4af" fontSize="12">
+        OB {liveOb.length} · FVG {liveFvg.length}
       </text>
-      <text x="40" y="186" fill="#fda4af" fontSize="14">
-        Supply {sl}
+      {liveOb.slice(0, 2).map((z, i) => (
+        <text key={z.id} x="40" y={182 + i * 20} fill={z.side === "bull" ? "#86efac" : "#fecaca"} fontSize="12">
+          {z.side === "bull" ? "Demand" : "Supply"} {fmt(z.bottom, t.id)}-{fmt(z.top, t.id)}
+        </text>
+      ))}
+      <text x="40" y="248" fill="#94a3b8" fontSize="12">
+        {snap.events.at(-1)?.kind ?? "—"} {snap.bias}
       </text>
-      <text x="40" y="214" fill="#94a3b8" fontSize="12">
-        BSL {hi}
-      </text>
-      <text x="40" y="236" fill="#94a3b8" fontSize="12">
-        SSL {lo}
+      <text x="40" y="272" fill="#64748b" fontSize="11">
+        зоны стола, не шаблон
       </text>
 
       <rect x="284" y="108" width="250" height="220" rx="8" fill="#10081c" stroke="#a855f7" strokeWidth="2" />
       <text x="300" y="132" fill="#d8b4fe" fontSize="13" fontWeight="800">
-        2. СВИНГИ H1
+        2. СВИНГИ
       </text>
       <text x="300" y="164" fill="#e9d5ff" fontSize="13">
-        красная — хаи
+        красная — хаи / BSL
       </text>
       <text x="300" y="188" fill="#e9d5ff" fontSize="13">
-        зелёная — лои
-      </text>
-      <text x="300" y="220" fill="#c4b5fd" fontSize="12">
-        последние 3+3
+        зелёная — лои / SSL
       </text>
 
       <rect x="544" y="108" width="250" height="220" rx="8" fill="#1a0b10" stroke="#ef4444" strokeWidth="2" />
@@ -276,7 +320,7 @@ function OnePoster({ t, quote, candles, source }: { t: Tape; quote?: HomeQuote; 
       {hits.length ? (
         hits.slice(0, 4).map((h, i) => (
           <text key={h.id} x="560" y={160 + i * 22} fill="#fecaca" fontSize="13">
-            {h.name} · {h.side === "bear" ? "медв" : "бык"}
+            {h.name}
           </text>
         ))
       ) : (
@@ -298,14 +342,11 @@ function OnePoster({ t, quote, candles, source }: { t: Tape; quote?: HomeQuote; 
       <text x="820" y="224" fill="#4ade80" fontSize="14" fontWeight="800">
         LONG {t.side === "BUY" ? entry : tp}
       </text>
-      <text x="820" y="248" fill="#bbf7d0" fontSize="13">
-        SL {lo} · TP {hi}
-      </text>
 
       <CandleSnap sell={sell} slN={t.sl} entryN={t.entry} tpN={t.tp} sl={sl} entry={entry} tp={tp} price={price} candles={candles} source={source} />
 
       <text x="52" y="740" fill="#94a3b8" fontSize="13">
-        {hits[0]?.because ?? "Канал по фактическим хаям/лоям H1."}
+        {hits[0]?.because ?? "OB/FVG/BSL с того же H1, что у диспетчера."}
       </text>
       <text x="540" y="780" textAnchor="middle" fill="#64748b" fontSize="12">
         НЕ ЯВЛЯЕТСЯ РЕКОМЕНДАЦИЕЙ
