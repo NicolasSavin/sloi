@@ -230,6 +230,25 @@ export function buildMacroPlay(
   return pack(kind, title || kind, phase, rates);
 }
 
+export function playForEvent(
+  title: string,
+  at: number,
+  rates: "hawkish" | "dovish" | "quiet" = "quiet",
+): MacroPlay {
+  const minutes = Math.round((at - Date.now()) / 60_000);
+  const halt: NewsHalt = {
+    active: minutes <= 45 && minutes >= -40,
+    event: title,
+    country: "",
+    at,
+    minutes,
+    line: title,
+    impact: "High",
+    next: minutes > 45 ? { event: title, at, label: title } : null,
+  };
+  return buildMacroPlay(halt, rates, [title]);
+}
+
 export function playText(play: MacroPlay): string {
   if (play.kind === "none") return "";
   const rows = play.paths.map((x) => `${x.p}% ${x.name}: ${x.when}. ${x.move}`).join(" ");

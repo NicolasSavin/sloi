@@ -2,9 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { AppNav } from "@/components/app-nav";
 import { SessionStrip } from "@/components/session-strip";
 import { TzPick } from "@/components/tz-pick";
+import { MacroPlayCard } from "@/components/macro-play";
 import { fetchCalendar } from "@/lib/market/fetch";
 import { formatInTz } from "@/lib/tz";
 import { cn } from "@/lib/utils";
+import { buildMacroPlay, playForEvent } from "@/lib/macro-scenarios";
 
 export const Route = createFileRoute("/calendar")({
   loader: () => fetchCalendar(),
@@ -21,6 +23,7 @@ export const Route = createFileRoute("/calendar")({
 
 function CalendarPage() {
   const { events, halt, session } = Route.useLoaderData();
+  const leadPlay = buildMacroPlay(halt, "quiet", [halt.event, halt.next?.event ?? ""]);
   return (
     <div className="min-h-dvh">
       <AppNav />
@@ -42,16 +45,20 @@ function CalendarPage() {
             {halt.active ? "ТОРМОЗ" : "ФОН"}
           </p>
           <p className="mt-2 text-lg">{halt.line}</p>
+          {leadPlay.kind !== "none" ? <div className="mt-4"><MacroPlayCard play={leadPlay} /></div> : null}
         </section>
         <ul className="mt-8 space-y-2">
-          {events.map((e) => (
+          {events.map((e) => {
+            const play = e.impact === "High" ? playForEvent(e.title || e.label, e.at) : null;
+            return (
             <li
               key={`${e.at}-${e.title}`}
               className={cn(
-                "flex flex-wrap items-center justify-between gap-3 rounded-xl px-4 py-3",
+                "rounded-xl px-4 py-3",
                 e.impact === "High" ? "jewel-amber" : "panel-volume",
               )}
             >
+              <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-medium">{e.label}</p>
                 <p className="mt-1 font-mono text-[10px] text-dim">
@@ -62,8 +69,11 @@ function CalendarPage() {
                 <p className="font-mono text-xs text-accent">{e.impact}</p>
                 <p className="mt-1 text-sm text-muted">{formatInTz(e.at)}</p>
               </div>
+              </div>
+              {play && play.kind !== "none" ? <MacroPlayCard play={play} compact /> : null}
             </li>
-          ))}
+            );
+          })}
         </ul>
         {!events.length ? <p className="mt-8 text-sm text-muted">Календарь не подтянулся. Обновите страницу.</p> : null}
       </main>
