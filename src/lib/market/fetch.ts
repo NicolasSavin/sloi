@@ -612,7 +612,7 @@ async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }
   return packed;
 }
 
-export async function renderSignalFeed() {
+export async function renderSignalFeed(_tenant?: string) {
   const { digest } = await assembleDigest();
   const { brokerSkewPct } = await import("@/lib/broker-tape");
   const { skewLimit, fillMode, sessionAllows } = await import("@/lib/execution");
@@ -659,10 +659,21 @@ export const fetchCalendar = createServerFn({ method: "GET" }).handler(async () 
   return { events: upcoming, halt, session: sessionNow() };
 });
 
-export const fetchBroker = createServerFn({ method: "GET" }).handler(async () => {
-  const { snapshotBroker } = await import("@/lib/broker-tape");
-  return snapshotBroker();
-});
+export const fetchBroker = createServerFn({ method: "GET" })
+  .validator((input: unknown) => z.object({ key: z.string().optional() }).parse(input ?? {}))
+  .handler(async ({ data }) => {
+    const { snapshotBroker, ingestBrokerTape, hydrateAccount } = await import("@/lib/broker-tape");
+    const { resolveDesk, loadTape } = await import("@/lib/desk-tenant");
+    const key = data.key ?? "";
+    const desk = key ? await resolveDesk(key) : null;
+    const tenant = desk && desk.id !== "legacy" ? desk.id : "legacy";
+    if (desk && desk.id !== "legacy") {
+      const stored = await loadTape(desk.id);
+      if (stored?.body) ingestBrokerTape(stored.body, desk.id);
+      else if (stored?.account) hydrateAccount(desk.id, stored.account);
+    }
+    return snapshotBroker(tenant);
+  });
 
 let tvGuideCache: { at: number; data: Awaited<ReturnType<typeof import("@/lib/tv-live").resolveTvChannels>> } | null =
   null;

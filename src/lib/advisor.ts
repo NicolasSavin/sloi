@@ -167,6 +167,7 @@ export function advise(snap: Pick<SmcSnapshot, "bias" | "localSetup" | "margin" 
       covers,
     };
   }
+  const fight = snap.patterns?.find((p) => (p.side === "bear" && side === "long") || (p.side === "bull" && side === "short"));
   const marginNote =
     snap.margin?.where === "upper" && side === "long"
       ? " Цена в верхней марже — лимитка ниже, не рынок."

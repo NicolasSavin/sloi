@@ -111,7 +111,7 @@ function CandleSnap({
   source?: string;
 }) {
   const bars = candles.slice(-48);
-  const snap = analyzeMarket(candles);
+  const snap = analyzeMarket(candles, null);
   const swings = swingsOf(bars);
   const hits = detectPatterns(swings, atrOf(bars), bars);
   const obs = snap.orderBlocks.filter((z) => !z.mitigated).slice(-4);
@@ -241,7 +241,7 @@ function OnePoster({ t, quote, candles, source }: { t: Tape; quote?: HomeQuote; 
   const sl = fmt(t.sl, t.id);
   const tp = fmt(t.tp, t.id);
   const price = fmt(px, t.id);
-  const snap = analyzeMarket(candles);
+  const snap = analyzeMarket(candles, null);
   const liveOb = snap.orderBlocks.filter((z) => !z.mitigated).slice(-2);
   const liveFvg = snap.fvgs.filter((z) => !z.mitigated).slice(-2);
   const hits = detectPatterns(swingsOf(candles.slice(-48)), atrOf(candles.slice(-48)), candles.slice(-48));

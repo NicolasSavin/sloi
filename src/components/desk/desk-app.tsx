@@ -80,6 +80,9 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
     refetchInterval: 60_000,
     initialData: initialMarket && symbol === initialMarket.symbol && timeframe === initialMarket.timeframe ? initialMarket : undefined,
   });
+  const lastSignal = useRef("");
+  const digestQ = useQuery({ queryKey: ["dispatch-digest"], queryFn: fetchDigest, staleTime: 60_000 });
+  const fund = digestQ.data?.digest.fund;
   const snap = useMemo<SmcSnapshot | null>(() => {
     if (!market.data?.candles?.length) return null;
     return analyzeMarket(market.data.candles, market.data.options, market.data.trades, {
@@ -99,8 +102,6 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
   const [aiModel, setAiModel] = useState<string | null>(null);
   const [journal, setJournal] = useState<JournalEntry[]>([]);
   const lastKey = `${symbol}|${timeframe}|${snap?.events.at(-1)?.time ?? 0}`;
-  const lastSignal = useRef("");
-  const digestQ = useQuery({ queryKey: ["dispatch-digest"], queryFn: fetchDigest, staleTime: 60_000 });
   const tvQ = useQuery({ queryKey: ["tv-guide"], queryFn: fetchTvGuide, staleTime: 120_000 });
   const bookQ = useQuery({
     queryKey: ["broker-book", deskKey],
@@ -109,7 +110,6 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
     staleTime: 8_000,
   });
   const book = bookQ.data?.books.find((b) => b.id === spec.id) ?? null;
-  const fund = digestQ.data?.digest.fund;
   const ether = makeTvBrief(tvQ.data ?? [], [fund?.driver ?? "", fund?.line ?? "", ...(fund?.themes ?? [])].filter(Boolean));
   const deskMarket = digestQ.data?.digest.markets.find((m) => m.spec.id === spec.id);
   const construction = deskMarket?.construction ?? null;
