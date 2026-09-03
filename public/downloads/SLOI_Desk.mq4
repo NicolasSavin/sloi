@@ -693,7 +693,8 @@ void AppendClusters(string &body)
       StringToLower(low);
       bool named = StringFind(low, "cluster") >= 0 || StringFind(low, "infusion") >= 0
          || StringFind(low, "splash") >= 0 || StringFind(low, "provolume") >= 0
-         || StringFind(low, "dpoc") >= 0;
+         || StringFind(low, "dpoc") >= 0 || StringFind(low, "btrade") >= 0
+         || StringFind(low, "bigtrade") >= 0 || StringFind(low, "big_trade") >= 0;
       if(!named) continue;
       int t = ObjectType(n);
       double px = 0;
@@ -704,7 +705,9 @@ void AppendClusters(string &body)
       else continue;
       if(px <= 0) continue;
       string kind = "INFUSION";
-      if(StringFind(low, "splash") >= 0) kind = "SPLASH";
+      if(StringFind(low, "splash") >= 0 || StringFind(low, "btrade") >= 0
+         || StringFind(low, "bigtrade") >= 0 || StringFind(low, "big_trade") >= 0)
+         kind = "SPLASH";
       color c = (color)ObjectGet(n, OBJPROP_COLOR);
       int red = (c & 0xFF);
       int green = ((c >> 8) & 0xFF);
