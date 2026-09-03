@@ -283,6 +283,25 @@ export function playWanted(id: string, play: MacroPlay | null | undefined): "up"
   return "flat";
 }
 
+export function playAligned(
+  id: string,
+  play: MacroPlay | null | undefined,
+  action: "long" | "short",
+): { ok: boolean; boost: number; note: string } {
+  if (!play || play.kind === "none" || play.base.usd === "chop" || play.base.p < 35) {
+    return { ok: false, boost: 0, note: "" };
+  }
+  const w = playWanted(id, play);
+  const want = action === "long" ? "up" : "down";
+  if (w !== want) return { ok: false, boost: 0, note: "" };
+  const boost = play.base.p >= 50 ? 12 : play.base.p >= 40 ? 8 : 5;
+  return {
+    ok: true,
+    boost,
+    note: `Прогноз ${play.base.p}% «${play.base.name}» в нашу сторону — вход усиливаю, не режу.`,
+  };
+}
+
 export function playText(play: MacroPlay): string {
   if (play.kind === "none") return "";
   const rows = play.paths.map((x) => `${x.p}% ${x.name}: ${x.when}. ${x.move}`).join(" ");

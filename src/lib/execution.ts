@@ -2,6 +2,8 @@ import type { Advice } from "@/lib/advisor";
 import type { NewsHalt } from "@/lib/calendar";
 import type { Candle } from "@/lib/market/types";
 import type { SessionSnap } from "@/lib/sessions";
+import type { MacroPlay } from "@/lib/macro-scenarios";
+import { playAligned } from "@/lib/macro-scenarios";
 
 export function skewLimit(id: string) {
   if (id === "XAUUSD") return 1.0;
@@ -145,6 +147,7 @@ export function refineAdvice(
     score?: number;
     hasZone?: boolean;
     premiumDiscount?: "premium" | "discount" | "equilibrium";
+    play?: MacroPlay;
   },
 ): Advice {
   if (haltApplies(opts.id, opts.halt)) {
@@ -165,7 +168,10 @@ export function refineAdvice(
     return { ...advice, action: "wait", title: "Поздно: цена уже убежала", therefore: "Лимитку не догоняем." };
   }
   const stack = stackGrade(advice.action, opts.htfBias, opts.d1Bias, opts.choch);
-  const score = opts.score ?? 50;
+  const align = playAligned(opts.id, opts.play, advice.action);
+  const score = (opts.score ?? 50) + align.boost;
+  const need = align.ok ? 42 : 52;
+  const h1need = align.ok ? 48 : 62;
   if (!opts.hasZone) {
     return {
       ...advice,
@@ -175,7 +181,7 @@ export function refineAdvice(
     };
   }
   const pd = opts.premiumDiscount;
-  if (advice.action === "long" && pd === "premium" && !opts.choch) {
+  if (!align.ok && advice.action === "long" && pd === "premium" && !opts.choch) {
     return {
       ...advice,
       action: "wait",
@@ -183,7 +189,7 @@ export function refineAdvice(
       therefore: "Цена дорогая относительно диапазона. Покупка только после CHoCH или возврата в дисконт.",
     };
   }
-  if (advice.action === "short" && pd === "discount" && !opts.choch) {
+  if (!align.ok && advice.action === "short" && pd === "discount" && !opts.choch) {
     return {
       ...advice,
       action: "wait",
@@ -191,7 +197,7 @@ export function refineAdvice(
       therefore: "Цена дешёвая относительно диапазона. Продажа только после CHoCH или возврата в премию.",
     };
   }
-  if (score < 52 && !opts.choch) {
+  if (score < need && !opts.choch) {
     return {
       ...advice,
       action: "wait",
@@ -199,7 +205,7 @@ export function refineAdvice(
       therefore: `Счёт ${score}/100, нет CHoCH. Ждём, пока структура, зона и старший ТФ не сойдутся.`,
     };
   }
-  if (stack.grade === "H1" && !opts.choch && score < 62) {
+  if (stack.grade === "H1" && !opts.choch && score < h1need) {
     return {
       ...advice,
       action: "wait",
@@ -211,11 +217,11 @@ export function refineAdvice(
     return { ...advice, action: "wait", title: "Ждать старший ТФ", therefore: stack.note };
   }
   if (mode === "MARKET") {
-    const bits = [stack.note, "Цена в зоне — рынок, не отложка."].filter(Boolean).join(" ");
+    const bits = [stack.note, align.ok ? align.note : "", "Цена в зоне — рынок, не отложка."].filter(Boolean).join(" ");
     const title = advice.action === "long" ? "Рынок: лонг в зоне" : "Рынок: шорт в зоне";
     return { ...advice, title, therefore: `${advice.therefore} ${bits}` };
   }
-  const bits = [stack.note, !sess.ok ? "Азия: только лимит." : sess.note].filter(Boolean).join(" ");
+  const bits = [stack.note, align.ok ? align.note : "", !sess.ok ? "Азия: только лимит." : sess.note].filter(Boolean).join(" ");
   const title =
     stack.grade === "D1"
       ? advice.action === "long"

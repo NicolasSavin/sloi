@@ -7,7 +7,7 @@ import type { Advice } from "@/lib/advisor";
 import type { NewsHalt } from "@/lib/calendar";
 import { EMPTY_HALT } from "@/lib/calendar";
 import type { OptionConstruction, OptionsSnapshot } from "@/lib/market/types";
-import { buildMacroPlay, playWanted, type MacroPlay } from "@/lib/macro-scenarios";
+import { buildMacroPlay, playWanted, playAligned, type MacroPlay } from "@/lib/macro-scenarios";
 
 type Move = { price: number; changePct: number } | null;
 
@@ -233,8 +233,8 @@ function wantedFor(id: string, fund: FundamentalSnap): "up" | "down" | "flat" {
   let s = 0;
   const cot = cotFor(id, fund.cot);
   const playW = playWanted(id, fund.play);
-  if (playW === "up" && (fund.play.base.p ?? 0) >= 40) s += fund.play.base.p >= 50 ? 2 : 1;
-  if (playW === "down" && (fund.play.base.p ?? 0) >= 40) s -= fund.play.base.p >= 50 ? 2 : 1;
+  if (playW === "up" && (fund.play.base.p ?? 0) >= 35) s += fund.play.base.p >= 50 ? 3 : 2;
+  if (playW === "down" && (fund.play.base.p ?? 0) >= 35) s -= fund.play.base.p >= 50 ? 3 : 2;
   if (cot) {
     const specNet = cot.invert ? -cot.net : cot.net;
     if (specNet > 20000) s += 1;
@@ -354,6 +354,7 @@ export function gateAdvice(
         score: ctx.score,
         hasZone: ctx.hasZone,
         premiumDiscount: ctx.premiumDiscount,
+        play: ctx.play,
       })
     : advice;
   if (halt?.active && !ctx?.id) {
@@ -382,47 +383,25 @@ export function gateAdvice(
   const wallBit = wall
     ? ` Конструкция ${wall.ticker}: ${wall.type === "call-wall" ? "стена коллов" : wall.type === "put-wall" ? "стена путов" : "смешанный OI"} ${wall.strike ?? ""}.`
     : "";
+  const play = ctx?.play;
+  const align = ctx?.id && (base.action === "long" || base.action === "short")
+    ? playAligned(ctx.id, play, base.action)
+    : { ok: false, boost: 0, note: "" };
   const caution = againstWall
     ? ` Опцион против — лимитка есть, размер не раздуваем.`
-    : against
-      ? ` Макро встречный — лимит в зоне, рынок не догоняем.`
-      : withWind
-        ? ` Макро попутный.`
-        : ` ${wind.note}`;
-  const play = ctx?.play;
-  const pw = ctx?.id ? playWanted(ctx.id, play) : "flat";
-  if (play && play.kind !== "none" && (play.phase === "after" || play.phase === "live")) {
-    if (play.base.usd === "chop" && play.base.p >= 40) {
-      return {
-        ...base,
-        action: "wait",
-        title: `Ждать: база ${play.base.p}% «${play.base.name}»`,
-        therefore: `${play.soon} Исторически это шум, не тренд. ${play.trade}`,
-      };
-    }
-    if ((pw === "down" && base.action === "long") || (pw === "up" && base.action === "short")) {
-      return {
-        ...base,
-        action: "wait",
-        title: `Ждать: сценарий ${play.base.p}% против`,
-        therefore: `«${play.base.name}» ${play.base.p}% тянет не сюда. ${play.base.therefore}`,
-      };
-    }
-  }
-  if (againstWall && !ctx?.choch) {
+    : align.ok
+      ? ` ${align.note}`
+      : against
+        ? ` Макро встречный — лимит в зоне, рынок не догоняем.`
+        : withWind
+          ? ` Макро попутный.`
+          : ` ${wind.note}`;
+  if (againstWall && !ctx?.choch && !align.ok) {
     return {
       ...base,
       action: "wait",
       title: "Опцион против",
       therefore: `Стена ${wall?.type === "call-wall" ? "коллов" : "путов"} не в нашу сторону. Без CHoCH не берём.${wallBit}`,
-    };
-  }
-  if (against && !ctx?.choch) {
-    return {
-      ...base,
-      action: "wait",
-      title: "Макро против",
-      therefore: `${wind.note} Без CHoCH не торгуем против ветра.`,
     };
   }
   return { ...base, therefore: `${base.therefore}${caution}${wallBit}` };
