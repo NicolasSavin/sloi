@@ -7,7 +7,7 @@ import type { Advice } from "@/lib/advisor";
 import type { NewsHalt } from "@/lib/calendar";
 import { EMPTY_HALT } from "@/lib/calendar";
 import type { OptionConstruction, OptionsSnapshot } from "@/lib/market/types";
-import { buildMacroPlay, type MacroPlay } from "@/lib/macro-scenarios";
+import { buildMacroPlay, playWanted, type MacroPlay } from "@/lib/macro-scenarios";
 
 type Move = { price: number; changePct: number } | null;
 
@@ -232,6 +232,9 @@ export function buildFundamentals(input: {
 function wantedFor(id: string, fund: FundamentalSnap): "up" | "down" | "flat" {
   let s = 0;
   const cot = cotFor(id, fund.cot);
+  const playW = playWanted(id, fund.play);
+  if (playW === "up" && (fund.play.base.p ?? 0) >= 40) s += fund.play.base.p >= 50 ? 2 : 1;
+  if (playW === "down" && (fund.play.base.p ?? 0) >= 40) s -= fund.play.base.p >= 50 ? 2 : 1;
   if (cot) {
     const specNet = cot.invert ? -cot.net : cot.net;
     if (specNet > 20000) s += 1;
@@ -296,13 +299,20 @@ function wantedFor(id: string, fund: FundamentalSnap): "up" | "down" | "flat" {
 
 export function windFor(symbolId: string, fund: FundamentalSnap): FundWind {
   const wanted = wantedFor(symbolId, fund);
+  const playW = playWanted(symbolId, fund.play);
   const kind: FundWindKind = wanted === "flat" ? "cross" : wanted === "up" ? "tail" : "head";
+  const playBit =
+    fund.play.kind !== "none" && playW !== "flat"
+      ? ` Сценарий «${fund.play.base.name}» ${fund.play.base.p}% тянет ${playW === "up" ? "вверх" : "вниз"}.`
+      : fund.play.kind !== "none" && fund.play.base.usd === "chop"
+        ? ` Сценарий «${fund.play.base.name}» ${fund.play.base.p}% — шум, не тренд.`
+        : "";
   const note =
     wanted === "up"
-      ? "Фундамент хочет вверх: не спорить с макро на лонге от зоны."
+      ? `Фундамент хочет вверх: не спорить с макро на лонге от зоны.${playBit}`
       : wanted === "down"
-        ? "Фундамент давит вниз: лонг только из дисконта, шорт не против ветра."
-        : "Фундамент нейтрален — решают структура и спред.";
+        ? `Фундамент давит вниз: лонг только из дисконта, шорт не против ветра.${playBit}`
+        : `Фундамент нейтрален — решают структура и спред.${playBit}`;
   return { kind: wanted === "flat" ? "cross" : kind, wanted, note };
 }
 
@@ -325,6 +335,7 @@ export function gateAdvice(
     score?: number;
     hasZone?: boolean;
     premiumDiscount?: "premium" | "discount" | "equilibrium";
+    play?: MacroPlay;
   },
 ): Advice {
   const base = ctx?.id
@@ -378,6 +389,26 @@ export function gateAdvice(
       : withWind
         ? ` Макро попутный.`
         : ` ${wind.note}`;
+  const play = ctx?.play;
+  const pw = ctx?.id ? playWanted(ctx.id, play) : "flat";
+  if (play && play.kind !== "none" && (play.phase === "after" || play.phase === "live")) {
+    if (play.base.usd === "chop" && play.base.p >= 40) {
+      return {
+        ...base,
+        action: "wait",
+        title: `Ждать: база ${play.base.p}% «${play.base.name}»`,
+        therefore: `${play.soon} Исторически это шум, не тренд. ${play.trade}`,
+      };
+    }
+    if ((pw === "down" && base.action === "long") || (pw === "up" && base.action === "short")) {
+      return {
+        ...base,
+        action: "wait",
+        title: `Ждать: сценарий ${play.base.p}% против`,
+        therefore: `«${play.base.name}» ${play.base.p}% тянет не сюда. ${play.base.therefore}`,
+      };
+    }
+  }
   if (againstWall && !ctx?.choch) {
     return {
       ...base,

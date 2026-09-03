@@ -564,6 +564,8 @@ async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }
       target: r.market.setup.targets[0] ?? undefined,
       score: r.snap.score,
       hasZone,
+      premiumDiscount: r.snap.premiumDiscount,
+      play: fund.play,
     };
     const advice = gateAdvice(r.market.advice, wind, fund.halt, ctx);
     return { ...r.market, wind, advice, htfBias: ctx.htfBias, d1Bias: ctx.d1Bias };

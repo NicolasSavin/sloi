@@ -269,6 +269,20 @@ export function playForEvent(
   return buildMacroPlay(halt, rates, [title]);
 }
 
+export function playWanted(id: string, play: MacroPlay | null | undefined): "up" | "down" | "flat" {
+  if (!play || play.kind === "none" || play.base.p < 35) return "flat";
+  if (play.phase === "quiet") return "flat";
+  const usd = play.base.usd;
+  if (usd === "chop") return "flat";
+  const usdUp = usd === "up";
+  if (id === "XAUUSD" || id === "XAGUSD") return usdUp ? "down" : "up";
+  if (id === "USDJPY" || id === "USDCHF" || id === "USDCAD") return usdUp ? "up" : "down";
+  if (/USD$/.test(id)) return usdUp ? "down" : "up";
+  if (id.startsWith("USD")) return usdUp ? "up" : "down";
+  if (/JPY/.test(id) && play.kind === "boj") return usdUp ? "down" : "up";
+  return "flat";
+}
+
 export function playText(play: MacroPlay): string {
   if (play.kind === "none") return "";
   const rows = play.paths.map((x) => `${x.p}% ${x.name}: ${x.when}. ${x.move}`).join(" ");
