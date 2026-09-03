@@ -301,8 +301,60 @@ function flagPennant(candles: Candle[], swings: Swing[], atr: number): PatternHi
   return null;
 }
 
+function wolfeWave(swings: Swing[], atr: number): PatternHit | null {
+  const seq = lastAlt(swings, 5);
+  if (!seq) return null;
+  const [a, b, c, d, e] = seq;
+  const span13 = Math.abs(c.time - a.time) || 1;
+  const span35 = Math.abs(e.time - c.time) || 1;
+  if (span35 > span13 * 2.4 || span35 < span13 * 0.35) return null;
+
+  if (a.type === "low") {
+    if (!(c.price < a.price && d.price < b.price && e.price <= c.price + atr * 0.2)) return null;
+    const proj = c.price + ((c.price - a.price) * span35) / span13;
+    if (e.price > proj + atr * 0.8) return null;
+    const epa = a.price + (d.price - a.price) * (1 + span35 / Math.abs(d.time - a.time || 1));
+    return {
+      id: "wolfe-bull",
+      family: "graphic",
+      name: "волна Вульфа (бычья)",
+      side: "bull",
+      points: [
+        { time: a.time, price: a.price, label: "1" },
+        { time: b.time, price: b.price, label: "2" },
+        { time: c.time, price: c.price, label: "3" },
+        { time: d.time, price: d.price, label: "4" },
+        { time: e.time, price: e.price, label: "5" },
+      ],
+      because: `Пять волн клином вниз: 1-3-5 всё ниже, 2-4 не обновляют максимум. Точка 5 — вынос за линию 1-3.`,
+      therefore: `Вход не в середине клина, а от 5. Цель — линия 1-4 (EPA), грубо ${epa.toFixed(atr > 5 ? 1 : 5)}. Стоп за 5. Если 5 не удержали — фигура мертва.`,
+    };
+  }
+
+  if (!(c.price > a.price && d.price > b.price && e.price >= c.price - atr * 0.2)) return null;
+  const proj = c.price + ((c.price - a.price) * span35) / span13;
+  if (e.price < proj - atr * 0.8) return null;
+  const epa = a.price + (d.price - a.price) * (1 + span35 / Math.abs(d.time - a.time || 1));
+  return {
+    id: "wolfe-bear",
+    family: "graphic",
+    name: "волна Вульфа (медвежья)",
+    side: "bear",
+    points: [
+      { time: a.time, price: a.price, label: "1" },
+      { time: b.time, price: b.price, label: "2" },
+      { time: c.time, price: c.price, label: "3" },
+      { time: d.time, price: d.price, label: "4" },
+      { time: e.time, price: e.price, label: "5" },
+    ],
+    because: `Пять волн клином вверх: 1-3-5 всё выше, 2-4 не обновляют минимум. Точка 5 — вынос за 1-3.`,
+    therefore: `Шорт от 5, не от 3. Цель — линия 1-4 (EPA), грубо ${epa.toFixed(atr > 5 ? 1 : 5)}. Если закрытие выше 5 — Вульф снят.`,
+  };
+}
+
 export function detectPatterns(swings: Swing[], atr: number, candles: Candle[]): PatternHit[] {
   const found = [
+    wolfeWave(swings, atr),
     headShoulders(swings),
     doubleTopBottom(swings, atr),
     triangle(swings),
