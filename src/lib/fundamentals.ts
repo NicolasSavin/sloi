@@ -7,7 +7,7 @@ import type { Advice } from "@/lib/advisor";
 import type { NewsHalt } from "@/lib/calendar";
 import { EMPTY_HALT } from "@/lib/calendar";
 import type { OptionConstruction, OptionsSnapshot } from "@/lib/market/types";
-import { buildMacroPlay, playWanted, playAligned, type MacroPlay } from "@/lib/macro-scenarios";
+import { buildMacroPlay, playWanted, playAligned, playCuts, type MacroPlay } from "@/lib/macro-scenarios";
 
 type Move = { price: number; changePct: number } | null;
 
@@ -411,6 +411,17 @@ export function gateAdvice(
       title: "Опцион против",
       therefore: `Стена ${wall?.type === "call-wall" ? "коллов" : "путов"} не в нашу сторону. Без CHoCH не берём.${wallBit}`,
     };
+  }
+  if (ctx?.id && (base.action === "long" || base.action === "short")) {
+    const cut = playCuts(ctx.id, play, base.action);
+    if (cut.cut && !align.ok) {
+      return {
+        ...base,
+        action: "wait",
+        title: "Ждать: вероятность против",
+        therefore: cut.note,
+      };
+    }
   }
   return { ...base, therefore: `${base.therefore}${caution}${wallBit}` };
 }

@@ -366,6 +366,25 @@ export function playAligned(
   };
 }
 
+export function playCuts(
+  id: string,
+  play: MacroPlay | null | undefined,
+  action: "long" | "short",
+): { cut: boolean; note: string } {
+  if (!play || play.kind === "none") return { cut: false, note: "" };
+  const odds = sideOdds(id, play);
+  if (odds.long + odds.short < 20) return { cut: false, note: "" };
+  const forUs = action === "long" ? odds.long : odds.short;
+  const vs = action === "long" ? odds.short : odds.long;
+  if (vs > forUs + 2) {
+    return {
+      cut: true,
+      note: `${action === "long" ? "Лонг" : "Шорт"} ${forUs}% слабее, чем ${vs}% в другую сторону. Этот вход режу.`,
+    };
+  }
+  return { cut: false, note: "" };
+}
+
 export function playText(play: MacroPlay): string {
   if (play.kind === "none") return "";
   const rows = play.paths.map((x) => `${x.p}% ${x.name}: ${x.when}. ${x.move}`).join(" ");

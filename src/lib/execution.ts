@@ -3,7 +3,7 @@ import type { NewsHalt } from "@/lib/calendar";
 import type { Candle } from "@/lib/market/types";
 import type { SessionSnap } from "@/lib/sessions";
 import type { MacroPlay } from "@/lib/macro-scenarios";
-import { playAligned } from "@/lib/macro-scenarios";
+import { playAligned, playCuts } from "@/lib/macro-scenarios";
 
 export function skewLimit(id: string) {
   if (id === "XAUUSD") return 1.0;
@@ -172,6 +172,15 @@ export function refineAdvice(
     return { ...advice, action: "wait", title: "Поздно: цена уже убежала", therefore: "Лимитку не догоняем." };
   }
   const stack = stackGrade(advice.action, opts.htfBias, opts.d1Bias, opts.choch);
+  const cut = playCuts(opts.id, opts.play, advice.action);
+  if (cut.cut) {
+    return {
+      ...advice,
+      action: "wait",
+      title: "Ждать: вероятность против",
+      therefore: cut.note,
+    };
+  }
   const align = playAligned(opts.id, opts.play, advice.action, last, prev);
   const score = (opts.score ?? 50) + align.boost;
   const need = align.ok ? 42 : 52;
