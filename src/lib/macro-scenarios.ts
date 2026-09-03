@@ -1,6 +1,6 @@
 import type { NewsHalt } from "@/lib/calendar";
 
-export type MacroKind = "fomc" | "powell" | "ecb" | "boj" | "nfp" | "cpi" | "none";
+export type MacroKind = "fomc" | "powell" | "ecb" | "boj" | "nfp" | "cpi" | "us" | "none";
 export type MacroPhase = "before" | "live" | "after" | "quiet";
 
 export interface MacroPath {
@@ -46,11 +46,12 @@ const EMPTY: MacroPlay = {
 export function kindOfEvent(title: string): MacroKind {
   const t = title || "";
   if (/пауэл|powell|chair|выступлен/i.test(t)) return "powell";
-  if (/fomc|фрс|ставк|federal funds|rate decision|rate statement/i.test(t)) return "fomc";
+  if (/fomc|фрс|ставк|federal funds|rate decision|rate statement/i.test(t) && !/окно|window/i.test(t)) return "fomc";
   if (/ецб|ecb|лагард|lagarde/i.test(t)) return "ecb";
   if (/boj|банк японии/i.test(t)) return "boj";
-  if (/nfp|занятост|payroll|non-farm/i.test(t)) return "nfp";
-  if (/\bcpi\b|инфляц|pce/i.test(t)) return "cpi";
+  if (/nfp|занятост|payroll|non-farm/i.test(t) && !/окно|window/i.test(t)) return "nfp";
+  if (/\bcpi\b|инфляц|pce/i.test(t) && !/окно|window/i.test(t)) return "cpi";
+  if (/us data|окно сша|cpi\/nfp\/fomc|data window/i.test(t)) return "us";
   return "none";
 }
 
@@ -191,6 +192,25 @@ function pack(
       { name: "сильно ниже", p: 27, usd: "down", when: "час–сессия", move: "доллар вниз, золото вверх", therefore: "Слабые payrolls — голубиный шип. Смотри безработицу и ревизии." },
     ]);
     return { kind, event, phase, headline: "NFP: сначала роботы, потом ревизия.", history: "Первые 60 секунд часто против итога дня. Через полчаса цифра «устаканивается».", paths, base: paths[0]!, soon: phase === "live" ? "Сейчас нельзя оценивать направление." : "После 30–60 мин видно, чей это день.", trade: "До 30 мин после NFP — halt. Потом только если час закрылся в сторону сюрприза." };
+  }
+
+  if (kind === "us") {
+    const paths = norm([
+      { name: "цифра «как ждали»", p: 48, usd: "chop", when: "1–5 мин шип, 30–90 мин возврат", move: "EUR 20–40 п. шум", therefore: "В этом слоте обычно CPI, NFP или FOMC. Без сюрприза крупняк не даёт день — снимает стопы и возвращает." },
+      { name: "жёстче / сильнее США", p: 27, usd: "up", when: "15 мин → 2–4 часа", move: "доллар вверх, золото и евро вниз", therefore: "Горячий CPI, сильный NFP или ястреб ФРС. Не ловить дно евро в первую минуту." },
+      { name: "мягче / слабее США", p: 25, usd: "down", when: "15 мин → 2–4 часа", move: "доллар вниз, золото вверх", therefore: "Холодный CPI, слабый NFP или голубь ФРС. Не шортить золото на первом баре." },
+    ]);
+    return {
+      kind,
+      event,
+      phase,
+      headline: "Окно США 12:30 GMT. Лента не уточнила, что именно — три дороги одни и те же.",
+      history: "Пока XML календаря молчит, стол ставит типичное окно. Сюрприз даёт сессию, «как ждали» затухает за час.",
+      paths,
+      base: paths[0]!,
+      soon: phase === "live" ? "Окно открыто: первые минуты не направление." : "К 12:30 GMT смотрите ленту: CPI, NFP или ставка.",
+      trade: "Не открывать рынок за 15 мин до окна и 15 мин после. Лимит — после закрытия часа.",
+    };
   }
 
   const paths = norm([

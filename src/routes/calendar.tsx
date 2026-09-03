@@ -23,7 +23,13 @@ export const Route = createFileRoute("/calendar")({
 
 function CalendarPage() {
   const { events, halt, session } = Route.useLoaderData();
-  const leadPlay = buildMacroPlay(halt, "quiet", [halt.event, halt.next?.event ?? ""]);
+  const rowPlays = events.map((e) => playForEvent(`${e.label} ${e.title}`, e.at));
+  const fromHalt = buildMacroPlay(
+    halt,
+    "quiet",
+    events.map((e) => `${e.label} ${e.title}`),
+  );
+  const leadPlay = fromHalt.kind !== "none" ? fromHalt : rowPlays.find((p) => p.kind !== "none") ?? null;
   return (
     <div className="min-h-dvh">
       <AppNav />
@@ -45,11 +51,13 @@ function CalendarPage() {
             {halt.active ? "ТОРМОЗ" : "ФОН"}
           </p>
           <p className="mt-2 text-lg">{halt.line}</p>
-          {leadPlay.kind !== "none" ? <div className="mt-4"><MacroPlayCard play={leadPlay} /></div> : null}
+          {leadPlay && leadPlay.kind !== "none" ? <div className="mt-4"><MacroPlayCard play={leadPlay} /></div> : (
+            <p className="mt-3 text-sm text-muted">Сценарии появятся у окон США, ФРС, NFP, CPI — даже если календарь дал только «окно», не High.</p>
+          )}
         </section>
         <ul className="mt-8 space-y-2">
-          {events.map((e) => {
-            const play = e.impact === "High" ? playForEvent(e.title || e.label, e.at) : null;
+          {events.map((e, i) => {
+            const play = rowPlays[i];
             return (
             <li
               key={`${e.at}-${e.title}`}
