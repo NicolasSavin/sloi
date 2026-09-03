@@ -193,9 +193,9 @@ export function notesFromSnap(snap: SmcSnapshot, decimals: number): ChartNote[] 
     notes.push({
       time: zone.startTime,
       price: (zone.top + zone.bottom) / 2,
-      name: zone.kind === "ob" ? "блок" : "FVG",
+      name: zone.kind === "breaker" ? "брейкер" : zone.kind === "mitigation" ? "митигейшн" : zone.kind === "ob" ? "блок" : "FVG",
       priceLabel: `${px(zone.bottom)}–${px(zone.top)}`,
-      hint: zone.kind === "ob" ? "зона возврата" : "разрыв",
+      hint: zone.kind === "breaker" ? "сломанный блок" : zone.kind === "mitigation" ? "первый возврат" : zone.kind === "ob" ? "зона возврата" : "разрыв",
       tone: zone.side === "bull" ? "bull" : "bear",
     });
   }
@@ -286,7 +286,7 @@ export function levelsFromSnap(snap: SmcSnapshot, decimals: number): ChartLevel[
   if (zone) {
     rows.push({
       id: "zone-top",
-      name: zone.kind === "ob" ? "блок верх" : "FVG верх",
+      name: zone.kind === "breaker" ? "брейкер верх" : zone.kind === "mitigation" ? "митигейшн верх" : zone.kind === "ob" ? "блок верх" : "FVG верх",
       price: zone.top,
       priceLabel: px(zone.top),
       hint: "верх зоны",
@@ -294,7 +294,7 @@ export function levelsFromSnap(snap: SmcSnapshot, decimals: number): ChartLevel[
     });
     rows.push({
       id: "zone-bot",
-      name: zone.kind === "ob" ? "блок низ" : "FVG низ",
+      name: zone.kind === "breaker" ? "брейкер низ" : zone.kind === "mitigation" ? "митигейшн низ" : zone.kind === "ob" ? "блок низ" : "FVG низ",
       price: zone.bottom,
       priceLabel: px(zone.bottom),
       hint: "низ зоны",

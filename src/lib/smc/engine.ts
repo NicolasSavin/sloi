@@ -29,13 +29,20 @@ export interface StructureEvent {
 
 export interface Zone {
   id: string;
-  kind: "fvg" | "ob";
+  kind: "fvg" | "ob" | "breaker" | "mitigation";
   side: Side;
   top: number;
   bottom: number;
   startTime: number;
   endTime: number;
   mitigated: boolean;
+}
+
+export function zoneName(z: Pick<Zone, "kind" | "side">): string {
+  if (z.kind === "breaker") return z.side === "bull" ? "бычий брейкер" : "медвежий брейкер";
+  if (z.kind === "mitigation") return z.side === "bull" ? "митигейшн покупок" : "митигейшн продаж";
+  if (z.kind === "ob") return z.side === "bull" ? "блок покупок" : "блок продаж";
+  return z.side === "bull" ? "бычий FVG" : "медвежий FVG";
 }
 
 export interface LiquidityPool {
@@ -344,17 +351,7 @@ function detectOrderBlocks(candles: Candle[], events: StructureEvent[]): Zone[] 
       for (let i = ev.index - 1; i >= from; i--) {
         const c = candles[i]!;
         if (c.close < c.open) {
-          const mitigated = candles.slice(ev.index).some((x) => x.close < c.low);
-          zones.push({
-            id: `ob-b-${i}`,
-            kind: "ob",
-            side: "bull",
-            top: Math.max(c.open, c.close),
-            bottom: c.low,
-            startTime: c.time,
-            endTime: candles[ev.index]!.time,
-            mitigated,
-          });
+          zones.push(classifyBlock(`ob-b-${i}`, "bull", c, candles, ev));
           break;
         }
       }
@@ -362,23 +359,55 @@ function detectOrderBlocks(candles: Candle[], events: StructureEvent[]): Zone[] 
       for (let i = ev.index - 1; i >= from; i--) {
         const c = candles[i]!;
         if (c.close > c.open) {
-          const mitigated = candles.slice(ev.index).some((x) => x.close > c.high);
-          zones.push({
-            id: `ob-s-${i}`,
-            kind: "ob",
-            side: "bear",
-            top: c.high,
-            bottom: Math.min(c.open, c.close),
-            startTime: c.time,
-            endTime: candles[ev.index]!.time,
-            mitigated,
-          });
+          zones.push(classifyBlock(`ob-s-${i}`, "bear", c, candles, ev));
           break;
         }
       }
     }
   }
-  return zones.filter((z) => !z.mitigated).slice(-8);
+  return zones.filter((z) => !z.mitigated).slice(-10);
+}
+
+function classifyBlock(
+  id: string,
+  origin: Side,
+  c: Candle,
+  candles: Candle[],
+  ev: StructureEvent,
+): Zone {
+  const top = origin === "bull" ? Math.max(c.open, c.close) : c.high;
+  const bottom = origin === "bull" ? c.low : Math.min(c.open, c.close);
+  const after = candles.slice(ev.index + 1);
+  const breakAt = after.findIndex((x) => (origin === "bull" ? x.close < bottom : x.close > top));
+  if (breakAt >= 0) {
+    const side: Side = origin === "bull" ? "bear" : "bull";
+    const rest = after.slice(breakAt + 1);
+    const dead = side === "bear" ? rest.some((x) => x.close > top) : rest.some((x) => x.close < bottom);
+    return {
+      id: `brk-${id}`,
+      kind: "breaker",
+      side,
+      top,
+      bottom,
+      startTime: c.time,
+      endTime: candles[ev.index]!.time,
+      mitigated: dead,
+    };
+  }
+  const tapped =
+    origin === "bull"
+      ? after.some((x) => x.low <= top && x.high >= bottom)
+      : after.some((x) => x.high >= bottom && x.low <= top);
+  return {
+    id,
+    kind: tapped ? "mitigation" : "ob",
+    side: origin,
+    top,
+    bottom,
+    startTime: c.time,
+    endTime: candles[ev.index]!.time,
+    mitigated: false,
+  };
 }
 
 function detectLiquidity(candles: Candle[], swings: Swing[], atr: number): LiquidityPool[] {
@@ -534,7 +563,15 @@ function buildSetup(
       last.close,
     ) ??
     nearestZone(
-      obs.filter((z) => z.side === "bull"),
+      obs.filter((z) => z.side === "bull" && z.kind === "mitigation"),
+      last.close,
+    ) ??
+    nearestZone(
+      obs.filter((z) => z.side === "bull" && z.kind === "ob"),
+      last.close,
+    ) ??
+    nearestZone(
+      obs.filter((z) => z.side === "bull" && z.kind === "breaker"),
       last.close,
     );
   const bearZ =
@@ -543,7 +580,15 @@ function buildSetup(
       last.close,
     ) ??
     nearestZone(
-      obs.filter((z) => z.side === "bear"),
+      obs.filter((z) => z.side === "bear" && z.kind === "mitigation"),
+      last.close,
+    ) ??
+    nearestZone(
+      obs.filter((z) => z.side === "bear" && z.kind === "ob"),
+      last.close,
+    ) ??
+    nearestZone(
+      obs.filter((z) => z.side === "bear" && z.kind === "breaker"),
       last.close,
     );
   const width = Math.max(range.high - range.low, atr);
@@ -564,7 +609,7 @@ function buildSetup(
     const zone = bullZ;
     if (!zone) {
       return {
-        thesis: "Бычья идея, но нет живого FVG/блока. Синтетический край не ставим.",
+        thesis: "Бычья идея, но нет живого FVG/блока/брейкера. Синтетический край не ставим.",
         entry: null,
         stop: null,
         targets: [],
@@ -586,7 +631,7 @@ function buildSetup(
         ? `Лонг от зоны. TP1 — ${stall.from === "hvn" ? "кластер HVN" : "infusion"} ${stall.price.toFixed(last.close > 50 ? 2 : 5)} (остановка объёма CME/профиля).`
         : pd === "premium"
           ? "Структура вверх. Лимит в дисконт — цена ещё не в зоне, ордер уже рабочий."
-          : "Лонг от дисконта / бычьего блока. Реакция в зоне, не догон.",
+          : `Лонг от ${zoneName(zone)}. Реакция в зоне, не догон.`,
       entry,
       stop,
       targets: targets.slice(0, 3),
@@ -597,7 +642,7 @@ function buildSetup(
     const zone = bearZ;
     if (!zone) {
       return {
-        thesis: "Медвежья идея, но нет живого FVG/блока. Синтетический край не ставим.",
+        thesis: "Медвежья идея, но нет живого FVG/блока/брейкера. Синтетический край не ставим.",
         entry: null,
         stop: null,
         targets: [],
@@ -619,7 +664,7 @@ function buildSetup(
         ? `Шорт от зоны. TP1 — ${stall.from === "hvn" ? "кластер HVN" : "infusion"} ${stall.price.toFixed(last.close > 50 ? 2 : 5)} (остановка объёма CME/профиля).`
         : pd === "discount"
           ? "Структура вниз. Лимит в премию — цена ещё не в зоне, ордер уже рабочий."
-          : "Шорт из премии / медвежьего блока. Реакция в зоне, не догон.",
+          : `Шорт от ${zoneName(zone)}. Реакция в зоне, не догон.`,
       entry,
       stop,
       targets: targets.slice(0, 3),
@@ -825,9 +870,15 @@ function buildStory(
   const nearOb = obs.find((z) => last.close <= z.top && last.close >= z.bottom);
   if (nearOb) {
     chain.push({
-      because: `Цена стоит в последнем блоке ${nearOb.side === "bull" ? "покупок" : "продаж"} ${fmt(nearOb.bottom)}–${fmt(nearOb.top)}`,
+      because: `Цена стоит в ${zoneName(nearOb)} ${fmt(nearOb.bottom)}–${fmt(nearOb.top)}`,
       therefore:
-        nearOb.side === "bull"
+        nearOb.kind === "breaker"
+          ? nearOb.side === "bull"
+            ? "Старый блок продаж сломали вверх. Брейкер — поддержка: крупняк часто защищает слом, не старый шорт."
+            : "Старый блок покупок сломали вниз. Брейкер — сопротивление. Возврат сюда — типичная продажа ICT, не «откуп дна»."
+          : nearOb.kind === "mitigation"
+            ? "Первый возврат в блок: незакрытые ордера. Это вход, не «блок уже отработал — пропустить»."
+            : nearOb.side === "bull"
           ? "Здесь покупатели раньше входили импульсом. Реакция вверх подтвердит, что блок жив."
           : "Здесь продавцы раньше входили импульсом. Реакция вниз подтвердит, что блок жив.",
     });
@@ -1136,6 +1187,18 @@ export function analyzeMarket(
     layer: "VWAP",
     status: micro.where === "inside" ? "neutral" : micro.where === "below" && trend === "up" ? "for" : micro.where === "above" && trend === "down" ? "for" : "against",
     note: micro.therefore,
+  });
+  const brk = orderBlocks.filter((z) => z.kind === "breaker");
+  const mit = orderBlocks.filter((z) => z.kind === "mitigation");
+  confluence.push({
+    id: "breaker",
+    layer: "Брейкер / митигейшн",
+    status: brk[0] ? (brk[0].side === "bull" ? "for" : "against") : mit[0] ? "for" : "neutral",
+    note: brk[0]
+      ? `${zoneName(brk[0])} ${fmt(brk[0].bottom)}–${fmt(brk[0].top)}. Слом блока → зона в другую сторону.`
+      : mit[0]
+        ? `${zoneName(mit[0])}: первый возврат в блок — рабочая зона ICT, не мёртвая.`
+        : "Свежего брейкера нет. Обычный блок или FVG.",
   });
   confluence.push({
     id: "foot",

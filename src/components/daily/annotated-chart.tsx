@@ -115,7 +115,7 @@ export function AnnotatedChart({ chart }: { chart: LeadChart }) {
           ctx.fillStyle = z.side === "bull" ? "rgba(126,171,149,0.85)" : "rgba(196,137,134,0.85)";
           ctx.font = "11px IBM Plex Mono, monospace";
           ctx.fillText(
-            z.kind === "ob" ? "блок" : "FVG",
+            z.kind === "breaker" ? "брейкер" : z.kind === "mitigation" ? "мит." : z.kind === "ob" ? "блок" : "FVG",
             x1 + 6,
             top + 12,
           );

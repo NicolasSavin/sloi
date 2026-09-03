@@ -103,7 +103,7 @@ function drawZones(
   if (!overlays.fvg && !overlays.ob) return;
   for (const z of zones) {
     if (z.kind === "fvg" && !overlays.fvg) continue;
-    if (z.kind === "ob" && !overlays.ob) continue;
+    if ((z.kind === "ob" || z.kind === "breaker" || z.kind === "mitigation") && !overlays.ob) continue;
     const x1 = ts.timeToCoordinate(z.startTime as UTCTimestamp);
     const x2 = ts.timeToCoordinate(z.endTime as UTCTimestamp);
     const y1 = series.priceToCoordinate(z.top);
@@ -118,6 +118,13 @@ function drawZones(
       z.side === "bull" ? "rgba(111, 158, 134, 0.45)" : "rgba(181, 122, 122, 0.45)";
     ctx.fillRect(x1, top, right - x1, h);
     ctx.strokeRect(x1, top, right - x1, h);
+    ctx.fillStyle = z.side === "bull" ? "rgba(111, 158, 134, 0.9)" : "rgba(181, 122, 122, 0.9)";
+    ctx.font = "10px IBM Plex Mono, monospace";
+    ctx.fillText(
+      z.kind === "breaker" ? "брейкер" : z.kind === "mitigation" ? "мит." : z.kind === "ob" ? "блок" : "FVG",
+      x1 + 4,
+      top + 12,
+    );
   }
 }
 
