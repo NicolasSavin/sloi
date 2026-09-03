@@ -103,6 +103,38 @@ export function advise(snap: Pick<SmcSnapshot, "bias" | "localSetup" | "margin" 
       covers,
     };
   }
+  if (snap.wyckoff?.phase === "distribution" && side === "long") {
+    return {
+      action: "wait",
+      title: "Ждать: фаза раздачи",
+      because: snap.wyckoff.because,
+      therefore: "В distribution лонг — кормить выход. Шорт от премии, не ловить хай.",
+      spread,
+      roundTrip,
+      grossRisk,
+      grossReward,
+      netRisk,
+      netReward,
+      netRr,
+      covers,
+    };
+  }
+  if (snap.wyckoff?.phase === "accumulation" && side === "short") {
+    return {
+      action: "wait",
+      title: "Ждать: фаза набора",
+      because: snap.wyckoff.because,
+      therefore: "В accumulation шорт — против крупняка. Лонг после спринга, не сам вынос.",
+      spread,
+      roundTrip,
+      grossRisk,
+      grossReward,
+      netRisk,
+      netReward,
+      netRr,
+      covers,
+    };
+  }
   if (snap.ivNews?.phase === "crush") {
     return {
       action: "wait",
