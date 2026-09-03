@@ -424,21 +424,18 @@ async function loadCalendarXml() {
 }
 
 async function loadCalendarEvents() {
-  const { parseFfCalendar, parseFfJson, fallbackCalendar } = await import("@/lib/calendar");
+  const { parseFfCalendar, parseFfJson, fallbackCalendar, knownPrints, mergeCalendar } = await import("@/lib/calendar");
+  let rows: Awaited<ReturnType<typeof parseFfJson>> = [];
   if (calCache && Date.now() - calCache.at < 180_000) {
-    if (Array.isArray(calCache.json) && calCache.json.length) return parseFfJson(calCache.json);
-    if (calCache.xml) {
-      const p = parseFfCalendar(calCache.xml);
-      if (p.length) return p;
-    }
+    if (Array.isArray(calCache.json) && calCache.json.length) rows = parseFfJson(calCache.json);
+    else if (calCache.xml) rows = parseFfCalendar(calCache.xml);
+  } else {
+    await loadCalendarXml();
+    if (calCache?.json && Array.isArray(calCache.json) && calCache.json.length) rows = parseFfJson(calCache.json);
+    else if (calCache?.xml) rows = parseFfCalendar(calCache.xml);
   }
-  await loadCalendarXml();
-  if (calCache?.json && Array.isArray(calCache.json) && calCache.json.length) return parseFfJson(calCache.json);
-  if (calCache?.xml) {
-    const p = parseFfCalendar(calCache.xml);
-    if (p.length) return p;
-  }
-  return fallbackCalendar();
+  if (!rows.length) rows = fallbackCalendar();
+  return mergeCalendar(rows, knownPrints());
 }
 
 let digestCache: { at: number; data: { digest: DailyDigest; source: string } } | null = null;

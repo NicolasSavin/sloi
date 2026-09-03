@@ -232,6 +232,27 @@ export function newsAlertKey(halt: NewsHalt) {
 }
 
 /** Грубые окна США, если XML молчит. Не High — не стоп советника. */
+export function knownPrints(now = Date.now()): CalEvent[] {
+  const rows: CalEvent[] = [
+    { title: "Non-Farm Payrolls", label: "занятость NFP", country: "USD", at: Date.UTC(2026, 8, 4, 12, 30), impact: "High" },
+    { title: "ECB rate decision", label: "ЕЦБ ставка", country: "EUR", at: Date.UTC(2026, 8, 10, 12, 15), impact: "High" },
+    { title: "CPI", label: "инфляция CPI", country: "USD", at: Date.UTC(2026, 8, 11, 12, 30), impact: "High" },
+    { title: "FOMC rate decision", label: "решение ФРС по ставке", country: "USD", at: Date.UTC(2026, 8, 16, 18, 0), impact: "High" },
+    { title: "Powell press conference", label: "выступление Пауэлла", country: "USD", at: Date.UTC(2026, 8, 16, 18, 30), impact: "High" },
+    { title: "BOE rate decision", label: "Банк Англии ставка", country: "GBP", at: Date.UTC(2026, 8, 17, 11, 0), impact: "High" },
+  ];
+  return rows.filter((e) => e.at > now - 4 * 3600_000);
+}
+
+export function mergeCalendar(primary: CalEvent[], extra: CalEvent[]): CalEvent[] {
+  const out = [...primary];
+  for (const e of extra) {
+    const near = out.some((x) => Math.abs(x.at - e.at) < 20 * 60_000 && x.country === e.country);
+    if (!near) out.push(e);
+  }
+  return out.sort((a, b) => a.at - b.at);
+}
+
 export function fallbackCalendar(now = Date.now()): CalEvent[] {
   const out: CalEvent[] = [];
   const start = new Date(now);
@@ -260,5 +281,5 @@ export function fallbackCalendar(now = Date.now()): CalEvent[] {
       });
     }
   }
-  return out;
+  return mergeCalendar(out, knownPrints(now));
 }
