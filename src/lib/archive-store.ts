@@ -1,5 +1,6 @@
 import type { DigestMarket } from "@/lib/digest";
 import type { NewsHalt } from "@/lib/calendar";
+import type { Candle } from "@/lib/market/types";
 import type { SignalHit } from "@/lib/dispatch-store";
 import { settleHit, bookStats } from "@/lib/signal-book";
 
@@ -106,7 +107,11 @@ function paperWhy(h: SignalHit): SignalHit {
 }
 
 /** Upsert open BUY/SELL from digest; settle existing opens against path. */
-export async function syncArchiveFromDigest(markets: DigestMarket[], halt?: NewsHalt) {
+export async function syncArchiveFromDigest(
+  markets: DigestMarket[],
+  halt?: NewsHalt,
+  candlesById?: Record<string, Candle[]>,
+) {
   const fromDb = await loadFromDb();
   const list = fromDb ?? mem();
   const byId = new Map(list.map((h) => [h.id, h]));
@@ -120,9 +125,10 @@ export async function syncArchiveFromDigest(markets: DigestMarket[], halt?: News
     if (entry == null || stop == null) continue;
     const id = signalId(m.spec.id, action, entry);
     const existing = byId.get(id);
+    const path = candlesById?.[m.spec.id];
     if (existing) {
       if ((existing.status ?? "open") === "open") {
-        byId.set(id, paperWhy(settleHit(existing, m, halt)));
+        byId.set(id, paperWhy(settleHit(existing, m, halt, path)));
       }
       continue;
     }
@@ -146,7 +152,7 @@ export async function syncArchiveFromDigest(markets: DigestMarket[], halt?: News
     if ((h.status ?? "open") !== "open") continue;
     const m = markets.find((x) => x.spec.id === h.symbol);
     if (!m) continue;
-    byId.set(id, paperWhy(settleHit(h, m, halt)));
+    byId.set(id, paperWhy(settleHit(h, m, halt, candlesById?.[h.symbol])));
   }
 
   const next = [...byId.values()].sort((a, b) => (b.at ?? 0) - (a.at ?? 0)).slice(0, 500);
@@ -173,7 +179,7 @@ export async function archivePayload() {
   return { log, stats: bookStats(log), at: Date.now(), durable: Boolean(process.env.DATABASE_URL) };
 }
 
-export function stoppedMap(ms = 50 * 60_000) {
+export function stoppedMap(ms = 3 * 60 * 60_000) {
   const now = Date.now();
   const out = new Map<string, number>();
   for (const h of mem()) {

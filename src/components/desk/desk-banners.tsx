@@ -1,9 +1,112 @@
 import type { SmcSnapshot } from "@/lib/smc/engine";
+import type { BrokerAccount } from "@/lib/broker-tape";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { BookOpen, Cpu } from "lucide-react";
 import { cn, formatPrice } from "@/lib/utils";
+
+export function AccountBanner({
+  account,
+  focus,
+  className,
+}: {
+  account: BrokerAccount | null | undefined;
+  focus?: string;
+  className?: string;
+}) {
+  const money = (n: number) =>
+    n.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (!account) {
+    return (
+      <div className={cn("mx-4 mt-2 rounded-lg bg-elevated/70 px-4 py-3", className)}>
+        <p className="font-mono text-[10px] tracking-[0.18em] text-accent">СЧЁТ MT4</p>
+        <p className="mt-1 text-sm font-medium">советник молчит</p>
+        <p className="mt-1 text-xs leading-relaxed text-muted">
+          Войдите в кабинет и повесьте SLOI_Desk 4.40 с вашим ключом. Иначе стол не знает, чей это счёт, и ничего не
+          показывает. Сервис → Настройки → Советники → WebRequest: sloi-kohl.vercel.app
+        </p>
+      </div>
+    );
+  }
+  const dd = account.balance > 0 ? ((account.equity - account.balance) / account.balance) * 100 : 0;
+  return (
+    <div className={cn("mx-4 mt-2 rounded-lg bg-elevated/70 px-4 py-3", className)}>
+      <p className="font-mono text-[10px] tracking-[0.18em] text-accent">СЧЁТ MT4 · …{account.login}</p>
+      <p className="mt-1 text-sm font-medium">
+        {money(account.equity)} {account.currency} эквити
+        <span className={cn("ml-2", account.profit >= 0 ? "text-bull" : "text-bear")}>
+          {account.profit >= 0 ? "+" : ""}
+          {money(account.profit)}
+        </span>
+      </p>
+      <p className="mt-1 text-xs text-muted">
+        баланс {money(account.balance)} · свободно {money(account.free)} · маржа {money(account.margin)} · 1:
+        {account.leverage}
+        {dd < -0.05 ? ` · просадка ${dd.toFixed(1)}%` : ""}
+        {account.server ? ` · ${account.server}` : ""}
+      </p>
+      {account.positions.length === 0 ? (
+        <p className="mt-2 text-xs text-dim">Открытых ордеров нет.</p>
+      ) : (
+        <ul className="mt-2 space-y-1">
+          {account.positions.map((p) => (
+            <li
+              key={p.ticket}
+              className={cn(
+                "flex justify-between gap-2 font-mono text-xs",
+                focus && p.id === focus ? "text-fg" : "text-muted",
+              )}
+            >
+              <span>
+                {p.id} {p.side === "buy" ? "BUY" : "SELL"} {p.lots}
+                {p.magic === 220826 ? "" : " · чужой"}
+              </span>
+              <span className={p.profit >= 0 ? "text-bull" : "text-bear"}>
+                {p.profit >= 0 ? "+" : ""}
+                {money(p.profit)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+export function ChochBanner({
+  snap,
+  len,
+  closeOnly,
+}: {
+  snap: SmcSnapshot;
+  len: 2 | 3 | 4;
+  closeOnly: boolean;
+}) {
+  const ev = [...snap.events].reverse().find((e) => e.kind === "CHoCH") ?? snap.events.at(-1);
+  const mode = len === 2 ? "мягко (2 бара)" : len === 4 ? "жёстко (4 бара)" : "норма (3 бара)";
+  return (
+    <div className="mx-4 mt-2 rounded-lg bg-elevated/70 px-4 py-3">
+      <p className="font-mono text-[10px] tracking-[0.18em] text-accent">CHoCH · СТРУКТУРА</p>
+      <p className="mt-1 text-sm font-medium">
+        {ev
+          ? `${ev.kind} ${ev.side === "bull" ? "вверх" : "вниз"}`
+          : "пока нет слома"}
+        {` · свинг ${mode}`}
+        {closeOnly ? " · только закрытие" : " · тень тоже считается"}
+      </p>
+      <p className="mt-1 text-xs leading-relaxed text-muted">
+        {ev?.kind === "CHoCH"
+          ? ev.side === "bull"
+            ? "Смена характера вверх: предыдущий медвежий ход сломали. Лонг ищут от зоны, не вдогонку хаю."
+            : "Смена характера вниз: предыдущий бычий ход сломали. Шорт ищут от зоны, не вдогонку лою."
+          : ev?.kind === "BOS"
+            ? "BOS — продолжение той же стороны, не разворот. CHoCH ещё не было."
+            : "CHoCH = слом последнего противоположного экстремума. Без него стол не считает разворот подтверждённым."}
+      </p>
+    </div>
+  );
+}
 
 export function ClusterBanner({ snap }: { snap: SmcSnapshot }) {
   const c = snap.clusters;
@@ -11,7 +114,7 @@ export function ClusterBanner({ snap }: { snap: SmcSnapshot }) {
   return (
     <div className="mx-4 mt-2 rounded-lg bg-elevated/70 px-4 py-3">
       <p className="font-mono text-[10px] tracking-[0.18em] text-accent">
-        КЛАСТЕР {c.source === "trades" ? "· ЛЕНТА СДЕЛОК" : "· ПРОФИЛЬ СВЕЧЕЙ"}
+        КЛАСТЕР {c.source === "trades" ? "· ЛЕНТА СДЕЛОК" : c.source === "cme" ? "· CME DELAYED" : "· ПРОФИЛЬ СВЕЧЕЙ"}
       </p>
       <p className="mt-1 text-sm font-medium">
         POC {c.poc.toFixed(2)}
@@ -66,13 +169,48 @@ export function BookBanner({
   );
 }
 
+export function AuctionBanner({ snap }: { snap: SmcSnapshot }) {
+  const a = snap.auction;
+  const iv = snap.ivNews;
+  const orb =
+    a.orb === "broke-high"
+      ? "вышли вверх"
+      : a.orb === "broke-low"
+        ? "вышли вниз"
+        : a.orb === "failed-high"
+          ? "ложный верх"
+          : a.orb === "failed-low"
+            ? "ложный низ"
+            : "внутри IB";
+  return (
+    <div className="mx-4 mt-2 grid gap-2 sm:grid-cols-2">
+      <div className="rounded-lg bg-elevated/70 px-4 py-3">
+        <p className="font-mono text-[10px] tracking-[0.18em] text-accent">IB / ORB · НЕДЕЛЯ · ATR</p>
+        <p className="mt-1 text-sm font-medium">
+          {orb}
+          {a.ib ? ` · ${a.ib.session}` : ""}
+          {` · ${a.vol === "compressed" ? "сжатие" : a.vol === "expanded" ? "расширение" : "норма"}`}
+        </p>
+        <p className="mt-1 text-xs leading-relaxed text-muted">{a.therefore}</p>
+      </div>
+      <div className="rounded-lg bg-elevated/70 px-4 py-3">
+        <p className="font-mono text-[10px] tracking-[0.18em] text-accent">КОРРЕЛЯЦИЯ · IV</p>
+        <p className="mt-1 text-sm font-medium">{snap.corr.status === "for" ? "ветер попутный" : snap.corr.status === "against" ? "ветер встречный" : "ветер боком"}</p>
+        <p className="mt-1 text-xs leading-relaxed text-muted">
+          {snap.corr.note} {iv.therefore}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export function FlowBanner({ snap }: { snap: SmcSnapshot }) {
   const f = snap.flow;
   const ev = f.events[0];
   return (
     <div className="mx-4 mt-2 rounded-lg bg-elevated/70 px-4 py-3">
       <p className="font-mono text-[10px] tracking-[0.18em] text-accent">
-        ОБЪЁМ · ДЕЛЬТА · CVD {f.source === "tape" ? "· ЛЕНТА" : "· ОЦЕНКА"}
+        ОБЪЁМ · ДЕЛЬТА · CVD {f.source === "tape" ? "· ЛЕНТА" : snap.micro.footprint.source === "cme-delayed" ? `· CME ${snap.micro.cmeTicker ?? ""}` : "· ОЦЕНКА"}
       </p>
       <p className="mt-1 text-sm font-medium">
         дельта {f.lastDelta >= 0 ? "+" : ""}
@@ -81,7 +219,9 @@ export function FlowBanner({ snap }: { snap: SmcSnapshot }) {
         {ev ? ` · ${ev.kind === "hft-burst" ? "HFT" : ev.kind === "absorption" ? "поглощение" : ev.kind}` : ""}
       </p>
       <p className="mt-1 text-xs leading-relaxed text-muted">
-        {f.cvdDiv?.therefore ?? ev?.therefore ?? "Столбики объёма красятся дельтой. Линия снизу — кумулятивная дельта."}
+        {snap.localSetup.thesis.includes("infusion")
+          ? `${snap.localSetup.thesis} Сплэш — не цель.`
+          : (f.cvdDiv?.therefore ?? ev?.therefore ?? "Столбики объёма красятся дельтой. Тейк — в чужой infusion (остановка), не через него.")}
       </p>
     </div>
   );

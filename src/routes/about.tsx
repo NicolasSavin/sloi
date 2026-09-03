@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppNav } from "@/components/app-nav";
+import { HowToDesk } from "@/components/howto-desk";
 import { BRAND, DOMAIN, SITE_URL, VERSION, VERSION_DATE, TAGLINE } from "@/lib/brand";
 
 export const Route = createFileRoute("/about")({
@@ -7,6 +8,59 @@ export const Route = createFileRoute("/about")({
 });
 
 const UPDATES = [
+  {
+    v: "1.8.3",
+    d: "2026-09-03",
+    items: [
+      "IB/ORB сессии, недельный профиль и режим ATR (сжатие/расширение)",
+      "Корреляции: DXY, доходности, нефть/CAD",
+      "IV/гамма вокруг новости: до события halt, после — не ловить первый бар",
+    ],
+  },
+  {
+    v: "1.8.2",
+    d: "2026-08-31",
+    items: [
+      "Объём CME delayed (Yahoo 6E, GC, CL…) накладывается на спот: кластеры и infusion по Чикаго",
+      "Тейк — ближайшая остановка: infusion или HVN кластера",
+      "Опционы ETF (GLD, FXE, USO…) считаются на всех парах, где есть цепочка",
+    ],
+  },
+  {
+    v: "1.8.1",
+    d: "2026-08-31",
+    items: [
+      "Первая цель приказа — ближайший infusion по ходу (остановка объёма), не через налив",
+      "Сплэш на графике не цель: вынос стопов или старт, тейк не ставим в середину бара",
+    ],
+  },
+  {
+    v: "1.8.0",
+    d: "2026-08-30",
+    items: [
+      "Кабинет: личный ключ, свой счёт MT4, чужой советник не виден",
+      "Команды с сайта: купить, продать, закрыть, авто вкл/выкл — в ваш терминал",
+      "Советник 4.40 несёт ключ в DeskKey и в адресе ленты",
+    ],
+  },
+  {
+    v: "1.7.0",
+    d: "2026-08-30",
+    items: [
+      "Советник 4.37 шлёт на сайт баланс, эквити, маржу и открытые ордера",
+      "Счёт MT4 виден в диспетчерской и на графике; чужие ордера помечаются",
+    ],
+  },
+  {
+    v: "1.6.0",
+    d: "2026-08-30",
+    items: [
+      "Жёстче фильтр: счёт 52/62, чистый RR ≥ 1.45, против H4+D1 не входим",
+      "Не лонгуем в премии и не шортим в дисконте без CHoCH; макро и опцион против — ждать",
+      "Не больше 4 живых приказов; пауза 3 часа после стопа; стоп 1.15 ATR",
+      "Исход сделки по цепочке H1: тень через зону без закрытия не считается сделкой",
+    ],
+  },
   {
     v: "1.5.0",
     d: "2026-08-24",
@@ -70,6 +124,8 @@ function AboutPage() {
           ))}
         </ol>
 
+        <HowToDesk />
+
         <h2 className="mt-14 text-2xl">Версии и апдейты</h2>
         <p className="mt-2 font-mono text-xs text-dim">
           Текущая сборка <span className="text-accent">v{VERSION}</span> от {VERSION_DATE}. Домен {DOMAIN}.
@@ -108,6 +164,12 @@ function AboutPage() {
               Статистика
             </Link>{" "}
             — архив и исходы.
+          </li>
+          <li>
+            <Link to="/cabinet" className="text-fg underline-offset-4 hover:underline">
+              Кабинет
+            </Link>{" "}
+            — ключ, счёт, кнопки купить/закрыть.
           </li>
           <li>
             <Link to="/advisor" className="text-fg underline-offset-4 hover:underline">

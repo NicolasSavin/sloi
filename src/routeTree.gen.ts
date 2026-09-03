@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as AdvisorRouteImport } from './routes/advisor'
+import { Route as CabinetRouteImport } from './routes/cabinet'
 import { Route as CalendarRouteImport } from './routes/calendar'
 import { Route as DailyRouteImport } from './routes/daily'
 import { Route as DeskRouteImport } from './routes/desk'
@@ -40,6 +41,11 @@ const AboutRoute = AboutRouteImport.update({
 const AdvisorRoute = AdvisorRouteImport.update({
   id: '/advisor',
   path: '/advisor',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CabinetRoute = CabinetRouteImport.update({
+  id: '/cabinet',
+  path: '/cabinet',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CalendarRoute = CalendarRouteImport.update({
@@ -117,6 +123,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/advisor': typeof AdvisorRoute
+  '/cabinet': typeof CabinetRoute
   '/calendar': typeof CalendarRoute
   '/daily': typeof DailyRoute
   '/desk': typeof DeskRoute
@@ -136,6 +143,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/advisor': typeof AdvisorRoute
+  '/cabinet': typeof CabinetRoute
   '/calendar': typeof CalendarRoute
   '/daily': typeof DailyRoute
   '/desk': typeof DeskRoute
@@ -156,6 +164,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/advisor': typeof AdvisorRoute
+  '/cabinet': typeof CabinetRoute
   '/calendar': typeof CalendarRoute
   '/daily': typeof DailyRoute
   '/desk': typeof DeskRoute
@@ -177,6 +186,7 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/advisor'
+    | '/cabinet'
     | '/calendar'
     | '/daily'
     | '/desk'
@@ -196,6 +206,7 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/advisor'
+    | '/cabinet'
     | '/calendar'
     | '/daily'
     | '/desk'
@@ -215,6 +226,7 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/advisor'
+    | '/cabinet'
     | '/calendar'
     | '/daily'
     | '/desk'
@@ -235,6 +247,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
   AdvisorRoute: typeof AdvisorRoute
+  CabinetRoute: typeof CabinetRoute
   CalendarRoute: typeof CalendarRoute
   DailyRoute: typeof DailyRoute
   DeskRoute: typeof DeskRoute
@@ -272,6 +285,13 @@ declare module '@tanstack/react-router' {
       path: '/advisor'
       fullPath: '/advisor'
       preLoaderRoute: typeof AdvisorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cabinet': {
+      id: '/cabinet'
+      path: '/cabinet'
+      fullPath: '/cabinet'
+      preLoaderRoute: typeof CabinetRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/calendar': {
@@ -379,6 +399,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
   AdvisorRoute: AdvisorRoute,
+  CabinetRoute: CabinetRoute,
   CalendarRoute: CalendarRoute,
   DailyRoute: DailyRoute,
   DeskRoute: DeskRoute,

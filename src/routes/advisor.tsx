@@ -1,6 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppNav } from "@/components/app-nav";
 import { DeskConsole } from "@/components/advisor/desk-console";
+import { HowToDesk } from "@/components/howto-desk";
 import { fetchDigest } from "@/lib/market/fetch";
 import type { DailyDigest } from "@/lib/digest";
 
@@ -34,29 +35,17 @@ function AdvisorPage() {
         <p className="font-mono text-xs tracking-[0.22em] text-accent">ЭКСПЕРТ MT4 · ПАНЕЛЬ И НАСТРОЙКИ</p>
         <h1 className="mt-3 text-4xl font-medium tracking-tight sm:text-5xl">Стол на графике</h1>
         <p className="mt-4 max-w-prose text-base leading-relaxed text-muted">
-          Настройки здесь и те же поля в MT4. Спред каждой пары — Ask − Bid терминала. Если «Скачать» молчит — код
-          копируется, вставляете в MetaEditor.
+          Сначала ключ в{" "}
+          <Link to="/cabinet" className="text-fg underline-offset-4 hover:underline">
+            кабинете
+          </Link>
+          , затем скачайте сов оттуда — ключ уже внутри. Настройки лота и пар ниже попадут в файл, если качаете с этой
+          страницы (поле DeskKey тогда пропишите вручную).
         </p>
         <div className="mt-8">
           <DeskConsole digest={digest} />
         </div>
-        <ol className="mt-12 space-y-3">
-          {[
-            { n: "01", t: "Сохранить", d: "Скачать .mq4. Если файл не пришёл — код уже в буфере, вставьте в MetaEditor." },
-            { n: "02", t: "MetaEditor", d: "Новый Expert Advisor → вставить → сохранить SLOI_Desk.mq4 в MQL4/Experts → F7." },
-            { n: "03", t: "WebRequest", d: "Сервис → Настройки → Советники → разрешить WebRequest: https://sloi-kohl.vercel.app" },
-            { n: "04", t: "Лента", d: "Версия 4.11. Кнопка >> в строке открывает график этой пары. На чарте — вход/стоп/цель сайта и FVG. Это картинка, приказ только с сайта." },
-            { n: "05", t: "Авто", d: "Приказ только если: сайт дал BUY/SELL, спред не съел ход, котировка NMarkets близка к Yahoo." },
-          ].map((row) => (
-            <li key={row.n} className="panel-volume flex gap-4 rounded-lg p-4">
-              <span className="font-mono text-xs text-accent">{row.n}</span>
-              <div>
-                <p className="text-sm font-medium">{row.t}</p>
-                <p className="mt-1 text-sm text-muted">{row.d}</p>
-              </div>
-            </li>
-          ))}
-        </ol>
+        <HowToDesk />
         <p className="mt-10 text-xs text-dim">Не инвестиционная рекомендация. Сначала демо.</p>
       </main>
     </div>

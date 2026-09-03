@@ -21,6 +21,7 @@ export interface EaSettings {
   maxSpread: number;
   minCover: number;
   alerts: boolean;
+  deskKey: string;
 }
 
 export const DEFAULT_EA: EaSettings = {
@@ -32,6 +33,7 @@ export const DEFAULT_EA: EaSettings = {
   maxSpread: 80,
   minCover: 1.4,
   alerts: true,
+  deskKey: "",
 };
 
 export function watchListOf(s: EaSettings) {
@@ -48,5 +50,6 @@ export function patchEaSource(src: string, s: EaSettings) {
     .replace(/input double\s+Lots\s+=\s+[0-9.]+/, `input double  Lots            = ${s.lots.toFixed(2)}`)
     .replace(/input int\s+MaxSpreadPoints\s+=\s+\d+/, `input int     MaxSpreadPoints = ${s.maxSpread}`)
     .replace(/input double\s+MinCover\s+=\s+[0-9.]+/, `input double  MinCover        = ${s.minCover}`)
-    .replace(/input bool\s+AlertsOn\s+=\s+(true|false)/, `input bool    AlertsOn        = ${s.alerts ? "true" : "false"}`);
+    .replace(/input bool\s+AlertsOn\s+=\s+(true|false)/, `input bool    AlertsOn        = ${s.alerts ? "true" : "false"}`)
+    .replace(/input string\s+DeskKey\s+=\s+"[^"]*"/, `input string  DeskKey         = "${s.deskKey.replace(/"/g, "")}"`);
 }

@@ -77,6 +77,29 @@ function drawZones(
       snap.margin.lower.active,
     );
   }
+  if (snap?.auction.ib) {
+    const ib = snap.auction.ib;
+    const y1 = series.priceToCoordinate(ib.high);
+    const y2 = series.priceToCoordinate(ib.low);
+    if (y1 != null && y2 != null) {
+      const y = Math.min(y1, y2);
+      const h = Math.max(6, Math.abs(y2 - y1));
+      ctx.fillStyle = "rgba(90,140,180,0.12)";
+      ctx.fillRect(0, y, rect.width, h);
+      ctx.strokeStyle = "rgba(140,180,210,0.7)";
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(0, y1);
+      ctx.lineTo(rect.width, y1);
+      ctx.moveTo(0, y2);
+      ctx.lineTo(rect.width, y2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#d8e6f0";
+      ctx.font = "bold 10px IBM Plex Mono, monospace";
+      ctx.fillText(`${ib.session}  ${snap.auction.orb}`, 10, y + 14);
+    }
+  }
   if (!overlays.fvg && !overlays.ob) return;
   for (const z of zones) {
     if (z.kind === "fvg" && !overlays.fvg) continue;
@@ -186,6 +209,23 @@ function drawTape(
       ctx.font = "bold 11px IBM Plex Mono, monospace";
       ctx.fillText("INFUSION", x - 28, Math.min(yH, yL) - 8);
     }
+  }
+  const tp = snap?.localSetup.targets[0];
+  for (const n of snap?.micro.nodes.filter((x) => x.kind === "infusion").slice(-6) ?? []) {
+    const y = series.priceToCoordinate(n.price);
+    if (y == null) continue;
+    const isTp = tp != null && Math.abs(tp - n.price) < (snap?.atr ?? 0) * 0.3;
+    ctx.strokeStyle = isTp ? "rgba(212,184,140,0.95)" : "rgba(201,184,150,0.45)";
+    ctx.lineWidth = isTp ? 2 : 1;
+    ctx.setLineDash(isTp ? [] : [5, 4]);
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(rect.width, y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = isTp ? "#f0e6d4" : "rgba(232,220,200,0.7)";
+    ctx.font = "bold 10px IBM Plex Mono, monospace";
+    ctx.fillText(isTp ? "TP · INFUSION" : "INFUSION", 8, y - 4);
   }
   if (snap?.micro.splash && last) {
     const x = ts.timeToCoordinate(last.time as UTCTimestamp);
@@ -510,13 +550,15 @@ export function ChartPane({
         cmdSetup.targets.slice(0, 2).forEach((t, i) => add(t, live ? `ПРИКАЗ TP${i + 1}` : `TP${i + 1}`, bull, !live, live));
       }
       const markers: SeriesMarker<UTCTimestamp>[] = [
-        ...snap.events.slice(-8).map((e): SeriesMarker<UTCTimestamp> => ({
-          time: e.time as UTCTimestamp,
-          position: e.side === "bull" ? "belowBar" : "aboveBar",
-          color: e.side === "bull" ? bull : bear,
-          shape: e.side === "bull" ? "arrowUp" : "arrowDown",
-          text: e.kind,
-        })),
+        ...(overlays.structure !== false
+          ? snap.events.slice(-8).map((e): SeriesMarker<UTCTimestamp> => ({
+              time: e.time as UTCTimestamp,
+              position: e.side === "bull" ? "belowBar" : "aboveBar",
+              color: e.side === "bull" ? bull : bear,
+              shape: e.side === "bull" ? "arrowUp" : "arrowDown",
+              text: e.kind,
+            }))
+          : []),
         ...(overlays.divergences
           ? snap.divergences.map((d): SeriesMarker<UTCTimestamp> => ({
               time: d.priceTime as UTCTimestamp,

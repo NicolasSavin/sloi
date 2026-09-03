@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChartPane } from "@/components/desk/chart-pane";
 import { ChartStage, OrderHud } from "@/components/desk/chart-hud";
 import { ChatDock } from "@/components/desk/chat-dock";
-import { AnalyzeBar, BookBanner, ClusterBanner, ConfluenceList, FlowBanner, LevelsTable, MarginBanner, PatternBanner } from "@/components/desk/desk-banners";
+import { AccountBanner, AnalyzeBar, AuctionBanner, BookBanner, ClusterBanner, ChochBanner, ConfluenceList, FlowBanner, LevelsTable, MarginBanner, PatternBanner } from "@/components/desk/desk-banners";
 import { EtherCard, StoryBody } from "@/components/desk/story-panel";
 import { AppNav } from "@/components/app-nav";
 import { analyzeWithGrok, type AiBrief } from "@/lib/ai/analyze";
@@ -23,12 +23,14 @@ import { useDeskStore, type OverlayFlags } from "@/lib/desk-store";
 import { loadJournal, saveJournal, type JournalEntry } from "@/lib/journal";
 import type { MarketPayload } from "@/lib/market/types";
 import { KIND_LABEL, SYMBOLS, TIMEFRAMES, getSymbol } from "@/lib/market/symbols";
+import { readDeskKey } from "@/lib/desk-key";
 import { playSignal, unlockSound } from "@/lib/sound";
 import { analyzeMarket, compactForAi, type SmcSnapshot } from "@/lib/smc/engine";
 import { makeTvBrief } from "@/lib/tv-brief";
 import { cn, formatPct, formatPrice } from "@/lib/utils";
 
 const OVERLAY_LABELS: { key: keyof OverlayFlags; label: string }[] = [
+  { key: "structure", label: "BOS / CHoCH" },
   { key: "fvg", label: "FVG" }, { key: "ob", label: "OB" }, { key: "liquidity", label: "Ликвидность" },
   { key: "margin", label: "Маржа" }, { key: "patterns", label: "Паттерны" }, { key: "flow", label: "Дельта / футпринт" },
   { key: "profile", label: "Профиль / VWAP" }, { key: "divergences", label: "Дивергенции" }, { key: "waves", label: "Волны" },
@@ -58,12 +60,18 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
   const autoAnalyze = useDeskStore((s) => s.autoAnalyze);
   const soundOn = useDeskStore((s) => s.soundOn);
   const overlays = useDeskStore((s) => s.overlays);
+  const chochLen = useDeskStore((s) => s.chochLen);
+  const chochClose = useDeskStore((s) => s.chochClose);
   const spreads = useDeskStore((s) => s.spreads);
   const setSymbol = useDeskStore((s) => s.setSymbol);
   const setTimeframe = useDeskStore((s) => s.setTimeframe);
   const setAutoAnalyze = useDeskStore((s) => s.setAutoAnalyze);
   const setSoundOn = useDeskStore((s) => s.setSoundOn);
   const toggleOverlay = useDeskStore((s) => s.toggleOverlay);
+  const setChochLen = useDeskStore((s) => s.setChochLen);
+  const setChochClose = useDeskStore((s) => s.setChochClose);
+  const [deskKey, setDeskKey] = useState("");
+  useEffect(() => { setDeskKey(readDeskKey()); }, []);
   const spec = getSymbol(symbol);
   const market = useQuery({
     queryKey: ["market", symbol, timeframe],
@@ -74,8 +82,17 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
   });
   const snap = useMemo<SmcSnapshot | null>(() => {
     if (!market.data?.candles?.length) return null;
-    return analyzeMarket(market.data.candles, market.data.options, market.data.trades);
-  }, [market.data]);
+    return analyzeMarket(market.data.candles, market.data.options, market.data.trades, {
+      swing: chochLen,
+      chochClose,
+      symbol: spec.id,
+      kind: spec.kind,
+      dxyChange: fund?.dollar === "bid" ? 0.4 : fund?.dollar === "offered" ? -0.4 : 0,
+      yieldChange: fund?.yieldChange,
+      oilChange: fund?.oilChange,
+      halt: fund?.halt,
+    });
+  }, [market.data, chochLen, chochClose, spec.id, spec.kind, fund]);
   const [brief, setBrief] = useState<AiBrief | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
@@ -85,7 +102,12 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
   const lastSignal = useRef("");
   const digestQ = useQuery({ queryKey: ["dispatch-digest"], queryFn: fetchDigest, staleTime: 60_000 });
   const tvQ = useQuery({ queryKey: ["tv-guide"], queryFn: fetchTvGuide, staleTime: 120_000 });
-  const bookQ = useQuery({ queryKey: ["broker-book"], queryFn: fetchBroker, refetchInterval: 20_000, staleTime: 8_000 });
+  const bookQ = useQuery({
+    queryKey: ["broker-book", deskKey],
+    queryFn: () => fetchBroker({ data: { key: deskKey } }),
+    refetchInterval: 20_000,
+    staleTime: 8_000,
+  });
   const book = bookQ.data?.books.find((b) => b.id === spec.id) ?? null;
   const fund = digestQ.data?.digest.fund;
   const ether = makeTvBrief(tvQ.data ?? [], [fund?.driver ?? "", fund?.line ?? "", ...(fund?.themes ?? [])].filter(Boolean));
@@ -184,6 +206,30 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
                 </label>
               ))}
             </div>
+            <p className="mt-5 mb-2 text-xs font-medium tracking-wide text-dim">CHoCH</p>
+            <p className="mb-2 text-[11px] leading-relaxed text-muted">
+              Свинг: сколько баров слева и справа должно быть слабее точки. Закрытие — тень за экстремум не считается сменой.
+            </p>
+            <div className="mb-3 flex gap-1">
+              {([2, 3, 4] as const).map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setChochLen(n)}
+                  className={cn(
+                    "h-9 flex-1 rounded-sm text-xs",
+                    chochLen === n ? "bg-subtle text-fg" : "text-muted hover:bg-subtle/60",
+                  )}
+                >
+                  {n === 2 ? "мягко" : n === 4 ? "жёстко" : "норма"}
+                </button>
+              ))}
+            </div>
+            <label className="flex h-11 items-center justify-between gap-3 text-sm">
+              <span>Только закрытие</span>
+              <Switch checked={chochClose} onCheckedChange={setChochClose} aria-label="CHoCH только закрытием" />
+            </label>
+            </div>
           </div>
         </aside>
         <section className="flex min-w-0 flex-col">
@@ -229,8 +275,11 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
             <div className="m-4 rounded-lg bg-elevated p-6 text-sm text-muted">Не удалось загрузить рынок.</div>
           ) : (
             <>
+              <AccountBanner account={bookQ.data?.account} focus={spec.id} />
+              {snap ? <ChochBanner snap={snap} len={chochLen} closeOnly={chochClose} /> : null}
               {snap ? <MarginBanner snap={snap} decimals={spec.decimals} /> : null}
               {snap?.wyckoff || snap?.patterns[0] ? <PatternBanner snap={snap} /> : null}
+              {snap ? <AuctionBanner snap={snap} /> : null}
               {snap?.flow ? <FlowBanner snap={snap} /> : null}
               <BookBanner book={book} iceberg={snap?.flow.events.find((e) => e.kind === "absorption")?.therefore} />
               {snap?.clusters ? <ClusterBanner snap={snap} /> : null}

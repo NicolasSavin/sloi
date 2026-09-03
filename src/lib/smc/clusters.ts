@@ -1,5 +1,6 @@
 import type { Candle } from "@/lib/market/types";
 import { buyVolumeOf } from "@/lib/smc/flow";
+import { barVolume } from "@/lib/smc/micro";
 
 export interface ClusterBin {
   price: number;
@@ -24,7 +25,7 @@ export interface ClusterMap {
   lvn: number[];
   stacked: ClusterStack[];
   unfinished: "high" | "low" | "both" | null;
-  source: "trades" | "profile";
+  source: "trades" | "profile" | "cme";
   because: string;
   therefore: string;
 }
@@ -149,9 +150,13 @@ export function clustersFromCandles(candles: Candle[]): ClusterMap {
   const hi = Math.max(...slice.map((c) => c.high));
   const { span, n } = binsFrom(lo, hi, 28);
   const raw = Array.from({ length: n }, () => ({ buy: 0, sell: 0 }));
+  const cme = slice.some((c) => (c.cmeVolume ?? 0) > 0);
   for (const c of slice) {
-    const buy = buyVolumeOf(c);
-    const sell = Math.max(0, c.volume - buy);
+    const v = barVolume(c);
+    const body = Math.max(c.volume, 1);
+    const buyShare = buyVolumeOf(c) / body;
+    const buy = v * buyShare;
+    const sell = Math.max(0, v - buy);
     const a = Math.min(n - 1, Math.max(0, Math.floor(((c.low - lo) / span) * n)));
     const b = Math.min(n - 1, Math.max(0, Math.floor(((c.high - lo) / span) * n)));
     const parts = Math.max(1, b - a + 1);
@@ -161,5 +166,10 @@ export function clustersFromCandles(candles: Candle[]): ClusterMap {
       raw[i]!.sell += sell * w;
     }
   }
-  return finish(raw, lo, span, n, "profile");
+  const map = finish(raw, lo, span, n, cme ? "cme" : "profile");
+  if (cme) {
+    map.because = `CME delayed ${slice.find((c) => c.cmeTicker)?.cmeTicker ?? "фьючерс"}: ${map.because}`;
+    map.therefore = `${map.therefore} Объём кластера — Чикаго с задержкой, не спот-тики брокера.`;
+  }
+  return map;
 }

@@ -167,3 +167,29 @@ export function applyCool(
     };
   });
 }
+
+/** Keep at most 4 live orders; already-held symbols stay. */
+export function capLive(markets: DigestMarket[], max = 4): DigestMarket[] {
+  const live = markets.filter((m) => m.advice.action === "long" || m.advice.action === "short");
+  if (live.length <= max) return markets;
+  const heldIds = new Set(live.filter((m) => isHeld(m.spec.id)).map((m) => m.spec.id));
+  const ranked = [...live].sort((a, b) => {
+    const ha = heldIds.has(a.spec.id) ? 1 : 0;
+    const hb = heldIds.has(b.spec.id) ? 1 : 0;
+    return hb - ha || b.score - a.score;
+  });
+  const keep = new Set(ranked.slice(0, max).map((m) => m.spec.id));
+  return markets.map((m) => {
+    if (m.advice.action !== "long" && m.advice.action !== "short") return m;
+    if (keep.has(m.spec.id)) return m;
+    return {
+      ...m,
+      advice: {
+        ...m.advice,
+        action: "wait",
+        title: "Не в топ дня",
+        therefore: `Живых приказов не больше ${max}. Этот слабее по счёту (${m.score}/100).`,
+      },
+    };
+  });
+}

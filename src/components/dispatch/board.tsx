@@ -11,11 +11,13 @@ import { Button } from "@/components/ui/button";
 import { actionLabel, actionTone } from "@/lib/advisor";
 import { useDeskStore } from "@/lib/desk-store";
 import { isOpenAction, useDispatchStore } from "@/lib/dispatch-store";
-import { fetchDigest } from "@/lib/market/fetch";
+import { ChatDock } from "@/components/desk/chat-dock";
+import { AccountBanner } from "@/components/desk/desk-banners";
+import { fetchBroker, fetchDigest } from "@/lib/market/fetch";
 import { marketArt } from "@/lib/art";
 import { playDispatch, testVoice, unlockSound } from "@/lib/sound";
 import { deskToast, enableDeskPush } from "@/lib/notify";
-import { ChatDock } from "@/components/desk/chat-dock";
+import { readDeskKey } from "@/lib/desk-key";
 import { cn, formatPct, formatPrice } from "@/lib/utils";
 
 export function DispatchBoard() {
@@ -27,11 +29,19 @@ export function DispatchBoard() {
   const voiceOn = useDeskStore((s) => s.voiceOn);
   const setVoiceOn = useDeskStore((s) => s.setVoiceOn);
   const [studio, setStudio] = useState<boolean | null>(null);
+  const [deskKey, setDeskKey] = useState("");
+  useEffect(() => { setDeskKey(readDeskKey()); }, []);
   const q = useQuery({
     queryKey: ["dispatch-digest"],
     queryFn: () => fetchDigest(),
     refetchInterval: onDuty ? 45_000 : 120_000,
     staleTime: 20_000,
+  });
+  const brokerQ = useQuery({
+    queryKey: ["broker-book", deskKey],
+    queryFn: () => fetchBroker({ data: { key: deskKey } }),
+    refetchInterval: 20_000,
+    staleTime: 8_000,
   });
   const markets = q.data?.digest.markets ?? [];
   const fund = q.data?.digest.fund;
@@ -54,7 +64,11 @@ export function DispatchBoard() {
         <h1 className="mt-3 text-4xl font-medium tracking-tight sm:text-5xl">Сигнал приходит сюда</h1>
         <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted">
           Сайт сам слушает все пары. Вы нажимаете «На смену» — и когда появляется лонг или шорт, звучит двойной тон и
-          сверху всплывает карточка. Терминал MT4 не нужен: диспетчер работает в браузере.
+          сверху всплывает карточка. Чтобы видеть свой счёт и закрывать ордера с сайта —{" "}
+          <Link to="/cabinet" className="text-fg underline-offset-4 hover:underline">
+            кабинет и ключ
+          </Link>
+          , инструкция там же.
         </p>
 
         <div className="mt-8">
@@ -133,6 +147,9 @@ export function DispatchBoard() {
             <FundStrip fund={fund} />
           </div>
         ) : null}
+        <div className="mt-6">
+          <AccountBanner account={brokerQ.data?.account} className="mx-0" />
+        </div>
 
         <div className="mt-8">
           <ChatDock />

@@ -14,6 +14,7 @@ const LINKS = [
   { to: "/desk", label: "График" },
   { to: "/daily", label: "Сегодня" },
   { to: "/advisor", label: "Эксперт MT4" },
+  { to: "/cabinet", label: "Кабинет" },
   { to: "/about", label: "О сайте" },
 ] as const;
 

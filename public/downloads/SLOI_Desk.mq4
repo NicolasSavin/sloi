@@ -5,11 +5,12 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.36"
+#property version   "4.40"
 #property strict
 #property description "На графике: VWAP, профиль, футпринт бара, infusion/splash, Bid/Ask."
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
+input string  DeskKey         = "";
 input string  WatchList       = "EURUSD,GBPUSD,USDJPY,USDCHF,AUDUSD,USDCAD,NZDUSD,EURGBP,EURJPY,GBPJPY,AUDJPY,CADJPY,NZDJPY,EURCHF,EURAUD,GBPAUD,XAUUSD,XAGUSD,XTIUSD,XBRUSD,XNGUSD,ETHUSD,LTCUSD,BCHUSD,BTCUSD,XRPUSD,TONUSD";
 input string  BrokerSuffix    = ".cs";
 input int     WorkTF          = 60;
@@ -52,6 +53,8 @@ int      g_lim[MAXSYM];
 string g_watch;
 string g_suffix;
 string g_url;
+string g_key;
+string g_cmds;
 int    g_tf;
 bool   g_auto;
 double g_lots;
@@ -91,6 +94,10 @@ int OnInit()
    g_watch  = WatchList;
    g_suffix = BrokerSuffix;
    g_url    = SignalsUrl;
+   g_key    = DeskKey;
+   StringTrimLeft(g_key);
+   StringTrimRight(g_key);
+   g_cmds   = "";
    g_tf     = WorkTF;
    g_auto   = AutoTrade;
    g_lots   = Lots;
@@ -114,7 +121,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.35: чужие WS подтягиваю под стол или закрываю, если WAIT.");
+   Print("SLOI 4.40: ключ стола в DeskKey — счёт и команды только ваши.");
    return(INIT_SUCCEEDED);
   }
 
@@ -586,12 +593,13 @@ void PullFeed()
    string rh = "";
    ArrayResize(data, 0);
    ResetLastError();
-   if(StringLen(g_url) < 12)
+   string url = FeedUrl();
+   if(StringLen(url) < 12)
      {
       g_feedNote = "вставьте адрес ленты";
       return;
      }
-   int res = WebRequest("GET", g_url, hdr, 25000, data, result, rh);
+   int res = WebRequest("GET", url, hdr, 25000, data, result, rh);
    if(res == -1)
      {
       int err = GetLastError();
@@ -611,8 +619,19 @@ void PullFeed()
      }
    g_feed = CharArrayToString(result, 0, WHOLE_ARRAY, CP_UTF8);
    g_feedNote = (StringFind(g_feed, "SLOI") >= 0 || StringLen(g_feed) > 8 ? "сайт ок" : "пустая лента");
+   if(StringLen(g_key) > 6) g_feedNote = g_feedNote + " ключ";
    SeedFromFeed();
+   ApplySiteCommands();
    PushTape();
+  }
+
+string FeedUrl()
+  {
+   string u = g_url;
+   if(StringLen(g_key) < 8) return(u);
+   if(StringFind(u, "k=") >= 0) return(u);
+   if(StringFind(u, "?") >= 0) return(u + "&k=" + g_key);
+   return(u + "?k=" + g_key);
   }
 
 void AddSym(string s)
@@ -663,7 +682,7 @@ void SeedFromFeed()
 
 void PushTape()
   {
-   string url = g_url;
+   string url = FeedUrl();
    StringReplace(url, "signals.txt", "broker");
    if(StringFind(url, "broker") < 0)
      {
@@ -671,6 +690,30 @@ void PushTape()
       else url = url + "/api/broker";
      }
    string body = "# SLOI broker\n";
+   string srv = AccountServer();
+   StringReplace(srv, " ", "_");
+   string cur = AccountCurrency();
+   StringReplace(cur, " ", "");
+   body += "ACCOUNT " + IntegerToString(AccountNumber()) + " " + srv + " "
+        + DoubleToStr(AccountBalance(), 2) + " " + DoubleToStr(AccountEquity(), 2) + " "
+        + DoubleToStr(AccountMargin(), 2) + " " + DoubleToStr(AccountFreeMargin(), 2) + " "
+        + DoubleToStr(AccountProfit(), 2) + " " + IntegerToString(AccountLeverage()) + " " + cur + "\n";
+   int sent = 0;
+   for(int o = OrdersTotal() - 1; o >= 0 && sent < 24; o--)
+     {
+      if(!OrderSelect(o, SELECT_BY_POS, MODE_TRADES)) continue;
+      int ty = OrderType();
+      if(ty != OP_BUY && ty != OP_SELL && ty != OP_BUYLIMIT && ty != OP_SELLLIMIT
+         && ty != OP_BUYSTOP && ty != OP_SELLSTOP) continue;
+      string side = (ty == OP_BUY || ty == OP_BUYLIMIT || ty == OP_BUYSTOP) ? "BUY" : "SELL";
+      body += "POS " + IntegerToString(OrderTicket()) + " " + Naked(OrderSymbol()) + " " + side + " "
+           + DoubleToStr(OrderLots(), 2) + " " + DoubleToStr(OrderOpenPrice(), DigitsOf(OrderSymbol())) + " "
+           + DoubleToStr(OrderStopLoss(), DigitsOf(OrderSymbol())) + " "
+           + DoubleToStr(OrderTakeProfit(), DigitsOf(OrderSymbol())) + " "
+           + DoubleToStr(OrderProfit() + OrderSwap() + OrderCommission(), 2) + " "
+           + IntegerToString(OrderMagicNumber()) + "\n";
+      sent++;
+     }
    for(int i = 0; i < g_n; i++)
      {
       string s = g_sym[i];
@@ -1069,12 +1112,21 @@ void ManageBE()
 
 void ManualTrade(int dir)
   {
-   string s = Symbol();
+   ManualTradeSym(Symbol(), dir);
+  }
+
+void ManualTradeSym(string s, int dir)
+  {
    SymbolSelect(s, true);
    RefreshRates();
    int digits = DigitsOf(s);
    int cmd = dir > 0 ? OP_BUY : OP_SELL;
    double px = dir > 0 ? AskOf(s) : BidOf(s);
+   if(px <= 0)
+     {
+      for(int i = 0; i < g_n; i++)
+         if(Naked(g_sym[i]) == Naked(s)) { s = g_sym[i]; px = dir > 0 ? AskOf(s) : BidOf(s); break; }
+     }
    if(px <= 0) { Print("SLOI ручной: нет котировки ", s); return; }
    int d = 0;
    double entry = 0, stop = 0, target = 0, siteLast = 0, skewCap = 0;
@@ -1082,10 +1134,53 @@ void ManualTrade(int dir)
    int lim = 0;
    ReadSite(Naked(s), d, entry, stop, target, siteLast, verdict, why, skewCap, lim);
    double lots = LotFor(s, entry, stop);
-   double sl = (stop > 0 ? NormalizeDouble(stop, digits) : 0);
-   double tp = (target > 0 ? NormalizeDouble(target, digits) : 0);
-   int ticket = SendOrder(s, cmd, lots, px, sl, tp, "SLOI manual", dir > 0 ? C_BUY : C_SEL);
-   if(ticket > 0) Alert("SLOI ", (dir > 0 ? "КУПИТЬ " : "ПРОДАТЬ "), s, " #", ticket);
+   double sl = (stop > 0 ? NormalizeDouble(stop, DigitsOf(s)) : 0);
+   double tp = (target > 0 ? NormalizeDouble(target, DigitsOf(s)) : 0);
+   int ticket = SendOrder(s, cmd, lots, px, sl, tp, "SLOI site", dir > 0 ? C_BUY : C_SEL);
+   if(ticket > 0) Alert("SLOI сайт ", (dir > 0 ? "КУПИТЬ " : "ПРОДАТЬ "), s, " #", ticket);
+  }
+
+void CloseByNaked(string naked)
+  {
+   int n = 0;
+   for(int i = OrdersTotal() - 1; i >= 0; i--)
+     {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
+      if(OrderMagicNumber() != Magic) continue;
+      if(Naked(OrderSymbol()) != naked) continue;
+      CloseOne();
+      n++;
+     }
+   Alert("SLOI сайт закрыть ", naked, " ", n);
+  }
+
+void ApplySiteCommands()
+  {
+   if(StringLen(g_key) < 8) return;
+   string lines[];
+   int n = StringSplit(g_feed, '\n', lines);
+   for(int i = 0; i < n; i++)
+     {
+      string line = lines[i];
+      if(StringFind(line, "#CMD ") != 0) continue;
+      string p[];
+      int k = StringSplit(line, ' ', p);
+      if(k < 3) continue;
+      string cid = p[1];
+      if(StringFind(g_cmds, cid) >= 0) continue;
+      g_cmds = g_cmds + cid + ",";
+      if(StringLen(g_cmds) > 500) g_cmds = StringSubstr(g_cmds, StringLen(g_cmds) - 240);
+      string kind = p[2];
+      string a = (k >= 4 ? p[3] : "");
+      if(kind == "PAUSE") g_auto = false;
+      else if(kind == "RESUME") g_auto = true;
+      else if(kind == "CLOSE_ALL") CloseMine(true);
+      else if(kind == "CLOSE_PROFIT") CloseMine(false);
+      else if(kind == "CLOSE") CloseByNaked(a);
+      else if(kind == "BUY") ManualTradeSym(a, 1);
+      else if(kind == "SELL") ManualTradeSym(a, -1);
+      Print("SLOI CMD ", cid, " ", kind, " ", a);
+     }
   }
 
 void CloseOne()

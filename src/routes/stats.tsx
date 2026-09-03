@@ -52,8 +52,9 @@ function StatsPage() {
         <p className="font-mono text-xs tracking-[0.22em] text-accent">КНИГА СДЕЛОК</p>
         <h1 className="mt-3 text-4xl font-medium tracking-tight sm:text-5xl">Почему так закрылось</h1>
         <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted">
-          Архив сервера + ваш журнал в браузере. Старые сигналы не стираются. Винрейт только по цели и стопу.
-          Новость и «не состоялся» — отдельно.
+          Архив сервера + ваш журнал в браузере. Винрейт только по цели и стопу после реального касания входа.
+          Тень через зону без закрытия — не сделка. Новость и «не состоялся» — отдельно. С 1.6.0: не больше 4 живых
+          приказов, стоп шире, пауза 3 часа после стопа, против макро/премии не входим.
         </p>
         {q.isLoading ? <p className="mt-6 text-sm text-dim">Гружу архив…</p> : null}
         <div className="mt-8">

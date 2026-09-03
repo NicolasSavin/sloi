@@ -19,7 +19,7 @@ export interface Advice {
   covers: number | null;
 }
 
-export function advise(snap: Pick<SmcSnapshot, "bias" | "localSetup" | "margin" | "wyckoff" | "patterns">, spec: SymbolSpec, spread = spec.spread): Advice {
+export function advise(snap: Pick<SmcSnapshot, "bias" | "localSetup" | "margin" | "wyckoff" | "patterns" | "auction" | "ivNews">, spec: SymbolSpec, spread = spec.spread): Advice {
   const roundTrip = spread * 2;
   const entry = snap.localSetup.entry;
   const stop = snap.localSetup.stop;
@@ -51,7 +51,7 @@ export function advise(snap: Pick<SmcSnapshot, "bias" | "localSetup" | "margin" 
   const covers = roundTrip > 0 ? grossReward / roundTrip : null;
   const netRr = netRisk > 0 ? netReward / netRisk : null;
 
-  if (netReward <= 0 || (covers != null && covers < 1.5) || (netRr != null && netRr < 1.05)) {
+  if (netReward <= 0 || (covers != null && covers < 2) || (netRr != null && netRr < 1.45)) {
     return {
       action: "skip",
       title: "Пропуск: спред съедает ход",
@@ -103,7 +103,70 @@ export function advise(snap: Pick<SmcSnapshot, "bias" | "localSetup" | "margin" 
       covers,
     };
   }
-  const fight = snap.patterns?.find((p) => (p.side === "bear" && side === "long") || (p.side === "bull" && side === "short"));
+  if (snap.ivNews?.phase === "crush") {
+    return {
+      action: "wait",
+      title: "Ждать: IV crush после новости",
+      because: snap.ivNews.because,
+      therefore: snap.ivNews.therefore,
+      spread,
+      roundTrip,
+      grossRisk,
+      grossReward,
+      netRisk,
+      netReward,
+      netRr,
+      covers,
+    };
+  }
+  if (snap.auction?.orb === "broke-high" && side === "short") {
+    return {
+      action: "wait",
+      title: "Ждать: ORB вверх, не шортить середину",
+      because: snap.auction.because,
+      therefore: snap.auction.therefore,
+      spread,
+      roundTrip,
+      grossRisk,
+      grossReward,
+      netRisk,
+      netReward,
+      netRr,
+      covers,
+    };
+  }
+  if (snap.auction?.orb === "broke-low" && side === "long") {
+    return {
+      action: "wait",
+      title: "Ждать: ORB вниз, не ловить дно",
+      because: snap.auction.because,
+      therefore: snap.auction.therefore,
+      spread,
+      roundTrip,
+      grossRisk,
+      grossReward,
+      netRisk,
+      netReward,
+      netRr,
+      covers,
+    };
+  }
+  if (snap.auction?.vol === "compressed" && netRr != null && netRr < 1.8) {
+    return {
+      action: "skip",
+      title: "Пропуск: волатильность сжата",
+      because: snap.auction.because,
+      therefore: "Ход короткий. Спред съест цель. Ждём расширение или ближе край IB.",
+      spread,
+      roundTrip,
+      grossRisk,
+      grossReward,
+      netRisk,
+      netReward,
+      netRr,
+      covers,
+    };
+  }
   const marginNote =
     snap.margin?.where === "upper" && side === "long"
       ? " Цена в верхней марже — лимитка ниже, не рынок."

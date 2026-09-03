@@ -13,6 +13,7 @@ export interface OverlayFlags {
   margin: boolean;
   patterns: boolean;
   flow: boolean;
+  structure: boolean;
 }
 
 interface DeskState {
@@ -22,6 +23,8 @@ interface DeskState {
   soundOn: boolean;
   voiceOn: boolean;
   overlays: OverlayFlags;
+  chochLen: 2 | 3 | 4;
+  chochClose: boolean;
   spreads: Record<string, number>;
   setSymbol: (id: string) => void;
   setTimeframe: (tf: Timeframe) => void;
@@ -29,6 +32,8 @@ interface DeskState {
   setSoundOn: (on: boolean) => void;
   setVoiceOn: (on: boolean) => void;
   toggleOverlay: (key: keyof OverlayFlags) => void;
+  setChochLen: (n: 2 | 3 | 4) => void;
+  setChochClose: (on: boolean) => void;
   setSpread: (id: string, spread: number) => void;
 }
 
@@ -52,7 +57,10 @@ export const useDeskStore = create<DeskState>()(
         margin: true,
         patterns: true,
         flow: true,
+        structure: true,
       },
+      chochLen: 3,
+      chochClose: true,
       spreads: Object.fromEntries(SYMBOLS.map((s) => [s.id, s.spread])),
       setSymbol: (id) => set({ symbol: id }),
       setTimeframe: (tf) => set({ timeframe: tf }),
@@ -60,15 +68,18 @@ export const useDeskStore = create<DeskState>()(
       setSoundOn: (on) => set({ soundOn: on }),
       setVoiceOn: (on) => set({ voiceOn: on }),
       toggleOverlay: (key) => set((s) => ({ overlays: { ...s.overlays, [key]: !s.overlays[key] } })),
+      setChochLen: (n) => set({ chochLen: n }),
+      setChochClose: (on) => set({ chochClose: on }),
       setSpread: (id, spread) => set((s) => ({ spreads: { ...s.spreads, [id]: spread } })),
     }),
     {
       name: "stratum-desk",
-      version: 9,
+      version: 10,
       migrate: (persisted) => {
         const p = (persisted ?? {}) as Partial<DeskState>;
         const symbol = p.symbol && ALLOWED.has(p.symbol) ? p.symbol : "EURUSD";
         const spreads = { ...Object.fromEntries(SYMBOLS.map((s) => [s.id, s.spread])), ...(p.spreads ?? {}) };
+        const len = p.chochLen === 2 || p.chochLen === 4 ? p.chochLen : 3;
         return {
           ...p,
           symbol,
@@ -76,6 +87,8 @@ export const useDeskStore = create<DeskState>()(
           autoAnalyze: true,
           soundOn: p.soundOn ?? true,
           voiceOn: p.voiceOn ?? true,
+          chochLen: len,
+          chochClose: p.chochClose ?? true,
           overlays: {
             fvg: true,
             ob: true,
@@ -86,6 +99,7 @@ export const useDeskStore = create<DeskState>()(
             margin: true,
             patterns: true,
             flow: true,
+            structure: true,
             ...p.overlays,
           },
         } as DeskState;

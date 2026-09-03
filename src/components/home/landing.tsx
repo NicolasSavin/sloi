@@ -44,6 +44,12 @@ export function Landing({ data }: { data: HomePayload }) {
             <Link to="/tv" className="inline-flex h-11 items-center rounded-sm px-5 text-sm shadow-[var(--shadow-border)]">
               ТВ-эфир
             </Link>
+            <Link
+              to="/cabinet"
+              className="inline-flex h-11 items-center rounded-sm px-5 text-sm shadow-[var(--shadow-border)]"
+            >
+              Кабинет и ключ
+            </Link>
             <Link to="/desk" className="inline-flex h-11 items-center rounded-sm px-5 text-sm shadow-[var(--shadow-border)]">
               Открыть график
             </Link>

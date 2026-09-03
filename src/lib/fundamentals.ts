@@ -320,6 +320,7 @@ export function gateAdvice(
     target?: number;
     score?: number;
     hasZone?: boolean;
+    premiumDiscount?: "premium" | "discount" | "equilibrium";
   },
 ): Advice {
   const base = ctx?.id
@@ -337,6 +338,7 @@ export function gateAdvice(
         target: ctx.target,
         score: ctx.score,
         hasZone: ctx.hasZone,
+        premiumDiscount: ctx.premiumDiscount,
       })
     : advice;
   if (halt?.active && !ctx?.id) {
@@ -372,6 +374,22 @@ export function gateAdvice(
       : withWind
         ? ` Макро попутный.`
         : ` ${wind.note}`;
+  if (againstWall && !ctx?.choch) {
+    return {
+      ...base,
+      action: "wait",
+      title: "Опцион против",
+      therefore: `Стена ${wall?.type === "call-wall" ? "коллов" : "путов"} не в нашу сторону. Без CHoCH не берём.${wallBit}`,
+    };
+  }
+  if (against && !ctx?.choch) {
+    return {
+      ...base,
+      action: "wait",
+      title: "Макро против",
+      therefore: `${wind.note} Без CHoCH не торгуем против ветра.`,
+    };
+  }
   return { ...base, therefore: `${base.therefore}${caution}${wallBit}` };
 }
 

@@ -14,18 +14,6 @@ function rMultiple(hit: SignalHit, exit: number) {
   return (dir * (exit - hit.entry)) / risk;
 }
 
-function rangeSince(candles: Candle[] | undefined, fromMs: number) {
-  if (!candles?.length) return null;
-  const from = fromMs / 1000 - 3600;
-  const slice = candles.filter((c) => c.time >= from);
-  const use = slice.length ? slice : candles.slice(-8);
-  return {
-    high: Math.max(...use.map((c) => c.high)),
-    low: Math.min(...use.map((c) => c.low)),
-    close: use.at(-1)!.close,
-  };
-}
-
 function explain(
   status: SignalStatus,
   hit: SignalHit,
@@ -35,10 +23,14 @@ function explain(
 ) {
   const fmt = (n: number) => formatPrice(n, hit.decimals);
   if (status === "target") {
-    return `Цель ${hit.target != null ? fmt(hit.target) : "—"} взята по ${fmt(px)}. ${market?.story.leadsTo ?? ""} Сценарий отработал после касания входа.`.replace(/\s+/g, " ").trim();
+    return `Цель ${hit.target != null ? fmt(hit.target) : "—"} взята по ${fmt(px)}. ${market?.story.leadsTo ?? ""} Сценарий отработал после касания входа.`
+      .replace(/\s+/g, " ")
+      .trim();
   }
   if (status === "stop") {
-    return `Стоп ${hit.stop != null ? fmt(hit.stop) : "—"} снёс по ${fmt(px)}. ${market?.story.waiting ?? ""} После входа край не удержал.`.replace(/\s+/g, " ").trim();
+    return `Стоп ${hit.stop != null ? fmt(hit.stop) : "—"} снёс по ${fmt(px)}. ${market?.story.waiting ?? ""} После входа край не удержал.`
+      .replace(/\s+/g, " ")
+      .trim();
   }
   if (status === "halt") {
     return `Сигнал сняли из-за крупной новости. ${halt?.line ?? "Календарь."} Не плюс и не минус.`;
@@ -53,13 +45,67 @@ function explain(
     .trim();
 }
 
-/** True if price path touched the entry zone (signal would fill). */
-function wasFilled(hit: SignalHit, high: number, low: number) {
-  if (hit.filled) return true;
-  if (hit.entry == null) return true; // market-style, treat as live
-  const tol = Math.abs((hit.entry - (hit.stop ?? hit.entry)) * 0.05) || Math.abs(hit.entry) * 0.0002;
-  if (hit.action === "long") return low <= hit.entry + tol;
-  return high >= hit.entry - tol;
+function fillTol(hit: SignalHit) {
+  if (hit.entry == null) return 0;
+  return Math.abs((hit.entry - (hit.stop ?? hit.entry)) * 0.05) || Math.abs(hit.entry) * 0.0002;
+}
+
+/** Walk H1 bars in time: fill first, then first of SL/TP. Same-bar fill+stop without close = wick, not a trade. */
+function walkPath(hit: SignalHit, candles: Candle[]): { filled: boolean; status?: SignalStatus; exit?: number } {
+  if (!candles.length || hit.entry == null) {
+    return { filled: Boolean(hit.filled) };
+  }
+  const from = hit.at / 1000 - 1800;
+  const slice = candles.filter((c) => c.time >= from);
+  const use = slice.length ? slice : candles.slice(-12);
+  const tol = fillTol(hit);
+  let filled = Boolean(hit.filled);
+
+  for (const c of use) {
+    if (!filled) {
+      const touch =
+        hit.action === "long" ? c.low <= hit.entry + tol : c.high >= hit.entry - tol;
+      if (!touch) continue;
+      const stopHit =
+        hit.stop != null &&
+        (hit.action === "long" ? c.low <= hit.stop : c.high >= hit.stop);
+      const closedAgainst =
+        hit.action === "long" ? c.close <= hit.entry : c.close >= hit.entry;
+      if (stopHit && closedAgainst) {
+        // wick through the zone — not a fill
+        continue;
+      }
+      filled = true;
+      const tpHit =
+        hit.target != null &&
+        (hit.action === "long" ? c.high >= hit.target : c.low <= hit.target);
+      if (stopHit && tpHit) {
+        const toStop = Math.abs(c.open - hit.stop!);
+        const toTp = Math.abs(c.open - hit.target!);
+        if (toStop <= toTp) return { filled, status: "stop", exit: hit.stop! };
+        return { filled, status: "target", exit: hit.target! };
+      }
+      if (stopHit) return { filled, status: "stop", exit: hit.stop! };
+      if (tpHit && (hit.action === "long" ? c.close > hit.entry : c.close < hit.entry)) {
+        return { filled, status: "target", exit: hit.target! };
+      }
+      continue;
+    }
+
+    const stopHit =
+      hit.stop != null && (hit.action === "long" ? c.low <= hit.stop : c.high >= hit.stop);
+    const tpHit =
+      hit.target != null && (hit.action === "long" ? c.high >= hit.target : c.low <= hit.target);
+    if (stopHit && tpHit) {
+      const toStop = Math.abs(c.open - (hit.stop ?? c.open));
+      const toTp = Math.abs(c.open - (hit.target ?? c.open));
+      if (toStop <= toTp) return { filled, status: "stop", exit: hit.stop! };
+      return { filled, status: "target", exit: hit.target! };
+    }
+    if (tpHit) return { filled, status: "target", exit: hit.target! };
+    if (stopHit) return { filled, status: "stop", exit: hit.stop! };
+  }
+  return { filled };
 }
 
 export function settleHit(
@@ -69,16 +115,22 @@ export function settleHit(
   candles?: Candle[],
 ): SignalHit {
   if (hit.status && hit.status !== "open") return hit;
-  const path = rangeSince(candles, hit.at);
-  const high = path?.high ?? market?.lastHigh ?? market?.lastClose;
-  const low = path?.low ?? market?.lastLow ?? market?.lastClose;
-  const px = path?.close ?? market?.lastClose;
-  if (px == null || high == null || low == null) return { ...hit, status: hit.status ?? "open" };
+  const px = candles?.at(-1)?.close ?? market?.lastClose;
+  if (px == null) return { ...hit, status: hit.status ?? "open" };
 
-  const filled = wasFilled(hit, high, low);
+  const walked = candles?.length ? walkPath(hit, candles) : null;
+  const filled = walked ? walked.filled : hit.filled === true;
   const base: SignalHit = filled
     ? { ...hit, filled: true, filledAt: hit.filledAt ?? Date.now(), status: "open" }
-    : { ...hit, filled: false, status: "open", why: hit.entry != null ? `Ждёт касания входа ${formatPrice(hit.entry, hit.decimals)} — это ещё не сделка` : hit.why };
+    : {
+        ...hit,
+        filled: false,
+        status: "open",
+        why:
+          hit.entry != null
+            ? `Ждёт касания входа ${formatPrice(hit.entry, hit.decimals)} — это ещё не сделка`
+            : hit.why,
+      };
 
   const mark = (status: SignalStatus, exit: number): SignalHit => ({
     ...base,
@@ -89,7 +141,9 @@ export function settleHit(
     why: explain(status, base, exit, market, halt),
   });
 
-  // No fill yet: never count TP/SL as win/loss
+  if (walked?.status === "target" && walked.exit != null) return mark("target", walked.exit);
+  if (walked?.status === "stop" && walked.exit != null) return mark("stop", walked.exit);
+
   if (!filled) {
     if (halt?.active) return mark("halt", px);
     const opposite =
@@ -101,13 +155,6 @@ export function settleHit(
     return base;
   }
 
-  if (hit.action === "long") {
-    if (hit.target != null && high >= hit.target) return mark("target", hit.target);
-    if (hit.stop != null && low <= hit.stop) return mark("stop", hit.stop);
-  } else {
-    if (hit.target != null && low <= hit.target) return mark("target", hit.target);
-    if (hit.stop != null && high >= hit.stop) return mark("stop", hit.stop);
-  }
   if (halt?.active) return mark("halt", px);
   const opposite =
     market &&

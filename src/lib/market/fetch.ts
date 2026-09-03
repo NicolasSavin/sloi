@@ -27,6 +27,52 @@ const YAHOO: Record<Timeframe, { interval: string; range: string }> = {
   "1d": { interval: "1d", range: "1y" },
 };
 
+const CME_SEC: Record<Timeframe, number> = {
+  "5m": 300,
+  "15m": 900,
+  "1h": 3600,
+  "4h": 14400,
+  "1d": 86400,
+};
+
+let cmeCache = new Map<string, { at: number; rows: Candle[] | null }>();
+
+async function loadCmeBars(ticker: string, timeframe: Timeframe): Promise<Candle[] | null> {
+  const key = `${ticker}|${timeframe}`;
+  const hit = cmeCache.get(key);
+  if (hit && Date.now() - hit.at < 180_000) return hit.rows;
+  const y = YAHOO[timeframe];
+  const parsed = parseYahoo(
+    await getJson(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=${y.interval}&range=${y.range}&includePrePost=false`,
+      4000,
+    ),
+    timeframe,
+  );
+  cmeCache.set(key, { at: Date.now(), rows: parsed });
+  return parsed;
+}
+
+function overlayCme(spot: Candle[], fut: Candle[] | null, ticker: string, timeframe: Timeframe): Candle[] {
+  if (!fut?.length) {
+    return spot.map((c) => ({ ...c, cmeVolume: c.volume, cmeTicker: ticker }));
+  }
+  const step = CME_SEC[timeframe];
+  const vol = new Map<number, number>();
+  for (const f of fut) {
+    const k = Math.floor(f.time / step) * step;
+    vol.set(k, (vol.get(k) ?? 0) + (f.volume || 0));
+  }
+  let hit = 0;
+  const out = spot.map((c) => {
+    const k = Math.floor(c.time / step) * step;
+    const v = vol.get(k);
+    if (v != null && v > 0) hit += 1;
+    return { ...c, cmeVolume: v && v > 0 ? v : undefined, cmeTicker: ticker };
+  });
+  return hit >= 8 ? out : spot.map((c) => ({ ...c, cmeVolume: c.volume, cmeTicker: ticker }));
+}
+
 async function getJson(url: string, timeoutMs = 7000): Promise<any> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -290,17 +336,31 @@ async function loadPayload(symbol: string, timeframe: Timeframe, withOpt = true)
   if (hit && Date.now() - hit.at < 40_000) return hit.data;
   const spec = getSymbol(symbol);
   const ohlc = await loadCandles(spec, timeframe);
+  let candles = ohlc.candles;
+  let cme: MarketPayload["cme"] = null;
+  if (spec.futuresYahoo) {
+    if (spec.futuresYahoo === spec.yahoo) {
+      candles = candles.map((c) => ({ ...c, cmeVolume: c.volume, cmeTicker: spec.futuresYahoo }));
+      cme = { ticker: spec.futuresYahoo, delayed: true, bars: candles.length };
+    } else {
+      const fut = await loadCmeBars(spec.futuresYahoo, timeframe);
+      candles = overlayCme(candles, fut, spec.futuresYahoo, timeframe);
+      const n = candles.filter((c) => (c.cmeVolume ?? 0) > 0).length;
+      if (n >= 8) cme = { ticker: spec.futuresYahoo, delayed: true, bars: n };
+    }
+  }
   const options = withOpt && spec.optionsYahoo ? await loadOptions(spec.optionsYahoo) : null;
   const trades = spec.binance && ohlc.source !== "demo" ? await loadTrades(spec.binance) : undefined;
-  const last = ohlc.candles.at(-1);
+  const last = candles.at(-1);
   const data: MarketPayload = {
     symbol: spec.id,
     timeframe,
     source: ohlc.source,
-    candles: ohlc.candles,
+    candles,
     options,
     trades,
     staleSec: last ? Math.max(0, Math.floor(Date.now() / 1000 - last.time)) : undefined,
+    cme,
   };
   payloadCache.set(key, { at: Date.now(), data });
   return data;
@@ -337,7 +397,7 @@ function mapPool<T, R>(items: T[], size: number, fn: (item: T) => Promise<R>): P
 }
 
 function wantOptions(id: string) {
-  return ["XAUUSD", "XAGUSD", "EURUSD", "GBPUSD", "USDJPY", "XTIUSD", "SPY", "QQQ"].includes(id);
+  return Boolean(getSymbol(id).optionsYahoo);
 }
 
 const CAL_JSON = [
@@ -430,7 +490,14 @@ async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }
   const halt = calEvents.length ? buildHalt(calEvents) : EMPTY_HALT;
   const rows = payloads.map((p) => {
     const spec = SYMBOLS.find((s) => s.id === p.symbol)!;
-    const snap = analyzeMarket(p.candles, p.options, p.trades);
+    const snap = analyzeMarket(p.candles, p.options, p.trades, {
+      symbol: spec.id,
+      kind: spec.kind,
+      dxyChange: dxy?.changePct,
+      yieldChange: tnx?.changePct,
+      oilChange: cl?.changePct,
+      halt,
+    });
     return { spec, snap, candles: p.candles, market: toDigestMarket(spec, snap, spec.spread, p.candles.at(-1), p.options) };
   });
   const { sessionNow } = await import("@/lib/sessions");

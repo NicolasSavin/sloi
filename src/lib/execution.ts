@@ -116,14 +116,14 @@ export function fillMode(
   target?: number,
 ): "LIMIT" | "MARKET" | "LATE" {
   const risk = Math.abs(entry - stop);
-  const zone = risk * 0.7;
+  const zone = risk * 0.38;
   if (!Number.isFinite(zone) || zone <= 0) return "LIMIT";
   if (action === "long") {
-    if (target != null && target > entry && last > entry + (target - entry) * 0.45) return "LATE";
+    if (target != null && target > entry && last > entry + (target - entry) * 0.32) return "LATE";
     if (last <= entry + zone) return "MARKET";
     return "LIMIT";
   }
-  if (target != null && target < entry && last < entry - (entry - target) * 0.45) return "LATE";
+  if (target != null && target < entry && last < entry - (entry - target) * 0.32) return "LATE";
   if (last >= entry - zone) return "MARKET";
   return "LIMIT";
 }
@@ -144,6 +144,7 @@ export function refineAdvice(
     target?: number;
     score?: number;
     hasZone?: boolean;
+    premiumDiscount?: "premium" | "discount" | "equilibrium";
   },
 ): Advice {
   if (haltApplies(opts.id, opts.halt)) {
@@ -173,7 +174,24 @@ export function refineAdvice(
       therefore: "Нет живого блока или FVG. Пустой край не торгуем.",
     };
   }
-  if (score < 42 && !opts.choch) {
+  const pd = opts.premiumDiscount;
+  if (advice.action === "long" && pd === "premium" && !opts.choch) {
+    return {
+      ...advice,
+      action: "wait",
+      title: "Лонг в премии — нет",
+      therefore: "Цена дорогая относительно диапазона. Покупка только после CHoCH или возврата в дисконт.",
+    };
+  }
+  if (advice.action === "short" && pd === "discount" && !opts.choch) {
+    return {
+      ...advice,
+      action: "wait",
+      title: "Шорт в дисконте — нет",
+      therefore: "Цена дешёвая относительно диапазона. Продажа только после CHoCH или возврата в премию.",
+    };
+  }
+  if (score < 52 && !opts.choch) {
     return {
       ...advice,
       action: "wait",
@@ -181,15 +199,15 @@ export function refineAdvice(
       therefore: `Счёт ${score}/100, нет CHoCH. Ждём, пока структура, зона и старший ТФ не сойдутся.`,
     };
   }
-  if (stack.grade === "H1" && !opts.choch && score < 54) {
+  if (stack.grade === "H1" && !opts.choch && score < 62) {
     return {
       ...advice,
       action: "wait",
       title: "Только час — мало",
-      therefore: `${stack.note} Без CHoCH и счёта выше 54 лимитку не вешаем.`,
+      therefore: `${stack.note} Без CHoCH и счёта выше 62 лимитку не вешаем.`,
     };
   }
-  if (stack.block === "all" && mode !== "MARKET") {
+  if (stack.block === "all") {
     return { ...advice, action: "wait", title: "Ждать старший ТФ", therefore: stack.note };
   }
   if (mode === "MARKET") {

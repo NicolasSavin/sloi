@@ -1,8 +1,12 @@
-import type { Candle, OptionsSnapshot } from "@/lib/market/types";
+import type { Candle, MarketKind, OptionsSnapshot } from "@/lib/market/types";
 import { detectPatterns, detectWyckoff, type PatternHit, type WyckoffRead } from "@/lib/smc/patterns";
 import { buildFlow, type FlowSnap } from "@/lib/smc/flow";
 import { clustersFromCandles, clustersFromTrades, type ClusterMap } from "@/lib/smc/clusters";
-import { buildMicro, type MicroSnap } from "@/lib/smc/micro";
+import { buildMicro, nearestStall, type MicroSnap } from "@/lib/smc/micro";
+import { buildAuction, type AuctionSnap } from "@/lib/smc/auction";
+import { buildCorr, type CorrSnap } from "@/lib/corr";
+import { buildIvNews, type IvNewsSnap } from "@/lib/iv-news";
+import type { NewsHalt } from "@/lib/calendar";
 
 export type Bias = "bullish" | "bearish" | "range";
 export type Side = "bull" | "bear";
@@ -135,6 +139,9 @@ export interface SmcSnapshot {
   flow: FlowSnap;
   clusters: ClusterMap;
   micro: MicroSnap;
+  auction: AuctionSnap;
+  corr: CorrSnap;
+  ivNews: IvNewsSnap;
   killzone: { name: string; active: boolean }[];
   confluence: ConfluenceItem[];
   score: number;
@@ -241,7 +248,11 @@ function volumeProfile(candles: Candle[], bins = 24) {
   };
 }
 
-function detectStructure(candles: Candle[], swings: Swing[]): {
+function detectStructure(
+  candles: Candle[],
+  swings: Swing[],
+  chochClose = false,
+): {
   trend: "up" | "down" | "range";
   events: StructureEvent[];
 } {
@@ -252,8 +263,11 @@ function detectStructure(candles: Candle[], swings: Swing[]): {
   let lastLow = swings.find((s) => s.type === "low");
   for (let i = 1; i < swings.length; i++) {
     const s = swings[i]!;
+    const bar = candles[s.index];
     if (s.type === "high" && lastHigh) {
-      if (s.price > lastHigh.price) {
+      const wickBreak = s.price > lastHigh.price;
+      const closeBreak = bar != null && bar.close > lastHigh.price;
+      if (wickBreak && (!chochClose || closeBreak)) {
         const kind = trend === "down" ? "CHoCH" : "BOS";
         events.push({
           time: s.time,
@@ -267,7 +281,9 @@ function detectStructure(candles: Candle[], swings: Swing[]): {
       lastHigh = s;
     }
     if (s.type === "low" && lastLow) {
-      if (s.price < lastLow.price) {
+      const wickBreak = s.price < lastLow.price;
+      const closeBreak = bar != null && bar.close < lastLow.price;
+      if (wickBreak && (!chochClose || closeBreak)) {
         const kind = trend === "up" ? "CHoCH" : "BOS";
         events.push({
           time: s.time,
@@ -508,6 +524,8 @@ function buildSetup(
   liq: LiquidityPool[],
   range: { high: number; low: number; eq: number },
   atr: number,
+  micro: MicroSnap,
+  hvn: number[],
 ): LocalSetup {
   const bullZ =
     nearestZone(
@@ -553,14 +571,19 @@ function buildSetup(
       };
     }
     const entry = (zone.top + zone.bottom) / 2;
-    const stop = Math.min(zone.bottom, entry) - atr * 0.75;
+    const stop = Math.min(zone.bottom, entry) - atr * 1.15;
     const buyLiq = liq.filter((l) => l.side === "buy").sort((a, b) => a.price - b.price);
-    const targets = [range.eq, buyLiq.at(-1)?.price ?? range.high, range.high].filter(
+    const structural = [range.eq, buyLiq.at(-1)?.price ?? range.high, range.high].filter(
       (t, i, a) => t > entry && a.indexOf(t) === i,
     );
+    const stall = nearestStall(entry, 1, atr, micro.nodes, hvn);
+    const targets = stall
+      ? [stall.price, ...structural.filter((t) => t > stall.price + atr * 0.25)]
+      : structural;
     return {
-      thesis:
-        pd === "premium"
+      thesis: stall
+        ? `Лонг от зоны. TP1 — ${stall.from === "hvn" ? "кластер HVN" : "infusion"} ${stall.price.toFixed(last.close > 50 ? 2 : 5)} (остановка объёма CME/профиля).`
+        : pd === "premium"
           ? "Структура вверх. Лимит в дисконт — цена ещё не в зоне, ордер уже рабочий."
           : "Лонг от дисконта / бычьего блока. Реакция в зоне, не догон.",
       entry,
@@ -581,14 +604,19 @@ function buildSetup(
       };
     }
     const entry = (zone.top + zone.bottom) / 2;
-    const stop = Math.max(zone.top, entry) + atr * 0.75;
+    const stop = Math.max(zone.top, entry) + atr * 1.15;
     const sellLiq = liq.filter((l) => l.side === "sell").sort((a, b) => b.price - a.price);
-    const targets = [range.eq, sellLiq.at(-1)?.price ?? range.low, range.low].filter(
+    const structural = [range.eq, sellLiq.at(-1)?.price ?? range.low, range.low].filter(
       (t, i, a) => t < entry && a.indexOf(t) === i,
     );
+    const stall = nearestStall(entry, -1, atr, micro.nodes, hvn);
+    const targets = stall
+      ? [stall.price, ...structural.filter((t) => t < stall.price - atr * 0.25)]
+      : structural;
     return {
-      thesis:
-        pd === "discount"
+      thesis: stall
+        ? `Шорт от зоны. TP1 — ${stall.from === "hvn" ? "кластер HVN" : "infusion"} ${stall.price.toFixed(last.close > 50 ? 2 : 5)} (остановка объёма CME/профиля).`
+        : pd === "discount"
           ? "Структура вниз. Лимит в премию — цена ещё не в зоне, ордер уже рабочий."
           : "Шорт из премии / медвежьего блока. Реакция в зоне, не догон.",
       entry,
@@ -771,6 +799,12 @@ function buildStory(
   chain.push({ because: micro.because, therefore: micro.therefore });
   if (micro.infusion) chain.push({ because: micro.infusion.because, therefore: micro.infusion.therefore });
   if (micro.splash) chain.push({ because: micro.splash.because, therefore: micro.splash.therefore });
+  if (setup.targets[0] != null && /infusion|HVN|кластер/i.test(setup.thesis)) {
+    chain.push({
+      because: `Первая цель ${fmt(setup.targets[0])} — узел infusion по ходу: там объём уже тормозил цену`,
+      therefore: "Тейк в остановку, не через неё. Сплэш в эту зону — часто добивание стопов перед паузой, не новая цель.",
+    });
+  }
 
   const swept = liq.find((l) => l.swept);
   if (swept) {
@@ -879,16 +913,29 @@ function buildStory(
   return { now, chain: chain.slice(0, 6), means, ifHolds, ifBreaks, doing, waiting, leadsTo };
 }
 
+export interface AnalyzeOpts {
+  swing?: number;
+  chochClose?: boolean;
+  symbol?: string;
+  kind?: MarketKind;
+  dxyChange?: number | null;
+  yieldChange?: number | null;
+  oilChange?: number | null;
+  halt?: NewsHalt | null;
+}
+
 export function analyzeMarket(
   candles: Candle[],
   options: OptionsSnapshot | null,
   trades?: { price: number; qty: number; buy: boolean }[],
+  opts?: AnalyzeOpts,
 ): SmcSnapshot {
   const last = candles[candles.length - 1]!;
   const prev = candles[candles.length - 2] ?? last;
   const atr = avgTrueRange(candles);
-  const swings = findSwings(candles);
-  const { trend, events } = detectStructure(candles, swings);
+  const n = Math.min(5, Math.max(2, opts?.swing ?? SWING));
+  const swings = findSwings(candles, n, n);
+  const { trend, events } = detectStructure(candles, swings, Boolean(opts?.chochClose));
   const fvgs = detectFvgs(candles);
   const orderBlocks = detectOrderBlocks(candles, events);
   const liquidity = detectLiquidity(candles, swings, atr);
@@ -898,6 +945,13 @@ export function analyzeMarket(
   const flow = buildFlow(candles, swings, atr);
   const clusters = (trades?.length ? clustersFromTrades(trades) : null) ?? clustersFromCandles(candles);
   const micro = buildMicro(candles);
+  const auction = buildAuction(candles, opts?.kind);
+  const corr = buildCorr(opts?.symbol ?? "", {
+    dxyChange: opts?.dxyChange,
+    yieldChange: opts?.yieldChange,
+    oilChange: opts?.oilChange,
+  });
+  const ivNews = buildIvNews(opts?.halt, options);
   const vp = {
     poc: clusters.poc,
     vah: clusters.vah,
@@ -1097,6 +1151,29 @@ export function analyzeMarket(
               : "neutral",
     note: `${micro.because}${micro.infusion ? ` ${micro.infusion.because}` : ""}${micro.splash ? ` ${micro.splash.because}` : ""}`,
   });
+  confluence.push({
+    id: "auction",
+    layer: "IB / ORB",
+    status:
+      auction.orb === "failed-high" || auction.orb === "broke-low"
+        ? "against"
+        : auction.orb === "failed-low" || auction.orb === "broke-high"
+          ? "for"
+          : "neutral",
+    note: `${auction.because} ${auction.therefore}`,
+  });
+  confluence.push({
+    id: "corr",
+    layer: "Корреляция",
+    status: corr.status,
+    note: corr.note,
+  });
+  confluence.push({
+    id: "iv",
+    layer: "IV / гамма",
+    status: ivNews.phase === "crush" || ivNews.phase === "elevated" ? "against" : ivNews.phase === "building" ? "neutral" : "neutral",
+    note: `${ivNews.because} ${ivNews.therefore}`,
+  });
 
   const forCount = confluence.filter((c) => c.status === "for").length;
   const againstCount = confluence.filter((c) => c.status === "against").length;
@@ -1114,6 +1191,8 @@ export function analyzeMarket(
     liquidity,
     dealingRange,
     atr,
+    micro,
+    clusters.hvn,
   );
   const story = buildStory(
     last,
@@ -1161,6 +1240,9 @@ export function analyzeMarket(
     flow,
     clusters,
     micro,
+    auction,
+    corr,
+    ivNews,
     killzone: kz,
     confluence,
     score,
@@ -1217,8 +1299,13 @@ export function compactForAi(symbol: string, timeframe: string, snap: SmcSnapsho
       footprint: snap.micro.footprint,
       infusion: snap.micro.infusion,
       splash: snap.micro.splash,
+      nodes: snap.micro.nodes.filter((n) => n.kind === "infusion").slice(-6),
+      cmeTicker: snap.micro.cmeTicker,
       therefore: snap.micro.therefore,
     },
+    auction: snap.auction,
+    corr: snap.corr,
+    ivNews: snap.ivNews,
     confluence: snap.confluence,
     localSetup: snap.localSetup,
     story: snap.story,

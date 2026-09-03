@@ -25,6 +25,9 @@ export interface Candle {
   close: number;
   volume: number;
   buyVolume?: number;
+  /** CME/Yahoo futures volume (delayed), when mapped onto this bar. */
+  cmeVolume?: number;
+  cmeTicker?: string;
 }
 
 export interface OptionsRow {
@@ -68,4 +71,5 @@ export interface MarketPayload {
   options: OptionsSnapshot | null;
   trades?: { price: number; qty: number; buy: boolean }[];
   staleSec?: number;
+  cme?: { ticker: string; delayed: true; bars: number } | null;
 }
