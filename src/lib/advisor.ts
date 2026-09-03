@@ -19,7 +19,7 @@ export interface Advice {
   covers: number | null;
 }
 
-export function advise(snap: Pick<SmcSnapshot, "bias" | "localSetup" | "margin" | "wyckoff" | "patterns" | "auction" | "ivNews" | "micro">, spec: SymbolSpec, spread = spec.spread): Advice {
+export function advise(snap: Pick<SmcSnapshot, "bias" | "localSetup" | "margin" | "wyckoff" | "patterns" | "auction" | "ivNews" | "micro" | "divergences" | "flow">, spec: SymbolSpec, spread = spec.spread): Advice {
   const roundTrip = spread * 2;
   const entry = snap.localSetup.entry;
   const stop = snap.localSetup.stop;
@@ -200,7 +200,48 @@ export function advise(snap: Pick<SmcSnapshot, "bias" | "localSetup" | "margin" 
       covers,
     };
   }
+  const div = snap.divergences?.[0];
+  if (div?.kind === "regular" && ((side === "long" && div.side === "bear") || (side === "short" && div.side === "bull"))) {
+    return {
+      action: "wait",
+      title: div.side === "bear" ? "Ждать: медвежья дивергенция" : "Ждать: бычья дивергенция",
+      because: div.note,
+      therefore: "Цена обновила край, сила нет. Лимитку против дивера не ставим, пока не снимут или не закроют час в нашу сторону.",
+      spread,
+      roundTrip,
+      grossRisk,
+      grossReward,
+      netRisk,
+      netReward,
+      netRr,
+      covers,
+    };
+  }
+  const cvd = snap.flow?.cvdDiv;
+  if (cvd && ((side === "long" && cvd.side === "bear") || (side === "short" && cvd.side === "bull"))) {
+    return {
+      action: "wait",
+      title: "Ждать: дивергенция CVD",
+      because: cvd.because,
+      therefore: cvd.therefore,
+      spread,
+      roundTrip,
+      grossRisk,
+      grossReward,
+      netRisk,
+      netReward,
+      netRr,
+      covers,
+    };
+  }
   const inf = snap.micro?.infusion;
+  const hid = snap.divergences?.find((d) => d.kind === "hidden");
+  const hidNote =
+    hid && ((hid.side === "bull" && side === "long") || (hid.side === "bear" && side === "short"))
+      ? " Скрытая дивергенция по стороне — откат, не разворот."
+      : hid && ((hid.side === "bear" && side === "long") || (hid.side === "bull" && side === "short"))
+        ? " Скрытая дивергенция против — лимит, не рынок."
+        : "";
   const infNote = inf
     ? inf.side === (side === "long" ? "sell" : "buy")
       ? " Цель — вливание Каташева (остановка)."
@@ -219,7 +260,7 @@ export function advise(snap: Pick<SmcSnapshot, "bias" | "localSetup" | "margin" 
     action: side,
     title: side === "long" ? "Лимит на покупку в зоне" : "Лимит на продажу в зоне",
     because: `Вход ${fmt(entry)}, стоп ${fmt(stop)}, цель ${fmt(target)}. Круг ${fmt(roundTrip)}.`,
-    therefore: `Чистый RR ${netRr?.toFixed(2)}. Ордер вешаем заранее, пока цена идёт к зоне.${marginNote}${patNote}${infNote}`,
+    therefore: `Чистый RR ${netRr?.toFixed(2)}. Ордер вешаем заранее, пока цена идёт к зоне.${marginNote}${patNote}${infNote}${hidNote}`,
     spread,
     roundTrip,
     grossRisk,
