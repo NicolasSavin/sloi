@@ -344,7 +344,8 @@ export function playAligned(
       : action === "long"
         ? last > prev
         : last < prev;
-  if (forUs > vs && forUs >= 22 && moved) {
+  const after = play.phase === "live" || play.phase === "after";
+  if (after && forUs > vs + 8 && forUs >= 25 && moved) {
     const boost = forUs >= 40 ? 12 : forUs >= 30 ? 8 : 6;
     return {
       ok: true,
@@ -372,14 +373,17 @@ export function playCuts(
   action: "long" | "short",
 ): { cut: boolean; note: string } {
   if (!play || play.kind === "none") return { cut: false, note: "" };
+  if (play.phase !== "live" && play.phase !== "after") {
+    return { cut: false, note: "" };
+  }
   const odds = sideOdds(id, play);
   if (odds.long + odds.short < 20) return { cut: false, note: "" };
   const forUs = action === "long" ? odds.long : odds.short;
   const vs = action === "long" ? odds.short : odds.long;
-  if (vs > forUs + 2) {
+  if (vs > forUs + 8) {
     return {
       cut: true,
-      note: `${action === "long" ? "Лонг" : "Шорт"} ${forUs}% слабее, чем ${vs}% в другую сторону. Этот вход режу.`,
+      note: `${action === "long" ? "Лонг" : "Шорт"} ${forUs}% слабее, чем ${vs}% после события. Этот вход режу.`,
     };
   }
   return { cut: false, note: "" };
