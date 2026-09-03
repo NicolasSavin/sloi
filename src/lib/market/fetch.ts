@@ -571,6 +571,7 @@ async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }
     return { ...r.market, wind, advice, htfBias: ctx.htfBias, d1Bias: ctx.d1Bias };
   });
   const { applyHold, seedHold, applyCool } = await import("@/lib/signal-hold");
+  const { applyThemeBook } = await import("@/lib/theme-book");
   try {
     const { getArchiveAsync } = await import("@/lib/archive-store");
     seedHold(await getArchiveAsync());
@@ -584,7 +585,7 @@ async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }
   } catch {
     /* */
   }
-  const held = applyCool(applyHold(markets), stops);
+  const held = applyThemeBook(applyCool(applyHold(markets), stops));
   const leadMarket = pickLead(held);
   const leadRow = rows.find((r) => r.spec.id === leadMarket.spec.id) ?? rows[0]!;
   const { parseTgChannel } = await import("@/lib/tg-options");
