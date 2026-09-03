@@ -9,6 +9,14 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.8.4",
+    d: "2026-09-03",
+    items: [
+      "Splash и вливание считаем как FxForTrader ProVolume Cluster Search: порог объёма свой на ТФ, толчок vs остановка",
+      "Тейк по-прежнему во вливание / HVN, сплэш не цель",
+    ],
+  },
+  {
     v: "1.8.3",
     d: "2026-09-03",
     items: [

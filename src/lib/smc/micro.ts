@@ -83,25 +83,36 @@ export function buildMicro(candles: Candle[]): MicroSnap {
   const sell = Math.max(0, last.volume - buy);
   const delta = deltaOf(last);
   const vols = use.map((c) => barVolume(c));
-  const avg = vols.reduce((a, b) => a + b, 0) / Math.max(vols.length, 1);
-  const span = last.high - last.low || 1e-9;
-  const avgSpan = use.reduce((a, c) => a + (c.high - c.low), 0) / Math.max(use.length, 1);
-  const atrLike = avgSpan || span;
+  const sorted = [...vols].sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)] || 1;
+  const p80 = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.8))] || median;
+  const thresh = Math.max(median * 1.85, p80);
+  const spans = use.map((c) => c.high - c.low);
+  const spanMed = [...spans].sort((a, b) => a - b)[Math.floor(spans.length / 2)] || 1e-9;
+  const avgSpan = spans.reduce((a, b) => a + b, 0) / Math.max(spans.length, 1);
+  const atrLike = spanMed || avgSpan;
   const cmeTicker = last.cmeTicker ?? candles.find((c) => c.cmeTicker)?.cmeTicker ?? null;
 
+  // ProVolume Cluster Search: порог свой на инструмент/ТФ (медиана+80%). 
+  // Крупный объём + узкий бар + слабая дельта = остановка (infusion / вливание).
+  // Крупный объём + широкий бар + сильная дельта = толчок (splash).
   const raw: VolumeNode[] = [];
   for (const c of use) {
     const barSpan = c.high - c.low || 1e-9;
     const d = deltaOf(c);
     const v = barVolume(c);
-    if (v > avg * 1.8 && barSpan < avgSpan * 0.75) {
+    if (v < thresh) continue;
+    const rangeRatio = barSpan / spanMed;
+    const deltaShare = Math.abs(d) / v;
+    const body = Math.abs(c.close - c.open) / barSpan;
+    if (rangeRatio < 0.88 && deltaShare < 0.48) {
       raw.push({
         price: (c.high + c.low) / 2,
         side: d >= 0 ? "buy" : "sell",
         kind: "infusion",
         time: c.time,
       });
-    } else if (v > avg * 2.2 && barSpan > avgSpan * 1.35) {
+    } else if (rangeRatio > 1.22 && deltaShare > 0.32 && body > 0.5) {
       raw.push({
         price: c.close,
         side: c.close >= c.open ? "buy" : "sell",
@@ -121,41 +132,41 @@ export function buildMicro(candles: Candle[]): MicroSnap {
   }
 
   let infusion: MicroSnap["infusion"] = null;
-  if (barVolume(last) > avg * 2 && span < avgSpan * 0.7) {
-    const side = delta >= 0 ? "buy" : "sell";
+  const lastInf = [...nodes].reverse().find((n) => n.kind === "infusion");
+  if (lastInf) {
     infusion = {
-      price: last.close,
-      side,
-      because: `Infusion${cme ? " CME" : ""}: объём ${Math.round(barVolume(last))} при узком диапазоне — лимит впитал агрессию.`,
+      price: lastInf.price,
+      side: lastInf.side,
+      because: `Вливание (Cluster Search): объём выше порога ТФ (${Math.round(thresh)}), бар узкий, дельта слабая — лимит впитал удар.`,
       therefore:
-        side === "buy"
-          ? "Остановка снизу (набор). Цель шорта — сюда. Лонг — от этой лужи, не сквозь неё."
-          : "Остановка сверху (раздача). Цель лонга — сюда. Шорт — от этой лужи, не в середину.",
+        lastInf.side === "buy"
+          ? "Остановка снизу. Цель шорта — сюда. Лонг от этой лужи, не сквозь неё."
+          : "Остановка сверху. Цель лонга — сюда. Шорт от лужи, не в середину.",
     };
   }
 
   let splash: MicroSnap["splash"] = null;
-  if (barVolume(last) > avg * 2.2 && span > avgSpan * 1.4) {
-    const side = last.close >= last.open ? "buy" : "sell";
+  const lastSplash = [...nodes].reverse().find((n) => n.kind === "splash");
+  if (lastSplash) {
     splash = {
-      price: last.close,
-      side,
-      because: `Splash${cme ? " CME" : ""}: широкий бар и всплеск объёма — агрессивный вынос.`,
+      price: lastSplash.price,
+      side: lastSplash.side,
+      because: `Сплэш (Cluster Search): объём выше порога и бар широкий — объём толкнул цену (стопы или старт).`,
       therefore:
-        side === "buy"
-          ? "Сплэш вверх: стопы или старт. Не цель. Ждём закрытие."
-          : "Сплэш вниз: стопы или паника. Не цель и не догон середины бара.",
+        lastSplash.side === "buy"
+          ? "Вынос вверх. Не цель. Ждём закрытие и возврат."
+          : "Вынос вниз. Не цель и не догон середины бара.",
     };
   }
 
   const src = tape ? "лента" : cme ? `CME ${cmeTicker ?? ""} задержка ~10м` : "оценка по свече";
-  const because = `VWAP ${vwap.toFixed(last.close > 50 ? 2 : 5)}. Объём: ${src}. Δ ${delta >= 0 ? "+" : ""}${delta.toFixed(0)}.`;
+  const because = `VWAP ${vwap.toFixed(last.close > 50 ? 2 : 5)}. Объём: ${src}. Порог Cluster Search ${Math.round(thresh)}. Δ ${delta >= 0 ? "+" : ""}${delta.toFixed(0)}.`;
   const therefore = cme
-    ? "Кластеры и infusion считаем по объёму фьючерса Yahoo/CME (не скальп). Тейк — в остановку, опцион — как магнит OI."
+    ? "Splash/infusion как у FxForTrader ProVolume: крупный объём либо толкает (splash), либо останавливает (вливание). Тейк — в остановку."
     : where === "above"
-      ? "Выше VWAP крупные лимиты чаще защищают лонг; тейк — в чужой infusion."
+      ? "Выше VWAP лимиты чаще защищают лонг; тейк — в чужое вливание."
       : where === "below"
-        ? "Ниже VWAP — дисконт. Лонг от VAL/VWAP, цель — infusion сверху."
+        ? "Ниже VWAP — дисконт. Лонг от VAL/VWAP, цель — вливание сверху."
         : "Цена в value. Крупняк спокоен.";
 
   return {

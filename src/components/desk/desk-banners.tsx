@@ -210,7 +210,7 @@ export function FlowBanner({ snap }: { snap: SmcSnapshot }) {
   return (
     <div className="mx-4 mt-2 rounded-lg bg-elevated/70 px-4 py-3">
       <p className="font-mono text-[10px] tracking-[0.18em] text-accent">
-        ОБЪЁМ · ДЕЛЬТА · CVD {f.source === "tape" ? "· ЛЕНТА" : snap.micro.footprint.source === "cme-delayed" ? `· CME ${snap.micro.cmeTicker ?? ""}` : "· ОЦЕНКА"}
+        ОБЪЁМ · CLUSTER SEARCH {f.source === "tape" ? "· ЛЕНТА" : snap.micro.footprint.source === "cme-delayed" ? `· CME ${snap.micro.cmeTicker ?? ""}` : "· ОЦЕНКА"}
       </p>
       <p className="mt-1 text-sm font-medium">
         дельта {f.lastDelta >= 0 ? "+" : ""}
@@ -221,7 +221,7 @@ export function FlowBanner({ snap }: { snap: SmcSnapshot }) {
       <p className="mt-1 text-xs leading-relaxed text-muted">
         {snap.localSetup.thesis.includes("infusion")
           ? `${snap.localSetup.thesis} Сплэш — не цель.`
-          : (f.cvdDiv?.therefore ?? ev?.therefore ?? "Столбики объёма красятся дельтой. Тейк — в чужой infusion (остановка), не через него.")}
+          : (f.cvdDiv?.therefore ?? ev?.therefore ?? snap.micro.therefore ?? "Крупный объём либо толкает (splash), либо останавливает (вливание). Тейк — во вливание.")}
       </p>
     </div>
   );

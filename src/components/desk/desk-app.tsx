@@ -229,7 +229,6 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
               <span>Только закрытие</span>
               <Switch checked={chochClose} onCheckedChange={setChochClose} aria-label="CHoCH только закрытием" />
             </label>
-            </div>
           </div>
         </aside>
         <section className="flex min-w-0 flex-col">
