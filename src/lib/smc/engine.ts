@@ -6,6 +6,7 @@ import { buildMicro, nearestStall, type MicroSnap } from "@/lib/smc/micro";
 import { buildAuction, type AuctionSnap } from "@/lib/smc/auction";
 import { buildCorr, type CorrSnap } from "@/lib/corr";
 import { buildIvNews, type IvNewsSnap } from "@/lib/iv-news";
+import { liveClusters } from "@/lib/broker-tape";
 import type { NewsHalt } from "@/lib/calendar";
 
 export type Bias = "bullish" | "bearish" | "range";
@@ -944,7 +945,7 @@ export function analyzeMarket(
   const patterns = detectPatterns(swings, atr, candles);
   const flow = buildFlow(candles, swings, atr);
   const clusters = (trades?.length ? clustersFromTrades(trades) : null) ?? clustersFromCandles(candles);
-  const micro = buildMicro(candles);
+  const micro = buildMicro(candles, opts?.symbol ? liveClusters(opts.symbol) : []);
   const auction = buildAuction(candles, opts?.kind);
   const corr = buildCorr(opts?.symbol ?? "", {
     dxyChange: opts?.dxyChange,

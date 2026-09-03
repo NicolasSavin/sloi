@@ -55,7 +55,7 @@ export function nearestStall(entry: number, dir: 1 | -1, atr: number, nodes: Vol
   return { price, from: from as "infusion" | "hvn" };
 }
 
-export function buildMicro(candles: Candle[]): MicroSnap {
+export function buildMicro(candles: Candle[], live: VolumeNode[] = []): MicroSnap {
   const use = candles.slice(-80);
   let pv = 0;
   let vv = 0;
@@ -130,6 +130,17 @@ export function buildMicro(candles: Candle[]): MicroSnap {
       near.side = n.side;
     } else nodes.push({ ...n });
   }
+  if (live.length) {
+    const merged: VolumeNode[] = live.map((n) => ({ ...n }));
+    for (const n of nodes) {
+      if (!merged.some((x) => x.kind === n.kind && Math.abs(x.price - n.price) < atrLike * 0.35)) merged.push(n);
+    }
+    nodes.length = 0;
+    nodes.push(...merged);
+  }
+
+  const step = last.time - (use.at(-2)?.time ?? last.time - 3600_000);
+  const fresh = (t: number) => last.time - t <= step * 5;
 
   let infusion: MicroSnap["infusion"] = null;
   const lastInf = [...nodes].reverse().find((n) => n.kind === "infusion");
@@ -146,7 +157,7 @@ export function buildMicro(candles: Candle[]): MicroSnap {
   }
 
   let splash: MicroSnap["splash"] = null;
-  const lastSplash = [...nodes].reverse().find((n) => n.kind === "splash");
+  const lastSplash = [...nodes].reverse().find((n) => n.kind === "splash" && fresh(n.time));
   if (lastSplash) {
     splash = {
       price: lastSplash.price,
@@ -159,9 +170,17 @@ export function buildMicro(candles: Candle[]): MicroSnap {
     };
   }
 
-  const src = tape ? "лента" : cme ? `CME ${cmeTicker ?? ""} задержка ~10м` : "оценка по свече";
+  const src = tape
+    ? "лента"
+    : live.length
+      ? "ProVolume с терминала"
+      : cme
+        ? `CME ${cmeTicker ?? ""} задержка ~10м`
+        : "оценка по свече";
   const because = `VWAP ${vwap.toFixed(last.close > 50 ? 2 : 5)}. Объём: ${src}. Порог Cluster Search ${Math.round(thresh)}. Δ ${delta >= 0 ? "+" : ""}${delta.toFixed(0)}.`;
-  const therefore = cme
+  const therefore = live.length
+    ? "Вливание/сплэш с графика ProVolume идут в приказ: сплэш против — ждём, тейк — во вливание."
+    : cme
     ? "Splash/infusion как у FxForTrader ProVolume: крупный объём либо толкает (splash), либо останавливает (вливание). Тейк — в остановку."
     : where === "above"
       ? "Выше VWAP лимиты чаще защищают лонг; тейк — в чужое вливание."

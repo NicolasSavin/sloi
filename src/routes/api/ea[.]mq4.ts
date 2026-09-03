@@ -10,8 +10,9 @@ function readyEa() {
   src = src.replace('#property version   "4.18"', '#property version   "4.20"');
   src = src.replace('#property version   "4.34"', '#property version   "4.37"');
   src = src.replace('#property version   "4.35"', '#property version   "4.37"');
-  src = src.replace('#property version   "4.36"', '#property version   "4.40"');
-  src = src.replace('#property version   "4.37"', '#property version   "4.40"');
+  src = src.replace('#property version   "4.36"', '#property version   "4.41"');
+  src = src.replace('#property version   "4.37"', '#property version   "4.41"');
+  src = src.replace('#property version   "4.40"', '#property version   "4.41"');
   src = src.replace(
     "      string s = parts[i];\n      if(StringLen(g_suffix) > 0 && StringFind(s, g_suffix) < 0)",
     "      string s = parts[i];\n      if(StringLen(s) < 3) continue;\n      if(StringLen(g_suffix) > 0 && StringFind(s, g_suffix) < 0)",

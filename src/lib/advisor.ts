@@ -19,7 +19,7 @@ export interface Advice {
   covers: number | null;
 }
 
-export function advise(snap: Pick<SmcSnapshot, "bias" | "localSetup" | "margin" | "wyckoff" | "patterns" | "auction" | "ivNews">, spec: SymbolSpec, spread = spec.spread): Advice {
+export function advise(snap: Pick<SmcSnapshot, "bias" | "localSetup" | "margin" | "wyckoff" | "patterns" | "auction" | "ivNews" | "micro">, spec: SymbolSpec, spread = spec.spread): Advice {
   const roundTrip = spread * 2;
   const entry = snap.localSetup.entry;
   const stop = snap.localSetup.stop;
@@ -167,6 +167,45 @@ export function advise(snap: Pick<SmcSnapshot, "bias" | "localSetup" | "margin" 
       covers,
     };
   }
+  const splash = snap.micro?.splash;
+  if (splash && ((side === "long" && splash.side === "sell") || (side === "short" && splash.side === "buy"))) {
+    return {
+      action: "wait",
+      title: "Ждать: сплэш Каташева против",
+      because: splash.because,
+      therefore: "Объём толкает в другую сторону. Лимитку не ставим, пока сплэш не закроется.",
+      spread,
+      roundTrip,
+      grossRisk,
+      grossReward,
+      netRisk,
+      netReward,
+      netRr,
+      covers,
+    };
+  }
+  if (splash && ((side === "long" && splash.side === "buy") || (side === "short" && splash.side === "sell"))) {
+    return {
+      action: "wait",
+      title: "Ждать: не догонять сплэш",
+      because: splash.because,
+      therefore: "Вынос объёмом. Каташев: сплэш не цель. Лимит после возврата в зону, не рынок в середину бара.",
+      spread,
+      roundTrip,
+      grossRisk,
+      grossReward,
+      netRisk,
+      netReward,
+      netRr,
+      covers,
+    };
+  }
+  const inf = snap.micro?.infusion;
+  const infNote = inf
+    ? inf.side === (side === "long" ? "sell" : "buy")
+      ? " Цель — вливание Каташева (остановка)."
+      : " Вливание по стороне входа — от лужи, не сквозь."
+    : "";
   const fight = snap.patterns?.find((p) => (p.side === "bear" && side === "long") || (p.side === "bull" && side === "short"));
   const marginNote =
     snap.margin?.where === "upper" && side === "long"
@@ -180,7 +219,7 @@ export function advise(snap: Pick<SmcSnapshot, "bias" | "localSetup" | "margin" 
     action: side,
     title: side === "long" ? "Лимит на покупку в зоне" : "Лимит на продажу в зоне",
     because: `Вход ${fmt(entry)}, стоп ${fmt(stop)}, цель ${fmt(target)}. Круг ${fmt(roundTrip)}.`,
-    therefore: `Чистый RR ${netRr?.toFixed(2)}. Ордер вешаем заранее, пока цена идёт к зоне.${marginNote}${patNote}`,
+    therefore: `Чистый RR ${netRr?.toFixed(2)}. Ордер вешаем заранее, пока цена идёт к зоне.${marginNote}${patNote}${infNote}`,
     spread,
     roundTrip,
     grossRisk,

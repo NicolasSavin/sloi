@@ -108,7 +108,7 @@ export function CabinetGate() {
         </Button>
         {err ? <p className="mt-3 text-sm text-bear">{err}</p> : null}
         <p className="mt-6 text-xs leading-relaxed text-dim">
-          Ниже на странице — шаги: ключ, скачать 4.40, каталог Experts, WebRequest, как проверить «сайт ок ключ» и как
+          Ниже на странице — шаги: ключ, скачать 4.41, каталог Experts, WebRequest, как проверить «сайт ок ключ» и как
           жать купить/закрыть с сайта.
         </p>
       </div>
@@ -156,7 +156,7 @@ export function CabinetGate() {
       <div className="panel-volume rounded-xl p-5">
         <p className="font-mono text-xs tracking-[0.2em] text-accent">УПРАВЛЕНИЕ С САЙТА</p>
         <p className="mt-2 text-sm text-muted">
-          Кнопка кладёт приказ в вашу ленту. Исполняет только ваш SLOI_Desk 4.40 с этим ключом, не чужой терминал.
+          Кнопка кладёт приказ в вашу ленту. Исполняет только ваш SLOI_Desk 4.41 с этим ключом, не чужой терминал.
         </p>
         <label className="mt-4 block">
           <span className="text-xs text-dim">пара для купить / продать / закрыть</span>
@@ -199,7 +199,7 @@ export function CabinetGate() {
       <div className="panel-volume rounded-xl p-5">
         <p className="font-mono text-xs tracking-[0.2em] text-accent">СОВЕТНИК С ВАШИМ КЛЮЧОМ</p>
         <p className="mt-2 mb-4 text-sm text-muted">
-          Скачайте 4.40 — ключ уже внутри. В WebRequest тот же адрес сайта.
+          Скачайте 4.41 — ключ уже внутри. В WebRequest тот же адрес сайта.
         </p>
         <SaveExpert settings={settings} />
       </div>

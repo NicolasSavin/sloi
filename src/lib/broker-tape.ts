@@ -1,3 +1,5 @@
+import type { VolumeNode } from "@/lib/smc/micro";
+
 export interface BrokerTick {
   id: string;
   bid: number;
@@ -49,6 +51,7 @@ type Room = {
   ticks: Map<string, BrokerTick>;
   books: Map<string, BrokerBook>;
   account: BrokerAccount | null;
+  clusters: Map<string, { at: number; nodes: VolumeNode[] }>;
 };
 
 const g = globalThis as typeof globalThis & { __sloiRooms__?: Map<string, Room> };
@@ -60,7 +63,7 @@ function room(tenant = "legacy"): Room {
   const map = rooms();
   let r = map.get(tenant);
   if (!r) {
-    r = { ticks: new Map(), books: new Map(), account: null };
+    r = { ticks: new Map(), books: new Map(), account: null, clusters: new Map() };
     map.set(tenant, r);
   }
   return r;
@@ -87,6 +90,7 @@ export function ingestBrokerTape(text: string, tenant = "legacy") {
   const r = room(tenant);
   const pos: BrokerPos[] = [];
   let nextAcc: BrokerAccount | null = null;
+  const batch = new Map<string, VolumeNode[]>();
   for (const raw of text.split(/\n/)) {
     const line = raw.trim();
     if (!line || line.startsWith("#")) continue;
@@ -136,6 +140,17 @@ export function ingestBrokerTape(text: string, tenant = "legacy") {
       r.books.set(id, { id, at, bids, asks, iceberg: icebergOf(bids, asks) });
       continue;
     }
+    if (p[0] === "CLUSTER" && p.length >= 5) {
+      const id = (p[1] ?? "").replace(/[^A-Za-z]/g, "").toUpperCase();
+      const kind = p[2] === "SPLASH" || p[2] === "splash" ? "splash" : "infusion";
+      const price = Number(p[3]);
+      const side = p[4] === "SELL" || p[4] === "sell" ? "sell" : "buy";
+      if (!id || !Number.isFinite(price) || price <= 0) continue;
+      const list = batch.get(id) ?? [];
+      list.push({ price, side, kind, time: at });
+      batch.set(id, list);
+      continue;
+    }
     if (p.length < 3) continue;
     const id = p[0]!.replace(/[^A-Za-z]/g, "").toUpperCase();
     const bid = Number(p[1]);
@@ -149,6 +164,7 @@ export function ingestBrokerTape(text: string, tenant = "legacy") {
   } else if (pos.length && r.account && Date.now() - r.account.at < 120_000) {
     r.account = { ...r.account, at, positions: pos.slice(0, 24) };
   }
+  for (const [id, nodes] of batch) r.clusters.set(id, { at, nodes: nodes.slice(-16) });
   return r.account;
 }
 
@@ -177,6 +193,16 @@ export function brokerAccount(tenant = "legacy"): BrokerAccount | null {
   if (!a) return null;
   if (Date.now() - a.at > 180_000) return null;
   return a;
+}
+
+export function liveClusters(id: string): VolumeNode[] {
+  const now = Date.now();
+  const out: VolumeNode[] = [];
+  for (const r of rooms().values()) {
+    const c = r.clusters.get(id);
+    if (c && now - c.at < 180_000) out.push(...c.nodes);
+  }
+  return out;
 }
 
 export function snapshotBroker(tenant = "legacy") {

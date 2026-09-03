@@ -23,7 +23,7 @@ export function AccountBanner({
         <p className="font-mono text-[10px] tracking-[0.18em] text-accent">СЧЁТ MT4</p>
         <p className="mt-1 text-sm font-medium">советник молчит</p>
         <p className="mt-1 text-xs leading-relaxed text-muted">
-          Войдите в кабинет и повесьте SLOI_Desk 4.40 с вашим ключом. Иначе стол не знает, чей это счёт, и ничего не
+          Войдите в кабинет и повесьте SLOI_Desk 4.41 с вашим ключом. Иначе стол не знает, чей это счёт, и ничего не
           показывает. Сервис → Настройки → Советники → WebRequest: sloi-kohl.vercel.app
         </p>
       </div>
