@@ -336,6 +336,7 @@ export function gateAdvice(
     hasZone?: boolean;
     premiumDiscount?: "premium" | "discount" | "equilibrium";
     play?: MacroPlay;
+    changePct?: number;
   },
 ): Advice {
   const base = ctx?.id
@@ -355,6 +356,7 @@ export function gateAdvice(
         hasZone: ctx.hasZone,
         premiumDiscount: ctx.premiumDiscount,
         play: ctx.play,
+        changePct: ctx.changePct,
       })
     : advice;
   if (halt?.active && !ctx?.id) {
@@ -385,7 +387,13 @@ export function gateAdvice(
     : "";
   const play = ctx?.play;
   const align = ctx?.id && (base.action === "long" || base.action === "short")
-    ? playAligned(ctx.id, play, base.action)
+    ? playAligned(
+        ctx.id,
+        play,
+        base.action,
+        ctx.last,
+        ctx.changePct != null && ctx.last ? ctx.last / (1 + ctx.changePct / 100) : undefined,
+      )
     : { ok: false, boost: 0, note: "" };
   const caution = againstWall
     ? ` Опцион против — лимитка есть, размер не раздуваем.`

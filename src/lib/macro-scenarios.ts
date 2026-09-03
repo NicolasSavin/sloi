@@ -1,6 +1,6 @@
 import type { NewsHalt } from "@/lib/calendar";
 
-export type MacroKind = "fomc" | "powell" | "ecb" | "boj" | "nfp" | "cpi" | "us" | "none";
+export type MacroKind = "fomc" | "powell" | "ecb" | "boe" | "boj" | "nfp" | "cpi" | "us" | "none";
 export type MacroPhase = "before" | "live" | "after" | "quiet";
 
 export interface MacroPath {
@@ -45,10 +45,11 @@ const EMPTY: MacroPlay = {
 
 export function kindOfEvent(title: string): MacroKind {
   const t = title || "";
-  if (/пауэл|powell|chair|выступлен/i.test(t)) return "powell";
-  if (/fomc|фрс|ставк|federal funds|rate decision|rate statement/i.test(t) && !/окно|window/i.test(t)) return "fomc";
+  if (/пауэл|powell|chair|выступлен/i.test(t) && !/англии|лагард|boj|ецб/i.test(t)) return "powell";
+  if (/boe|банк англии|mpc |Англии/i.test(t)) return "boe";
   if (/ецб|ecb|лагард|lagarde/i.test(t)) return "ecb";
   if (/boj|банк японии/i.test(t)) return "boj";
+  if (/fomc|фрс|federal funds|powell|rate statement/i.test(t) && !/окно|window|англии|ецб|япони/i.test(t)) return "fomc";
   if (/nfp|занятост|payroll|non-farm/i.test(t) && !/окно|window/i.test(t)) return "nfp";
   if (/\bcpi\b|инфляц|pce/i.test(t) && !/окно|window/i.test(t)) return "cpi";
   if (/us data|окно сша|cpi\/nfp\/fomc|data window/i.test(t)) return "us";
@@ -176,6 +177,25 @@ function pack(
     return { kind, event, phase, headline: "ЕЦБ бьёт евро, не весь доллар.", history: "Как FOMC, но пара EUR*. Йена и золото реагируют слабее.", paths, base: paths[0]!, soon: "Окно как у ФРС: сначала шип, потом текст.", trade: "До часа после — не новые входы по EUR." };
   }
 
+  if (kind === "boe") {
+    const paths = norm([
+      { name: "как ждали", p: 48, usd: "chop", when: "5–40 мин", move: "GBP 20–40 п. шум", therefore: "Банк Англии часто «как ждали». Первый шип по фунту часто возвращают." },
+      { name: "жёстче", p: 28, usd: "down", when: "1–4 ч", move: "GBPUSD вверх, EURGBP вниз", therefore: "Ястреб BOE — фунт в спросе. EUR/GBP логичнее шорт, не лонг евро против фунта." },
+      { name: "мягче", p: 24, usd: "up", when: "1–4 ч", move: "GBPUSD вниз, EURGBP вверх", therefore: "Голубь BOE — фунт отдают. Лонг EUR/GBP только если цена уже пошла вверх, не в шип." },
+    ]);
+    return {
+      kind,
+      event,
+      phase,
+      headline: "Банк Англии бьёт фунт, не ФРС.",
+      history: "Как ставка, но GBP*. Евро и золото слушаются слабее, чем на FOMC.",
+      paths,
+      base: paths[0]!,
+      soon: phase === "live" ? "Пока решение — спред на фунте врёт." : "Смотрим фунт и EUR/GBP, не долларовый сценарий ФРС.",
+      trade: "До часа после — не рынок по GBP. Если одна сторона вероятнее и цена уже пошла туда — лимит можно.",
+    };
+  }
+
   if (kind === "boj") {
     const paths = norm([
       { name: "без сюрприза", p: 55, usd: "chop", when: "15–60 мин", move: "USDJPY 40–80 п. шум", therefore: "Банк Японии часто «ничего», йена всё равно дёргается — потом возвращают." },
@@ -272,23 +292,67 @@ export function playForEvent(
 export function playWanted(id: string, play: MacroPlay | null | undefined): "up" | "down" | "flat" {
   if (!play || play.kind === "none" || play.base.p < 35) return "flat";
   if (play.phase === "quiet") return "flat";
-  const usd = play.base.usd;
+  return wantedFromUsd(id, play.kind, play.base.usd);
+}
+
+function wantedFromUsd(id: string, kind: MacroKind, usd: MacroPath["usd"]): "up" | "down" | "flat" {
   if (usd === "chop") return "flat";
   const usdUp = usd === "up";
+  if (id === "EURGBP") {
+    if (kind === "boe") return usdUp ? "up" : "down";
+    if (kind === "ecb") return usdUp ? "down" : "up";
+    return "flat";
+  }
+  if (id === "GBPUSD" && kind === "boe") return usdUp ? "down" : "up";
   if (id === "XAUUSD" || id === "XAGUSD") return usdUp ? "down" : "up";
   if (id === "USDJPY" || id === "USDCHF" || id === "USDCAD") return usdUp ? "up" : "down";
   if (/USD$/.test(id)) return usdUp ? "down" : "up";
   if (id.startsWith("USD")) return usdUp ? "up" : "down";
-  if (/JPY/.test(id) && play.kind === "boj") return usdUp ? "down" : "up";
+  if (/JPY/.test(id) && kind === "boj") return usdUp ? "down" : "up";
+  if (/GBP/.test(id) && kind === "boe") return usdUp ? "down" : "up";
   return "flat";
+}
+
+export function sideOdds(id: string, play: MacroPlay | null | undefined): { long: number; short: number } {
+  if (!play || play.kind === "none") return { long: 0, short: 0 };
+  let long = 0;
+  let short = 0;
+  for (const x of play.paths) {
+    const w = wantedFromUsd(id, play.kind, x.usd);
+    if (w === "up") long += x.p;
+    if (w === "down") short += x.p;
+  }
+  return { long, short };
 }
 
 export function playAligned(
   id: string,
   play: MacroPlay | null | undefined,
   action: "long" | "short",
+  last?: number,
+  prev?: number,
 ): { ok: boolean; boost: number; note: string } {
-  if (!play || play.kind === "none" || play.base.usd === "chop" || play.base.p < 35) {
+  if (!play || play.kind === "none") {
+    return { ok: false, boost: 0, note: "" };
+  }
+  const odds = sideOdds(id, play);
+  const forUs = action === "long" ? odds.long : odds.short;
+  const vs = action === "long" ? odds.short : odds.long;
+  const moved =
+    last == null || prev == null || prev === last
+      ? false
+      : action === "long"
+        ? last > prev
+        : last < prev;
+  if (forUs > vs && forUs >= 22 && moved) {
+    const boost = forUs >= 40 ? 12 : forUs >= 30 ? 8 : 6;
+    return {
+      ok: true,
+      boost,
+      note: `${action === "long" ? "Лонг" : "Шорт"} ${forUs}% vs ${vs}%, цена уже пошла сюда — вход разрешаю.`,
+    };
+  }
+  if (play.base.usd === "chop" || play.base.p < 35) {
     return { ok: false, boost: 0, note: "" };
   }
   const w = playWanted(id, play);

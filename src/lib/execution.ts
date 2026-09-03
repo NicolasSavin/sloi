@@ -148,6 +148,7 @@ export function refineAdvice(
     hasZone?: boolean;
     premiumDiscount?: "premium" | "discount" | "equilibrium";
     play?: MacroPlay;
+    changePct?: number;
   },
 ): Advice {
   if (haltApplies(opts.id, opts.halt)) {
@@ -161,6 +162,9 @@ export function refineAdvice(
   if (advice.action !== "long" && advice.action !== "short") return advice;
   const sess = sessionAllows(opts.id, opts.session);
   const last = opts.last ?? opts.h1?.at(-1)?.close ?? opts.entry ?? 0;
+  const prev =
+    opts.h1?.at(-2)?.close ??
+    (opts.changePct != null && last ? last / (1 + opts.changePct / 100) : undefined);
   const entry = opts.entry ?? last;
   const stop = opts.stop ?? 0;
   const mode = fillMode(advice.action, last, entry, stop, opts.target);
@@ -168,7 +172,7 @@ export function refineAdvice(
     return { ...advice, action: "wait", title: "Поздно: цена уже убежала", therefore: "Лимитку не догоняем." };
   }
   const stack = stackGrade(advice.action, opts.htfBias, opts.d1Bias, opts.choch);
-  const align = playAligned(opts.id, opts.play, advice.action);
+  const align = playAligned(opts.id, opts.play, advice.action, last, prev);
   const score = (opts.score ?? 50) + align.boost;
   const need = align.ok ? 42 : 52;
   const h1need = align.ok ? 48 : 62;
