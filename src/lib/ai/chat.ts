@@ -6,6 +6,7 @@ import { newsAlertText } from "@/lib/calendar";
 import { analyzeMarket } from "@/lib/smc/engine";
 import { formatPrice } from "@/lib/utils";
 import { askPlain } from "@/lib/ai/plain";
+import { pairLine, playText } from "@/lib/macro-scenarios";
 
 const Input = z.object({
   question: z.string().min(2).max(500),
@@ -75,8 +76,13 @@ function replyFromSnap(q: string, symbol: string, pack: Awaited<ReturnType<typeo
   if (/вайкоф|wyckoff|фаз/i.test(q)) {
     return wy ? `По ${spec.label} на ${px} фаза Вайкоффа: ${wy.name}. ${wy.therefore} ${doing} ${wait}` : `По ${spec.label} фазу Вайкоффа стол не разметил. ${doing}`;
   }
-  if (/новост|календар|nfp|cpi|запрещ/i.test(q)) {
-    return `${halt ? newsAlertText(halt) : pack.digest.fund.line} Для ${spec.label} это фон, не сигнал.`;
+  if (/новост|календар|nfp|cpi|запрещ|фрс|fomc|пауэл|powell|ецб|ставк|сценари/i.test(q)) {
+    const play = pack.digest.fund.play;
+    const extra =
+      play.kind !== "none"
+        ? `${playText(play)} Для ${spec.label}: ${pairLine(symbol, play.base)}`
+        : pack.digest.fund.line;
+    return `${halt ? newsAlertText(halt) : extra} Это исторический шаблон, не обещание. Для ${spec.label} фон, не сигнал входа.`;
   }
   if (/вход|сигнал|лонг|шорт|можно ли/i.test(q) && m) {
     return [`По ${spec.label} на ${px} совет: ${m.advice.title}.`, m.advice.because, m.advice.therefore, doing, wait].join(" ");
@@ -85,7 +91,7 @@ function replyFromSnap(q: string, symbol: string, pack: Awaited<ReturnType<typeo
 }
 
 const SYSTEM_CHAT =
-  "Ты дежурный аналитик стола SLOI. Отвечай по-русски живым языком, 6–12 предложений. Сначала прямой ответ на вопрос. Потом: что делает крупный игрок, зачем, чего ждёт. Не копируй шаблон. Не обещай прибыль. Не выдумывай уровни.";
+  "Ты дежурный аналитик стола SLOI. По-русски, 6–12 предложений. Если вопрос про ФРС/Пауэлла/NFP — назови 2–3 сценария с вероятностями из данных стола, куда цена чаще и за сколько времени. Не выдумывай проценты. Не обещай прибыль.";
 
 export const askDeskChat = createServerFn({ method: "POST" })
   .validator((input: unknown) => Input.parse(input))
@@ -102,11 +108,14 @@ export const askDeskChat = createServerFn({ method: "POST" })
     const fallback = replyFromSnap(data.question, symbol, pack, snap);
     const harm = snap?.patterns.filter((p) => p.family === "harmonic").map((p) => p.name) ?? [];
     const st = snap?.story;
+    const play = pack.digest.fund.play;
     const prompt = `Вопрос: ${data.question}
 Пара ${symbol}. Паттерны: ${snap?.patterns.map((p) => `${p.name}: ${p.therefore}`).join(" | ") || "нет"}.
 Гармоника: ${harm.join(", ") || "нет"}. Вайкофф: ${snap?.wyckoff ? `${snap.wyckoff.name}. ${snap.wyckoff.therefore}` : "нет"}.
 Крупняк делает: ${st?.doing ?? ""}. Значит: ${st?.means ?? ""}. Ждёт: ${st?.waiting ?? ""}.
-Совет: ${pack.digest.markets.find((x) => x.spec.id === symbol)?.advice.title ?? ""}.`;
+Совет: ${pack.digest.markets.find((x) => x.spec.id === symbol)?.advice.title ?? ""}.
+Макро: ${play.kind !== "none" ? playText(play) : pack.digest.fund.line}
+По паре: ${play.kind !== "none" ? pairLine(symbol, play.base) : ""}.`;
     const ai = await askPlain(SYSTEM_CHAT, prompt);
     if ("text" in ai) return { ok: true as const, symbol, model: ai.model, text: ai.text };
     return { ok: true as const, symbol, model: "стол", text: `${ai.miss} ${fallback}` };

@@ -7,6 +7,7 @@ import type { Advice } from "@/lib/advisor";
 import type { NewsHalt } from "@/lib/calendar";
 import { EMPTY_HALT } from "@/lib/calendar";
 import type { OptionConstruction, OptionsSnapshot } from "@/lib/market/types";
+import { buildMacroPlay, type MacroPlay } from "@/lib/macro-scenarios";
 
 type Move = { price: number; changePct: number } | null;
 
@@ -41,6 +42,7 @@ export interface FundamentalSnap {
   esChange: number | null;
   spyPc: number | null;
   cot: CotSnap;
+  play: MacroPlay;
 }
 
 const THEME_RULES: [RegExp, string][] = [
@@ -206,6 +208,7 @@ export function buildFundamentals(input: {
           : risk === "risk-off"
             ? "Все нервничают и продают риск. Сначала не ловить падающий нож."
             : "Большой картины нет. Смотри, что делает цена у края диапазона.";
+  const play = buildMacroPlay(halt, rates, themes);
   return {
     yield10,
     yieldChange,
@@ -220,7 +223,8 @@ export function buildFundamentals(input: {
     esChange,
     spyPc,
     cot: input.cot ?? EMPTY_COT,
-    line: `Фундамент: ${yBit}, ${ratesBit}. ${dollarBit}. ${riskBit}.${themeBit}${extra ? ` ${extra}.` : ""}${haltBit}`,
+    play,
+    line: `Фундамент: ${yBit}, ${ratesBit}. ${dollarBit}. ${riskBit}.${themeBit}${extra ? ` ${extra}.` : ""}${haltBit}${play.kind !== "none" ? ` ${play.headline}` : ""}`,
     plain: { now, why, so, simple },
   };
 }

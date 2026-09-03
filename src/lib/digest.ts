@@ -499,6 +499,11 @@ export function writeArticle(
     fund.plain.simple,
     fund.plain.why,
     fund.plain.so,
+    fund.play.kind !== "none" ? fund.play.history : "",
+    fund.play.kind !== "none"
+      ? fund.play.paths.map((x) => `${x.p}% «${x.name}»: ${x.when}. ${x.move}. ${x.therefore}`).join(" ")
+      : "",
+    fund.play.kind !== "none" ? `${fund.play.soon} ${fund.play.trade}` : "",
     sentiment.line,
     lead.story.leadsTo,
     lead.wind?.note ?? "",
