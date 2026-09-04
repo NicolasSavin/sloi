@@ -90,3 +90,18 @@ export async function resolveTvChannels(): Promise<TvChannel[]> {
   }
   return [ether, ...extra.filter((c) => c.live), studio];
 }
+
+export async function reviewClips(): Promise<
+  { id: string; label: string; role?: TvChannel["role"]; videoId: string; title: string }[]
+> {
+  const nets = RSS_NETS.filter((n) => n.role === "desk" || n.role === "news" || n.role === "skip");
+  const rows = await Promise.all(
+    nets.map(async (net) => {
+      const clips = net.channelId ? await rssClips(net.channelId) : [];
+      const clip = clips[0] ?? (net.fallback ? { id: net.fallback, title: net.label } : null);
+      if (!clip) return null;
+      return { id: net.id, label: net.label, role: net.role, videoId: clip.id, title: clip.title };
+    }),
+  );
+  return rows.filter((r): r is NonNullable<typeof r> => Boolean(r));
+}

@@ -687,6 +687,16 @@ export const fetchTvGuide = createServerFn({ method: "GET" }).handler(async () =
   return data;
 });
 
+let reviewCache: { at: number; data: Awaited<ReturnType<typeof import("@/lib/tv-live").reviewClips>> } | null = null;
+
+export const fetchReviews = createServerFn({ method: "GET" }).handler(async () => {
+  if (reviewCache && Date.now() - reviewCache.at < 180_000) return reviewCache.data;
+  const { reviewClips } = await import("@/lib/tv-live");
+  const data = await reviewClips();
+  reviewCache = { at: Date.now(), data };
+  return data;
+});
+
 export const fetchArticle = createServerFn({ method: "GET" })
   .validator((input: unknown) => z.object({ slug: z.string().min(1) }).parse(input))
   .handler(async ({ data }) => {

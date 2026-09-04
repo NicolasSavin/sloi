@@ -18,6 +18,7 @@ import { Route as DailyRouteImport } from './routes/daily'
 import { Route as DeskRouteImport } from './routes/desk'
 import { Route as DispatchRouteImport } from './routes/dispatch'
 import { Route as IdeasRouteImport } from './routes/ideas'
+import { Route as RatingRouteImport } from './routes/rating'
 import { Route as StatsRouteImport } from './routes/stats'
 import { Route as TvRouteImport } from './routes/tv'
 import { Route as ApiArchiveDotjsonRouteImport } from './routes/api/archive[.]json'
@@ -71,6 +72,11 @@ const DispatchRoute = DispatchRouteImport.update({
 const IdeasRoute = IdeasRouteImport.update({
   id: '/ideas',
   path: '/ideas',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RatingRoute = RatingRouteImport.update({
+  id: '/rating',
+  path: '/rating',
   getParentRoute: () => rootRouteImport,
 } as any)
 const StatsRoute = StatsRouteImport.update({
@@ -129,6 +135,7 @@ export interface FileRoutesByFullPath {
   '/desk': typeof DeskRoute
   '/dispatch': typeof DispatchRoute
   '/ideas': typeof IdeasRoute
+  '/rating': typeof RatingRoute
   '/stats': typeof StatsRoute
   '/tv': typeof TvRoute
   '/api/archive.json': typeof ApiArchiveDotjsonRoute
@@ -149,6 +156,7 @@ export interface FileRoutesByTo {
   '/desk': typeof DeskRoute
   '/dispatch': typeof DispatchRoute
   '/ideas': typeof IdeasRoute
+  '/rating': typeof RatingRoute
   '/stats': typeof StatsRoute
   '/tv': typeof TvRoute
   '/api/archive.json': typeof ApiArchiveDotjsonRoute
@@ -170,6 +178,7 @@ export interface FileRoutesById {
   '/desk': typeof DeskRoute
   '/dispatch': typeof DispatchRoute
   '/ideas': typeof IdeasRoute
+  '/rating': typeof RatingRoute
   '/stats': typeof StatsRoute
   '/tv': typeof TvRoute
   '/api/archive.json': typeof ApiArchiveDotjsonRoute
@@ -192,6 +201,7 @@ export interface FileRouteTypes {
     | '/desk'
     | '/dispatch'
     | '/ideas'
+    | '/rating'
     | '/stats'
     | '/tv'
     | '/api/archive.json'
@@ -212,6 +222,7 @@ export interface FileRouteTypes {
     | '/desk'
     | '/dispatch'
     | '/ideas'
+    | '/rating'
     | '/stats'
     | '/tv'
     | '/api/archive.json'
@@ -232,6 +243,7 @@ export interface FileRouteTypes {
     | '/desk'
     | '/dispatch'
     | '/ideas'
+    | '/rating'
     | '/stats'
     | '/tv'
     | '/api/archive.json'
@@ -253,6 +265,7 @@ export interface RootRouteChildren {
   DeskRoute: typeof DeskRoute
   DispatchRoute: typeof DispatchRoute
   IdeasRoute: typeof IdeasRoute
+  RatingRoute: typeof RatingRoute
   StatsRoute: typeof StatsRoute
   TvRoute: typeof TvRoute
   ApiArchiveDotjsonRoute: typeof ApiArchiveDotjsonRoute
@@ -327,6 +340,13 @@ declare module '@tanstack/react-router' {
       path: '/ideas'
       fullPath: '/ideas'
       preLoaderRoute: typeof IdeasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rating': {
+      id: '/rating'
+      path: '/rating'
+      fullPath: '/rating'
+      preLoaderRoute: typeof RatingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/stats': {
@@ -405,6 +425,7 @@ const rootRouteChildren: RootRouteChildren = {
   DeskRoute: DeskRoute,
   DispatchRoute: DispatchRoute,
   IdeasRoute: IdeasRoute,
+  RatingRoute: RatingRoute,
   StatsRoute: StatsRoute,
   TvRoute: TvRoute,
   ApiArchiveDotjsonRoute: ApiArchiveDotjsonRoute,

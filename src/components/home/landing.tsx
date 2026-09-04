@@ -52,6 +52,9 @@ export function Landing({ data }: { data: HomePayload }) {
             >
               Кабинет и ключ
             </Link>
+            <Link to="/rating" className="inline-flex h-11 items-center rounded-sm px-5 text-sm shadow-[var(--shadow-border)]">
+              Рейтинг и обзоры
+            </Link>
             <Link to="/desk" className="inline-flex h-11 items-center rounded-sm px-5 text-sm shadow-[var(--shadow-border)]">
               Открыть график
             </Link>

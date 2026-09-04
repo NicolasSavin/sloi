@@ -10,6 +10,7 @@ const LINKS = [
   { to: "/dispatch", label: "Диспетчер" },
   { to: "/ideas", label: "TradingView" },
   { to: "/stats", label: "Статистика" },
+  { to: "/rating", label: "Рейтинг" },
   { to: "/tv", label: "ТВ" },
   { to: "/desk", label: "График" },
   { to: "/daily", label: "Сегодня" },
