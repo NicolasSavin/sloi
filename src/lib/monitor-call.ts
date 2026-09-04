@@ -60,15 +60,10 @@ export function linesFromTick(
     }
   }
   if (first) {
-    const live = markets.filter((m) => m.advice.action === "long" || m.advice.action === "short");
-    const text =
-      live.length === 0
-        ? `${clockRu(at)} Монитор в эфире. Живых приказов нет. Комментирую ход цены, не только сигнал.`
-        : `${clockRu(at)} Монитор в эфире. В работе ${live.map((m) => nameOf(m.spec.id, m.spec.label)).join(", ")}.`;
+    const text = `${clockRu(at)} Монитор в эфире. Комментирую ход цены, не приказы диспетчера.`;
     out.push({ id: `open-${at}`, at, pair: "SLOI", text, speak: text, tone: "neutral" });
   }
 
-  const byId = new Map(markets.map((m) => [m.spec.id, m]));
   const tapeRows = tape?.length ? tape : [];
   const ordered = [
     ...tapeRows.filter((r) => r.id === "XAUUSD"),
@@ -76,12 +71,10 @@ export function linesFromTick(
   ];
 
   for (const row of ordered) {
-    const m = byId.get(row.id);
     const n = nameOf(row.id, row.label);
     const chg = row.prev ? ((row.last - row.prev) / row.prev) * 100 : 0;
     const read = bounceRead(row);
-    const act = m?.advice.action ?? "wait";
-    const key = `${act}|${read ?? "flat"}|${row.last.toFixed(row.decimals > 2 ? 1 : 2)}`;
+    const key = `${read ?? "flat"}|${row.last.toFixed(row.decimals > 2 ? 1 : 2)}`;
     const was = prev.get(`t:${row.id}`);
     if (!first && was === key) continue;
     prev.set(`t:${row.id}`, key);
@@ -90,21 +83,18 @@ export function linesFromTick(
     let tone: MonitorLine["tone"] = "neutral";
     if (read === "dump") {
       tone = "bear";
-      text = `${clockRu(at)} ${n}: удар вниз на пятнадцатиминутках. Не ловим шпиль. Приказ стола — ${act === "wait" ? "ждать" : act === "long" ? "лонг" : "шорт"}.`;
+      text = `${clockRu(at)} ${n}: удар вниз на пятнадцатиминутках. Широкий бар, стопы ниже. Не ловим шпиль.`;
     } else if (read === "pin") {
       tone = "bull";
-      text = `${clockRu(at)} ${n}: фитиль с минимума. Стопы под ямой сняли, цену вернули. Это попытка отхода, не вход вдогонку.`;
+      text = `${clockRu(at)} ${n}: длинный фитиль с минимума. Сходили за стопами и вернули. Похоже на попытку отхода.`;
     } else if (read === "bounce") {
       tone = "bull";
-      text = `${clockRu(at)} ${n} пытается вернуться в рост: три бара вверх от низа. Приказ пока ${act === "long" ? "лонг" : "ждать"}. До старой полки ещё не дошли.`;
+      text = `${clockRu(at)} ${n} пытается вернуться в рост: несколько баров вверх от низа ямы. До старой полки ещё не дошли.`;
     } else if (read === "reclaim") {
       tone = "bull";
-      text = `${clockRu(at)} ${n} отвоевал больше половины ямы. Смотрим, удержат ли край.`;
-    } else if (act === "long" || act === "short") {
-      tone = act === "long" ? "bull" : "bear";
-      text = `${clockRu(at)} ${n}. ${m?.advice.title ?? ""}. ${chg >= 0 ? "Плюс" : "Минус"} ${Math.abs(chg).toFixed(2)} на 15м.`;
+      text = `${clockRu(at)} ${n} отвоевал больше половины ямы. Смотрим, удержат ли этот край.`;
     } else if (first && (row.id === "XAUUSD" || Math.abs(chg) >= 0.12)) {
-      text = `${clockRu(at)} ${n}: ${chg >= 0 ? "плюс" : "минус"} ${Math.abs(chg).toFixed(2)} на 15м. Стол: ${m?.advice.title ?? "ждать"}.`;
+      text = `${clockRu(at)} ${n}: ${chg >= 0 ? "плюс" : "минус"} ${Math.abs(chg).toFixed(2)} на пятнадцати минутах. Следим за краем ямы.`;
     } else {
       continue;
     }

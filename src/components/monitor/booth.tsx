@@ -5,7 +5,6 @@ import { AppNav } from "@/components/app-nav";
 import { Spark } from "@/components/home/spark";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { actionLabel, actionTone } from "@/lib/advisor";
 import { fetchDigest, fetchTape } from "@/lib/market/fetch";
 import { linesFromTick, type MonitorLine } from "@/lib/monitor-call";
 import { speakRu, unlockSound } from "@/lib/sound";
@@ -44,11 +43,10 @@ export function MonitorBooth() {
     }
   }, [q.dataUpdatedAt, tape.dataUpdatedAt, voice]);
 
-  const live = markets.filter((m) => m.advice.action === "long" || m.advice.action === "short");
   const tapeMap = new Map(tapeRows.map((r) => [r.id, r]));
-  const gridIds = ["XAUUSD", ...live.map((m) => m.spec.id), ...tapeRows.map((r) => r.id)].filter(
+  const gridIds = ["XAUUSD", ...tapeRows.map((r) => r.id), ...markets.map((m) => m.spec.id)].filter(
     (id, i, a) => a.indexOf(id) === i,
-  );
+  ).slice(0, 12);
 
   return (
     <div className="min-h-dvh">
@@ -59,7 +57,7 @@ export function MonitorBooth() {
             <p className="font-mono text-xs tracking-[0.22em] text-accent">ЭФИР</p>
             <h1 className="mt-2 text-4xl font-medium tracking-tight">Монитор</h1>
             <p className="mt-2 max-w-xl text-sm text-muted">
-              Мини-графики 15 минут и комментарий как на спортивной трансляции. Говорит и отскок, не только приказ.
+              Это не диспетчер. Эфир хода цены: мини-графики и комментарий, как на матче. Приказы — на странице Диспетчер.
             </p>
           </div>
           <Button
@@ -89,7 +87,7 @@ export function MonitorBooth() {
               <a key={id} href={`/desk?pair=${id}`} className="panel-volume rounded-xl p-4 no-underline">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm font-medium">{label}</p>
-                  <Badge tone={actionTone(m?.advice.action ?? "wait")}>{actionLabel(m?.advice.action ?? "wait")}</Badge>
+                  <Badge tone={chg >= 0 ? "bull" : "bear"}>{chg >= 0 ? "рост" : "спад"}</Badge>
                 </div>
                 <p className="mt-1 font-display text-2xl tabular-nums">{formatPrice(last, decimals)}</p>
                 <p className={cn("text-xs", up ? "text-bull" : "text-bear")}>
@@ -97,7 +95,6 @@ export function MonitorBooth() {
                   {chg.toFixed(2)}% · 15м
                 </p>
                 <Spark values={spark} up={up} className="mt-2 h-14 w-full" />
-                <p className="mt-2 line-clamp-2 text-xs text-muted">{m?.advice.title ?? "—"}</p>
               </a>
             );
           })}
