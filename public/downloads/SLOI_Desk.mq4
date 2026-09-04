@@ -7,7 +7,7 @@
 #property link      ""
 #property version   "4.50"
 #property strict
-#property description "На графике: VWAP, профиль, футпринт бара, infusion/splash, Bid/Ask."
+#property description "SLOI 4.50: виртуальные отложка, стоп и тейк. Сдвиг со стола. Не 4.42."
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
