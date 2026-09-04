@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.41"
+#property version   "4.42"
 #property strict
 #property description "На графике: VWAP, профиль, футпринт бара, infusion/splash, Bid/Ask."
 
@@ -37,6 +37,7 @@ input int     CoolMinutes     = 0;
 input bool    FixForeign      = false;
 input string  ForeignTag      = "WS";
 input bool    AlertsOn        = true;
+input bool    VirtualPendings = true;
 input int     PanelX          = 8;
 input int     PanelY          = 18;
 
@@ -71,6 +72,7 @@ int    g_martMax;
 int    g_maxSp;
 double g_skew;
 bool   g_alerts;
+bool   g_virt;
 bool   g_seeded = false;
 bool   g_ready = false;
 bool   g_min = false;
@@ -114,6 +116,7 @@ int OnInit()
    g_maxSp  = MaxSpreadPoints;
    g_skew   = MaxSkewPct;
    g_alerts = AlertsOn;
+   g_virt   = VirtualPendings;
    Wipe();
    ParseWatch();
    EventSetTimer(2);
@@ -121,7 +124,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.41: ключ стола + кластеры ProVolume с графика на сайт.");
+   Print("SLOI 4.42: виртуальные отложки. У брокера пусто, пока цена не в зоне.");
    return(INIT_SUCCEEDED);
   }
 
@@ -156,6 +159,16 @@ void OnChartEvent(const int id, const long &lparam, const double &dparam, const 
    if(sparam == P+"b_alrt")
      {
       g_alerts = !g_alerts;
+      DrawDesk();
+      return;
+     }
+   if(sparam == P+"b_virt")
+     {
+      g_virt = !g_virt;
+      if(g_virt)
+        {
+         for(int v = 0; v < g_n; v++) DeletePending(g_sym[v]);
+        }
       DrawDesk();
       return;
      }
@@ -891,7 +904,7 @@ void Scan(int idx, string &bias, string &verdict, string &why,
    double rr = (netK > 0 ? netR / netK : 0);
    if(netR <= 0 || covers < MinCover || rr < MinNetRR)
      { dir = 0; verdict = "СПРЕД"; why = "круг"; return; }
-   why = (lim > 0 ? "лимит " : "рынок ") + bias + " RR " + DoubleToStr(rr, 1);
+   why = (lim > 0 ? (g_virt ? "виртуал " : "лимит ") : "рынок ") + bias + " RR " + DoubleToStr(rr, 1);
   }
 
 void MaybeTrade(int idx, int dir, double entry, double stop, double target, string verdict, int spPts)
@@ -934,12 +947,27 @@ void MaybeTrade(int idx, int dir, double entry, double stop, double target, stri
    int cmd = dir > 0 ? OP_BUY : OP_SELL;
    double px = dir > 0 ? AskOf(s) : BidOf(s);
    double risk = MathAbs(entry - stop);
+   bool far = false;
    if(g_lim[idx] > 0 && entry > 0 && risk > 0)
      {
       double near = MathMax(SpreadPr(s) * 2.0, MarketInfo(s, MODE_STOPLEVEL) * PointOf(s));
       near = MathMax(near, risk * 0.3);
-      if(dir > 0 && AskOf(s) > entry + near) { cmd = OP_BUYLIMIT; px = NormalizeDouble(entry, digits); }
-      if(dir < 0 && BidOf(s) < entry - near) { cmd = OP_SELLLIMIT; px = NormalizeDouble(entry, digits); }
+      if(dir > 0 && AskOf(s) > entry + near) far = true;
+      if(dir < 0 && BidOf(s) < entry - near) far = true;
+     }
+   if(g_virt)
+     {
+      DeletePending(s);
+      if(far)
+        {
+         g_lastKey[idx] = key;
+         return;
+        }
+     }
+   else if(far)
+     {
+      cmd = dir > 0 ? OP_BUYLIMIT : OP_SELLLIMIT;
+      px = NormalizeDouble(entry, digits);
      }
    DeleteWrongPending(s, dir);
    if((cmd == OP_BUYLIMIT || cmd == OP_SELLLIMIT) && SamePending(s, dir, px))
@@ -1482,6 +1510,7 @@ void DrawDesk()
    Edit("e_suf", x + 348, y + 36, 56, 20, g_suffix, seed);
 
    Btn("b_mart", x + 410, y + 36, 90, 22, g_mart ? "МАРТ ВКЛ" : "МАРТ ВЫКЛ", g_mart ? C_WAIT : C_OFF);
+   Btn("b_virt", x + 600, y + 36, 88, 22, g_virt ? "ВИРТ ВКЛ" : "БРОКЕР", g_virt ? C_BUY : C_WAIT);
    Btn("b_ok", x + 506, y + 36, 90, 22, "ПРИМЕНИТЬ", C_GOLD);
 
    Lab("l_fx", x + 14, y + 62, "FX", C_DIM, 8);
@@ -1520,7 +1549,7 @@ void DrawDesk()
    Lab("h7", hx+530, hy, "ВЕРДИКТ", C_DIM, 8);
    Lab("h8", hx+700, hy, "ЛОТ", C_DIM, 8);
 
-   string cmt = "SLOI DESK | лента "+g_feedNote+" | авто "+(g_auto?"ВКЛ":"ВЫКЛ")+" | макс спред "+IntegerToString(g_maxSp)+"п\n";
+   string cmt = "SLOI DESK | лента "+g_feedNote+" | авто "+(g_auto?"ВКЛ":"ВЫКЛ")+" | "+(g_virt?"виртуал":"брокер-лимит")+" | макс спред "+IntegerToString(g_maxSp)+"п\n";
    cmt += "СИМВОЛ     СПРЕД  СТРУКТ   ВХОД        СТОП        ЦЕЛЬ        ВЕРДИКТ\n";
 
    for(int i = 0; i < g_n; i++)
