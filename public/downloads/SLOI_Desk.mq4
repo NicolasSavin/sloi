@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.47"
+#property version   "4.48"
 #property strict
 #property description "На графике: VWAP, профиль, футпринт бара, infusion/splash, Bid/Ask."
 
@@ -124,7 +124,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.47: имбаланс, ордерблок, ликвидность — по одному, крупно.");
+   Print("SLOI 4.48: на чарте только зоны в радиусе ATR от цены.");
    return(INIT_SUCCEEDED);
   }
 
@@ -499,6 +499,7 @@ void DrawSmcOnChart()
       Ray("zn_tp_r", tLeft, target, tNow, target, C_BUY);
      }
 
+   double lastPx = iClose(s, tf, 0);
    int drawn = 0;
    for(i = 3; i < 80 && drawn < 1; i++)
      {
@@ -509,12 +510,14 @@ void DrawSmcOnChart()
       datetime t1 = iTime(s, tf, i);
       if(lo2 > hi && (lo2 - hi) >= atr * 0.12)
         {
+         if(lastPx < hi - atr * 1.15 || lastPx > lo2 + atr * 1.15) continue;
          Box("fvg"+IntegerToString(drawn), t1, hi, tRight, lo2, C_BUY);
          Tag("fvg_t"+IntegerToString(drawn), t1, lo2, "ИМБАЛАНС спрос", C_BUY);
          drawn++;
         }
       else if(hi2 < lo && (lo - hi2) >= atr * 0.12)
         {
+         if(lastPx < hi2 - atr * 1.15 || lastPx > lo + atr * 1.15) continue;
          Box("fvg"+IntegerToString(drawn), t1, lo, tRight, hi2, C_SEL);
          Tag("fvg_t"+IntegerToString(drawn), t1, hi2, "ИМБАЛАНС предложение", C_SEL);
          drawn++;
@@ -529,6 +532,7 @@ void DrawSmcOnChart()
       double hi = iHigh(s, tf, i);
       double lo = iLow(s, tf, i);
       datetime t1 = iTime(s, tf, i);
+      if(lastPx < lo - atr * 1.15 || lastPx > hi + atr * 1.15) continue;
       if(c < o && iClose(s, tf, i - 1) > hi && iClose(s, tf, i - 2) > iClose(s, tf, i - 1))
         {
          Box("ob"+IntegerToString(obn), t1, lo, tRight, hi, C_BUY);
@@ -547,13 +551,13 @@ void DrawSmcOnChart()
    int sl = iLowest(s, tf, MODE_LOW, 40, 1);
    int sh2 = (sh > 4 ? iHighest(s, tf, MODE_HIGH, 40, sh + 3) : 0);
    int sl2 = (sl > 4 ? iLowest(s, tf, MODE_LOW, 40, sl + 3) : 0);
-   if(sh > 0 && sh2 > sh)
+   if(sh > 0 && sh2 > sh && MathAbs(lastPx - iHigh(s, tf, sh)) <= atr * 1.4)
      {
       Ray("bos_h", iTime(s, tf, sh2), iHigh(s, tf, sh2), iTime(s, tf, sh), iHigh(s, tf, sh), C_SEL);
       Box("liq_h", iTime(s, tf, sh), iHigh(s, tf, sh) + pad * 2, tRight, iHigh(s, tf, sh) - pad, C_GOLD);
       Tag("liq_h_t", iTime(s, tf, sh), iHigh(s, tf, sh) + pad * 2, "ЛИКВИДНОСТЬ BSL", C_GOLD);
      }
-   if(sl > 0 && sl2 > sl)
+   if(sl > 0 && sl2 > sl && MathAbs(lastPx - iLow(s, tf, sl)) <= atr * 1.4)
      {
       Ray("bos_l", iTime(s, tf, sl2), iLow(s, tf, sl2), iTime(s, tf, sl), iLow(s, tf, sl), C_BUY);
       Box("liq_l", iTime(s, tf, sl), iLow(s, tf, sl) + pad, tRight, iLow(s, tf, sl) - pad * 2, C_GOLD);

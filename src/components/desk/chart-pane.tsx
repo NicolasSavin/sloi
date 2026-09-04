@@ -11,6 +11,7 @@ import type { Candle } from "@/lib/market/types";
 import type { OverlayFlags } from "@/lib/desk-store";
 import type { Advice } from "@/lib/advisor";
 import type { LocalSetup, SmcSnapshot, Zone } from "@/lib/smc/engine";
+import { zoneReach } from "@/lib/smc/engine";
 import { deltaOf } from "@/lib/smc/flow";
 import { cn } from "@/lib/utils";
 
@@ -128,11 +129,9 @@ function drawZones(
   }
   if (overlays.fvg || overlays.ob) {
     const last = snap?.lastClose ?? 0;
-    const dist = (z: Zone) => {
-      if (last >= Math.min(z.top, z.bottom) && last <= Math.max(z.top, z.bottom)) return 0;
-      return Math.min(Math.abs(last - z.top), Math.abs(last - z.bottom));
-    };
-    const live = zones.filter((z) => !z.mitigated);
+    const atr = snap?.atr ?? 0;
+    const dist = (z: Zone) => zoneReach(z, last, atr) ?? Number.POSITIVE_INFINITY;
+    const live = zones.filter((z) => zoneReach(z, last, atr) != null);
     const picked = [
       ...(overlays.fvg ? live.filter((z) => z.kind === "fvg").sort((a, b) => dist(a) - dist(b)).slice(0, 1) : []),
       ...(overlays.ob
@@ -182,8 +181,8 @@ function drawZones(
     }
   }
   if (overlays.structure !== false && snap) {
-    const lastBos = [...snap.events].reverse().find((e) => e.kind === "BOS");
-    const lastCh = [...snap.events].reverse().find((e) => e.kind === "CHoCH");
+    const lastBos = [...snap.events].reverse().find((e) => e.kind === "BOS" && Math.abs(e.price - snap.lastClose) <= snap.atr * 1.4);
+    const lastCh = [...snap.events].reverse().find((e) => e.kind === "CHoCH" && Math.abs(e.price - snap.lastClose) <= snap.atr * 1.4);
     for (const e of [lastCh, lastBos].filter(Boolean) as typeof snap.events) {
       const x = ts.timeToCoordinate(e.time as UTCTimestamp);
       const y = series.priceToCoordinate(e.price);
@@ -206,11 +205,16 @@ function drawZones(
     const atr = snap.atr || 1;
     const last = snap.lastClose;
     const dLiq = (p: (typeof snap.liquidity)[number]) => Math.abs(last - p.price);
-    const pools = snap.liquidity;
-    const bsl = [...pools].filter((l) => l.side === "buy" && !l.swept).sort((a, b) => dLiq(a) - dLiq(b))[0];
-    const ssl = [...pools].filter((l) => l.side === "sell" && !l.swept).sort((a, b) => dLiq(a) - dLiq(b))[0];
-    const sweep = [...pools].filter((l) => l.swept).sort((a, b) => b.time - a.time)[0];
-    for (const p of [bsl, ssl, sweep].filter(Boolean) as typeof pools) {
+    const near = snap.liquidity.filter((p) => {
+      const d = dLiq(p);
+      if (d > atr * 1.4) return false;
+      if (p.swept) return d <= atr * 0.55;
+      return true;
+    });
+    const bsl = [...near].filter((l) => l.side === "buy" && !l.swept).sort((a, b) => dLiq(a) - dLiq(b))[0];
+    const ssl = [...near].filter((l) => l.side === "sell" && !l.swept).sort((a, b) => dLiq(a) - dLiq(b))[0];
+    const sweep = [...near].filter((l) => l.swept).sort((a, b) => dLiq(a) - dLiq(b))[0];
+    for (const p of [bsl, ssl, sweep].filter(Boolean) as typeof snap.liquidity) {
       const x = ts.timeToCoordinate(p.time as UTCTimestamp) ?? 8;
       const y = series.priceToCoordinate(p.price);
       if (y == null) continue;
@@ -228,7 +232,12 @@ function drawZones(
   }
 
   if (overlays.patterns !== false && snap) {
-    for (const p of snap.patterns.slice(0, 1)) {
+    for (const p of snap.patterns.slice(0, 3)) {
+      const prices = p.points.map((pt) => pt.price);
+      if (!prices.length) continue;
+      const lo = Math.min(...prices);
+      const hi = Math.max(...prices);
+      if (snap.lastClose < lo - snap.atr * 1.5 || snap.lastClose > hi + snap.atr * 1.5) continue;
       ctx.strokeStyle = p.side === "bull" ? "rgba(180,220,190,0.95)" : "rgba(230,180,170,0.95)";
       ctx.lineWidth = 2.5;
       ctx.beginPath();
@@ -254,6 +263,7 @@ function drawZones(
         ctx.fillStyle = "#f4eee4";
         ctx.font = "bold 13px IBM Plex Sans, sans-serif";
         ctx.fillText(p.name, lastX + 8, lastY + 16);
+        break;
       }
     }
   }

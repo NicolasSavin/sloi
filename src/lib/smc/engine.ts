@@ -38,6 +38,16 @@ export interface Zone {
   mitigated: boolean;
 }
 
+export function zoneReach(z: Pick<Zone, "top" | "bottom" | "mitigated">, last: number, atr: number): number | null {
+  if (z.mitigated || atr <= 0) return null;
+  const lo = Math.min(z.top, z.bottom);
+  const hi = Math.max(z.top, z.bottom);
+  if (last >= lo && last <= hi) return 0;
+  const d = last < lo ? lo - last : last - hi;
+  if (d > atr * 1.15) return null;
+  return d;
+}
+
 export function zoneName(z: Pick<Zone, "kind" | "side">): string {
   if (z.kind === "breaker") return z.side === "bull" ? "бычий брейкер" : "медвежий брейкер";
   if (z.kind === "mitigation") return z.side === "bull" ? "митигейшн покупок" : "митигейшн продаж";
