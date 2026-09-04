@@ -243,7 +243,7 @@ function drawZones(
     }
   }
 
-  if (snap?.boxVector && snap.boxVector.dir !== "none" && snap.boxVector.magnet != null) {
+  if (snap && snap.boxVector && snap.boxVector.dir !== "none" && snap.boxVector.magnet != null) {
     const magY = series.priceToCoordinate(snap.boxVector.magnet);
     const lastY = series.priceToCoordinate(snap.lastClose);
     if (magY != null && lastY != null) {
@@ -278,7 +278,7 @@ function drawZones(
       pill(
         10,
         magY - 8,
-        up ? "ВЕКТОР ↑ к ликвидности" : "ВЕКТОР ↓ к ликвидности",
+        up ? "ВЕКТОР вверх к ликвидности" : "ВЕКТОР вниз к ликвидности",
         "rgba(16,24,36,0.94)",
         up ? "#b8e8d0" : "#f0c0c0",
       );
@@ -876,6 +876,7 @@ export function ChartPane({
     const chart = chartRef.current;
     if (!ready || !series || !chart) return;
     void import("lightweight-charts").then((lc) => {
+      try {
       if (seriesRef.current !== series) return;
       for (const line of linesRef.current) series.removePriceLine(line);
       linesRef.current = [];
@@ -924,10 +925,10 @@ export function ChartPane({
           );
         }
       }
-      if (snap.boxVector?.dir !== "none" && snap.boxVector.magnet != null) {
+      if (snap.boxVector && snap.boxVector.dir !== "none" && snap.boxVector.magnet != null) {
         add(
           snap.boxVector.magnet,
-          snap.boxVector.dir === "up" ? "ВЕКТОР ↑" : "ВЕКТОР ↓",
+          snap.boxVector.dir === "up" ? "ВЕКТОР вверх" : "ВЕКТОР вниз",
           snap.boxVector.dir === "up" ? bull : bear,
           false,
           true,
@@ -1012,6 +1013,9 @@ export function ChartPane({
         prim.refresh();
       }
       if (profileRef.current) drawProfile(profileRef.current, series, snap, overlays.profile);
+      } catch {
+        /* overlay must not blank candles */
+      }
     });
   }, [snap, overlays, ready, order, setup]);
 
