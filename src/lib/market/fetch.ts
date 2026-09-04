@@ -4,6 +4,7 @@ import { getSymbol } from "./symbols";
 import type { DailyDigest } from "@/lib/digest";
 import type { NewsItem } from "@/lib/news";
 import type { HomePayload } from "@/lib/home";
+import { siteFlashes } from "@/lib/home";
 import type { Candle, MarketPayload, Timeframe } from "./types";
 
 const Input = z.object({
@@ -787,5 +788,5 @@ async function buildHome(): Promise<HomePayload> {
     });
   }
   const news = raw.map((item) => buildArticle(item, quotes)).filter((a) => a.title.length > 2);
-  return { quotes, news, source: payloads[0]?.source ?? "demo" };
+  return { quotes, news, source: payloads[0]?.source ?? "demo", flashes: siteFlashes() };
 }
