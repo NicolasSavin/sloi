@@ -305,34 +305,59 @@ function drawZones(
   }
 
   if (overlays.patterns !== false && snap) {
-    const p = snap.patterns[0];
-    if (p) {
-      const prices = p.points.map((pt) => pt.price);
-      if (prices.length) {
-        const lo = Math.min(...prices);
-        const hi = Math.max(...prices);
-        if (!(snap.lastClose < lo - snap.atr * 1.5 || snap.lastClose > hi + snap.atr * 1.5)) {
-          ctx.strokeStyle = p.side === "bull" ? "rgba(180,220,190,0.7)" : "rgba(230,180,170,0.7)";
-          ctx.lineWidth = 1.5;
-          ctx.beginPath();
-          let started = false;
-          let lastY = 0;
-          for (const pt of p.points) {
-            const x = ts.timeToCoordinate(pt.time as UTCTimestamp);
-            const y = series.priceToCoordinate(pt.price);
-            if (x == null || y == null) continue;
-            if (!started) {
-              ctx.moveTo(x, y);
-              started = true;
-            } else ctx.lineTo(x, y);
-            lastY = y;
-          }
-          if (started) {
-            ctx.stroke();
-            mark(p.points.at(-1)?.time ?? lastTime, p.points.at(-1)?.price ?? snap.lastClose, p.name, "pat");
-          }
-        }
+    for (const p of snap.patterns) {
+      if (p.points.length < 2) continue;
+      const tone = p.family === "harmonic" ? "pat" : p.side === "bull" ? "ob" : "obBear";
+      const pal = PALETTE[tone] ?? PALETTE.pat!;
+      const coords: { x: number; y: number; label: string; time: number; price: number }[] = [];
+      for (const pt of p.points) {
+        const x = ts.timeToCoordinate(pt.time as UTCTimestamp);
+        const y = series.priceToCoordinate(pt.price);
+        if (x == null || y == null) continue;
+        coords.push({ x, y, label: pt.label, time: pt.time, price: pt.price });
       }
+      if (coords.length < 2) continue;
+      ctx.strokeStyle = pal.stroke;
+      ctx.lineWidth = p.family === "harmonic" ? 2.4 : 2;
+      ctx.setLineDash(p.family === "harmonic" ? [] : [7, 4]);
+      ctx.shadowColor = pal.stroke;
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      coords.forEach((c, i) => (i === 0 ? ctx.moveTo(c.x, c.y) : ctx.lineTo(c.x, c.y)));
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.shadowBlur = 0;
+      if (coords.length >= 3) {
+        ctx.strokeStyle = pal.stroke;
+        ctx.globalAlpha = 0.45;
+        ctx.setLineDash([3, 4]);
+        ctx.beginPath();
+        ctx.moveTo(coords[0]!.x, coords[0]!.y);
+        ctx.lineTo(coords.at(-1)!.x, coords.at(-1)!.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
+      }
+      for (const c of coords) {
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, 4.5, 0, Math.PI * 2);
+        ctx.fillStyle = pal.b0;
+        ctx.fill();
+        ctx.strokeStyle = pal.stroke;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.font = "600 10px IBM Plex Sans, sans-serif";
+        ctx.strokeStyle = "rgba(8,8,10,0.7)";
+        ctx.lineWidth = 3;
+        ctx.strokeText(c.label, c.x + 7, c.y - 7);
+        const lg = ctx.createLinearGradient(c.x, c.y - 14, c.x, c.y);
+        lg.addColorStop(0, pal.t0);
+        lg.addColorStop(1, pal.t1);
+        ctx.fillStyle = lg;
+        ctx.fillText(c.label, c.x + 7, c.y - 7);
+      }
+      const lastPt = coords.at(-1)!;
+      mark(lastPt.time, lastPt.price, p.name, tone);
     }
   }
 
