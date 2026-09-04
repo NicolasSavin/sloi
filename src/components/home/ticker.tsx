@@ -4,11 +4,11 @@ import type { NewsArticle } from "@/lib/news";
 import { cn, formatPct, formatPrice } from "@/lib/utils";
 
 export function Ticker({ quotes }: { quotes: HomeQuote[] }) {
-  const row = quotes.length ? [...quotes, ...quotes, ...quotes] : [];
+  const row = quotes.length ? [...quotes, ...quotes] : [];
   if (!row.length) return null;
   return (
     <div className="ticker-rail bg-gradient-to-r from-[#241c12] via-[#1a140e] to-[#120e0a]">
-      <div className="ticker-track flex w-max items-center gap-3 py-2.5 pr-6 [animation:stratum-ticker_42s_linear_infinite] hover:[animation-play-state:paused]">
+      <div className="ticker-move">
         {row.map((q, i) => {
           const up = q.changePct >= 0;
           return (
@@ -31,11 +31,11 @@ export function Ticker({ quotes }: { quotes: HomeQuote[] }) {
 }
 
 export function NewsTicker({ news }: { news: NewsArticle[] }) {
-  const row = news.length ? [...news, ...news, ...news] : [];
+  const row = news.length ? [...news, ...news] : [];
   if (!row.length) return null;
   return (
     <div className="ticker-rail bg-gradient-to-r from-[#102028] via-[#14100c] to-[#1c1410]">
-      <div className="ticker-track-rev flex w-max items-center gap-3 py-2.5 pr-6 [animation:stratum-ticker-rev_55s_linear_infinite] hover:[animation-play-state:paused]">
+      <div className="ticker-move-rev">
         {row.map((n, i) => (
           <Link
             key={`${n.slug}-${i}`}
@@ -54,11 +54,11 @@ export function NewsTicker({ news }: { news: NewsArticle[] }) {
 }
 
 export function DeskTicker({ items }: { items: DeskFlash[] }) {
-  const row = items.length ? [...items, ...items, ...items] : [];
+  const row = items.length ? [...items, ...items] : [];
   if (!row.length) return null;
   return (
     <div className="ticker-rail bg-gradient-to-r from-[#1a2418] via-[#16110c] to-[#241810]">
-      <div className="ticker-track flex w-max items-center gap-3 py-2.5 pr-6 [animation:stratum-ticker_48s_linear_infinite] hover:[animation-play-state:paused]">
+      <div className="ticker-move">
         {row.map((f, i) => (
           <Link
             key={`${f.id}-${i}`}
