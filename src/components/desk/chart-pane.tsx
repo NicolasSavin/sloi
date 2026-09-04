@@ -109,22 +109,31 @@ function drawZones(
     const y1 = series.priceToCoordinate(z.top);
     const y2 = series.priceToCoordinate(z.bottom);
     if (x1 == null || y1 == null || y2 == null) continue;
-    const right = x2 == null ? rect.width : Math.max(x2, x1 + 10);
+    const right = rect.width;
     const top = Math.min(y1, y2);
-    const h = Math.max(2, Math.abs(y2 - y1));
+    const h = Math.max(8, Math.abs(y2 - y1));
     ctx.fillStyle =
-      z.side === "bull" ? "rgba(111, 158, 134, 0.16)" : "rgba(181, 122, 122, 0.16)";
+      z.side === "bull" ? "rgba(111, 158, 134, 0.28)" : "rgba(181, 122, 122, 0.28)";
     ctx.strokeStyle =
-      z.side === "bull" ? "rgba(111, 158, 134, 0.45)" : "rgba(181, 122, 122, 0.45)";
+      z.side === "bull" ? "rgba(160, 210, 180, 0.95)" : "rgba(220, 160, 160, 0.95)";
+    ctx.lineWidth = 2;
     ctx.fillRect(x1, top, right - x1, h);
     ctx.strokeRect(x1, top, right - x1, h);
-    ctx.fillStyle = z.side === "bull" ? "rgba(111, 158, 134, 0.9)" : "rgba(181, 122, 122, 0.9)";
-    ctx.font = "10px IBM Plex Mono, monospace";
-    ctx.fillText(
-      z.kind === "breaker" ? "брейкер" : z.kind === "mitigation" ? "мит." : z.kind === "ob" ? "блок" : "FVG",
-      x1 + 4,
-      top + 12,
-    );
+    ctx.fillStyle = z.side === "bull" ? "#d4f0e0" : "#f0d4d4";
+    ctx.font = "bold 12px IBM Plex Sans, sans-serif";
+    const name =
+      z.kind === "breaker"
+        ? "БРЕЙКЕР"
+        : z.kind === "mitigation"
+          ? "МИТИГЕЙШН"
+          : z.kind === "ob"
+            ? z.side === "bull"
+              ? "БЛОК спрос"
+              : "БЛОК предложение"
+            : z.side === "bull"
+              ? "FVG спрос"
+              : "FVG предложение";
+    ctx.fillText(name, x1 + 6, top + Math.min(16, h - 2));
   }
 }
 

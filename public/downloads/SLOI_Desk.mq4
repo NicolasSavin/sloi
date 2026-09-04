@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.44"
+#property version   "4.45"
 #property strict
 #property description "На графике: VWAP, профиль, футпринт бара, infusion/splash, Bid/Ask."
 
@@ -124,7 +124,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.44: виртуал + кнопка СНЯТЬ ЧУЖИЕ (ордера WS).");
+   Print("SLOI 4.45: блоки/FVG/паттерн прямо на свечах, не только на шкале.");
    return(INIT_SUCCEEDED);
   }
 
@@ -274,8 +274,47 @@ void Box(string id, datetime t1, double p1, datetime t2, double p2, color clr)
    ObjectSet(n, OBJPROP_TIME2, t2);
    ObjectSet(n, OBJPROP_PRICE2, p2);
    ObjectSet(n, OBJPROP_COLOR, clr);
+   ObjectSet(n, OBJPROP_STYLE, STYLE_SOLID);
    ObjectSet(n, OBJPROP_BACK, true);
-   ObjectSet(n, OBJPROP_WIDTH, 1);
+   ObjectSet(n, OBJPROP_WIDTH, 2);
+   ObjectSet(n, OBJPROP_SELECTABLE, false);
+   ObjectSetInteger(0, n, OBJPROP_FILL, true);
+  }
+
+void Tag(string id, datetime t, double px, string txt, color clr)
+  {
+   if(px <= 0 || t <= 0) return;
+   string n = P + id;
+   if(ObjectFind(0, n) < 0)
+     {
+      if(!ObjectCreate(0, n, OBJ_TEXT, 0, t, px))
+         ObjectCreate(n, OBJ_TEXT, 0, t, px);
+     }
+   ObjectSet(n, OBJPROP_TIME1, t);
+   ObjectSet(n, OBJPROP_PRICE1, px);
+   ObjectSet(n, OBJPROP_COLOR, clr);
+   ObjectSet(n, OBJPROP_ANCHOR, ANCHOR_LEFT);
+   ObjectSet(n, OBJPROP_SELECTABLE, false);
+   ObjectSetText(n, txt, 10, "Arial Bold", clr);
+  }
+
+void Ray(string id, datetime t1, double p1, datetime t2, double p2, color clr)
+  {
+   if(p1 <= 0 || p2 <= 0) return;
+   string n = P + id;
+   if(ObjectFind(0, n) < 0)
+     {
+      if(!ObjectCreate(0, n, OBJ_TREND, 0, t1, p1, t2, p2))
+         ObjectCreate(n, OBJ_TREND, 0, t1, p1, t2, p2);
+     }
+   ObjectSet(n, OBJPROP_TIME1, t1);
+   ObjectSet(n, OBJPROP_PRICE1, p1);
+   ObjectSet(n, OBJPROP_TIME2, t2);
+   ObjectSet(n, OBJPROP_PRICE2, p2);
+   ObjectSet(n, OBJPROP_COLOR, clr);
+   ObjectSet(n, OBJPROP_STYLE, STYLE_SOLID);
+   ObjectSet(n, OBJPROP_WIDTH, 2);
+   ObjectSet(n, OBJPROP_RAY, true);
    ObjectSet(n, OBJPROP_SELECTABLE, false);
   }
 
@@ -416,15 +455,43 @@ void DrawSmcOnChart()
    int dir = 0, spPts = 0;
    double entry = 0, stop = 0, target = 0;
    Scan(idx, bias, verdict, why, dir, entry, stop, target, spPts);
-
-   Hln("lv_en", entry, C_GOLD);
-   Hln("lv_sl", stop, C_SEL);
-   Hln("lv_tp", target, C_BUY);
+   ObjectDelete(P+"lv_en");
+   ObjectDelete(P+"lv_sl");
+   ObjectDelete(P+"lv_tp");
+   ObjectDelete(P+"sw_h");
+   ObjectDelete(P+"sw_l");
 
    int tf = PeriodOf(g_tf);
-   int drawn = 0;
    datetime tNow = iTime(s, tf, 0);
-   for(i = 3; i < 70 && drawn < 3; i++)
+   datetime tLeft = iTime(s, tf, 36);
+   datetime tRight = tNow + tf * 60 * 12;
+   if(tLeft <= 0) tLeft = tNow - tf * 60 * 36;
+   double atr = 0;
+   for(i = 1; i <= 14; i++) atr += (iHigh(s, tf, i) - iLow(s, tf, i));
+   atr /= 14.0;
+   double pad = MathMax(atr * 0.04, SpreadPr(s) * 2.0);
+
+   if(entry > 0)
+     {
+      Box("zn_en", tLeft, entry + pad, tRight, entry - pad, C_GOLD);
+      Tag("zn_en_t", tNow, entry + pad, "ВХОД "+Px(s, entry)+"  "+verdict, C_GOLD);
+      Ray("zn_en_r", tLeft, entry, tNow, entry, C_GOLD);
+     }
+   if(stop > 0)
+     {
+      Box("zn_sl", tLeft, stop + pad, tRight, stop - pad, C_SEL);
+      Tag("zn_sl_t", tNow, stop, "СТОП "+Px(s, stop), C_SEL);
+      Ray("zn_sl_r", tLeft, stop, tNow, stop, C_SEL);
+     }
+   if(target > 0)
+     {
+      Box("zn_tp", tLeft, target + pad, tRight, target - pad, C_BUY);
+      Tag("zn_tp_t", tNow, target, "ТЕЙК "+Px(s, target), C_BUY);
+      Ray("zn_tp_r", tLeft, target, tNow, target, C_BUY);
+     }
+
+   int drawn = 0;
+   for(i = 3; i < 80 && drawn < 3; i++)
      {
       double hi = iHigh(s, tf, i);
       double lo = iLow(s, tf, i);
@@ -433,20 +500,55 @@ void DrawSmcOnChart()
       datetime t1 = iTime(s, tf, i);
       if(lo2 > hi)
         {
-         Box("fvg"+IntegerToString(drawn), t1, hi, tNow, lo2, C_BUY);
+         Box("fvg"+IntegerToString(drawn), t1, hi, tRight, lo2, C_BUY);
+         Tag("fvg_t"+IntegerToString(drawn), t1, lo2, "FVG спрос", C_BUY);
          drawn++;
         }
       else if(hi2 < lo)
         {
-         Box("fvg"+IntegerToString(drawn), t1, lo, tNow, hi2, C_SEL);
+         Box("fvg"+IntegerToString(drawn), t1, lo, tRight, hi2, C_SEL);
+         Tag("fvg_t"+IntegerToString(drawn), t1, hi2, "FVG предложение", C_SEL);
          drawn++;
         }
      }
 
-   int sh = iHighest(s, tf, MODE_HIGH, 48, 1);
-   int sl = iLowest(s, tf, MODE_LOW, 48, 1);
-   if(sh > 0) Hln("sw_h", iHigh(s, tf, sh), C_SEL);
-   if(sl > 0) Hln("sw_l", iLow(s, tf, sl), C_BUY);
+   int obn = 0;
+   for(i = 4; i < 70 && obn < 2; i++)
+     {
+      double o = iOpen(s, tf, i);
+      double c = iClose(s, tf, i);
+      double hi = iHigh(s, tf, i);
+      double lo = iLow(s, tf, i);
+      datetime t1 = iTime(s, tf, i);
+      if(c < o && iClose(s, tf, i - 1) > hi && iClose(s, tf, i - 2) > iClose(s, tf, i - 1))
+        {
+         Box("ob"+IntegerToString(obn), t1, lo, tRight, hi, C_BUY);
+         Tag("ob_t"+IntegerToString(obn), t1, hi, "БЛОК спрос", C_BUY);
+         obn++;
+        }
+      else if(c > o && iClose(s, tf, i - 1) < lo && iClose(s, tf, i - 2) < iClose(s, tf, i - 1))
+        {
+         Box("ob"+IntegerToString(obn), t1, lo, tRight, hi, C_SEL);
+         Tag("ob_t"+IntegerToString(obn), t1, lo, "БЛОК предложение", C_SEL);
+         obn++;
+        }
+     }
+
+   int sh = iHighest(s, tf, MODE_HIGH, 40, 1);
+   int sl = iLowest(s, tf, MODE_LOW, 40, 1);
+   int sh2 = (sh > 4 ? iHighest(s, tf, MODE_HIGH, 40, sh + 3) : 0);
+   int sl2 = (sl > 4 ? iLowest(s, tf, MODE_LOW, 40, sl + 3) : 0);
+   if(sh > 0 && sh2 > sh)
+     {
+      Ray("bos_h", iTime(s, tf, sh2), iHigh(s, tf, sh2), iTime(s, tf, sh), iHigh(s, tf, sh), C_SEL);
+      Tag("bos_h_t", iTime(s, tf, sh), iHigh(s, tf, sh), "BSL / хай", C_SEL);
+     }
+   if(sl > 0 && sl2 > sl)
+     {
+      Ray("bos_l", iTime(s, tf, sl2), iLow(s, tf, sl2), iTime(s, tf, sl), iLow(s, tf, sl), C_BUY);
+      Tag("bos_l_t", iTime(s, tf, sl), iLow(s, tf, sl), "SSL / лой", C_BUY);
+     }
+
    DrawTape();
   }
 
