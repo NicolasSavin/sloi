@@ -30,55 +30,51 @@ export function Ticker({ quotes }: { quotes: HomeQuote[] }) {
   );
 }
 
-export function NewsTicker({ news }: { news: NewsArticle[] }) {
-  const row = news.length ? [...news, ...news] : [];
+export function NewsTicker({ news, flashes = [] }: { news: NewsArticle[]; flashes?: DeskFlash[] }) {
+  const mixed: ({ t: "news"; n: NewsArticle } | { t: "desk"; f: DeskFlash })[] = [];
+  const n = Math.max(news.length, flashes.length);
+  for (let i = 0; i < n; i++) {
+    if (news[i]) mixed.push({ t: "news", n: news[i]! });
+    if (flashes[i]) mixed.push({ t: "desk", f: flashes[i]! });
+  }
+  const row = mixed.length ? [...mixed, ...mixed] : [];
   if (!row.length) return null;
   return (
     <div className="ticker-rail bg-gradient-to-r from-[#102028] via-[#14100c] to-[#1c1410]">
       <div className="ticker-move-rev">
-        {row.map((n, i) => (
-          <Link
-            key={`${n.slug}-${i}`}
-            to="/news/$slug"
-            params={{ slug: n.slug }}
-            className="ticker-chip shrink-0 max-w-[28rem] no-underline"
-          >
-            <span className="font-mono text-[10px] tracking-[0.14em] text-[#7ee0ea]">{n.tag}</span>
-            <span className="truncate text-sm text-fg">{n.title}</span>
-            <span className="hidden font-mono text-[10px] text-dim sm:inline">{n.source}</span>
-          </Link>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-export function DeskTicker({ items }: { items: DeskFlash[] }) {
-  const row = items.length ? [...items, ...items] : [];
-  if (!row.length) return null;
-  return (
-    <div className="ticker-rail bg-gradient-to-r from-[#1a2418] via-[#16110c] to-[#241810]">
-      <div className="ticker-move">
-        {row.map((f, i) => (
-          <Link
-            key={`${f.id}-${i}`}
-            to={f.to ?? "/dispatch"}
-            className="ticker-chip shrink-0 no-underline"
-          >
-            <span className="font-mono text-[10px] tracking-[0.14em] text-accent">
-              {f.kind === "site" ? "сайт" : "стол"}
-            </span>
-            <span className="text-sm text-fg">{f.text}</span>
-            <span
-              className={cn(
-                "font-mono text-[10px]",
-                f.tone === "bull" ? "text-bull" : f.tone === "bear" ? "text-bear" : "text-dim",
-              )}
+        {row.map((item, i) =>
+          item.t === "news" ? (
+            <Link
+              key={`n-${item.n.slug}-${i}`}
+              to="/news/$slug"
+              params={{ slug: item.n.slug }}
+              className="ticker-chip shrink-0 max-w-[28rem] no-underline"
             >
-              {f.tone === "bull" ? "▲" : f.tone === "bear" ? "▼" : "●"}
-            </span>
-          </Link>
-        ))}
+              <span className="font-mono text-[10px] tracking-[0.14em] text-[#7ee0ea]">{item.n.tag}</span>
+              <span className="truncate text-sm text-fg">{item.n.title}</span>
+              <span className="hidden font-mono text-[10px] text-dim sm:inline">{item.n.source}</span>
+            </Link>
+          ) : (
+            <Link
+              key={`d-${item.f.id}-${i}`}
+              to={item.f.to ?? "/dispatch"}
+              className="ticker-chip shrink-0 no-underline"
+            >
+              <span className="font-mono text-[10px] tracking-[0.14em] text-accent">
+                {item.f.kind === "site" ? "сайт" : "стол"}
+              </span>
+              <span className="text-sm text-fg">{item.f.text}</span>
+              <span
+                className={cn(
+                  "font-mono text-[10px]",
+                  item.f.tone === "bull" ? "text-bull" : item.f.tone === "bear" ? "text-bear" : "text-dim",
+                )}
+              >
+                {item.f.tone === "bull" ? "▲" : item.f.tone === "bear" ? "▼" : "●"}
+              </span>
+            </Link>
+          ),
+        )}
       </div>
     </div>
   );

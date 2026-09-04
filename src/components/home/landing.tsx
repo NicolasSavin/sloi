@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { AppNav } from "@/components/app-nav";
 import { NewsBoard } from "@/components/home/news";
 import { QuoteBoard } from "@/components/home/quotes";
-import { Ticker, NewsTicker, DeskTicker } from "@/components/home/ticker";
+import { Ticker, NewsTicker } from "@/components/home/ticker";
 import { BrandMark } from "@/components/home/brand-mark";
 import { HomeLeadPoster } from "@/components/home/lead-poster";
 import { SessionStrip } from "@/components/session-strip";
@@ -15,8 +15,7 @@ export function Landing({ data }: { data: HomePayload }) {
     <div className="min-h-dvh">
       <AppNav />
       <Ticker quotes={data.quotes} />
-      <NewsTicker news={data.news} />
-      <DeskTicker items={data.flashes} />
+      <NewsTicker news={data.news} flashes={data.flashes} />
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
         <SessionStrip />
         <HomeCalStrip />
