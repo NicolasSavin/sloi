@@ -339,6 +339,8 @@ export function gateAdvice(
     changePct?: number;
     rangeHigh?: number;
     rangeLow?: number;
+    coil?: "coil" | "spike" | "none";
+    coilDir?: "up" | "down" | "flat";
   },
 ): Advice {
   const base = ctx?.id
@@ -361,6 +363,8 @@ export function gateAdvice(
         changePct: ctx.changePct,
         rangeHigh: ctx.rangeHigh,
         rangeLow: ctx.rangeLow,
+        coil: ctx.coil,
+        coilDir: ctx.coilDir,
       })
     : advice;
   if (halt?.active && !ctx?.id) {

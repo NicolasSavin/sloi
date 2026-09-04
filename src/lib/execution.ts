@@ -173,6 +173,8 @@ export function refineAdvice(
     changePct?: number;
     rangeHigh?: number;
     rangeLow?: number;
+    coil?: "coil" | "spike" | "none";
+    coilDir?: "up" | "down" | "flat";
   },
 ): Advice {
   if (haltApplies(opts.id, opts.halt)) {
@@ -255,20 +257,42 @@ export function refineAdvice(
       };
     }
     if (senior === "long" && advice.action === "long" && where === "upper") {
-      return {
-        ...advice,
-        action: "wait",
-        title: "Ждать выноса коробки",
-        therefore: "Лонг из потолка H1 без закрытия выше — догон. Край: низ коробки или живой пробой верха.",
-      };
+      if (opts.coil === "coil" && opts.coilDir === "up") {
+        /* полка на потолке — выход наружу, не ждать закрытия выше */
+      } else if (opts.coil === "spike") {
+        return {
+          ...advice,
+          action: "wait",
+          title: "Ждать возврат в коробку",
+          therefore: "Шпиль через верх без полки. Не догонять наружу — ждать возврат к краю, лонг от уровня.",
+        };
+      } else {
+        return {
+          ...advice,
+          action: "wait",
+          title: "Ждать выноса коробки",
+          therefore: "Лонг из потолка H1 без полки — догон. Нужна микрополка у края или закрытие выше.",
+        };
+      }
     }
     if (senior === "short" && advice.action === "short" && where === "lower") {
-      return {
-        ...advice,
-        action: "wait",
-        title: "Ждать слома коробки",
-        therefore: "Шорт из пола H1 без закрытия ниже — догон. Край: верх коробки или живой пробой низа.",
-      };
+      if (opts.coil === "coil" && opts.coilDir === "down") {
+        /* полка на полу — выход наружу */
+      } else if (opts.coil === "spike") {
+        return {
+          ...advice,
+          action: "wait",
+          title: "Ждать возврат в коробку",
+          therefore: "Шпиль через низ без полки. Не догонять вниз — ждать возврат к краю, шорт от уровня.",
+        };
+      } else {
+        return {
+          ...advice,
+          action: "wait",
+          title: "Ждать слома коробки",
+          therefore: "Шорт из пола H1 без полки — догон. Нужна микрополка у края или закрытие ниже.",
+        };
+      }
     }
   }
   const pd = opts.premiumDiscount;
