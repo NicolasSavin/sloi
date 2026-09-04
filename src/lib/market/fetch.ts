@@ -450,6 +450,50 @@ export const fetchDigest = createServerFn({ method: "GET" }).handler(async () =>
   }
 });
 
+const TAPE_IDS = ["XAUUSD", "XAGUSD", "EURUSD", "GBPUSD", "USDJPY", "XTIUSD", "BTCUSD", "USDCAD"];
+let tapeCache: { at: number; data: TapeSnap } | null = null;
+
+export type TapeRow = {
+  id: string;
+  label: string;
+  decimals: number;
+  last: number;
+  prev: number;
+  high: number;
+  low: number;
+  spark: number[];
+  bars: { o: number; h: number; l: number; c: number }[];
+};
+
+export type TapeSnap = { at: number; rows: TapeRow[] };
+
+export const fetchTape = createServerFn({ method: "GET" }).handler(async () => {
+  if (tapeCache && Date.now() - tapeCache.at < 12_000) return tapeCache.data;
+  const { SYMBOLS } = await import("./symbols");
+  const rows = await mapPool(TAPE_IDS, 4, async (id) => {
+    const spec = SYMBOLS.find((s) => s.id === id)!;
+    const p = await loadPayload(id, "15m", false);
+    const use = p.candles.slice(-40);
+    const last = use.at(-1);
+    const prev = use.at(-2) ?? last;
+    const win = use.slice(-8);
+    return {
+      id,
+      label: spec.label,
+      decimals: spec.decimals,
+      last: last?.close ?? 0,
+      prev: prev?.close ?? 0,
+      high: Math.max(...win.map((c) => c.high)),
+      low: Math.min(...win.map((c) => c.low)),
+      spark: use.map((c) => c.close),
+      bars: use.slice(-12).map((c) => ({ o: c.open, h: c.high, l: c.low, c: c.close })),
+    } satisfies TapeRow;
+  });
+  const data: TapeSnap = { at: Date.now(), rows };
+  tapeCache = { at: Date.now(), data };
+  return data;
+});
+
 /** Public alias for API routes (archive). */
 export async function assembleDigestPublic() {
   return assembleDigest();

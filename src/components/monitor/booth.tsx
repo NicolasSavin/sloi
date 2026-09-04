@@ -6,7 +6,7 @@ import { Spark } from "@/components/home/spark";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { actionLabel, actionTone } from "@/lib/advisor";
-import { fetchDigest } from "@/lib/market/fetch";
+import { fetchDigest, fetchTape } from "@/lib/market/fetch";
 import { linesFromTick, type MonitorLine } from "@/lib/monitor-call";
 import { speakRu, unlockSound } from "@/lib/sound";
 import { cn, formatPrice } from "@/lib/utils";
@@ -15,19 +15,26 @@ export function MonitorBooth() {
   const q = useQuery({
     queryKey: ["monitor-digest"],
     queryFn: () => fetchDigest(),
-    refetchInterval: 15_000,
+    refetchInterval: 20_000,
     staleTime: 8_000,
+  });
+  const tape = useQuery({
+    queryKey: ["monitor-tape"],
+    queryFn: () => fetchTape(),
+    refetchInterval: 12_000,
+    staleTime: 4_000,
   });
   const markets = q.data?.digest.markets ?? [];
   const fund = q.data?.digest.fund;
+  const tapeRows = tape.data?.rows ?? [];
   const [voice, setVoice] = useState(true);
   const [log, setLog] = useState<MonitorLine[]>([]);
   const prev = useRef(new Map<string, string>());
   const first = useRef(true);
 
   useEffect(() => {
-    if (!markets.length) return;
-    const fresh = linesFromTick(markets, fund, prev.current, first.current);
+    if (!markets.length && !tapeRows.length) return;
+    const fresh = linesFromTick(markets, fund, tapeRows, prev.current, first.current);
     first.current = false;
     if (!fresh.length) return;
     setLog((old) => [...fresh, ...old].slice(0, 40));
@@ -35,10 +42,13 @@ export function MonitorBooth() {
       const top = fresh.find((l) => l.tone === "alert") ?? fresh[0];
       if (top) void speakRu(top.speak);
     }
-  }, [q.dataUpdatedAt, voice]);
+  }, [q.dataUpdatedAt, tape.dataUpdatedAt, voice]);
 
   const live = markets.filter((m) => m.advice.action === "long" || m.advice.action === "short");
-  const grid = [...live, ...markets.filter((m) => m.advice.action !== "long" && m.advice.action !== "short")].slice(0, 12);
+  const tapeMap = new Map(tapeRows.map((r) => [r.id, r]));
+  const gridIds = ["XAUUSD", ...live.map((m) => m.spec.id), ...tapeRows.map((r) => r.id)].filter(
+    (id, i, a) => a.indexOf(id) === i,
+  );
 
   return (
     <div className="min-h-dvh">
@@ -49,7 +59,7 @@ export function MonitorBooth() {
             <p className="font-mono text-xs tracking-[0.22em] text-accent">ЭФИР</p>
             <h1 className="mt-2 text-4xl font-medium tracking-tight">Монитор</h1>
             <p className="mt-2 max-w-xl text-sm text-muted">
-              Мини-графики со стола и комментарий как на спортивной трансляции. Обновление каждые 15 секунд.
+              Мини-графики 15 минут и комментарий как на спортивной трансляции. Говорит и отскок, не только приказ.
             </p>
           </div>
           <Button
@@ -65,26 +75,29 @@ export function MonitorBooth() {
         </div>
 
         <section className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {grid.map((m) => {
-            const spark = m.spark ?? [];
-            const up = m.changePct >= 0;
+          {gridIds.map((id) => {
+            const m = markets.find((x) => x.spec.id === id);
+            const t = tapeMap.get(id);
+            const spark = t?.spark ?? m?.spark ?? [];
+            const last = t?.last ?? m?.lastClose ?? 0;
+            const prevPx = t?.prev ?? last;
+            const chg = prevPx ? ((last - prevPx) / prevPx) * 100 : m?.changePct ?? 0;
+            const up = chg >= 0;
+            const decimals = t?.decimals ?? m?.spec.decimals ?? 2;
+            const label = t?.label ?? m?.spec.label ?? id;
             return (
-              <a
-                key={m.spec.id}
-                href={`/desk?pair=${m.spec.id}`}
-                className="panel-volume rounded-xl p-4 no-underline"
-              >
+              <a key={id} href={`/desk?pair=${id}`} className="panel-volume rounded-xl p-4 no-underline">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-medium">{m.spec.label}</p>
-                  <Badge tone={actionTone(m.advice.action)}>{actionLabel(m.advice.action)}</Badge>
+                  <p className="text-sm font-medium">{label}</p>
+                  <Badge tone={actionTone(m?.advice.action ?? "wait")}>{actionLabel(m?.advice.action ?? "wait")}</Badge>
                 </div>
-                <p className="mt-1 font-display text-2xl tabular-nums">{formatPrice(m.lastClose, m.spec.decimals)}</p>
+                <p className="mt-1 font-display text-2xl tabular-nums">{formatPrice(last, decimals)}</p>
                 <p className={cn("text-xs", up ? "text-bull" : "text-bear")}>
                   {up ? "+" : ""}
-                  {m.changePct.toFixed(2)}%
+                  {chg.toFixed(2)}% · 15м
                 </p>
                 <Spark values={spark} up={up} className="mt-2 h-14 w-full" />
-                <p className="mt-2 line-clamp-2 text-xs text-muted">{m.advice.title}</p>
+                <p className="mt-2 line-clamp-2 text-xs text-muted">{m?.advice.title ?? "—"}</p>
               </a>
             );
           })}
