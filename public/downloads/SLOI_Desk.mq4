@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.46"
+#property version   "4.47"
 #property strict
 #property description "На графике: VWAP, профиль, футпринт бара, infusion/splash, Bid/Ask."
 
@@ -124,7 +124,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.46: на чарте только ближайший блок и FVG, крупно.");
+   Print("SLOI 4.47: имбаланс, ордерблок, ликвидность — по одному, крупно.");
    return(INIT_SUCCEEDED);
   }
 
@@ -460,6 +460,8 @@ void DrawSmcOnChart()
    ObjectDelete(P+"lv_tp");
    ObjectDelete(P+"sw_h");
    ObjectDelete(P+"sw_l");
+   ObjectDelete(P+"bos_h_t");
+   ObjectDelete(P+"bos_l_t");
    for(i = 0; i < 4; i++)
      {
       ObjectDelete(P+"fvg"+IntegerToString(i));
@@ -508,13 +510,13 @@ void DrawSmcOnChart()
       if(lo2 > hi && (lo2 - hi) >= atr * 0.12)
         {
          Box("fvg"+IntegerToString(drawn), t1, hi, tRight, lo2, C_BUY);
-         Tag("fvg_t"+IntegerToString(drawn), t1, lo2, "FVG спрос", C_BUY);
+         Tag("fvg_t"+IntegerToString(drawn), t1, lo2, "ИМБАЛАНС спрос", C_BUY);
          drawn++;
         }
       else if(hi2 < lo && (lo - hi2) >= atr * 0.12)
         {
          Box("fvg"+IntegerToString(drawn), t1, lo, tRight, hi2, C_SEL);
-         Tag("fvg_t"+IntegerToString(drawn), t1, hi2, "FVG предложение", C_SEL);
+         Tag("fvg_t"+IntegerToString(drawn), t1, hi2, "ИМБАЛАНС предложение", C_SEL);
          drawn++;
         }
      }
@@ -530,13 +532,13 @@ void DrawSmcOnChart()
       if(c < o && iClose(s, tf, i - 1) > hi && iClose(s, tf, i - 2) > iClose(s, tf, i - 1))
         {
          Box("ob"+IntegerToString(obn), t1, lo, tRight, hi, C_BUY);
-         Tag("ob_t"+IntegerToString(obn), t1, hi, "БЛОК спрос", C_BUY);
+         Tag("ob_t"+IntegerToString(obn), t1, hi, "ОРДЕРБЛОК спрос", C_BUY);
          obn++;
         }
       else if(c > o && iClose(s, tf, i - 1) < lo && iClose(s, tf, i - 2) < iClose(s, tf, i - 1))
         {
          Box("ob"+IntegerToString(obn), t1, lo, tRight, hi, C_SEL);
-         Tag("ob_t"+IntegerToString(obn), t1, lo, "БЛОК предложение", C_SEL);
+         Tag("ob_t"+IntegerToString(obn), t1, lo, "ОРДЕРБЛОК предложение", C_SEL);
          obn++;
         }
      }
@@ -548,12 +550,14 @@ void DrawSmcOnChart()
    if(sh > 0 && sh2 > sh)
      {
       Ray("bos_h", iTime(s, tf, sh2), iHigh(s, tf, sh2), iTime(s, tf, sh), iHigh(s, tf, sh), C_SEL);
-      Tag("bos_h_t", iTime(s, tf, sh), iHigh(s, tf, sh), "BSL / хай", C_SEL);
+      Box("liq_h", iTime(s, tf, sh), iHigh(s, tf, sh) + pad * 2, tRight, iHigh(s, tf, sh) - pad, C_GOLD);
+      Tag("liq_h_t", iTime(s, tf, sh), iHigh(s, tf, sh) + pad * 2, "ЛИКВИДНОСТЬ BSL", C_GOLD);
      }
    if(sl > 0 && sl2 > sl)
      {
       Ray("bos_l", iTime(s, tf, sl2), iLow(s, tf, sl2), iTime(s, tf, sl), iLow(s, tf, sl), C_BUY);
-      Tag("bos_l_t", iTime(s, tf, sl), iLow(s, tf, sl), "SSL / лой", C_BUY);
+      Box("liq_l", iTime(s, tf, sl), iLow(s, tf, sl) + pad, tRight, iLow(s, tf, sl) - pad * 2, C_GOLD);
+      Tag("liq_l_t", iTime(s, tf, sl), iLow(s, tf, sl), "ЛИКВИДНОСТЬ SSL", C_GOLD);
      }
 
    DrawTape();

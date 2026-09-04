@@ -55,6 +55,14 @@ function drawZones(
     ctx.font = "bold 13px IBM Plex Sans, sans-serif";
     ctx.fillText(label, 10, y - thick / 2 - 4);
   };
+  const pill = (x: number, y: number, text: string, bg: string, fg: string) => {
+    ctx.font = "bold 14px IBM Plex Sans, sans-serif";
+    const w = ctx.measureText(text).width + 16;
+    ctx.fillStyle = bg;
+    ctx.fillRect(x, y - 17, w, 22);
+    ctx.fillStyle = fg;
+    ctx.fillText(text, x + 8, y);
+  };
   if (overlays.margin !== false && snap) {
     const paint = (top: number, bottom: number, fill: string, stroke: string, label: string, live: boolean) => {
       const y1 = series.priceToCoordinate(top);
@@ -126,9 +134,7 @@ function drawZones(
     };
     const live = zones.filter((z) => !z.mitigated);
     const picked = [
-      ...(overlays.fvg
-        ? live.filter((z) => z.kind === "fvg").sort((a, b) => dist(a) - dist(b)).slice(0, 1)
-        : []),
+      ...(overlays.fvg ? live.filter((z) => z.kind === "fvg").sort((a, b) => dist(a) - dist(b)).slice(0, 1) : []),
       ...(overlays.ob
         ? live
             .filter((z) => z.kind === "ob" || z.kind === "breaker" || z.kind === "mitigation")
@@ -136,14 +142,6 @@ function drawZones(
             .slice(0, 1)
         : []),
     ];
-    const pill = (x: number, y: number, text: string, bg: string, fg: string) => {
-      ctx.font = "bold 14px IBM Plex Sans, sans-serif";
-      const w = ctx.measureText(text).width + 16;
-      ctx.fillStyle = bg;
-      ctx.fillRect(x, y - 17, w, 22);
-      ctx.fillStyle = fg;
-      ctx.fillText(text, x + 8, y);
-    };
     for (const z of picked) {
       const x1 = ts.timeToCoordinate(z.startTime as UTCTimestamp) ?? 8;
       const y1 = series.priceToCoordinate(z.top);
@@ -153,24 +151,34 @@ function drawZones(
       const h = Math.abs(y2 - y1);
       if (h < 12) continue;
       const bull = z.side === "bull";
-      ctx.fillStyle = bull ? "rgba(46, 140, 96, 0.48)" : "rgba(176, 64, 64, 0.48)";
-      ctx.strokeStyle = bull ? "#7dffb8" : "#ff8a8a";
+      const imb = z.kind === "fvg";
+      ctx.fillStyle = imb
+        ? bull
+          ? "rgba(212, 160, 48, 0.42)"
+          : "rgba(200, 120, 40, 0.42)"
+        : bull
+          ? "rgba(46, 140, 96, 0.50)"
+          : "rgba(176, 64, 64, 0.50)";
+      ctx.strokeStyle = imb ? "#ffd56a" : bull ? "#7dffb8" : "#ff8a8a";
       ctx.lineWidth = 3;
       ctx.fillRect(x1, top, plotW - x1, h);
       ctx.strokeRect(x1, top, plotW - x1, h);
-      const name =
-        z.kind === "breaker"
-          ? "БРЕЙКЕР"
-          : z.kind === "mitigation"
-            ? "МИТИГЕЙШН"
-            : z.kind === "ob"
-              ? bull
-                ? "БЛОК спрос"
-                : "БЛОК предложение"
-              : bull
-                ? "FVG спрос"
-                : "FVG предложение";
-      pill(x1 + 6, top + 18, name, bull ? "rgba(12,40,28,0.92)" : "rgba(48,16,16,0.92)", bull ? "#b6ffd4" : "#ffc4c4");
+      const name = imb
+        ? bull
+          ? "ИМБАЛАНС спрос"
+          : "ИМБАЛАНС предложение"
+        : z.kind === "breaker"
+          ? "БЛОК брейкер"
+          : bull
+            ? "ОРДЕРБЛОК спрос"
+            : "ОРДЕРБЛОК предложение";
+      pill(
+        x1 + 6,
+        top + 18,
+        name,
+        imb ? "rgba(40,28,8,0.94)" : bull ? "rgba(12,40,28,0.94)" : "rgba(48,16,16,0.94)",
+        imb ? "#ffe7a0" : bull ? "#b6ffd4" : "#ffc4c4",
+      );
     }
   }
   if (overlays.structure !== false && snap) {
@@ -196,18 +204,26 @@ function drawZones(
 
   if (overlays.liquidity && snap) {
     const atr = snap.atr || 1;
-    for (const p of snap.liquidity.filter((l) => l.swept).slice(-2)) {
+    const last = snap.lastClose;
+    const dLiq = (p: (typeof snap.liquidity)[number]) => Math.abs(last - p.price);
+    const pools = snap.liquidity;
+    const bsl = [...pools].filter((l) => l.side === "buy" && !l.swept).sort((a, b) => dLiq(a) - dLiq(b))[0];
+    const ssl = [...pools].filter((l) => l.side === "sell" && !l.swept).sort((a, b) => dLiq(a) - dLiq(b))[0];
+    const sweep = [...pools].filter((l) => l.swept).sort((a, b) => b.time - a.time)[0];
+    for (const p of [bsl, ssl, sweep].filter(Boolean) as typeof pools) {
       const x = ts.timeToCoordinate(p.time as UTCTimestamp) ?? 8;
       const y = series.priceToCoordinate(p.price);
       if (y == null) continue;
-      const y2 = series.priceToCoordinate(p.price + atr * 0.08) ?? y - 8;
+      const y2 = series.priceToCoordinate(p.price + atr * 0.12) ?? y - 14;
       const topL = Math.min(y, y2);
-      const hh = Math.max(8, Math.abs(y2 - y));
-      ctx.fillStyle = p.side === "buy" ? "rgba(111,158,134,0.22)" : "rgba(181,122,122,0.22)";
+      const hh = Math.max(14, Math.abs(y2 - y));
+      ctx.fillStyle = p.swept ? "rgba(232, 196, 96, 0.40)" : "rgba(120, 190, 230, 0.38)";
+      ctx.strokeStyle = p.swept ? "#ffe08a" : "#9ee0ff";
+      ctx.lineWidth = 3;
       ctx.fillRect(x, topL, plotW - x, hh);
-      ctx.fillStyle = "#f0e6d4";
-      ctx.font = "bold 11px IBM Plex Sans, sans-serif";
-      ctx.fillText(p.swept ? "SWEEP" : p.side === "buy" ? "BSL" : "SSL", x + 6, topL + 12);
+      ctx.strokeRect(x, topL, plotW - x, hh);
+      const label = p.swept ? "СЪЁМ ЛИКВИДНОСТИ" : p.side === "buy" ? "ЛИКВИДНОСТЬ BSL" : "ЛИКВИДНОСТЬ SSL";
+      pill(x + 6, topL + 18, label, "rgba(16,24,36,0.94)", p.swept ? "#ffe08a" : "#c8f0ff");
     }
   }
 
