@@ -19,7 +19,7 @@ export interface Advice {
   covers: number | null;
 }
 
-export function advise(snap: Pick<SmcSnapshot, "bias" | "localSetup" | "margin" | "wyckoff" | "patterns" | "auction" | "ivNews" | "micro" | "divergences" | "flow">, spec: SymbolSpec, spread = spec.spread): Advice {
+export function advise(snap: Pick<SmcSnapshot, "bias" | "localSetup" | "margin" | "wyckoff" | "patterns" | "auction" | "ivNews" | "micro" | "divergences" | "flow" | "coil">, spec: SymbolSpec, spread = spec.spread): Advice {
   const roundTrip = spread * 2;
   const entry = snap.localSetup.entry;
   const stop = snap.localSetup.stop;
@@ -183,7 +183,7 @@ export function advise(snap: Pick<SmcSnapshot, "bias" | "localSetup" | "margin" 
       covers,
     };
   }
-  if (snap.auction?.vol === "compressed" && netRr != null && netRr < 1.8) {
+  if (snap.auction?.vol === "compressed" && netRr != null && netRr < 1.8 && snap.coil?.kind !== "coil") {
     return {
       action: "skip",
       title: "Пропуск: волатильность сжата",
@@ -200,6 +200,26 @@ export function advise(snap: Pick<SmcSnapshot, "bias" | "localSetup" | "margin" 
     };
   }
   const splash = snap.micro?.splash;
+  if (snap.coil?.kind === "spike") {
+    const chase =
+      (side === "long" && snap.coil.dir === "up") || (side === "short" && snap.coil.dir === "down");
+    if (chase) {
+      return {
+        action: "wait",
+        title: "Ждать: шпиль без полки",
+        because: snap.coil.because,
+        therefore: snap.coil.therefore,
+        spread,
+        roundTrip,
+        grossRisk,
+        grossReward,
+        netRisk,
+        netReward,
+        netRr,
+        covers,
+      };
+    }
+  }
   if (splash && ((side === "long" && splash.side === "sell") || (side === "short" && splash.side === "buy"))) {
     return {
       action: "wait",
@@ -280,19 +300,25 @@ export function advise(snap: Pick<SmcSnapshot, "bias" | "localSetup" | "margin" 
       : " Вливание по стороне входа — от лужи, не сквозь."
     : "";
   const fight = snap.patterns?.find((p) => (p.side === "bear" && side === "long") || (p.side === "bull" && side === "short"));
+  const patNote = fight ? ` На графике ${fight.name} против — лимит всё равно, рынок нет.` : "";
   const marginNote =
     snap.margin?.where === "upper" && side === "long"
       ? " Цена в верхней марже — лимитка ниже, не рынок."
       : snap.margin?.where === "lower" && side === "short"
         ? " Цена в нижней марже — лимитка выше, не рынок."
         : "";
-  const patNote = fight ? ` На графике ${fight.name} против — лимит всё равно, рынок нет.` : "";
+  const coilNote =
+    snap.coil?.kind === "coil"
+      ? " Полка у уровня — пробой скорее живой, сжатие не режем."
+      : snap.coil?.kind === "spike"
+        ? " Шпиль без полки — лимит на возврат, не рынок вдогонку."
+        : "";
 
   return {
     action: side,
     title: side === "long" ? "Лимит на покупку в зоне" : "Лимит на продажу в зоне",
     because: `Вход ${fmt(entry)}, стоп ${fmt(stop)}, цель ${fmt(target)}. Круг ${fmt(roundTrip)}.`,
-    therefore: `Чистый RR ${netRr?.toFixed(2)}. Ордер вешаем заранее, пока цена идёт к зоне.${marginNote}${patNote}${infNote}${hidNote}`,
+    therefore: `Чистый RR ${netRr?.toFixed(2)}. Ордер вешаем заранее, пока цена идёт к зоне.${marginNote}${patNote}${infNote}${hidNote}${coilNote}`,
     spread,
     roundTrip,
     grossRisk,

@@ -4,6 +4,7 @@ import { buildFlow, type FlowSnap } from "@/lib/smc/flow";
 import { clustersFromCandles, clustersFromTrades, type ClusterMap } from "@/lib/smc/clusters";
 import { buildMicro, nearestStall, type MicroSnap } from "@/lib/smc/micro";
 import { buildAuction, type AuctionSnap } from "@/lib/smc/auction";
+import { buildCoilBreak, type CoilBreak } from "@/lib/smc/coil";
 import { buildCorr, type CorrSnap } from "@/lib/corr";
 import { buildIvNews, type IvNewsSnap } from "@/lib/iv-news";
 import { liveClusters } from "@/lib/broker-tape";
@@ -158,6 +159,7 @@ export interface SmcSnapshot {
   clusters: ClusterMap;
   micro: MicroSnap;
   auction: AuctionSnap;
+  coil: CoilBreak;
   corr: CorrSnap;
   ivNews: IvNewsSnap;
   killzone: { name: string; active: boolean }[];
@@ -1008,6 +1010,7 @@ export function analyzeMarket(
   const clusters = (trades?.length ? clustersFromTrades(trades) : null) ?? clustersFromCandles(candles);
   const micro = buildMicro(candles, opts?.symbol ? liveClusters(opts.symbol) : []);
   const auction = buildAuction(candles, opts?.kind);
+  const coil = buildCoilBreak(candles, atr, swings);
   const corr = buildCorr(opts?.symbol ?? "", {
     dxyChange: opts?.dxyChange,
     yieldChange: opts?.yieldChange,
@@ -1237,6 +1240,21 @@ export function analyzeMarket(
     note: `${auction.because} ${auction.therefore}`,
   });
   confluence.push({
+    id: "coil",
+    layer: "Полка / шпиль",
+    status:
+      coil.kind === "coil"
+        ? coil.dir === "up"
+          ? "for"
+          : coil.dir === "down"
+            ? "against"
+            : "neutral"
+        : coil.kind === "spike"
+          ? "against"
+          : "neutral",
+    note: `${coil.because} ${coil.therefore}`,
+  });
+  confluence.push({
     id: "corr",
     layer: "Корреляция",
     status: corr.status,
@@ -1315,6 +1333,7 @@ export function analyzeMarket(
     clusters,
     micro,
     auction,
+    coil,
     corr,
     ivNews,
     killzone: kz,
@@ -1378,6 +1397,7 @@ export function compactForAi(symbol: string, timeframe: string, snap: SmcSnapsho
       therefore: snap.micro.therefore,
     },
     auction: snap.auction,
+    coil: snap.coil,
     corr: snap.corr,
     ivNews: snap.ivNews,
     confluence: snap.confluence,
