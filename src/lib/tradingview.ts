@@ -1,4 +1,3 @@
-import { actionLabel } from "@/lib/advisor";
 import { BRAND, SITE_URL } from "@/lib/brand";
 import type { DigestMarket } from "@/lib/digest";
 import { formatPrice } from "@/lib/utils";
@@ -57,7 +56,7 @@ function n(v: number | null | undefined, d: number) {
   return v.toFixed(d);
 }
 
-/** Один и тот же скрипт. Публикуете в TV один раз, дальше только крутите входы. */
+/** Шаблон со входами, если кто-то хочет крутить числа руками. */
 export const PINE_STABLE = `//@version=5
 indicator("SLOI Desk", overlay=true, max_labels_count=8)
 side = input.string("wait", "Сторона", options=["wait","long","short"])
@@ -97,7 +96,7 @@ export function pineInputs(m: DigestMarket) {
   ].join("\n");
 }
 
-/** Личный Pine: в редактор → Add to chart. Публиковать не нужно (платный аккаунт не требуется). */
+/** Личный Pine: в редактор → Add to chart. Публиковать не нужно. */
 export function pineFromMarket(m: DigestMarket) {
   const d = m.spec.decimals;
   const side = m.advice.action === "long" ? "long" : m.advice.action === "short" ? "short" : "wait";
@@ -148,4 +147,23 @@ export function ideaFromMarket(m: DigestMarket) {
     "Не инвестиционная рекомендация. Уровни со стола SLOI, не приказ брокеру.",
   ];
   return lines.filter(Boolean).join("\n");
+}
+
+export function ideaMeta(m: DigestMarket) {
+  const d = m.spec.decimals;
+  const px = (v: number | null | undefined) => (v != null ? formatPrice(v, d) : "—");
+  const tvSide = m.advice.action === "long" ? "Long" : m.advice.action === "short" ? "Short" : "Neutral";
+  const ru = m.advice.action === "long" ? "ЛОНГ" : m.advice.action === "short" ? "ШОРТ" : "НАБЛЮДЕНИЕ";
+  const title = `${m.spec.label}: ${ru} · ${m.advice.title}`.slice(0, 110);
+  const body = ideaFromMarket(m);
+  return {
+    title,
+    tvSide,
+    ru,
+    body,
+    paste: `${title}\n\n${body}`,
+    entry: px(m.setup.entry),
+    stop: px(m.setup.stop),
+    target: px(m.setup.targets[0]),
+  };
 }
