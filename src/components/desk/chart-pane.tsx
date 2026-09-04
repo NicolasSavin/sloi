@@ -41,92 +41,55 @@ function drawZones(
   if (wipe) ctx.clearRect(0, 0, width, height);
   const ts = chart.timeScale();
   const plotW = Math.max(40, width - 58);
-  const band = (price: number, fill: string, stroke: string, label: string, thick = 16) => {
+  const notes: { y: number; text: string; fg: string }[] = [];
+  const mark = (y: number, text: string, fg: string) => {
+    if (y < 8 || y > height - 8) return;
+    notes.push({ y, text, fg });
+  };
+  const band = (price: number, stroke: string, label: string) => {
     const y = series.priceToCoordinate(price);
     if (y == null) return;
-    ctx.fillStyle = fill;
-    ctx.fillRect(0, y - thick / 2, plotW, thick);
     ctx.strokeStyle = stroke;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5, 4]);
     ctx.beginPath();
     ctx.moveTo(0, y);
     ctx.lineTo(plotW, y);
     ctx.stroke();
-    ctx.fillStyle = "#f4eee4";
-    ctx.font = "bold 13px IBM Plex Sans, sans-serif";
-    ctx.fillText(label, 10, y - thick / 2 - 4);
+    ctx.setLineDash([]);
+    mark(y, label, stroke);
   };
-  const pill = (x: number, y: number, text: string, bg: string, fg: string) => {
-    ctx.font = "bold 14px IBM Plex Sans, sans-serif";
-    const w = ctx.measureText(text).width + 16;
-    ctx.fillStyle = bg;
-    ctx.fillRect(x, y - 17, w, 22);
-    ctx.fillStyle = fg;
-    ctx.fillText(text, x + 8, y);
-  };
+
   if (overlays.margin !== false && snap) {
-    const paint = (top: number, bottom: number, fill: string, stroke: string, label: string, live: boolean) => {
+    const paint = (top: number, bottom: number, fill: string, stroke: string, label: string) => {
       const y1 = series.priceToCoordinate(top);
       const y2 = series.priceToCoordinate(bottom);
       if (y1 == null || y2 == null) return;
       const y = Math.min(y1, y2);
-      const h = Math.max(8, Math.abs(y2 - y1));
+      const h = Math.max(4, Math.abs(y2 - y1));
       ctx.fillStyle = fill;
-      ctx.fillRect(0, y, width, h);
+      ctx.fillRect(0, y, plotW, h);
       ctx.strokeStyle = stroke;
-      ctx.lineWidth = live ? 2 : 1;
-      ctx.setLineDash(live ? [] : [6, 5]);
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(width, y);
-      ctx.moveTo(0, y + h);
-      ctx.lineTo(width, y + h);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.fillStyle = live ? "#f0e6d4" : "rgba(232,220,200,0.75)";
-      ctx.font = "bold 11px IBM Plex Mono, ui-monospace, monospace";
-      ctx.fillText(label, 10, Math.min(y + 16, y + h - 4));
+      ctx.lineWidth = 1;
+      ctx.strokeRect(0, y, plotW, h);
+      mark(y + Math.min(12, h / 2), label, "#e8dcc8");
     };
     paint(
       snap.margin.upper.top,
       snap.margin.upper.bottom,
-      snap.margin.upper.active ? "rgba(181,122,122,0.28)" : "rgba(181,122,122,0.12)",
-      snap.margin.upper.active ? "rgba(201,184,150,0.9)" : "rgba(201,184,150,0.35)",
-      `МАРЖА ВЕРХ  ${snap.margin.upper.bottom.toFixed(snap.lastClose >= 50 ? 1 : 5)}–${snap.margin.upper.top.toFixed(snap.lastClose >= 50 ? 1 : 5)}${snap.margin.upper.active ? "  ← ЦЕНА ЗДЕСЬ" : ""}`,
-      snap.margin.upper.active,
+      "rgba(181,122,122,0.10)",
+      "rgba(201,184,150,0.45)",
+      snap.margin.upper.active ? "маржа верх (цена здесь)" : "маржа верх",
     );
     paint(
       snap.margin.lower.top,
       snap.margin.lower.bottom,
-      snap.margin.lower.active ? "rgba(111,158,134,0.28)" : "rgba(111,158,134,0.12)",
-      snap.margin.lower.active ? "rgba(201,184,150,0.9)" : "rgba(201,184,150,0.35)",
-      `МАРЖА НИЗ  ${snap.margin.lower.bottom.toFixed(snap.lastClose >= 50 ? 1 : 5)}–${snap.margin.lower.top.toFixed(snap.lastClose >= 50 ? 1 : 5)}${snap.margin.lower.active ? "  ← ЦЕНА ЗДЕСЬ" : ""}`,
-      snap.margin.lower.active,
+      "rgba(111,158,134,0.10)",
+      "rgba(201,184,150,0.45)",
+      snap.margin.lower.active ? "маржа низ (цена здесь)" : "маржа низ",
     );
   }
-  if (snap?.auction.ib) {
-    const ib = snap.auction.ib;
-    const y1 = series.priceToCoordinate(ib.high);
-    const y2 = series.priceToCoordinate(ib.low);
-    if (y1 != null && y2 != null) {
-      const y = Math.min(y1, y2);
-      const h = Math.max(6, Math.abs(y2 - y1));
-      ctx.fillStyle = "rgba(90,140,180,0.12)";
-      ctx.fillRect(0, y, width, h);
-      ctx.strokeStyle = "rgba(140,180,210,0.7)";
-      ctx.setLineDash([4, 4]);
-      ctx.beginPath();
-      ctx.moveTo(0, y1);
-      ctx.lineTo(width, y1);
-      ctx.moveTo(0, y2);
-      ctx.lineTo(width, y2);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.fillStyle = "#d8e6f0";
-      ctx.font = "bold 10px IBM Plex Mono, monospace";
-      ctx.fillText(`${ib.session}  ${snap.auction.orb}`, 10, y + 14);
-    }
-  }
+
   if (overlays.fvg || overlays.ob) {
     const last = snap?.lastClose ?? 0;
     const atr = snap?.atr ?? 0;
@@ -135,81 +98,44 @@ function drawZones(
     const picked = [
       ...(overlays.fvg ? live.filter((z) => z.kind === "fvg").sort((a, b) => dist(a) - dist(b)).slice(0, 2) : []),
       ...(overlays.ob
-        ? live
-            .filter((z) => z.kind === "ob" || z.kind === "breaker" || z.kind === "mitigation")
-            .sort((a, b) => dist(a) - dist(b))
-            .slice(0, 2)
+        ? live.filter((z) => z.kind === "ob" || z.kind === "breaker" || z.kind === "mitigation").sort((a, b) => dist(a) - dist(b)).slice(0, 2)
         : []),
     ];
-    const ghost = overlays.fvg || overlays.ob
-      ? zones
-          .filter((z) => z.mitigated && Math.min(Math.abs(last - z.top), Math.abs(last - z.bottom)) <= atr * 2)
-          .slice(-1)
-      : [];
-    for (const z of [...picked, ...ghost]) {
+    for (const z of picked) {
       const x1 = ts.timeToCoordinate(z.startTime as UTCTimestamp) ?? 8;
+      const xEnd = ts.timeToCoordinate(z.endTime as UTCTimestamp);
+      const zw = Math.min(110, Math.max(36, xEnd != null ? xEnd - x1 : 80));
       const y1 = series.priceToCoordinate(z.top);
       const y2 = series.priceToCoordinate(z.bottom);
       if (y1 == null || y2 == null) continue;
       const top = Math.min(y1, y2);
-      const h = Math.abs(y2 - y1);
-      if (h < 6) continue;
+      const h = Math.max(4, Math.abs(y2 - y1));
       const bull = z.side === "bull";
       const imb = z.kind === "fvg";
-      const dead = z.mitigated;
-      ctx.globalAlpha = dead ? 0.4 : 1;
-      ctx.fillStyle = imb
-        ? bull
-          ? "rgba(212, 160, 48, 0.42)"
-          : "rgba(200, 120, 40, 0.42)"
-        : bull
-          ? "rgba(46, 140, 96, 0.50)"
-          : "rgba(176, 64, 64, 0.50)";
-      ctx.strokeStyle = imb ? "#ffd56a" : bull ? "#7dffb8" : "#ff8a8a";
-      ctx.lineWidth = 3;
-      ctx.setLineDash(dead ? [6, 4] : []);
-      ctx.fillRect(x1, top, plotW - x1, h);
-      ctx.strokeRect(x1, top, plotW - x1, h);
-      ctx.setLineDash([]);
-      const name = dead
-        ? "СНЯТ"
-        : imb
-          ? bull
-            ? "ИМБАЛАНС спрос"
-            : "ИМБАЛАНС предложение"
-          : z.kind === "breaker"
-            ? "БЛОК брейкер"
-            : bull
-              ? "ОРДЕРБЛОК спрос"
-              : "ОРДЕРБЛОК предложение";
-      pill(
-        x1 + 6,
-        top + 18,
-        name,
-        imb ? "rgba(40,28,8,0.94)" : bull ? "rgba(12,40,28,0.94)" : "rgba(48,16,16,0.94)",
-        imb ? "#ffe7a0" : bull ? "#b6ffd4" : "#ffc4c4",
-      );
-      ctx.globalAlpha = 1;
+      ctx.fillStyle = imb ? (bull ? "rgba(212,160,48,0.16)" : "rgba(200,120,40,0.16)") : bull ? "rgba(46,140,96,0.18)" : "rgba(176,64,64,0.18)";
+      ctx.strokeStyle = imb ? "#c9a24a" : bull ? "#5a9e78" : "#b07070";
+      ctx.lineWidth = 1.5;
+      ctx.fillRect(x1, top, zw, h);
+      ctx.strokeRect(x1, top, zw, h);
+      const name = imb ? (bull ? "имбаланс спрос" : "имбаланс предложение") : z.kind === "breaker" ? "брейкер" : bull ? "ордерблок спрос" : "ордерблок предложение";
+      mark(top + 8, name, imb ? "#e8d090" : bull ? "#a8d4bc" : "#e0b0b0");
     }
   }
+
   if (overlays.structure !== false && snap) {
-    const lastBos = [...snap.events].reverse().find((e) => e.kind === "BOS" && Math.abs(e.price - snap.lastClose) <= snap.atr * 1.4);
     const lastCh = [...snap.events].reverse().find((e) => e.kind === "CHoCH" && Math.abs(e.price - snap.lastClose) <= snap.atr * 1.4);
-    for (const e of [lastCh, lastBos].filter(Boolean) as typeof snap.events) {
-      const x = ts.timeToCoordinate(e.time as UTCTimestamp);
-      const y = series.priceToCoordinate(e.price);
-      if (x == null || y == null) continue;
-      ctx.strokeStyle = e.side === "bull" ? "rgba(150,210,180,0.95)" : "rgba(220,150,150,0.95)";
-      ctx.lineWidth = e.kind === "CHoCH" ? 3 : 2;
-      ctx.setLineDash(e.kind === "CHoCH" ? [] : [6, 4]);
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-      ctx.lineTo(plotW, y);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.fillStyle = "#f4eee4";
-      ctx.font = "bold 12px IBM Plex Sans, sans-serif";
-      ctx.fillText(`${e.kind} ${e.side === "bull" ? "↑" : "↓"}`, x + 6, y - 6);
+    if (lastCh) {
+      const y = series.priceToCoordinate(lastCh.price);
+      const x = ts.timeToCoordinate(lastCh.time as UTCTimestamp);
+      if (y != null && x != null) {
+        ctx.strokeStyle = lastCh.side === "bull" ? "rgba(150,210,180,0.7)" : "rgba(220,150,150,0.7)";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(plotW, y);
+        ctx.stroke();
+        mark(y, `CHoCH ${lastCh.side === "bull" ? "вверх" : "вниз"}`, "#f0e6d4");
+      }
     }
   }
 
@@ -217,29 +143,22 @@ function drawZones(
     const atr = snap.atr || 1;
     const last = snap.lastClose;
     const dLiq = (p: (typeof snap.liquidity)[number]) => Math.abs(last - p.price);
-    const near = snap.liquidity.filter((p) => {
-      const d = dLiq(p);
-      if (d > atr * 1.4) return false;
-      if (p.swept) return d <= atr * 0.55;
-      return true;
-    });
+    const near = snap.liquidity.filter((p) => dLiq(p) <= atr * 1.4);
     const bsl = [...near].filter((l) => l.side === "buy" && !l.swept).sort((a, b) => dLiq(a) - dLiq(b))[0];
     const ssl = [...near].filter((l) => l.side === "sell" && !l.swept).sort((a, b) => dLiq(a) - dLiq(b))[0];
     const sweep = [...near].filter((l) => l.swept).sort((a, b) => dLiq(a) - dLiq(b))[0];
     for (const p of [bsl, ssl, sweep].filter(Boolean) as typeof snap.liquidity) {
-      const x = ts.timeToCoordinate(p.time as UTCTimestamp) ?? 8;
       const y = series.priceToCoordinate(p.price);
       if (y == null) continue;
-      const y2 = series.priceToCoordinate(p.price + atr * 0.12) ?? y - 14;
-      const topL = Math.min(y, y2);
-      const hh = Math.max(14, Math.abs(y2 - y));
-      ctx.fillStyle = p.swept ? "rgba(232, 196, 96, 0.40)" : "rgba(120, 190, 230, 0.38)";
-      ctx.strokeStyle = p.swept ? "#ffe08a" : "#9ee0ff";
-      ctx.lineWidth = 3;
-      ctx.fillRect(x, topL, plotW - x, hh);
-      ctx.strokeRect(x, topL, plotW - x, hh);
-      const label = p.swept ? "СЪЁМ ЛИКВИДНОСТИ" : p.side === "buy" ? "ЛИКВИДНОСТЬ BSL" : "ЛИКВИДНОСТЬ SSL";
-      pill(x + 6, topL + 18, label, "rgba(16,24,36,0.94)", p.swept ? "#ffe08a" : "#c8f0ff");
+      ctx.strokeStyle = p.swept ? "rgba(232,196,96,0.75)" : "rgba(140,190,220,0.7)";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(plotW, y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      mark(y, p.swept ? "съём стопов" : p.side === "buy" ? "ликвидность сверху" : "ликвидность снизу", p.swept ? "#e8c860" : "#b8d8e8");
     }
   }
 
@@ -248,172 +167,93 @@ function drawZones(
     const lastY = series.priceToCoordinate(snap.lastClose);
     if (magY != null && lastY != null) {
       const up = snap.boxVector.dir === "up";
-      ctx.strokeStyle = up ? "rgba(150,210,180,0.95)" : "rgba(220,150,150,0.95)";
+      ctx.strokeStyle = up ? "rgba(150,210,180,0.85)" : "rgba(220,150,150,0.85)";
       ctx.fillStyle = ctx.strokeStyle;
-      ctx.lineWidth = 3;
-      ctx.setLineDash([8, 5]);
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
       ctx.beginPath();
-      ctx.moveTo(plotW - 28, lastY);
-      ctx.lineTo(plotW - 28, magY);
+      ctx.moveTo(plotW - 22, lastY);
+      ctx.lineTo(plotW - 22, magY);
       ctx.stroke();
       ctx.setLineDash([]);
       ctx.beginPath();
-      if (up) {
-        ctx.moveTo(plotW - 28, magY);
-        ctx.lineTo(plotW - 36, magY + 14);
-        ctx.lineTo(plotW - 20, magY + 14);
-      } else {
-        ctx.moveTo(plotW - 28, magY);
-        ctx.lineTo(plotW - 36, magY - 14);
-        ctx.lineTo(plotW - 20, magY - 14);
-      }
+      ctx.moveTo(plotW - 22, magY);
+      ctx.lineTo(plotW - 28, magY + (up ? 10 : -10));
+      ctx.lineTo(plotW - 16, magY + (up ? 10 : -10));
       ctx.closePath();
       ctx.fill();
-      ctx.strokeStyle = up ? "#b8e8d0" : "#f0c0c0";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(8, magY);
-      ctx.lineTo(plotW - 40, magY);
-      ctx.stroke();
-      pill(
-        10,
-        magY - 8,
-        up ? "ВЕКТОР вверх к ликвидности" : "ВЕКТОР вниз к ликвидности",
-        "rgba(16,24,36,0.94)",
-        up ? "#b8e8d0" : "#f0c0c0",
-      );
+      mark(magY, up ? "вектор вверх к ликвидности" : "вектор вниз к ликвидности", up ? "#b8e8d0" : "#f0c0c0");
     }
   }
 
   if (overlays.patterns !== false && snap) {
-    for (const p of snap.patterns.slice(0, 3)) {
+    const p = snap.patterns[0];
+    if (p) {
       const prices = p.points.map((pt) => pt.price);
-      if (!prices.length) continue;
-      const lo = Math.min(...prices);
-      const hi = Math.max(...prices);
-      if (snap.lastClose < lo - snap.atr * 1.5 || snap.lastClose > hi + snap.atr * 1.5) continue;
-      ctx.strokeStyle = p.side === "bull" ? "rgba(180,220,190,0.95)" : "rgba(230,180,170,0.95)";
-      ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      let started = false;
-      let lastX = 0;
-      let lastY = 0;
-      for (const pt of p.points) {
-        const x = ts.timeToCoordinate(pt.time as UTCTimestamp);
-        const y = series.priceToCoordinate(pt.price);
-        if (x == null || y == null) continue;
-        if (!started) {
-          ctx.moveTo(x, y);
-          started = true;
-        } else ctx.lineTo(x, y);
-        lastX = x;
-        lastY = y;
-        ctx.fillStyle = "#f4eee4";
-        ctx.font = "bold 11px IBM Plex Sans, sans-serif";
-        ctx.fillText(pt.label, x + 4, y - 8);
-      }
-      if (started) {
-        ctx.stroke();
-        ctx.fillStyle = "#f4eee4";
-        ctx.font = "bold 13px IBM Plex Sans, sans-serif";
-        ctx.fillText(p.name, lastX + 8, lastY + 16);
-        break;
+      if (prices.length) {
+        const lo = Math.min(...prices);
+        const hi = Math.max(...prices);
+        if (!(snap.lastClose < lo - snap.atr * 1.5 || snap.lastClose > hi + snap.atr * 1.5)) {
+          ctx.strokeStyle = p.side === "bull" ? "rgba(180,220,190,0.7)" : "rgba(230,180,170,0.7)";
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          let started = false;
+          let lastY = 0;
+          for (const pt of p.points) {
+            const x = ts.timeToCoordinate(pt.time as UTCTimestamp);
+            const y = series.priceToCoordinate(pt.price);
+            if (x == null || y == null) continue;
+            if (!started) {
+              ctx.moveTo(x, y);
+              started = true;
+            } else ctx.lineTo(x, y);
+            lastY = y;
+          }
+          if (started) ctx.stroke();
+          mark(lastY || height / 2, p.name, "#e8e0d4");
+        }
       }
     }
   }
 
   if (setup && (setup.entry != null || setup.stop != null)) {
-    const live = order?.action === "long" || order?.action === "short";
-    const side = order?.action === "short" ? "шорт" : order?.action === "long" ? "лонг" : "зона";
-    if (setup.entry != null) {
-      band(
-        setup.entry,
-        live ? "rgba(212,184,140,0.28)" : "rgba(201,184,150,0.14)",
-        "rgba(232,210,160,0.95)",
-        live ? `ВХОД ${side}` : "ЗОНА ДИСПЕТЧЕРА",
-        18,
-      );
-    }
-    if (setup.stop != null) {
-      band(setup.stop, "rgba(181,122,122,0.22)", "rgba(220,150,150,0.95)", "СТОП", 14);
-    }
-    setup.targets.slice(0, 2).forEach((t, i) => {
-      band(t, "rgba(111,158,134,0.22)", "rgba(150,210,180,0.95)", `ТЕЙК ${i + 1}`, 14);
-    });
+    const liveOrd = order?.action === "long" || order?.action === "short";
+    if (setup.entry != null) band(setup.entry, "rgba(232,210,160,0.9)", liveOrd ? "вход приказа" : "зона диспетчера");
+    if (setup.stop != null) band(setup.stop, "rgba(220,150,150,0.9)", "стоп");
+    setup.targets.slice(0, 2).forEach((t, i) => band(t, "rgba(150,210,180,0.9)", `тейк ${i + 1}`));
   }
 
   if (snap) {
-    const vis = ts.getVisibleRange();
-    const xNow = vis ? (ts.timeToCoordinate(vis.to as UTCTimestamp) ?? plotW - 12) : plotW - 12;
     const yNow = series.priceToCoordinate(snap.lastClose);
-    const arrow = (x1: number, y1: number, x2: number, y2: number, color: string) => {
-      const dx = x2 - x1;
-      const dy = y2 - y1;
-      if (Math.hypot(dx, dy) < 12) return;
-      const ang = Math.atan2(dy, dx);
-      ctx.strokeStyle = color;
-      ctx.fillStyle = color;
-      ctx.lineWidth = 3.5;
-      ctx.lineCap = "round";
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(x2, y2);
-      ctx.lineTo(x2 - 18 * Math.cos(ang - 0.45), y2 - 18 * Math.sin(ang - 0.45));
-      ctx.lineTo(x2 - 18 * Math.cos(ang + 0.45), y2 - 18 * Math.sin(ang + 0.45));
-      ctx.closePath();
-      ctx.fill();
-    };
-    const sw = snap.swings;
-    if (sw.length >= 2) {
-      const a = sw[sw.length - 2]!;
-      const b = sw[sw.length - 1]!;
-      const x1 = ts.timeToCoordinate(a.time as UTCTimestamp);
-      const y1 = series.priceToCoordinate(a.price);
-      const x2 = ts.timeToCoordinate(b.time as UTCTimestamp);
-      const y2 = series.priceToCoordinate(b.price);
-      if (x1 != null && y1 != null && x2 != null && y2 != null) {
-        const down = b.price < a.price;
-        arrow(x1, y1, x2, y2, down ? "#ff8a8a" : "#7dffb8");
-        ctx.font = "bold 14px IBM Plex Sans, sans-serif";
-        ctx.fillStyle = down ? "#ffc4c4" : "#b6ffd4";
-        ctx.fillText(down ? "ход вниз" : "ход вверх", (x1 + x2) / 2 - 28, (y1 + y2) / 2 - 10);
-      }
-      if (yNow != null && x2 != null && y2 != null) {
-        arrow(x2, y2, xNow, yNow, snap.trend === "down" ? "#ff8a8a" : snap.trend === "up" ? "#7dffb8" : "#ffe08a");
-      }
-    }
-    if (yNow != null && setup?.targets[0] != null && (order?.action === "long" || order?.action === "short")) {
-      const yTp = series.priceToCoordinate(setup.targets[0]);
-      if (yTp != null) {
-        arrow(xNow, yNow, Math.min(plotW - 8, xNow + 80), yTp, order.action === "short" ? "#ff8a8a" : "#7dffb8");
-        ctx.fillStyle = "#f4eee4";
-        ctx.font = "bold 13px IBM Plex Sans, sans-serif";
-        ctx.fillText("к цели", Math.min(plotW - 70, xNow + 24), yTp - 8);
-      }
-    }
-    const itog =
-      order?.action === "short"
-        ? `ИТОГ: шорт · ${snap.story.doing}`
-        : order?.action === "long"
-          ? `ИТОГ: лонг · ${snap.story.doing}`
-          : `ИТОГ: ждут · ${snap.story.waiting || snap.story.doing}`;
-    const label = itog.length > 86 ? `${itog.slice(0, 84)}…` : itog;
-    if (yNow != null) {
-      ctx.font = "bold 14px IBM Plex Sans, sans-serif";
-      const tw = ctx.measureText(label).width + 20;
-      const bx = Math.max(8, xNow - tw);
-      const by = Math.max(28, yNow - 36);
-      ctx.fillStyle = "rgba(10,8,6,0.92)";
-      ctx.fillRect(bx, by - 18, tw, 26);
-      ctx.strokeStyle = "#e8c878";
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(bx, by - 18, tw, 26);
-      ctx.fillStyle = "#ffe7a0";
-      ctx.fillText(label, bx + 10, by);
-    }
+    const itog = order?.action === "short" || order?.action === "long" ? `итог: ${order.action === "long" ? "лонг" : "шорт"}` : "итог: ждут край, не середину";
+    if (yNow != null) mark(yNow, itog, "#ffe7a0");
+  }
+
+  const sorted = notes
+    .sort((a, b) => a.y - b.y)
+    .filter((n, i, a) => i === 0 || Math.abs(n.y - a[i - 1]!.y) > 4)
+    .slice(0, 9);
+  let ly = 16;
+  ctx.font = "11px IBM Plex Sans, sans-serif";
+  for (let i = 0; i < sorted.length; i++) {
+    const n = sorted[i]!;
+    const num = i + 1;
+    ly = Math.max(ly, 16);
+    const target = Math.max(ly, Math.min(height - 14, n.y));
+    ly = target;
+    const label = `${num}  ${n.text}`;
+    const tw = Math.min(plotW * 0.46, ctx.measureText(label).width + 12);
+    ctx.fillStyle = "rgba(10,10,12,0.82)";
+    ctx.fillRect(6, ly - 12, tw, 16);
+    ctx.fillStyle = n.fg;
+    ctx.fillText(label, 10, ly);
+    ctx.strokeStyle = "rgba(200,200,200,0.35)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(6 + tw, ly - 4);
+    ctx.lineTo(Math.min(plotW - 8, plotW * 0.52), n.y);
+    ctx.stroke();
+    ly += 18;
   }
 }
 
