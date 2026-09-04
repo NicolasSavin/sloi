@@ -26,6 +26,9 @@ export interface FlowSnap {
   events: FlowEvent[];
   cvdDiv: {
     side: "bull" | "bear";
+    where: "edge" | "mid";
+    boost: number;
+    source: "cvd" | "delta" | "fvg";
     because: string;
     therefore: string;
   } | null;
@@ -127,6 +130,9 @@ export function buildFlow(candles: Candle[], swings: Swing[], atr: number): Flow
     if (b.price > a.price && cvdAt(b.time) < cvdAt(a.time)) {
       cvdDiv = {
         side: "bear",
+        where: "mid",
+        boost: 0,
+        source: "cvd",
         because: "Цена сделала выше максимум, а кумулятивная дельта — нет. Покупки не подтверждают хай",
         therefore: "Медвежья дивергенция потока. Ход вверх на слабеющей агрессии — часто отдают после этого.",
       };
@@ -138,8 +144,34 @@ export function buildFlow(candles: Candle[], swings: Swing[], atr: number): Flow
     if (b.price < a.price && cvdAt(b.time) > cvdAt(a.time)) {
       cvdDiv = {
         side: "bull",
+        where: "mid",
+        boost: 0,
+        source: "cvd",
         because: "Цена сделала ниже минимум, кумулятивная дельта растёт. Продажи не подтверждают лой",
         therefore: "Бычья дивергенция потока. Вынос вниз без новых продавцов — классика набора.",
+      };
+    }
+  }
+  if (!cvdDiv && tail.length >= 4) {
+    const pxUp = last.close > tail[0]!.close;
+    const dlt = tail.reduce((s, c) => s + deltaOf(c), 0);
+    if (pxUp && dlt < 0) {
+      cvdDiv = {
+        side: "bear",
+        where: "mid",
+        boost: 0,
+        source: "delta",
+        because: "Цена выше, дельта бид/аск за последние бары отрицательная — покупателя нет",
+        therefore: "Расхождение ленты и цены. В середине шум, на краю — поглощение.",
+      };
+    } else if (!pxUp && dlt > 0) {
+      cvdDiv = {
+        side: "bull",
+        where: "mid",
+        boost: 0,
+        source: "delta",
+        because: "Цена ниже, дельта бид/аск положительная — продавца на выносе нет",
+        therefore: "Расхождение ленты и цены. В середине шум, на краю — набор.",
       };
     }
   }
@@ -152,5 +184,73 @@ export function buildFlow(candles: Candle[], swings: Swing[], atr: number): Flow
     bars: bars.slice(-120),
     events: events.slice(-4),
     cvdDiv,
+  };
+}
+
+export function locateEdgeDiv(
+  flow: FlowSnap,
+  pd: "premium" | "discount" | "equilibrium",
+  last: number,
+  range: { high: number; low: number },
+  fvgs: { side: string; mitigated: boolean }[],
+  liq: { swept: boolean; price: number }[],
+  atr: number,
+): FlowSnap {
+  const span = range.high - range.low || 1;
+  const pos = (last - range.low) / span;
+  const edge =
+    pd !== "equilibrium" ||
+    pos < 0.22 ||
+    pos > 0.78 ||
+    liq.some((l) => l.swept && Math.abs(l.price - last) <= atr * 0.65);
+  let div = flow.cvdDiv;
+  if (!div) {
+    const live = fvgs.filter((z) => !z.mitigated);
+    const bull = live.filter((z) => z.side === "bull").length;
+    const bear = live.filter((z) => z.side === "bear").length;
+    if (pos > 0.58 && bear > bull + 1) {
+      div = {
+        side: "bear",
+        where: "mid",
+        boost: 0,
+        source: "fvg",
+        because: "Цена вверху, открытых медвежьих имбалансов больше бычьих — структура не подтверждает хай",
+        therefore: "Дивер по имбалансам. Слабее ленты, на краю всё же минус к лонгу.",
+      };
+    } else if (pos < 0.42 && bull > bear + 1) {
+      div = {
+        side: "bull",
+        where: "mid",
+        boost: 0,
+        source: "fvg",
+        because: "Цена внизу, открытых бычьих имбалансов больше — продажи не закрывают спрос",
+        therefore: "Дивер по имбалансам. Слабее ленты, на краю плюс к лонгу.",
+      };
+    }
+  }
+  if (!div) return flow;
+  if (!edge) {
+    return {
+      ...flow,
+      cvdDiv: {
+        ...div,
+        where: "mid",
+        boost: 0,
+        therefore: "Дивергенция в середине коробки не считаю. Только край зоны (блок, лужа, премия/дисконт).",
+      },
+    };
+  }
+  const boost = div.source === "cvd" ? 10 : div.source === "delta" ? 8 : 5;
+  return {
+    ...flow,
+    cvdDiv: {
+      ...div,
+      where: "edge",
+      boost,
+      therefore:
+        div.side === "bull"
+          ? `Бычий дивер (${div.source}) на краю — плюс ${boost} к лонгу.`
+          : `Медвежий дивер (${div.source}) на краю — плюс ${boost} к шорту.`,
+    },
   };
 }

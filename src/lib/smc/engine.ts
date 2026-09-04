@@ -1,6 +1,6 @@
 import type { Candle, MarketKind, OptionsSnapshot } from "@/lib/market/types";
 import { detectPatterns, detectWyckoff, type PatternHit, type WyckoffRead } from "@/lib/smc/patterns";
-import { buildFlow, type FlowSnap } from "@/lib/smc/flow";
+import { buildFlow, locateEdgeDiv, type FlowSnap } from "@/lib/smc/flow";
 import { clustersFromCandles, clustersFromTrades, type ClusterMap } from "@/lib/smc/clusters";
 import { buildMicro, nearestStall, type MicroSnap } from "@/lib/smc/micro";
 import { buildAuction, type AuctionSnap } from "@/lib/smc/auction";
@@ -1082,7 +1082,7 @@ export function analyzeMarket(
   const divergences = detectDivergence(candles, swings);
   const waves = detectWaves(swings);
   const patterns = detectPatterns(swings, atr, candles);
-  const flow = buildFlow(candles, swings, atr);
+  let flow = buildFlow(candles, swings, atr);
   const clusters = (trades?.length ? clustersFromTrades(trades) : null) ?? clustersFromCandles(candles);
   const micro = buildMicro(candles, opts?.symbol ? liveClusters(opts.symbol) : []);
   const auction = buildAuction(candles, opts?.kind);
@@ -1218,6 +1218,7 @@ export function analyzeMarket(
   });
 
   const dealingRange = { high: rangeHigh, low: rangeLow, eq };
+  flow = locateEdgeDiv(flow, premiumDiscount, last.close, dealingRange, fvgs, liquidity, atr);
   const boxVector = buildBoxVector(last, dealingRange, liquidity, candles);
   const margin = buildMargin(dealingRange, last.close, liquidity);
   const wyckoff = detectWyckoff(candles, swings, liquidity, dealingRange, trend);
@@ -1259,7 +1260,18 @@ export function analyzeMarket(
   confluence.push({
     id: "flow",
     layer: "Дельта / HFT",
-    status: flow.cvdDiv ? (flow.cvdDiv.side === "bull" ? "for" : "against") : fe ? (fe.side === "bull" ? "for" : "against") : "neutral",
+    status:
+      flow.cvdDiv?.where === "edge"
+        ? flow.cvdDiv.side === "bull"
+          ? "for"
+          : "against"
+        : flow.cvdDiv?.where === "mid"
+          ? "neutral"
+          : fe
+            ? fe.side === "bull"
+              ? "for"
+              : "against"
+            : "neutral",
     note: flow.cvdDiv
       ? flow.cvdDiv.therefore
       : fe
@@ -1352,9 +1364,12 @@ export function analyzeMarket(
 
   const forCount = confluence.filter((c) => c.status === "for").length;
   const againstCount = confluence.filter((c) => c.status === "against").length;
-  const score = Math.round(
-    (100 * (forCount + 0.45 * (confluence.length - forCount - againstCount))) /
-      Math.max(confluence.length, 1),
+  const score = Math.min(
+    100,
+    Math.round(
+      (100 * (forCount + 0.45 * (confluence.length - forCount - againstCount))) /
+        Math.max(confluence.length, 1),
+    ) + (flow.cvdDiv?.where === "edge" ? flow.cvdDiv.boost : 0),
   );
 
   const localSetup = buildSetup(

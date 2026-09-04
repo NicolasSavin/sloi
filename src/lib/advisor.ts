@@ -252,13 +252,19 @@ export function advise(snap: Pick<SmcSnapshot, "bias" | "localSetup" | "margin" 
       covers,
     };
   }
+  const cvd = snap.flow?.cvdDiv;
+  const atEdge = cvd?.where === "edge" || snap.margin.upper.active || snap.margin.lower.active;
   const div = snap.divergences?.[0];
-  if (div?.kind === "regular" && ((side === "long" && div.side === "bear") || (side === "short" && div.side === "bull"))) {
+  if (
+    atEdge &&
+    div?.kind === "regular" &&
+    ((side === "long" && div.side === "bear") || (side === "short" && div.side === "bull"))
+  ) {
     return {
       action: "wait",
-      title: div.side === "bear" ? "Ждать: медвежья дивергенция" : "Ждать: бычья дивергенция",
+      title: div.side === "bear" ? "Ждать: медвежья дивергенция на краю" : "Ждать: бычья дивергенция на краю",
       because: div.note,
-      therefore: "Цена обновила край, сила нет. Лимитку против дивера не ставим, пока не снимут или не закроют час в нашу сторону.",
+      therefore: "Дивер на краю зоны. Против него лимитку не ставим.",
       spread,
       roundTrip,
       grossRisk,
@@ -269,11 +275,10 @@ export function advise(snap: Pick<SmcSnapshot, "bias" | "localSetup" | "margin" 
       covers,
     };
   }
-  const cvd = snap.flow?.cvdDiv;
-  if (cvd && ((side === "long" && cvd.side === "bear") || (side === "short" && cvd.side === "bull"))) {
+  if (cvd && cvd.where === "edge" && ((side === "long" && cvd.side === "bear") || (side === "short" && cvd.side === "bull"))) {
     return {
       action: "wait",
-      title: "Ждать: дивергенция CVD",
+      title: "Ждать: объём против на краю",
       because: cvd.because,
       therefore: cvd.therefore,
       spread,
@@ -313,12 +318,18 @@ export function advise(snap: Pick<SmcSnapshot, "bias" | "localSetup" | "margin" 
       : snap.coil?.kind === "spike"
         ? " Шпиль без полки — лимит на возврат, не рынок вдогонку."
         : "";
+  const volNote =
+    cvd && cvd.where === "edge" && ((side === "long" && cvd.side === "bull") || (side === "short" && cvd.side === "bear"))
+      ? ` ${cvd.therefore}`
+      : cvd && cvd.where === "mid"
+        ? " Дивер в середине не считаю."
+        : "";
 
   return {
     action: side,
     title: side === "long" ? "Лимит на покупку в зоне" : "Лимит на продажу в зоне",
     because: `Вход ${fmt(entry)}, стоп ${fmt(stop)}, цель ${fmt(target)}. Круг ${fmt(roundTrip)}.`,
-    therefore: `Чистый RR ${netRr?.toFixed(2)}. Ордер вешаем заранее, пока цена идёт к зоне.${marginNote}${patNote}${infNote}${hidNote}${coilNote}`,
+    therefore: `Чистый RR ${netRr?.toFixed(2)}. Ордер вешаем заранее, пока цена идёт к зоне.${marginNote}${patNote}${infNote}${hidNote}${coilNote}${volNote}`,
     spread,
     roundTrip,
     grossRisk,
