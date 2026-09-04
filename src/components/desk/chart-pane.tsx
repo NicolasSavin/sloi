@@ -24,6 +24,72 @@ function token(name: string, fallback: string) {
   return v || fallback;
 }
 
+function drawVolumeCandles(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  chart: IChartApi,
+  series: ISeriesApi<"Candlestick">,
+  candles: Candle[],
+) {
+  ctx.clearRect(0, 0, width, height);
+  const ts = chart.timeScale();
+  const spacing = Math.max(3, (ts.options().barSpacing as number | undefined) ?? 8);
+  const bodyW = Math.max(2.8, spacing * 0.64);
+  const depth = Math.min(6, bodyW * 0.42);
+  for (const c of candles) {
+    const x = ts.timeToCoordinate(c.time as UTCTimestamp);
+    if (x == null || x < -24 || x > width + 24) continue;
+    const yO = series.priceToCoordinate(c.open);
+    const yC = series.priceToCoordinate(c.close);
+    const yH = series.priceToCoordinate(c.high);
+    const yL = series.priceToCoordinate(c.low);
+    if (yO == null || yC == null || yH == null || yL == null) continue;
+    const up = c.close >= c.open;
+    const top = Math.min(yO, yC);
+    const bot = Math.max(yO, yC);
+    const h = Math.max(1.8, bot - top);
+    const left = x - bodyW / 2;
+    ctx.strokeStyle = up ? "rgba(120,255,180,0.9)" : "rgba(255,140,140,0.9)";
+    ctx.lineWidth = Math.max(1.2, spacing * 0.12);
+    ctx.beginPath();
+    ctx.moveTo(x, yH);
+    ctx.lineTo(x, yL);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(left + bodyW, top);
+    ctx.lineTo(left + bodyW + depth, top - depth);
+    ctx.lineTo(left + bodyW + depth, bot - depth);
+    ctx.lineTo(left + bodyW, bot);
+    ctx.closePath();
+    ctx.fillStyle = up ? "rgba(12,70,40,0.95)" : "rgba(80,16,16,0.95)";
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(left, top);
+    ctx.lineTo(left + depth, top - depth);
+    ctx.lineTo(left + bodyW + depth, top - depth);
+    ctx.lineTo(left + bodyW, top);
+    ctx.closePath();
+    ctx.fillStyle = up ? "rgba(190,255,220,0.95)" : "rgba(255,190,190,0.92)";
+    ctx.fill();
+    const g = ctx.createLinearGradient(left, top, left + bodyW, bot);
+    if (up) {
+      g.addColorStop(0, "#d4ffe8");
+      g.addColorStop(0.4, "#3edc82");
+      g.addColorStop(1, "#0d5a32");
+    } else {
+      g.addColorStop(0, "#ffc8c8");
+      g.addColorStop(0.4, "#e04848");
+      g.addColorStop(1, "#6a1010");
+    }
+    ctx.fillStyle = g;
+    ctx.fillRect(left, top, bodyW, h);
+    ctx.strokeStyle = up ? "rgba(220,255,236,0.55)" : "rgba(255,210,210,0.4)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(left, top, bodyW, h);
+  }
+}
+
 function drawZones(
   ctx: CanvasRenderingContext2D,
   width: number,
@@ -588,6 +654,14 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
             if (!chart || !series) return;
             const p = this.payload;
             target.useMediaCoordinateSpace((scope) => {
+              drawVolumeCandles(
+                scope.context,
+                scope.mediaSize.width,
+                scope.mediaSize.height,
+                chart,
+                series,
+                p.candles,
+              );
               drawZones(
                 scope.context,
                 scope.mediaSize.width,
@@ -713,11 +787,11 @@ export function ChartPane({
         },
       });
       const series = chart.addSeries(lc.CandlestickSeries, {
-        upColor: bull,
-        downColor: bear,
+        upColor: "rgba(0,0,0,0)",
+        downColor: "rgba(0,0,0,0)",
         borderVisible: false,
-        wickUpColor: bull,
-        wickDownColor: bear,
+        wickUpColor: "rgba(0,0,0,0)",
+        wickDownColor: "rgba(0,0,0,0)",
       });
       const volume = chart.addSeries(lc.HistogramSeries, {
         priceFormat: { type: "volume" },
