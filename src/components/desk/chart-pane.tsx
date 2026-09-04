@@ -42,8 +42,11 @@ function drawZones(
   const ts = chart.timeScale();
   const plotW = Math.max(40, width - 58);
   const notes: { ax: number; ay: number; text: string }[] = [];
+  const busy: { x: number; y: number; w: number; h: number }[] = [];
+  const occupy = (x: number, y: number, w: number, h: number) => busy.push({ x, y, w, h });
   const mark = (ax: number, ay: number, text: string) => {
     if (ay < 8 || ay > height - 8) return;
+    if (notes.some((n) => n.text === text && Math.abs(n.ay - ay) < 18)) return;
     notes.push({ ax, ay, text });
   };
   const band = (price: number, stroke: string, label: string) => {
@@ -71,6 +74,8 @@ function drawZones(
       ctx.strokeStyle = stroke;
       ctx.lineWidth = 1;
       ctx.strokeRect(0, y, plotW, h);
+      if (label.includes("цена")) mark(plotW * 0.72, y + h / 2, "Маржа");
+      occupy(0, y, plotW * 0.45, h);
     };
     paint(
       snap.margin.upper.top,
@@ -115,8 +120,8 @@ function drawZones(
       ctx.lineWidth = 1.5;
       ctx.fillRect(x1, top, zw, h);
       ctx.strokeRect(x1, top, zw, h);
-      const name = imb ? "имбаланс" : "ордерблок";
-      mark(x1 + zw, top + h / 2, name);
+      occupy(x1, top, zw, h);
+      mark(x1 + zw + 8, top + h / 2, imb ? "Имбаланс" : "Ордерблок");
     }
   }
 
@@ -132,6 +137,7 @@ function drawZones(
         ctx.moveTo(x, y);
         ctx.lineTo(plotW, y);
         ctx.stroke();
+        mark(x + 24, y - 10, lastCh.side === "bull" ? "CHoCH вверх" : "CHoCH вниз");
       }
     }
   }
@@ -157,12 +163,13 @@ function drawZones(
         ctx.lineWidth = 1.5;
         ctx.fillRect(x0, top, plotW - x0 - 8, h);
         ctx.strokeRect(x0, top, plotW - x0 - 8, h);
+        occupy(x0, top, plotW - x0 - 8, h);
         ctx.strokeStyle = "rgba(80, 120, 180, 0.7)";
         ctx.beginPath();
         ctx.moveTo(x0, y);
         ctx.lineTo(plotW - 8, y);
         ctx.stroke();
-        mark(x0 + (plotW - x0) * 0.7, top + h, pool.swept ? "Съём" : "Ликвидность");
+        mark(x0 + (plotW - x0) * 0.55, top + h + 6, pool.swept ? "Съём" : "Ликвидность");
       }
     }
   }
@@ -214,7 +221,10 @@ function drawZones(
             } else ctx.lineTo(x, y);
             lastY = y;
           }
-          if (started) ctx.stroke();
+          if (started) {
+            ctx.stroke();
+            mark(plotW * 0.5, lastY, p.name);
+          }
         }
       }
     }
@@ -222,9 +232,21 @@ function drawZones(
 
   if (setup && (setup.entry != null || setup.stop != null)) {
     const liveOrd = order?.action === "long" || order?.action === "short";
-    if (setup.entry != null) band(setup.entry, "rgba(232,210,160,0.9)", liveOrd ? "вход приказа" : "зона диспетчера");
-    if (setup.stop != null) band(setup.stop, "rgba(220,150,150,0.9)", "стоп");
-    setup.targets.slice(0, 2).forEach((t, i) => band(t, "rgba(150,210,180,0.9)", `тейк ${i + 1}`));
+    if (setup.entry != null) {
+      band(setup.entry, "rgba(232,210,160,0.9)", liveOrd ? "вход приказа" : "зона диспетчера");
+      const y = series.priceToCoordinate(setup.entry);
+      if (y != null) mark(plotW * 0.6, y, liveOrd ? "Вход" : "Зона");
+    }
+    if (setup.stop != null) {
+      band(setup.stop, "rgba(220,150,150,0.9)", "стоп");
+      const y = series.priceToCoordinate(setup.stop);
+      if (y != null) mark(plotW * 0.6, y, "Стоп");
+    }
+    setup.targets.slice(0, 1).forEach((t) => {
+      band(t, "rgba(150,210,180,0.9)", "тейк 1");
+      const y = series.priceToCoordinate(t);
+      if (y != null) mark(plotW * 0.6, y, "Тейк");
+    });
   }
 
   if (snap) {
@@ -233,22 +255,37 @@ function drawZones(
   }
 
   ctx.font = "13px IBM Plex Sans, sans-serif";
-  const shown = notes.slice(0, 5);
-  const bw = 128;
-  const bh = 36;
-  let colY = Math.min(height * 0.55, height - shown.length * (bh + 14) - 20);
-  for (let i = 0; i < shown.length; i++) {
-    const n = shown[i]!;
-    const bx = Math.min(plotW - bw - 10, Math.max(plotW * 0.58, n.ax + 12));
-    let by = colY;
-    if (by < 20) by = 20;
-    if (by + bh > height - 8) by = height - bh - 8;
-    colY = by + bh + 14;
+  const bw = 124;
+  const bh = 34;
+  const hits = (box: { x: number; y: number; w: number; h: number }) =>
+    busy.some(
+      (b) => box.x < b.x + b.w + 8 && box.x + box.w + 8 > b.x && box.y < b.y + b.h + 8 && box.y + box.h + 8 > b.y,
+    );
+  const shown = notes.slice(0, 8);
+  for (const n of shown) {
+    const candidates = [
+      { x: Math.min(plotW - bw - 8, Math.max(n.ax + 16, plotW * 0.62)), y: n.ay + 18 },
+      { x: Math.min(plotW - bw - 8, Math.max(n.ax + 16, plotW * 0.62)), y: n.ay - bh - 18 },
+      { x: plotW - bw - 8, y: n.ay + 28 },
+      { x: plotW - bw - 8, y: n.ay - bh - 28 },
+      { x: Math.max(8, n.ax - bw - 20), y: n.ay + 16 },
+    ];
+    let placed: { x: number; y: number } | null = null;
+    for (const c of candidates) {
+      const box = { x: c.x, y: Math.max(8, Math.min(height - bh - 8, c.y)), w: bw, h: bh };
+      if (hits(box)) continue;
+      placed = { x: box.x, y: box.y };
+      break;
+    }
+    if (!placed) continue;
+    const bx = placed.x;
+    const by = placed.y;
+    occupy(bx, by, bw, bh);
     const cx = bx + bw / 2;
     ctx.beginPath();
     ctx.moveTo(n.ax, n.ay);
-    ctx.lineTo(cx - 10, by);
-    ctx.lineTo(cx + 10, by);
+    ctx.lineTo(cx - 8, by + (n.ay < by ? 0 : bh));
+    ctx.lineTo(cx + 8, by + (n.ay < by ? 0 : bh));
     ctx.closePath();
     ctx.fillStyle = "rgba(243, 226, 176, 0.92)";
     ctx.fill();
@@ -273,7 +310,7 @@ function drawZones(
     ctx.fillStyle = "#2f5a28";
     ctx.font = "600 13px IBM Plex Sans, sans-serif";
     const tw = ctx.measureText(n.text).width;
-    ctx.fillText(n.text, bx + (bw - tw) / 2, by + 23);
+    ctx.fillText(n.text, bx + (bw - tw) / 2, by + 22);
   }
 }
 
