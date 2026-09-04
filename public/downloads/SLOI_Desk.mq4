@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.49"
+#property version   "4.50"
 #property strict
 #property description "На графике: VWAP, профиль, футпринт бара, infusion/splash, Bid/Ask."
 
@@ -37,7 +37,7 @@ input int     CoolMinutes     = 0;
 input bool    FixForeign      = false;
 input string  ForeignTag      = "WS";
 input bool    AlertsOn        = true;
-input bool    VirtualPendings = true;
+input bool    VirtualPendings = true; // виртуал: отложка, стоп и тейк. Сдвиг со стола.
 input int     PanelX          = 8;
 input int     PanelY          = 18;
 
@@ -50,6 +50,8 @@ string   g_lastKey[MAXSYM];
 datetime g_lastBar[MAXSYM];
 string   g_prevV[MAXSYM];
 int      g_lim[MAXSYM];
+double   g_vSL[MAXSYM];
+double   g_vTP[MAXSYM];
 
 string g_watch;
 string g_suffix;
@@ -124,7 +126,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.49: стрелка хода и ИТОГ на графике, последние зоны не стираем.");
+   Print("SLOI 4.50: виртуальные стоп и тейк, сдвиг со стола.");
    return(INIT_SUCCEEDED);
   }
 
@@ -662,6 +664,13 @@ int SendOrder(string s, int cmd, double lots, double px, double sl, double tp, s
    int dir = (cmd == OP_BUY || cmd == OP_BUYLIMIT || cmd == OP_BUYSTOP) ? 1 : -1;
    sl = StopAway(s, dir, px, sl);
    tp = TakeAway(s, dir, px, tp);
+   double keepSL = sl;
+   double keepTP = tp;
+   if(g_virt)
+     {
+      sl = 0;
+      tp = 0;
+     }
    int slip = SlipFor(s);
    int ticket = OrderSend(s, cmd, lots, px, slip, sl, tp, cmt, Magic, 0, clr);
    if(ticket < 0)
@@ -690,6 +699,7 @@ int SendOrder(string s, int cmd, double lots, double px, double sl, double tp, s
          Alert("SLOI ", s, " ошибка ", err, " спред ", SpreadPt(s), "п  slip ", slip);
         }
      }
+   if(ticket > 0 && g_virt) SetVirt(s, keepSL, keepTP);
    return(ticket);
   }
 
@@ -717,6 +727,136 @@ string Naked(string s)
    if(StringFind(u, "XNG") >= 0) return("XNGUSD");
    if(StringFind(u, "USO") >= 0 || StringFind(u, "WTI") >= 0 || StringFind(u, "XTI") >= 0) return("XTIUSD");
    return(u);
+  }
+
+int IdxOf(string s)
+  {
+   string n = Naked(s);
+   for(int i = 0; i < g_n; i++)
+      if(Naked(g_sym[i]) == n) return(i);
+   return(-1);
+  }
+
+void SetVirt(string s, double sl, double tp)
+  {
+   int idx = IdxOf(s);
+   if(idx < 0) return;
+   g_vSL[idx] = sl;
+   g_vTP[idx] = tp;
+  }
+
+void AlignVirt(int idx, int dir, double stop, double target)
+  {
+   if(!g_virt) return;
+   if(idx < 0 || idx >= g_n) return;
+   if(dir == 0) return;
+   string s = g_sym[idx];
+   bool ours = false;
+   int tyWant = (dir > 0 ? OP_BUY : OP_SELL);
+   for(int i = OrdersTotal() - 1; i >= 0; i--)
+     {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
+      if(OrderMagicNumber() != Magic) continue;
+      if(Naked(OrderSymbol()) != Naked(s)) continue;
+      if(OrderType() != OP_BUY && OrderType() != OP_SELL) continue;
+      if(OrderType() != tyWant)
+        {
+         CloseOne();
+         continue;
+        }
+      ours = true;
+     }
+   if(!ours) return;
+   int digits = DigitsOf(s);
+   double pt = PointOf(s) * 2.0;
+   bool moved = false;
+   if(stop > 0 && MathAbs(g_vSL[idx] - stop) > pt)
+     {
+      g_vSL[idx] = NormalizeDouble(stop, digits);
+      moved = true;
+     }
+   if(target > 0 && MathAbs(g_vTP[idx] - target) > pt)
+     {
+      g_vTP[idx] = NormalizeDouble(target, digits);
+      moved = true;
+     }
+   if(moved)
+     {
+      Print("SLOI сдвиг SL/TP ", s, " sl=", DoubleToStr(g_vSL[idx], digits), " tp=", DoubleToStr(g_vTP[idx], digits));
+      if(g_alerts) Alert("SLOI сдвиг SL/TP ", s);
+     }
+  }
+
+void DrawVirtLines()
+  {
+   if(!g_virt)
+     {
+      ObjectDelete(0, P + "vsl");
+      ObjectDelete(0, P + "vtp");
+      ObjectDelete(0, P + "vsl_t");
+      ObjectDelete(0, P + "vtp_t");
+      return;
+     }
+   int idx = IdxOf(Symbol());
+   if(idx < 0) return;
+   if(g_vSL[idx] > 0)
+     {
+      Hln("vsl", g_vSL[idx], C_SEL);
+      Tag("vsl_t", iTime(Symbol(), g_tf, 0), g_vSL[idx], "ВИРТ СТОП", C_SEL);
+     }
+   if(g_vTP[idx] > 0)
+     {
+      Hln("vtp", g_vTP[idx], C_BUY);
+      Tag("vtp_t", iTime(Symbol(), g_tf, 0), g_vTP[idx], "ВИРТ ТЕЙК", C_BUY);
+     }
+  }
+
+void ManageVirtBook()
+  {
+   if(!g_virt) return;
+   for(int i = OrdersTotal() - 1; i >= 0; i--)
+     {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
+      if(OrderMagicNumber() != Magic) continue;
+      int type = OrderType();
+      if(type != OP_BUY && type != OP_SELL) continue;
+      int idx = IdxOf(OrderSymbol());
+      if(idx < 0) continue;
+      string s = OrderSymbol();
+      double sl = g_vSL[idx];
+      double tp = g_vTP[idx];
+      if(type == OP_BUY)
+        {
+         if(sl > 0 && BidOf(s) <= sl)
+           {
+            Alert("SLOI вирт стоп ", s);
+            CloseOne();
+            continue;
+           }
+         if(tp > 0 && BidOf(s) >= tp)
+           {
+            Alert("SLOI вирт тейк ", s);
+            CloseOne();
+            continue;
+           }
+        }
+      else
+        {
+         if(sl > 0 && AskOf(s) >= sl)
+           {
+            Alert("SLOI вирт стоп ", s);
+            CloseOne();
+            continue;
+           }
+         if(tp > 0 && AskOf(s) <= tp)
+           {
+            Alert("SLOI вирт тейк ", s);
+            CloseOne();
+            continue;
+           }
+        }
+     }
+   DrawVirtLines();
   }
 
 void PullFeed()
@@ -1272,8 +1412,9 @@ void ManageBE()
       int type = OrderType();
       if(type != OP_BUY && type != OP_SELL) continue;
       double open = OrderOpenPrice();
-      double sl = OrderStopLoss();
-      double tp = OrderTakeProfit();
+      int idx = IdxOf(OrderSymbol());
+      double sl = (g_virt && idx >= 0 && g_vSL[idx] > 0) ? g_vSL[idx] : OrderStopLoss();
+      double tp = (g_virt && idx >= 0 && g_vTP[idx] > 0) ? g_vTP[idx] : OrderTakeProfit();
       double risk = MathAbs(open - sl);
       if(risk <= 0) continue;
       string s = OrderSymbol();
@@ -1283,7 +1424,8 @@ void ManageBE()
          double be = NormalizeDouble(open + SpreadPr(s), digits);
          if(sl < be)
            {
-            if(!OrderModify(OrderTicket(), open, be, tp, 0, C_GOLD))
+            if(g_virt && idx >= 0) g_vSL[idx] = be;
+            else if(!OrderModify(OrderTicket(), open, be, tp, 0, C_GOLD))
                Print("SLOI BE buy ", GetLastError());
            }
         }
@@ -1292,7 +1434,8 @@ void ManageBE()
          double be = NormalizeDouble(open - SpreadPr(s), digits);
          if(sl == 0 || sl > be)
            {
-            if(!OrderModify(OrderTicket(), open, be, tp, 0, C_GOLD))
+            if(g_virt && idx >= 0) g_vSL[idx] = be;
+            else if(!OrderModify(OrderTicket(), open, be, tp, 0, C_GOLD))
                Print("SLOI BE sell ", GetLastError());
            }
         }
@@ -1611,9 +1754,11 @@ void DrawDesk()
          Scan(i, bias, verdict, why, dir, entry, stop, target, spPts);
          if(!g_auto && dir != 0) why = "АВТО ВЫКЛ";
          AlignForeign(g_sym[i], dir, stop, target);
+         AlignVirt(i, dir, stop, target);
          MaybeTrade(i, dir, entry, stop, target, verdict, spPts);
         }
       ManageBE();
+      ManageVirtBook();
       DrawSmcOnChart();
       ChartRedraw();
       return;
@@ -1686,7 +1831,7 @@ void DrawDesk()
    Lab("h7", hx+530, hy, "ВЕРДИКТ", C_DIM, 8);
    Lab("h8", hx+700, hy, "ЛОТ", C_DIM, 8);
 
-   string cmt = "SLOI DESK | лента "+g_feedNote+" | авто "+(g_auto?"ВКЛ":"ВЫКЛ")+" | "+(g_virt?"виртуал":"брокер-лимит")+" | макс спред "+IntegerToString(g_maxSp)+"п\n";
+   string cmt = "SLOI DESK | лента "+g_feedNote+" | авто "+(g_auto?"ВКЛ":"ВЫКЛ")+" | "+(g_virt?"виртуал SL/TP":"брокер SL/TP")+" | макс спред "+IntegerToString(g_maxSp)+"п\n";
    cmt += "СИМВОЛ     СПРЕД  СТРУКТ   ВХОД        СТОП        ЦЕЛЬ        ВЕРДИКТ\n";
 
    for(int i = 0; i < g_n; i++)
@@ -1697,6 +1842,7 @@ void DrawDesk()
       Scan(i, bias, verdict, why, dir, entry, stop, target, spPts);
       if(!g_auto && dir != 0) why = "АВТО ВЫКЛ";
       AlignForeign(g_sym[i], dir, stop, target);
+      AlignVirt(i, dir, stop, target);
       MaybeTrade(i, dir, entry, stop, target, verdict, spPts);
 
       int ry = y + setH + head + i * rowH;
@@ -1721,6 +1867,7 @@ void DrawDesk()
       cmt += "  " + IntegerToString(spPts) + "п  " + bias + "  " + verdict + "  " + why + "\n";
      }
    ManageBE();
+   ManageVirtBook();
    DrawSmcOnChart();
    ChartRedraw();
   }
