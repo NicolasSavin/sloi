@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.42"
+#property version   "4.43"
 #property strict
 #property description "На графике: VWAP, профиль, футпринт бара, infusion/splash, Bid/Ask."
 
@@ -124,7 +124,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.42: виртуальные отложки. У брокера пусто, пока цена не в зоне.");
+   Print("SLOI 4.43: виртуал снимает старые брокерские лимитки.");
    return(INIT_SUCCEEDED);
   }
 
@@ -1263,13 +1263,26 @@ void CloseOne()
    if(!ok) Print("SLOI close err ", GetLastError(), " #", ticket);
   }
 
+void SweepVirtPendings()
+  {
+   if(!g_virt) return;
+   for(int i = OrdersTotal() - 1; i >= 0; i--)
+     {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
+      if(OrderMagicNumber() != Magic) continue;
+      int type = OrderType();
+      if(type != OP_BUYLIMIT && type != OP_SELLLIMIT && type != OP_BUYSTOP && type != OP_SELLSTOP) continue;
+      if(!OrderDelete(OrderTicket())) Print("SLOI virt del ", OrderSymbol(), " ", GetLastError());
+     }
+  }
+
 void DeletePending(string s)
   {
    for(int i = OrdersTotal() - 1; i >= 0; i--)
      {
       if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
       if(OrderMagicNumber() != Magic) continue;
-      if(OrderSymbol() != s) continue;
+      if(Naked(OrderSymbol()) != Naked(s)) continue;
       int type = OrderType();
       if(type != OP_BUYLIMIT && type != OP_SELLLIMIT && type != OP_BUYSTOP && type != OP_SELLSTOP) continue;
       if(!OrderDelete(OrderTicket())) Print("SLOI снять отложку ", s, " ", GetLastError());
@@ -1461,6 +1474,7 @@ void DrawDesk()
    int x = PanelX;
    int y = PanelY;
    PullFeed();
+   SweepVirtPendings();
    if(g_min)
      {
       Rect("bg", x, y, 300, 34, C_BG);
