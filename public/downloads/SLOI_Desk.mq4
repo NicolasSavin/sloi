@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.43"
+#property version   "4.44"
 #property strict
 #property description "На графике: VWAP, профиль, футпринт бара, infusion/splash, Bid/Ask."
 
@@ -124,7 +124,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.43: виртуал снимает старые брокерские лимитки.");
+   Print("SLOI 4.44: виртуал + кнопка СНЯТЬ ЧУЖИЕ (ордера WS).");
    return(INIT_SUCCEEDED);
   }
 
@@ -1549,8 +1549,8 @@ void DrawDesk()
    Btn("b_sell", x + 158, y + 132, 100, 24, "ПРОДАТЬ", C_SEL);
    Btn("b_cp",   x + 266, y + 132, 150, 24, "ЗАКРЫТЬ ПРИБЫЛЬ", C_GOLD);
    Btn("b_ca",   x + 424, y + 132, 110, 24, "ЗАКРЫТЬ ВСЁ", C_SEL);
-   Btn("b_ws",   x + 540, y + 132, 100, 24, "СНЯТЬ WS", C_WAIT);
-   Lab("l_man", x + 648, y + 136, "WS→стол", C_DIM, 8);
+   Btn("b_ws",   x + 520, y + 132, 118, 24, "СНЯТЬ ЧУЖИЕ", C_WAIT);
+   Lab("l_man", x + 644, y + 136, "тег WS", C_DIM, 8);
 
    int hx = x + 14;
    int hy = y + setH + 2;
