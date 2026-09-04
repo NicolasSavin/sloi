@@ -42,14 +42,30 @@ function drawZones(
   if (wipe) ctx.clearRect(0, 0, width, height);
   const ts = chart.timeScale();
   const plotW = Math.max(40, width - 58);
-  const notes: { time: number; price: number; text: string }[] = [];
+  const notes: { time: number; price: number; text: string; tone: string }[] = [];
   const busy: { x: number; y: number; w: number; h: number }[] = [];
   const occupy = (x: number, y: number, w: number, h: number) => busy.push({ x, y, w, h });
-  const fillVolume = (x: number, y: number, w: number, h: number, top: string, mid: string, stroke: string) => {
+  const PALETTE: Record<string, { top: string; mid: string; stroke: string; b0: string; b1: string; t0: string; t1: string }> = {
+    fvg: { top: "rgba(255,186,40,0.38)", mid: "rgba(255,230,120,0.62)", stroke: "#ffd24a", b0: "#fff3b0", b1: "#c48410", t0: "#fff6c8", t1: "#7a4a00" },
+    ob: { top: "rgba(20,170,90,0.40)", mid: "rgba(90,255,160,0.58)", stroke: "#5dffb0", b0: "#c8ffdc", b1: "#0e7a40", t0: "#e8fff0", t1: "#0a4a24" },
+    obBear: { top: "rgba(210,40,50,0.40)", mid: "rgba(255,110,110,0.58)", stroke: "#ff6a6a", b0: "#ffd0d0", b1: "#a01818", t0: "#ffe8e8", t1: "#6a0808" },
+    liq: { top: "rgba(170,220,40,0.38)", mid: "rgba(230,255,120,0.58)", stroke: "#c8f030", b0: "#f0ffb0", b1: "#6a8a10", t0: "#f6ffd0", t1: "#3a5208" },
+    sweep: { top: "rgba(255,160,20,0.40)", mid: "rgba(255,210,80,0.58)", stroke: "#ffb020", b0: "#ffe090", b1: "#b06000", t0: "#fff0c0", t1: "#6a3800" },
+    choch: { top: "rgba(120,90,255,0.32)", mid: "rgba(190,170,255,0.50)", stroke: "#b8a0ff", b0: "#ece0ff", b1: "#4a30b0", t0: "#f6f0ff", t1: "#2a1878" },
+    vec: { top: "rgba(20,190,200,0.32)", mid: "rgba(100,240,250,0.50)", stroke: "#40e8f0", b0: "#c8ffff", b1: "#087878", t0: "#e8ffff", t1: "#045050" },
+    entry: { top: "rgba(232,190,80,0.30)", mid: "rgba(255,220,140,0.48)", stroke: "#f0c860", b0: "#fff0b8", b1: "#a07018", t0: "#fff8d8", t1: "#5a4010" },
+    stop: { top: "rgba(220,50,50,0.30)", mid: "rgba(255,120,120,0.46)", stroke: "#ff7070", b0: "#ffd0d0", b1: "#901818", t0: "#fff0f0", t1: "#5a0808" },
+    tp: { top: "rgba(30,170,100,0.30)", mid: "rgba(110,230,160,0.46)", stroke: "#50e090", b0: "#c8ffdc", b1: "#0e7040", t0: "#e8fff0", t1: "#0a4020" },
+    wait: { top: "rgba(160,160,180,0.22)", mid: "rgba(210,210,230,0.40)", stroke: "#c0c0d0", b0: "#f0f0f8", b1: "#505068", t0: "#ffffff", t1: "#303048" },
+    margin: { top: "rgba(201,160,90,0.22)", mid: "rgba(240,210,140,0.40)", stroke: "#d4b070", b0: "#f8e8c0", b1: "#8a6020", t0: "#fff8e0", t1: "#5a3810" },
+    pat: { top: "rgba(80,140,220,0.28)", mid: "rgba(150,190,255,0.46)", stroke: "#80b8ff", b0: "#d8e8ff", b1: "#2058a8", t0: "#f0f6ff", t1: "#103868" },
+  };
+  const fillVolume = (x: number, y: number, w: number, h: number, tone: string) => {
+    const p = PALETTE[tone] ?? PALETTE.fvg!;
     const g = ctx.createLinearGradient(x, y, x, y + h);
-    g.addColorStop(0, top);
-    g.addColorStop(0.42, mid);
-    g.addColorStop(1, top);
+    g.addColorStop(0, p.top);
+    g.addColorStop(0.42, p.mid);
+    g.addColorStop(1, p.top);
     ctx.shadowColor = "rgba(0,0,0,0.5)";
     ctx.shadowBlur = 12;
     ctx.shadowOffsetY = 4;
@@ -63,13 +79,26 @@ function drawZones(
     shine.addColorStop(1, "rgba(255,255,255,0)");
     ctx.fillStyle = shine;
     ctx.fillRect(x, y, w, Math.min(10, h));
-    ctx.strokeStyle = stroke;
-    ctx.lineWidth = 1.6;
+    ctx.strokeStyle = p.stroke;
+    ctx.lineWidth = 2;
     ctx.strokeRect(x, y, w, h);
+    ctx.strokeStyle = "rgba(255,255,255,0.28)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x + 1, y + h - 1);
+    ctx.lineTo(x + 1, y + 1);
+    ctx.lineTo(x + w - 1, y + 1);
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(0,0,0,0.35)";
+    ctx.beginPath();
+    ctx.moveTo(x + 1, y + h - 1);
+    ctx.lineTo(x + w - 1, y + h - 1);
+    ctx.lineTo(x + w - 1, y + 1);
+    ctx.stroke();
   };
-  const mark = (time: number, price: number, text: string) => {
+  const mark = (time: number, price: number, text: string, tone: string) => {
     if (notes.some((n) => n.text === text && Math.abs(n.price - price) < 1e-8)) return;
-    notes.push({ time, price, text });
+    notes.push({ time, price, text, tone });
   };
   const band = (price: number, stroke: string, label: string) => {
     const y = series.priceToCoordinate(price);
@@ -91,8 +120,8 @@ function drawZones(
       if (y1 == null || y2 == null) return;
       const y = Math.min(y1, y2);
       const h = Math.max(4, Math.abs(y2 - y1));
-      fillVolume(0, y, plotW, h, fill, "rgba(232,210,160,0.28)", stroke);
-      if (label.includes("цена")) mark(lastTime, (top + bottom) / 2, "Маржа");
+      fillVolume(0, y, plotW, h, "margin");
+      if (label.includes("цена")) mark(lastTime, (top + bottom) / 2, "Маржа", "margin");
       occupy(0, y, plotW * 0.45, h);
     };
     paint(
@@ -125,7 +154,7 @@ function drawZones(
     for (const z of picked) {
       const x1 = ts.timeToCoordinate(z.startTime as UTCTimestamp) ?? 8;
       const xEnd = ts.timeToCoordinate(z.endTime as UTCTimestamp);
-      const zw = Math.min(110, Math.max(36, xEnd != null ? xEnd - x1 : 80));
+      const zw = Math.min(160, Math.max(48, xEnd != null ? xEnd - x1 : 90));
       const y1 = series.priceToCoordinate(z.top);
       const y2 = series.priceToCoordinate(z.bottom);
       if (y1 == null || y2 == null) continue;
@@ -133,17 +162,10 @@ function drawZones(
       const h = Math.max(4, Math.abs(y2 - y1));
       const bull = z.side === "bull";
       const imb = z.kind === "fvg";
-      fillVolume(
-        x1,
-        top,
-        zw,
-        h,
-        imb ? (bull ? "rgba(255,210,90,0.28)" : "rgba(230,150,60,0.28)") : bull ? "rgba(80,190,130,0.30)" : "rgba(210,80,80,0.28)",
-        imb ? "rgba(255,230,150,0.45)" : bull ? "rgba(140,230,180,0.42)" : "rgba(255,140,140,0.40)",
-        imb ? "#e8c86a" : bull ? "#7dffb8" : "#ff8a8a",
-      );
+      const tone = imb ? "fvg" : bull ? "ob" : "obBear";
+      fillVolume(x1, top, zw, h, tone);
       occupy(x1, top, zw, h);
-      mark(z.startTime, (z.top + z.bottom) / 2, imb ? "Имбаланс" : "Ордерблок");
+      mark(z.startTime, (z.top + z.bottom) / 2, imb ? "Имбаланс" : "Ордерблок", tone);
     }
   }
 
@@ -153,13 +175,13 @@ function drawZones(
       const y = series.priceToCoordinate(lastCh.price);
       const x = ts.timeToCoordinate(lastCh.time as UTCTimestamp);
       if (y != null && x != null) {
-        ctx.strokeStyle = lastCh.side === "bull" ? "rgba(150,210,180,0.7)" : "rgba(220,150,150,0.7)";
-        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = PALETTE.choch!.stroke;
+        ctx.lineWidth = 2.2;
         ctx.beginPath();
         ctx.moveTo(x, y);
         ctx.lineTo(plotW, y);
         ctx.stroke();
-        mark(lastCh.time, lastCh.price, lastCh.side === "bull" ? "CHoCH вверх" : "CHoCH вниз");
+        mark(lastCh.time, lastCh.price, lastCh.side === "bull" ? "CHoCH вверх" : "CHoCH вниз", "choch");
       }
     }
   }
@@ -180,14 +202,14 @@ function drawZones(
       if (y != null && yPad != null) {
         const top = Math.min(y, yPad);
         const h = Math.max(10, Math.abs(yPad - y));
-        fillVolume(x0, top, plotW - x0 - 8, h, "rgba(255, 236, 160, 0.28)", "rgba(255, 248, 210, 0.5)", "rgba(200, 180, 80, 0.95)");
+        fillVolume(x0, top, plotW - x0 - 8, h, pool.swept ? "sweep" : "liq");
         occupy(x0, top, plotW - x0 - 8, h);
         ctx.strokeStyle = "rgba(80, 120, 180, 0.7)";
         ctx.beginPath();
         ctx.moveTo(x0, y);
         ctx.lineTo(plotW - 8, y);
         ctx.stroke();
-        mark(pool.time, pool.price, pool.swept ? "Съём" : "Ликвидность");
+        mark(pool.time, pool.price, pool.swept ? "Съём" : "Ликвидность", pool.swept ? "sweep" : "liq");
       }
     }
   }
@@ -212,7 +234,7 @@ function drawZones(
       ctx.lineTo(plotW - 16, magY + (up ? 10 : -10));
       ctx.closePath();
       ctx.fill();
-      mark(lastTime, snap.boxVector.magnet, up ? "Вектор вверх" : "Вектор вниз");
+      mark(lastTime, snap.boxVector.magnet, up ? "Вектор вверх" : "Вектор вниз", "vec");
     }
   }
 
@@ -241,7 +263,7 @@ function drawZones(
           }
           if (started) {
             ctx.stroke();
-            mark(p.points.at(-1)?.time ?? lastTime, p.points.at(-1)?.price ?? snap.lastClose, p.name);
+            mark(p.points.at(-1)?.time ?? lastTime, p.points.at(-1)?.price ?? snap.lastClose, p.name, "pat");
           }
         }
       }
@@ -253,23 +275,26 @@ function drawZones(
     if (setup.entry != null) {
       band(setup.entry, "rgba(232,210,160,0.9)", liveOrd ? "вход приказа" : "зона диспетчера");
       const y = series.priceToCoordinate(setup.entry);
-      if (y != null) mark(lastTime, setup.entry, liveOrd ? "Вход" : "Зона");
+      if (y != null) mark(lastTime, setup.entry, liveOrd ? "Вход" : "Зона", "entry");
     }
     if (setup.stop != null) {
       band(setup.stop, "rgba(220,150,150,0.9)", "стоп");
       const y = series.priceToCoordinate(setup.stop);
-      if (y != null) mark(lastTime, setup.stop, "Стоп");
+      if (y != null) mark(lastTime, setup.stop, "Стоп", "stop");
     }
     setup.targets.slice(0, 1).forEach((t) => {
       band(t, "rgba(150,210,180,0.9)", "тейк 1");
       const y = series.priceToCoordinate(t);
-      if (y != null) mark(lastTime, t, "Тейк");
+      if (y != null) mark(lastTime, t, "Тейк", "tp");
     });
   }
 
   if (snap) {
     const yNow = series.priceToCoordinate(snap.lastClose);
-    if (yNow != null) mark(lastTime, snap.lastClose, order?.action === "long" ? "Лонг" : order?.action === "short" ? "Шорт" : "Ждут");
+    if (yNow != null) {
+      const t = order?.action === "long" ? "Лонг" : order?.action === "short" ? "Шорт" : "Ждут";
+      mark(lastTime, snap.lastClose, t, t === "Лонг" ? "tp" : t === "Шорт" ? "stop" : "wait");
+    }
   }
 
   ctx.font = "13px IBM Plex Sans, sans-serif";
@@ -302,15 +327,16 @@ function drawZones(
     const bx = placed.x;
     const by = placed.y;
     occupy(bx, by, bw, bh);
+    const pal = PALETTE[n.tone] ?? PALETTE.fvg!;
     const cx = bx + bw / 2;
     ctx.beginPath();
     ctx.moveTo(ax, ay);
     ctx.lineTo(cx - 8, by + (ay < by ? 0 : bh));
     ctx.lineTo(cx + 8, by + (ay < by ? 0 : bh));
     ctx.closePath();
-    ctx.fillStyle = "rgba(243, 226, 176, 0.92)";
+    ctx.fillStyle = pal.b0;
     ctx.fill();
-    ctx.strokeStyle = "rgba(90, 130, 70, 0.85)";
+    ctx.strokeStyle = pal.stroke;
     ctx.lineWidth = 1.2;
     ctx.stroke();
     const r = 8;
@@ -329,19 +355,18 @@ function drawZones(
     ctx.shadowBlur = 14;
     ctx.shadowOffsetY = 5;
     const g = ctx.createLinearGradient(bx, by, bx, by + bh);
-    g.addColorStop(0, "rgba(255, 246, 214, 0.98)");
-    g.addColorStop(0.45, "rgba(243, 214, 150, 0.96)");
-    g.addColorStop(1, "rgba(196, 160, 80, 0.94)");
+    g.addColorStop(0, pal.b0);
+    g.addColorStop(1, pal.b1);
     ctx.fillStyle = g;
     ctx.fill();
     ctx.shadowColor = "transparent";
     ctx.shadowBlur = 0;
     ctx.shadowOffsetY = 0;
-    ctx.strokeStyle = "rgba(232, 200, 120, 0.95)";
-    ctx.lineWidth = 1.4;
+    ctx.strokeStyle = pal.stroke;
+    ctx.lineWidth = 1.5;
     ctx.stroke();
     const shine = ctx.createLinearGradient(bx, by, bx, by + 12);
-    shine.addColorStop(0, "rgba(255,255,255,0.35)");
+    shine.addColorStop(0, "rgba(255,255,255,0.4)");
     shine.addColorStop(1, "rgba(255,255,255,0)");
     ctx.fillStyle = shine;
     ctx.fill();
@@ -349,14 +374,13 @@ function drawZones(
     const tw = ctx.measureText(n.text).width;
     const tx = bx + (bw - tw) / 2;
     const ty = by + 22;
-    ctx.strokeStyle = "rgba(40, 28, 8, 0.55)";
-    ctx.lineWidth = 3;
+    ctx.strokeStyle = "rgba(20,12,4,0.55)";
+    ctx.lineWidth = 3.2;
     ctx.lineJoin = "round";
     ctx.strokeText(n.text, tx, ty);
     const tg = ctx.createLinearGradient(tx, ty - 12, tx, ty + 4);
-    tg.addColorStop(0, "#fff6d8");
-    tg.addColorStop(0.45, "#d4f0a0");
-    tg.addColorStop(1, "#3d6a28");
+    tg.addColorStop(0, pal.t0);
+    tg.addColorStop(1, pal.t1);
     ctx.fillStyle = tg;
     ctx.fillText(n.text, tx, ty);
   }
