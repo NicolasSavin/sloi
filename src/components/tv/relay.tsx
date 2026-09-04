@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { actionLabel, actionTone } from "@/lib/advisor";
 import { isOpenAction } from "@/lib/dispatch-store";
 import { fetchDigest } from "@/lib/market/fetch";
-import { ideaFromMarket, pineInputs, PINE_STABLE, tvChartUrl, tvSymbol, tvWidgetSrc } from "@/lib/tradingview";
+import { ideaFromMarket, pineFromMarket, pineInputs, tvChartUrl, tvSymbol, tvWidgetSrc } from "@/lib/tradingview";
 import { cn, formatPrice } from "@/lib/utils";
 
 async function copyText(label: string, text: string) {
@@ -30,7 +30,7 @@ export function TvRelay({ initialId }: { initialId?: string }) {
   const live = markets.filter((m) => isOpenAction(m.advice.action));
   const [id, setId] = useState(initialId || live[0]?.spec.id || markets[0]?.spec.id || "XAUUSD");
   const m = markets.find((x) => x.spec.id === id) ?? markets[0] ?? null;
-  const pine = PINE_STABLE;
+  const pine = useMemo(() => (m ? pineFromMarket(m) : ""), [m]);
   const levels = useMemo(() => (m ? pineInputs(m) : ""), [m]);
   const idea = useMemo(() => (m ? ideaFromMarket(m) : ""), [m]);
 
@@ -41,8 +41,8 @@ export function TvRelay({ initialId }: { initialId?: string }) {
         <p className="font-mono text-xs tracking-[0.22em] text-accent">TRADINGVIEW</p>
         <h1 className="mt-3 text-4xl font-medium tracking-tight sm:text-5xl">Идея на график TV</h1>
         <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted">
-          Скрипт один — «SLOI Desk». Публикуете в TradingView один раз. Каждый сигнал — не новый код, а числа во входах
-          индикатора. Идею (текст + снимок) можно постить хоть каждый час: Pine при этом не трогаете.
+          Платный TradingView не нужен. Скрипт не публикуем в библиотеку — его видно только вам: Pine Editor → вставить →
+          Add to chart. На сайте график TV уже открыт. Уровни вшиты в код: скопировали и заменили в редакторе.
         </p>
 
         <div className="mt-8 flex flex-wrap gap-2">
@@ -91,20 +91,18 @@ export function TvRelay({ initialId }: { initialId?: string }) {
                     Открыть график
                   </Button>
                 </a>
-                <Button variant="outline" onClick={() => void copyText("Pine SLOI Desk", pine)}>
-                  Копировать скрипт (один раз)
-                </Button>
-                <Button variant="outline" onClick={() => void copyText("Входы индикатора", levels)}>
-                  Копировать уровни
+                <Button variant="outline" onClick={() => void copyText("Pine с уровнями", pine)}>
+                  Копировать Pine
                 </Button>
                 <Button variant="outline" onClick={() => void copyText("Текст идеи", idea)}>
                   Копировать идею
                 </Button>
               </div>
               <ol className="list-decimal space-y-1 pl-5 text-sm text-muted">
-                <li>Один раз: Pine Editor → вставить скрипт → Add to chart → Publish script (имя SLOI Desk).</li>
-                <li>Дальше на каждом сигнале: шестерёнка индикатора → вставить скопированные уровни.</li>
-                <li>Идея: камера / Share idea → текст со стола. Скрипт заново не публикуете.</li>
+                <li>Кнопка «Открыть график» — бесплатный TV, любой аккаунт.</li>
+                <li>Внизу: Pine Editor → вставить скопированный Pine → Add to chart. Publish не нажимать.</li>
+                <li>Новый сигнал — снова копировать Pine и заменить код в редакторе (Save).</li>
+                <li>Текст идеи — в чат или пост. Публиковать скрипт в каталог TV не нужно.</li>
               </ol>
             </div>
           </section>
@@ -120,7 +118,7 @@ export function TvRelay({ initialId }: { initialId?: string }) {
             </pre>
           </div>
           <div>
-            <p className="font-mono text-xs tracking-[0.18em] text-accent">PINE · ОДИН РАЗ</p>
+            <p className="font-mono text-xs tracking-[0.18em] text-accent">PINE · ВСТАВИТЬ КАК ЕСТЬ</p>
             <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-elevated p-4 text-[11px] leading-relaxed text-muted">
               {pine}
             </pre>

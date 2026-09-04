@@ -97,8 +97,34 @@ export function pineInputs(m: DigestMarket) {
   ].join("\n");
 }
 
+/** Личный Pine: в редактор → Add to chart. Публиковать не нужно (платный аккаунт не требуется). */
 export function pineFromMarket(m: DigestMarket) {
-  return PINE_STABLE;
+  const d = m.spec.decimals;
+  const side = m.advice.action === "long" ? "long" : m.advice.action === "short" ? "short" : "wait";
+  const note = `${BRAND} ${m.spec.id} ${side}`;
+  return `//@version=5
+indicator("SLOI ${m.spec.id}", overlay=true, max_labels_count=8)
+side = "${side}"
+entry = ${n(m.setup.entry, d)}
+stop = ${n(m.setup.stop, d)}
+tp1 = ${n(m.setup.targets[0], d)}
+tp2 = ${n(m.setup.targets[1], d)}
+hi = ${n(m.range.high, d)}
+lo = ${n(m.range.low, d)}
+eq = ${n(m.range.eq, d)}
+note = "${note.replace(/"/g, "")}"
+colE = side == "long" ? color.new(#6e9e86, 0) : side == "short" ? color.new(#b57a7a, 0) : color.new(#c4a86e, 0)
+pEntry = plot(entry == 0 ? na : entry, "вход", color=colE, linewidth=2)
+pStop = plot(stop == 0 ? na : stop, "стоп", color=color.new(#b57a7a, 0), linewidth=2)
+plot(tp1 == 0 ? na : tp1, "цель 1", color=color.new(#6e9e86, 20))
+plot(tp2 == 0 ? na : tp2, "цель 2", color=color.new(#6e9e86, 50))
+plot(hi == 0 ? na : hi, "верх", color=color.new(#8a8276, 50))
+plot(lo == 0 ? na : lo, "низ", color=color.new(#8a8276, 50))
+plot(eq == 0 ? na : eq, "EQ", color=color.new(#d4b88c, 40), style=plot.style_circles)
+fill(pEntry, pStop, color=side == "wait" ? na : color.new(colE, 88), title="зона")
+if barstate.islast and entry != 0
+    label.new(bar_index, entry, note, style=label.style_label_left, textcolor=color.white, color=color.new(#1c1814, 15), size=size.small)
+`;
 }
 
 export function ideaFromMarket(m: DigestMarket) {
