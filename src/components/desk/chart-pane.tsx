@@ -35,19 +35,19 @@ function drawZones(
   snap: SmcSnapshot | null,
   setup?: LocalSetup | null,
   order?: Advice | null,
+  lastTime = 0,
   wipe = true,
 ) {
   if (width < 16 || height < 16) return;
   if (wipe) ctx.clearRect(0, 0, width, height);
   const ts = chart.timeScale();
   const plotW = Math.max(40, width - 58);
-  const notes: { ax: number; ay: number; text: string }[] = [];
+  const notes: { time: number; price: number; text: string }[] = [];
   const busy: { x: number; y: number; w: number; h: number }[] = [];
   const occupy = (x: number, y: number, w: number, h: number) => busy.push({ x, y, w, h });
-  const mark = (ax: number, ay: number, text: string) => {
-    if (ay < 8 || ay > height - 8) return;
-    if (notes.some((n) => n.text === text && Math.abs(n.ay - ay) < 18)) return;
-    notes.push({ ax, ay, text });
+  const mark = (time: number, price: number, text: string) => {
+    if (notes.some((n) => n.text === text && Math.abs(n.price - price) < 1e-8)) return;
+    notes.push({ time, price, text });
   };
   const band = (price: number, stroke: string, label: string) => {
     const y = series.priceToCoordinate(price);
@@ -74,7 +74,7 @@ function drawZones(
       ctx.strokeStyle = stroke;
       ctx.lineWidth = 1;
       ctx.strokeRect(0, y, plotW, h);
-      if (label.includes("цена")) mark(plotW * 0.72, y + h / 2, "Маржа");
+      if (label.includes("цена")) mark(lastTime, (top + bottom) / 2, "Маржа");
       occupy(0, y, plotW * 0.45, h);
     };
     paint(
@@ -121,7 +121,7 @@ function drawZones(
       ctx.fillRect(x1, top, zw, h);
       ctx.strokeRect(x1, top, zw, h);
       occupy(x1, top, zw, h);
-      mark(x1 + zw + 8, top + h / 2, imb ? "Имбаланс" : "Ордерблок");
+      mark(z.startTime, (z.top + z.bottom) / 2, imb ? "Имбаланс" : "Ордерблок");
     }
   }
 
@@ -137,7 +137,7 @@ function drawZones(
         ctx.moveTo(x, y);
         ctx.lineTo(plotW, y);
         ctx.stroke();
-        mark(x + 24, y - 10, lastCh.side === "bull" ? "CHoCH вверх" : "CHoCH вниз");
+        mark(lastCh.time, lastCh.price, lastCh.side === "bull" ? "CHoCH вверх" : "CHoCH вниз");
       }
     }
   }
@@ -169,7 +169,7 @@ function drawZones(
         ctx.moveTo(x0, y);
         ctx.lineTo(plotW - 8, y);
         ctx.stroke();
-        mark(x0 + (plotW - x0) * 0.55, top + h + 6, pool.swept ? "Съём" : "Ликвидность");
+        mark(pool.time, pool.price, pool.swept ? "Съём" : "Ликвидность");
       }
     }
   }
@@ -194,7 +194,7 @@ function drawZones(
       ctx.lineTo(plotW - 16, magY + (up ? 10 : -10));
       ctx.closePath();
       ctx.fill();
-      mark(plotW - 40, magY, up ? "Вектор вверх" : "Вектор вниз");
+      mark(lastTime, snap.boxVector.magnet, up ? "Вектор вверх" : "Вектор вниз");
     }
   }
 
@@ -223,7 +223,7 @@ function drawZones(
           }
           if (started) {
             ctx.stroke();
-            mark(plotW * 0.5, lastY, p.name);
+            mark(p.points.at(-1)?.time ?? lastTime, p.points.at(-1)?.price ?? snap.lastClose, p.name);
           }
         }
       }
@@ -235,23 +235,23 @@ function drawZones(
     if (setup.entry != null) {
       band(setup.entry, "rgba(232,210,160,0.9)", liveOrd ? "вход приказа" : "зона диспетчера");
       const y = series.priceToCoordinate(setup.entry);
-      if (y != null) mark(plotW * 0.6, y, liveOrd ? "Вход" : "Зона");
+      if (y != null) mark(lastTime, setup.entry, liveOrd ? "Вход" : "Зона");
     }
     if (setup.stop != null) {
       band(setup.stop, "rgba(220,150,150,0.9)", "стоп");
       const y = series.priceToCoordinate(setup.stop);
-      if (y != null) mark(plotW * 0.6, y, "Стоп");
+      if (y != null) mark(lastTime, setup.stop, "Стоп");
     }
     setup.targets.slice(0, 1).forEach((t) => {
       band(t, "rgba(150,210,180,0.9)", "тейк 1");
       const y = series.priceToCoordinate(t);
-      if (y != null) mark(plotW * 0.6, y, "Тейк");
+      if (y != null) mark(lastTime, t, "Тейк");
     });
   }
 
   if (snap) {
     const yNow = series.priceToCoordinate(snap.lastClose);
-    if (yNow != null) mark(plotW * 0.7, yNow, order?.action === "long" ? "Лонг" : order?.action === "short" ? "Шорт" : "Ждут");
+    if (yNow != null) mark(lastTime, snap.lastClose, order?.action === "long" ? "Лонг" : order?.action === "short" ? "Шорт" : "Ждут");
   }
 
   ctx.font = "13px IBM Plex Sans, sans-serif";
@@ -263,12 +263,15 @@ function drawZones(
     );
   const shown = notes.slice(0, 8);
   for (const n of shown) {
+    const ax = ts.timeToCoordinate(n.time as UTCTimestamp);
+    const ay = series.priceToCoordinate(n.price);
+    if (ax == null || ay == null) continue;
     const candidates = [
-      { x: Math.min(plotW - bw - 8, Math.max(n.ax + 16, plotW * 0.62)), y: n.ay + 18 },
-      { x: Math.min(plotW - bw - 8, Math.max(n.ax + 16, plotW * 0.62)), y: n.ay - bh - 18 },
-      { x: plotW - bw - 8, y: n.ay + 28 },
-      { x: plotW - bw - 8, y: n.ay - bh - 28 },
-      { x: Math.max(8, n.ax - bw - 20), y: n.ay + 16 },
+      { x: ax + 28, y: ay + 22 },
+      { x: ax + 28, y: ay - bh - 22 },
+      { x: ax - bw - 20, y: ay + 16 },
+      { x: ax - bw - 20, y: ay - bh - 16 },
+      { x: ax + 48, y: ay + 40 },
     ];
     let placed: { x: number; y: number } | null = null;
     for (const c of candidates) {
@@ -283,9 +286,9 @@ function drawZones(
     occupy(bx, by, bw, bh);
     const cx = bx + bw / 2;
     ctx.beginPath();
-    ctx.moveTo(n.ax, n.ay);
-    ctx.lineTo(cx - 8, by + (n.ay < by ? 0 : bh));
-    ctx.lineTo(cx + 8, by + (n.ay < by ? 0 : bh));
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(cx - 8, by + (ay < by ? 0 : bh));
+    ctx.lineTo(cx + 8, by + (ay < by ? 0 : bh));
     ctx.closePath();
     ctx.fillStyle = "rgba(243, 226, 176, 0.92)";
     ctx.fill();
@@ -484,12 +487,16 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
     book: null,
   };
 
+  private unsub: (() => void) | null = null;
   attached(param: SeriesAttachedParameter<Time>) {
     this.chart = param.chart as IChartApi;
     this.series = param.series as ISeriesApi<"Candlestick">;
     this._upd = param.requestUpdate;
+    this.unsub = this.chart.timeScale().subscribeVisibleLogicalRangeChange(() => this._upd?.()) as unknown as () => void;
   }
   detached() {
+    this.unsub?.();
+    this.unsub = null;
     this.chart = null;
     this.series = null;
     this._upd = null;
@@ -523,6 +530,7 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
                 p.snap,
                 p.setup,
                 p.order,
+                p.candles.at(-1)?.time ?? 0,
                 false,
               );
               drawTape(
