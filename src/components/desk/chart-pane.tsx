@@ -27,6 +27,8 @@ function drawZones(
   zones: Zone[],
   overlays: OverlayFlags,
   snap: SmcSnapshot | null,
+  setup?: LocalSetup | null,
+  order?: Advice | null,
 ) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
@@ -37,6 +39,22 @@ function drawZones(
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, rect.width, rect.height);
   const ts = chart.timeScale();
+  const plotW = Math.max(40, rect.width - 58);
+  const band = (price: number, fill: string, stroke: string, label: string, thick = 16) => {
+    const y = series.priceToCoordinate(price);
+    if (y == null) return;
+    ctx.fillStyle = fill;
+    ctx.fillRect(0, y - thick / 2, plotW, thick);
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(plotW, y);
+    ctx.stroke();
+    ctx.fillStyle = "#f4eee4";
+    ctx.font = "bold 13px IBM Plex Sans, sans-serif";
+    ctx.fillText(label, 10, y - thick / 2 - 4);
+  };
   if (overlays.margin !== false && snap) {
     const paint = (top: number, bottom: number, fill: string, stroke: string, label: string, live: boolean) => {
       const y1 = series.priceToCoordinate(top);
@@ -100,16 +118,15 @@ function drawZones(
       ctx.fillText(`${ib.session}  ${snap.auction.orb}`, 10, y + 14);
     }
   }
-  if (!overlays.fvg && !overlays.ob) return;
+  if (overlays.fvg || overlays.ob) {
   for (const z of zones) {
     if (z.kind === "fvg" && !overlays.fvg) continue;
     if ((z.kind === "ob" || z.kind === "breaker" || z.kind === "mitigation") && !overlays.ob) continue;
-    const x1 = ts.timeToCoordinate(z.startTime as UTCTimestamp);
-    const x2 = ts.timeToCoordinate(z.endTime as UTCTimestamp);
+    const x1 = ts.timeToCoordinate(z.startTime as UTCTimestamp) ?? 8;
     const y1 = series.priceToCoordinate(z.top);
     const y2 = series.priceToCoordinate(z.bottom);
-    if (x1 == null || y1 == null || y2 == null) continue;
-    const right = rect.width;
+    if (y1 == null || y2 == null) continue;
+    const right = plotW;
     const top = Math.min(y1, y2);
     const h = Math.max(8, Math.abs(y2 - y1));
     ctx.fillStyle =
@@ -134,6 +151,93 @@ function drawZones(
               ? "FVG спрос"
               : "FVG предложение";
     ctx.fillText(name, x1 + 6, top + Math.min(16, h - 2));
+  }
+  }
+  if (overlays.structure !== false && snap) {
+    for (const e of snap.events.slice(-8)) {
+      const x = ts.timeToCoordinate(e.time as UTCTimestamp);
+      const y = series.priceToCoordinate(e.price);
+      if (x == null || y == null) continue;
+      ctx.strokeStyle = e.side === "bull" ? "rgba(150,210,180,0.95)" : "rgba(220,150,150,0.95)";
+      ctx.lineWidth = e.kind === "CHoCH" ? 3 : 2;
+      ctx.setLineDash(e.kind === "CHoCH" ? [] : [6, 4]);
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(plotW, y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#f4eee4";
+      ctx.font = "bold 12px IBM Plex Sans, sans-serif";
+      ctx.fillText(`${e.kind} ${e.side === "bull" ? "↑" : "↓"}`, x + 6, y - 6);
+    }
+  }
+
+  if (overlays.liquidity && snap) {
+    const atr = snap.atr || 1;
+    for (const p of snap.liquidity.filter((l) => l.equal || l.swept).slice(-6)) {
+      const x = ts.timeToCoordinate(p.time as UTCTimestamp) ?? 8;
+      const y = series.priceToCoordinate(p.price);
+      if (y == null) continue;
+      const y2 = series.priceToCoordinate(p.price + atr * 0.08) ?? y - 8;
+      const topL = Math.min(y, y2);
+      const hh = Math.max(8, Math.abs(y2 - y));
+      ctx.fillStyle = p.side === "buy" ? "rgba(111,158,134,0.22)" : "rgba(181,122,122,0.22)";
+      ctx.fillRect(x, topL, plotW - x, hh);
+      ctx.fillStyle = "#f0e6d4";
+      ctx.font = "bold 11px IBM Plex Sans, sans-serif";
+      ctx.fillText(p.swept ? "SWEEP" : p.side === "buy" ? "BSL" : "SSL", x + 6, topL + 12);
+    }
+  }
+
+  if (overlays.patterns !== false && snap) {
+    for (const p of snap.patterns.slice(0, 4)) {
+      ctx.strokeStyle = p.side === "bull" ? "rgba(180,220,190,0.95)" : "rgba(230,180,170,0.95)";
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      let started = false;
+      let lastX = 0;
+      let lastY = 0;
+      for (const pt of p.points) {
+        const x = ts.timeToCoordinate(pt.time as UTCTimestamp);
+        const y = series.priceToCoordinate(pt.price);
+        if (x == null || y == null) continue;
+        if (!started) {
+          ctx.moveTo(x, y);
+          started = true;
+        } else ctx.lineTo(x, y);
+        lastX = x;
+        lastY = y;
+        ctx.fillStyle = "#f4eee4";
+        ctx.font = "bold 11px IBM Plex Sans, sans-serif";
+        ctx.fillText(pt.label, x + 4, y - 8);
+      }
+      if (started) {
+        ctx.stroke();
+        ctx.fillStyle = "#f4eee4";
+        ctx.font = "bold 13px IBM Plex Sans, sans-serif";
+        ctx.fillText(p.name, lastX + 8, lastY + 16);
+      }
+    }
+  }
+
+  if (setup && (setup.entry != null || setup.stop != null)) {
+    const live = order?.action === "long" || order?.action === "short";
+    const side = order?.action === "short" ? "шорт" : order?.action === "long" ? "лонг" : "зона";
+    if (setup.entry != null) {
+      band(
+        setup.entry,
+        live ? "rgba(212,184,140,0.28)" : "rgba(201,184,150,0.14)",
+        "rgba(232,210,160,0.95)",
+        live ? `ВХОД ${side}` : "ЗОНА ДИСПЕТЧЕРА",
+        18,
+      );
+    }
+    if (setup.stop != null) {
+      band(setup.stop, "rgba(181,122,122,0.22)", "rgba(220,150,150,0.95)", "СТОП", 14);
+    }
+    setup.targets.slice(0, 2).forEach((t, i) => {
+      band(t, "rgba(111,158,134,0.22)", "rgba(150,210,180,0.95)", `ТЕЙК ${i + 1}`, 14);
+    });
   }
 }
 
@@ -417,6 +521,8 @@ export function ChartPane({
             [...(snapRef.current?.fvgs ?? []), ...(snapRef.current?.orderBlocks ?? [])],
             overlaysRef.current,
             snapRef.current,
+            setupRef.current,
+            orderRef.current,
           );
           if (overlaysRef.current.flow) {
             drawTape(
@@ -620,7 +726,16 @@ export function ChartPane({
       ];
       markersRef.current?.setMarkers(markers);
       if (overlayRef.current) {
-        drawZones(overlayRef.current, chart, series, [...snap.fvgs, ...snap.orderBlocks], overlays, snap);
+        drawZones(
+          overlayRef.current,
+          chart,
+          series,
+          [...snap.fvgs, ...snap.orderBlocks],
+          overlays,
+          snap,
+          setup,
+          order,
+        );
         if (overlays.flow) drawTape(overlayRef.current, chart, series, candles, snap, true, book);
       }
       if (profileRef.current) drawProfile(profileRef.current, series, snap, overlays.profile);
