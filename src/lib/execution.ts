@@ -179,11 +179,36 @@ export function refineAdvice(
   },
 ): Advice {
   if (haltApplies(opts.id, opts.halt)) {
+    const last = opts.last ?? opts.h1?.at(-1)?.close ?? opts.entry ?? 0;
+    const prev =
+      opts.h1?.at(-2)?.close ??
+      (opts.changePct != null && last ? last / (1 + opts.changePct / 100) : undefined);
+    const news = opts.halt?.event ?? "новость";
+    if (advice.action !== "long" && advice.action !== "short") {
+      return {
+        ...advice,
+        therefore: `${advice.therefore} ${opts.halt?.line ?? news}. Это не запрет: если зона совпадёт с ожиданием макро — вход разрешаю и даю очки.`,
+      };
+    }
+    const align = playAligned(opts.id, opts.play, advice.action, last, prev);
+    const cut = playCuts(opts.id, opts.play, advice.action);
+    if (align.ok || align.boost > 0) {
+      return {
+        ...advice,
+        therefore: `Новость «${news}»: ожидание в нашу сторону. ${align.note} Вход не глушу, очки плюс.`,
+      };
+    }
+    if (cut.cut) {
+      return {
+        ...advice,
+        action: "wait",
+        title: "Новость: вероятность против",
+        therefore: `${cut.note} Против ожидания новостного хода не входим.`,
+      };
+    }
     return {
       ...advice,
-      action: "wait",
-      title: "Стоп: новость по этой паре",
-      therefore: `${opts.halt?.line ?? "Календарь."} Другие пары без этой валюты не глушу.`,
+      therefore: `${advice.therefore} Новость «${news}» на паре. Макро не спорит — лимитку не снимаю.`,
     };
   }
   if (advice.action !== "long" && advice.action !== "short") return advice;

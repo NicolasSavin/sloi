@@ -620,7 +620,8 @@ async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }
       boxVector: r.snap.boxVector,
     };
     const advice = gateAdvice(r.market.advice, wind, fund.halt, ctx);
-    return { ...r.market, wind, advice, htfBias: ctx.htfBias, d1Bias: ctx.d1Bias };
+    const newsBoost = /очки плюс/.test(advice.therefore) ? 10 : 0;
+    return { ...r.market, wind, advice, htfBias: ctx.htfBias, d1Bias: ctx.d1Bias, score: r.market.score + newsBoost };
   });
   const { applyHold, seedHold, applyCool } = await import("@/lib/signal-hold");
   const { applyThemeBook } = await import("@/lib/theme-book");

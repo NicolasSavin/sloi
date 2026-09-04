@@ -108,7 +108,7 @@ export function applyHold(markets: DigestMarket[]): DigestMarket[] {
     if (!prev) return m;
 
     // Жёсткие причины снять hold
-    if (/Стоп: новость|Стоп: крупная|Пауза после стопа|Торговля запрещена/.test(m.advice.title)) {
+    if (/Новость: вероятность против|Пауза после стопа/.test(m.advice.title)) {
       hold.delete(m.spec.id);
       return m;
     }

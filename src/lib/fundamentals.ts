@@ -382,9 +382,7 @@ export function gateAdvice(
   if (halt?.active && !ctx?.id) {
     return {
       ...base,
-      action: "wait",
-      title: "Стоп: крупная новость",
-      therefore: halt.line,
+      therefore: `${base.therefore} ${halt.line} Не общий запрет: попутный макро даёт очки, встречный режет.`,
     };
   }
   if (base.action !== "long" && base.action !== "short") {

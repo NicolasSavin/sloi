@@ -55,7 +55,7 @@ export function linesFromTick(
     if (prev.get("__halt") !== key) {
       prev.set("__halt", key);
       const when = halt.active ? "уже в эфире" : `через ${halt.minutes} минут`;
-      const text = `${clockRu(at)} Новость. ${halt.line ?? halt.event}. ${when}. По золоту и доллару не входим вдогонку.`;
+      const text = `${clockRu(at)} Новость. ${halt.line ?? halt.event}. ${when}. Если макро в нашу сторону — вход не глушу. Против — жду.`;
       out.push({ id: key, at, pair: "USD", text, speak: text, tone: "alert" });
     }
   }
