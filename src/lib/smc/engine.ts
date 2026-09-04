@@ -160,6 +160,7 @@ export interface SmcSnapshot {
   micro: MicroSnap;
   auction: AuctionSnap;
   coil: CoilBreak;
+  boxVector: BoxVector;
   corr: CorrSnap;
   ivNews: IvNewsSnap;
   killzone: { name: string; active: boolean }[];
@@ -432,7 +433,8 @@ function detectLiquidity(candles: Candle[], swings: Swing[], atr: number): Liqui
   for (let i = 0; i < highs.length; i++) {
     const a = highs[i]!;
     const equal = highs.some((b, j) => j !== i && Math.abs(b.price - a.price) <= tol);
-    const swept = last.high > a.price + tol * 0.2 && last.close < a.price;
+    const recent = candles.slice(-8);
+    const swept = recent.some((c) => c.high > a.price + tol * 0.2) && last.close < a.price;
     pools.push({
       price: a.price,
       time: a.time,
@@ -444,7 +446,8 @@ function detectLiquidity(candles: Candle[], swings: Swing[], atr: number): Liqui
   for (let i = 0; i < lows.length; i++) {
     const a = lows[i]!;
     const equal = lows.some((b, j) => j !== i && Math.abs(b.price - a.price) <= tol);
-    const swept = last.low < a.price - tol * 0.2 && last.close > a.price;
+    const recentL = candles.slice(-8);
+    const swept = recentL.some((c) => c.low < a.price - tol * 0.2) && last.close > a.price;
     pools.push({
       price: a.price,
       time: a.time,
@@ -454,6 +457,79 @@ function detectLiquidity(candles: Candle[], swings: Swing[], atr: number): Liqui
     });
   }
   return pools.slice(-10);
+}
+
+export interface BoxVector {
+  dir: "up" | "down" | "none";
+  magnet: number | null;
+  swept: number | null;
+  because: string;
+}
+
+export function buildBoxVector(
+  last: Candle,
+  range: { high: number; low: number; eq: number },
+  liq: LiquidityPool[],
+  candles: Candle[],
+): BoxVector {
+  const none: BoxVector = {
+    dir: "none",
+    magnet: null,
+    swept: null,
+    because: "Оба края коробки целы или оба сняты. Вектора нет — только ждать выноса.",
+  };
+  const span = range.high - range.low;
+  if (!(span > 0)) return none;
+  const sellSwept = liq.filter((l) => l.side === "sell" && l.swept);
+  const buySwept = liq.filter((l) => l.side === "buy" && l.swept);
+  const magnetUp = liq
+    .filter((l) => l.side === "buy" && !l.swept && l.price > last.close)
+    .sort((a, b) => a.price - b.price)[0];
+  const magnetDn = liq
+    .filter((l) => l.side === "sell" && !l.swept && l.price < last.close)
+    .sort((a, b) => b.price - a.price)[0];
+  const ssl = sellSwept.at(-1);
+  const bsl = buySwept.at(-1);
+  const recent = candles.slice(-10);
+  const tookLow = recent.some((c) => c.low <= range.low + span * 0.06);
+  const tookHigh = recent.some((c) => c.high >= range.high - span * 0.06);
+  const fmt = (n: number) => (n > 50 ? n.toFixed(2) : n.toFixed(5));
+
+  if ((ssl || tookLow) && magnetUp && !tookHigh) {
+    const swept = ssl?.price ?? range.low;
+    return {
+      dir: "up",
+      magnet: magnetUp.price,
+      swept,
+      because: `Снизу ликвидность сняли (${fmt(swept)}). Сверху лужа ${fmt(magnetUp.price)} цела. Вектор коробки вверх, вход не из середины.`,
+    };
+  }
+  if ((bsl || tookHigh) && magnetDn && !tookLow) {
+    const swept = bsl?.price ?? range.high;
+    return {
+      dir: "down",
+      magnet: magnetDn.price,
+      swept,
+      because: `Сверху ликвидность сняли (${fmt(swept)}). Снизу лужа ${fmt(magnetDn.price)} цела. Вектор коробки вниз, вход не из середины.`,
+    };
+  }
+  if (tookLow && !tookHigh) {
+    return {
+      dir: "up",
+      magnet: range.high,
+      swept: range.low,
+      because: `Низ коробки вынесли, верх ${fmt(range.high)} цел. Вектор вверх к неснятой ликвидности.`,
+    };
+  }
+  if (tookHigh && !tookLow) {
+    return {
+      dir: "down",
+      magnet: range.low,
+      swept: range.high,
+      because: `Верх коробки вынесли, низ ${fmt(range.low)} цел. Вектор вниз к неснятой ликвидности.`,
+    };
+  }
+  return none;
 }
 
 function detectDivergence(candles: Candle[], swings: Swing[]): Divergence[] {
@@ -968,8 +1044,8 @@ function buildStory(
 
   const waiting =
     setup.entry != null
-      ? `Чего ждёт: чтобы цену принесли в его зону около ${fmt(setup.entry)} и там появилась реакция. Не вход по рынку. Ритейл обычно покупает/продаёт сейчас; он стоит лимиткой в зоне.`
-      : `Чего ждёт: свип ликвидности за край диапазона и закрытие обратно внутрь. Пока этого нет — позиции крупняка в середине не открываются.`;
+      ? `Чего ждёт: чтобы цену принесли в его зону около ${fmt(setup.entry)} и там появилась реакция. Не вход по рынку.`
+      : `Чего ждёт: край коробки по вектору ликвидности. Середина — не вход, только направление.`;
 
   const leadsTo =
     `${ifHolds} ${ifBreaks} Это не приказ рынку, а карта: жив сценарий только пока структура не сломана.`;
@@ -1142,6 +1218,7 @@ export function analyzeMarket(
   });
 
   const dealingRange = { high: rangeHigh, low: rangeLow, eq };
+  const boxVector = buildBoxVector(last, dealingRange, liquidity, candles);
   const margin = buildMargin(dealingRange, last.close, liquidity);
   const wyckoff = detectWyckoff(candles, swings, liquidity, dealingRange, trend);
   confluence.push({
@@ -1255,6 +1332,12 @@ export function analyzeMarket(
     note: `${coil.because} ${coil.therefore}`,
   });
   confluence.push({
+    id: "box",
+    layer: "Вектор коробки",
+    status: boxVector.dir === "up" ? "for" : boxVector.dir === "down" ? "against" : "neutral",
+    note: boxVector.because,
+  });
+  confluence.push({
     id: "corr",
     layer: "Корреляция",
     status: corr.status,
@@ -1334,6 +1417,7 @@ export function analyzeMarket(
     micro,
     auction,
     coil,
+    boxVector,
     corr,
     ivNews,
     killzone: kz,
@@ -1398,6 +1482,7 @@ export function compactForAi(symbol: string, timeframe: string, snap: SmcSnapsho
     },
     auction: snap.auction,
     coil: snap.coil,
+    boxVector: snap.boxVector,
     corr: snap.corr,
     ivNews: snap.ivNews,
     confluence: snap.confluence,

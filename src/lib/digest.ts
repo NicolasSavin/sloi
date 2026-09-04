@@ -24,6 +24,7 @@ export interface DigestMarket {
   htfBias?: SmcSnapshot["bias"];
   d1Bias?: SmcSnapshot["bias"];
   spark?: number[];
+  boxVector?: SmcSnapshot["boxVector"];
 }
 
 export interface ChartNote {
@@ -153,6 +154,7 @@ export function toDigestMarket(spec: SymbolSpec, snap: SmcSnapshot, spread?: num
     premiumDiscount: snap.premiumDiscount,
     construction: buildConstruction(options, spec),
     spark: candles?.slice(-48).map((c) => c.close),
+    boxVector: snap.boxVector,
   };
 }
 

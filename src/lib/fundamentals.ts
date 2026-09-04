@@ -342,9 +342,10 @@ export function gateAdvice(
     coil?: "coil" | "spike" | "none";
     coilDir?: "up" | "down" | "flat";
     h1Trend?: "up" | "down" | "range";
+    boxVector?: { dir: "up" | "down" | "none"; magnet: number | null; because: string };
   },
 ): Advice {
-  const base = ctx?.id
+  let base = ctx?.id
     ? refineAdvice(advice, {
         id: ctx.id,
         halt,
@@ -369,6 +370,15 @@ export function gateAdvice(
         h1Trend: ctx.h1Trend,
       })
     : advice;
+  const v = ctx?.boxVector;
+  if (v && v.dir !== "none" && (base.action === "wait" || base.action === "skip")) {
+    const dir = v.dir === "up" ? "вверх" : "вниз";
+    base = {
+      ...base,
+      title: /вектор/i.test(base.title) ? base.title : `${base.title} · вектор ${dir}`,
+      therefore: `${base.therefore} ${v.because}`,
+    };
+  }
   if (halt?.active && !ctx?.id) {
     return {
       ...base,

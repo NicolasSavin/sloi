@@ -193,6 +193,15 @@ export function DispatchBoard() {
                   ) : (
                     <p className="mt-2 text-sm text-muted">{m.advice.title}</p>
                   )}
+                  {m.boxVector && m.boxVector.dir !== "none" ? (
+                    <p className={cn("mt-2 text-xs", m.boxVector.dir === "up" ? "text-bull" : "text-bear")}>
+                      Вектор коробки {m.boxVector.dir === "up" ? "вверх" : "вниз"}
+                      {m.boxVector.magnet != null
+                        ? ` к ${formatPrice(m.boxVector.magnet, m.spec.decimals)}`
+                        : ""}
+                      . {m.boxVector.because}
+                    </p>
+                  ) : null}
                   {m.wind ? (
                     <p className="mt-2 font-mono text-xs text-dim">
                       макро {m.wind.kind === "tail" ? "попутный" : m.wind.kind === "head" ? "встречный" : "нейтральный"}
