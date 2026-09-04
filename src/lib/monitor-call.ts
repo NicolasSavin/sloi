@@ -60,8 +60,28 @@ export function linesFromTick(
     }
   }
   if (first) {
-    const text = `${clockRu(at)} Монитор в эфире. Комментирую ход цены, не приказы диспетчера.`;
+    const text = `${clockRu(at)} Монитор в эфире. Комментирую ход цены и вектор коробки, не приказы диспетчера.`;
     out.push({ id: `open-${at}`, at, pair: "SLOI", text, speak: text, tone: "neutral" });
+  }
+
+  for (const m of markets) {
+    const v = m.boxVector;
+    if (!v || v.dir === "none") continue;
+    const vk = `v:${m.spec.id}:${v.dir}:${v.magnet ?? 0}`;
+    if (!first && prev.get(vk) === "1") continue;
+    prev.set(vk, "1");
+    const n = nameOf(m.spec.id, m.spec.label);
+    const dir = v.dir === "up" ? "вверх" : "вниз";
+    const mag = v.magnet != null ? ` к ${v.magnet > 50 ? v.magnet.toFixed(0) : v.magnet.toFixed(4)}` : "";
+    const text = `${clockRu(at)} ${n}: вектор коробки ${dir}${mag}. ${v.because}`;
+    out.push({
+      id: vk,
+      at,
+      pair: m.spec.id,
+      text,
+      speak: text.replace(/\s+/g, " ").slice(0, 280),
+      tone: v.dir === "up" ? "bull" : "bear",
+    });
   }
 
   const tapeRows = tape?.length ? tape : [];

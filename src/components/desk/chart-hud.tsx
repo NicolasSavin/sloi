@@ -68,17 +68,23 @@ export function OrderHud({
   setup,
   decimals,
   loading,
+  boxVector,
 }: {
   order?: Advice | null;
   setup?: LocalSetup | null;
   decimals: number;
   loading?: boolean;
+  boxVector?: { dir: "up" | "down" | "none"; magnet: number | null; because: string } | null;
 }) {
   const live = order?.action === "long" || order?.action === "short";
   const side = order ? actionLabel(order.action) : loading ? "гружу стол…" : "нет ленты";
   const entry = live && setup?.entry != null ? formatPrice(setup.entry, decimals) : null;
   const stop = live && setup?.stop != null ? formatPrice(setup.stop, decimals) : null;
   const tp = live && setup?.targets[0] != null ? formatPrice(setup.targets[0], decimals) : null;
+  const vec =
+    boxVector && boxVector.dir !== "none"
+      ? `Вектор ${boxVector.dir === "up" ? "вверх" : "вниз"}${boxVector.magnet != null ? ` к ${formatPrice(boxVector.magnet, decimals)}` : ""}`
+      : null;
   return (
     <div className="pointer-events-none absolute inset-x-0 top-12 z-30 px-2">
       <div className="max-w-xl rounded-md border border-accent/40 bg-bg px-3 py-2 shadow-[var(--shadow-volume)]">
@@ -88,6 +94,7 @@ export function OrderHud({
         <p className="mt-1 text-sm font-medium">
           {live ? `${side} · вход ${entry} · стоп ${stop} · цель ${tp}` : `${side}. Зоны на графике — карта, не ордер.`}
         </p>
+        {vec ? <p className="mt-1 text-xs text-muted">{vec}. Середина не вход.</p> : null}
       </div>
     </div>
   );

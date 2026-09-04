@@ -243,6 +243,48 @@ function drawZones(
     }
   }
 
+  if (snap?.boxVector && snap.boxVector.dir !== "none" && snap.boxVector.magnet != null) {
+    const magY = series.priceToCoordinate(snap.boxVector.magnet);
+    const lastY = series.priceToCoordinate(snap.lastClose);
+    if (magY != null && lastY != null) {
+      const up = snap.boxVector.dir === "up";
+      ctx.strokeStyle = up ? "rgba(150,210,180,0.95)" : "rgba(220,150,150,0.95)";
+      ctx.fillStyle = ctx.strokeStyle;
+      ctx.lineWidth = 3;
+      ctx.setLineDash([8, 5]);
+      ctx.beginPath();
+      ctx.moveTo(plotW - 28, lastY);
+      ctx.lineTo(plotW - 28, magY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      if (up) {
+        ctx.moveTo(plotW - 28, magY);
+        ctx.lineTo(plotW - 36, magY + 14);
+        ctx.lineTo(plotW - 20, magY + 14);
+      } else {
+        ctx.moveTo(plotW - 28, magY);
+        ctx.lineTo(plotW - 36, magY - 14);
+        ctx.lineTo(plotW - 20, magY - 14);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = up ? "#b8e8d0" : "#f0c0c0";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(8, magY);
+      ctx.lineTo(plotW - 40, magY);
+      ctx.stroke();
+      pill(
+        10,
+        magY - 8,
+        up ? "ВЕКТОР ↑ к ликвидности" : "ВЕКТОР ↓ к ликвидности",
+        "rgba(16,24,36,0.94)",
+        up ? "#b8e8d0" : "#f0c0c0",
+      );
+    }
+  }
+
   if (overlays.patterns !== false && snap) {
     for (const p of snap.patterns.slice(0, 3)) {
       const prices = p.points.map((pt) => pt.price);
@@ -881,6 +923,15 @@ export function ChartPane({
             p.side === "buy" ? bull : bear,
           );
         }
+      }
+      if (snap.boxVector?.dir !== "none" && snap.boxVector.magnet != null) {
+        add(
+          snap.boxVector.magnet,
+          snap.boxVector.dir === "up" ? "ВЕКТОР ↑" : "ВЕКТОР ↓",
+          snap.boxVector.dir === "up" ? bull : bear,
+          false,
+          true,
+        );
       }
       const cmd = order;
       const cmdSetup = setup;

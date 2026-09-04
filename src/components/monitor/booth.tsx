@@ -95,6 +95,12 @@ export function MonitorBooth() {
                   {chg.toFixed(2)}% · 15м
                 </p>
                 <Spark values={spark} up={up} className="mt-2 h-14 w-full" />
+                {m?.boxVector && m.boxVector.dir !== "none" ? (
+                  <p className={cn("mt-2 text-xs", m.boxVector.dir === "up" ? "text-bull" : "text-bear")}>
+                    вектор {m.boxVector.dir === "up" ? "↑" : "↓"}
+                    {m.boxVector.magnet != null ? ` к ${formatPrice(m.boxVector.magnet, decimals)}` : ""}
+                  </p>
+                ) : null}
               </a>
             );
           })}

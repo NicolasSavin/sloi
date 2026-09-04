@@ -213,6 +213,16 @@ export function notesFromSnap(snap: SmcSnapshot, decimals: number): ChartNote[] 
       tone: "neutral",
     });
   }
+  if (snap.boxVector?.dir !== "none" && snap.boxVector.magnet != null) {
+    notes.push({
+      time: snap.swings.at(-1)?.time ?? 0,
+      price: snap.boxVector.magnet,
+      name: snap.boxVector.dir === "up" ? "вектор ↑" : "вектор ↓",
+      priceLabel: px(snap.boxVector.magnet),
+      hint: snap.boxVector.because,
+      tone: snap.boxVector.dir === "up" ? "bull" : "bear",
+    });
+  }
   return notes.slice(0, 4);
 }
 

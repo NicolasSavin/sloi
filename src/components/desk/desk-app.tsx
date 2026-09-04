@@ -290,7 +290,7 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
               {snap?.clusters ? <ClusterBanner snap={snap} /> : null}
               <ChartStage className="mx-4 mt-2 h-[280px] overflow-hidden rounded-xl panel-volume lg:h-[420px]">
                 <ChartPane candles={market.data?.candles ?? []} snap={snap} overlays={overlays} book={book} order={order} setup={deskMarket?.setup ?? null} className="absolute inset-0 h-full" />
-                <OrderHud order={order} setup={deskMarket?.setup ?? null} decimals={spec.decimals} loading={digestQ.isLoading} />
+                <OrderHud order={order} setup={deskMarket?.setup ?? null} decimals={spec.decimals} loading={digestQ.isLoading} boxVector={deskMarket?.boxVector ?? snap?.boxVector} />
               </ChartStage>
               <div className="px-4 pt-3"><EtherCard ether={ether} /></div>
               <div className="px-4 pb-4 pt-3"><ChatDock /></div>
