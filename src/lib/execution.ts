@@ -102,8 +102,8 @@ export function boxWhere(last: number, high: number, low: number): "lower" | "mi
   if (last > high) return "broke-up";
   if (last < low) return "broke-down";
   const pos = (last - low) / span;
-  if (pos >= 0.72) return "upper";
-  if (pos <= 0.28) return "lower";
+  if (pos >= 0.68) return "upper";
+  if (pos <= 0.32) return "lower";
   return "mid";
 }
 
@@ -175,6 +175,7 @@ export function refineAdvice(
     rangeLow?: number;
     coil?: "coil" | "spike" | "none";
     coilDir?: "up" | "down" | "flat";
+    h1Trend?: "up" | "down" | "range";
   },
 ): Advice {
   if (haltApplies(opts.id, opts.halt)) {
@@ -224,20 +225,21 @@ export function refineAdvice(
   const lo = opts.rangeLow;
   if (hi != null && lo != null && last > 0) {
     const where = boxWhere(last, hi, lo);
-    if (senior === "none") {
+    const ranging = opts.h1Trend === "range" || opts.h1Trend == null;
+    if (senior === "none" && where === "mid" && ranging) {
       return {
         ...advice,
         action: "wait",
         title: "Ждать: старший не выбрал",
-        therefore: "H4 и дневка во флэте. Часовой боковик — набор без стороны. Не гадаем из коробки.",
+        therefore: "H4 и дневка во флэте, час в середине коробки. Край или полка — можно. Середину не гадаем.",
       };
     }
-    if (where === "mid") {
+    if (ranging && where === "mid" && opts.coil !== "coil") {
       return {
         ...advice,
         action: "wait",
         title: "Ждать: середина коробки",
-        therefore: "Большую часть времени цена во флэте. Вход только от края часовой коробки, в сторону H4/D1.",
+        therefore: "Большую часть времени цена во флэте. Вход от края часовой коробки, в сторону H4/D1.",
       };
     }
     if (senior === "long" && advice.action === "short") {

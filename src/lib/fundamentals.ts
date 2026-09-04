@@ -341,6 +341,7 @@ export function gateAdvice(
     rangeLow?: number;
     coil?: "coil" | "spike" | "none";
     coilDir?: "up" | "down" | "flat";
+    h1Trend?: "up" | "down" | "range";
   },
 ): Advice {
   const base = ctx?.id
@@ -365,6 +366,7 @@ export function gateAdvice(
         rangeLow: ctx.rangeLow,
         coil: ctx.coil,
         coilDir: ctx.coilDir,
+        h1Trend: ctx.h1Trend,
       })
     : advice;
   if (halt?.active && !ctx?.id) {
