@@ -275,7 +275,7 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
             </p>
           </div>
           {market.isLoading ? (
-            <Skeleton className="m-4 min-h-[320px] flex-1 rounded-lg" />
+            <Skeleton className="m-4 h-[220px] rounded-lg lg:h-[320px]" />
           ) : market.error ? (
             <div className="m-4 rounded-lg bg-elevated p-6 text-sm text-muted">Не удалось загрузить рынок.</div>
           ) : (
@@ -288,7 +288,7 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
               {snap?.flow ? <FlowBanner snap={snap} /> : null}
               <BookBanner book={book} iceberg={snap?.flow.events.find((e) => e.kind === "absorption")?.therefore} />
               {snap?.clusters ? <ClusterBanner snap={snap} /> : null}
-              <ChartStage className="h-[260px] lg:h-auto lg:min-h-[420px] lg:flex-1">
+              <ChartStage className="mx-4 mt-2 h-[220px] overflow-hidden rounded-lg border border-border lg:h-[320px]">
                 <ChartPane candles={market.data?.candles ?? []} snap={snap} overlays={overlays} book={book} order={order} setup={deskMarket?.setup ?? null} className="absolute inset-0 h-full" />
                 <OrderHud order={order} setup={deskMarket?.setup ?? null} decimals={spec.decimals} loading={digestQ.isLoading} />
               </ChartStage>
