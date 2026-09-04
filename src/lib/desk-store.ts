@@ -73,8 +73,8 @@ export const useDeskStore = create<DeskState>()(
       setSpread: (id, spread) => set((s) => ({ spreads: { ...s.spreads, [id]: spread } })),
     }),
     {
-      name: "stratum-desk",
-      version: 10,
+      name: "sloi-desk-smc",
+      version: 11,
       migrate: (persisted) => {
         const p = (persisted ?? {}) as Partial<DeskState>;
         const symbol = p.symbol && ALLOWED.has(p.symbol) ? p.symbol : "EURUSD";
@@ -93,14 +93,13 @@ export const useDeskStore = create<DeskState>()(
             fvg: true,
             ob: true,
             liquidity: true,
-            profile: true,
+            profile: p.overlays?.profile ?? true,
             waves: false,
-            divergences: true,
+            divergences: p.overlays?.divergences ?? true,
             margin: true,
             patterns: true,
-            flow: true,
+            flow: p.overlays?.flow ?? true,
             structure: true,
-            ...p.overlays,
           },
         } as DeskState;
       },

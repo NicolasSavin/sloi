@@ -783,7 +783,7 @@ export function ChartPane({
   return (
     <div className={cn("relative overflow-hidden bg-bg", className)}>
       <div ref={hostRef} className="absolute inset-0" />
-      <canvas ref={overlayRef} className="pointer-events-none absolute inset-0" />
+      <canvas ref={overlayRef} className="pointer-events-none absolute inset-0 z-20" />
       <canvas
         ref={profileRef}
         className="pointer-events-none absolute top-0 right-14 bottom-8 w-32"

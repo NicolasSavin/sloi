@@ -31,9 +31,15 @@ import { cn, formatPct, formatPrice } from "@/lib/utils";
 
 const OVERLAY_LABELS: { key: keyof OverlayFlags; label: string }[] = [
   { key: "structure", label: "BOS / CHoCH" },
-  { key: "fvg", label: "FVG" }, { key: "ob", label: "OB" }, { key: "liquidity", label: "Ликвидность" },
-  { key: "margin", label: "Маржа" }, { key: "patterns", label: "Паттерны" }, { key: "flow", label: "Дельта / футпринт" },
-  { key: "profile", label: "Профиль / VWAP" }, { key: "divergences", label: "Дивергенции" }, { key: "waves", label: "Волны" },
+  { key: "fvg", label: "Имбаланс" },
+  { key: "ob", label: "Ордерблок" },
+  { key: "liquidity", label: "Ликвидность" },
+  { key: "margin", label: "Маржа" },
+  { key: "patterns", label: "Паттерны" },
+  { key: "flow", label: "Дельта / футпринт" },
+  { key: "profile", label: "Профиль / VWAP" },
+  { key: "divergences", label: "Дивергенции" },
+  { key: "waves", label: "Волны" },
 ];
 function biasTone(bias: string): "bull" | "bear" | "warn" {
   if (bias === "bullish") return "bull";
