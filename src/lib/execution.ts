@@ -85,6 +85,28 @@ export function stackGrade(
   return { grade: "H1", block: "market", note: "Только час. Лимит к зоне, не догон." };
 }
 
+export function seniorSide(
+  h4?: "bullish" | "bearish" | "range",
+  d1?: "bullish" | "bearish" | "range",
+): "long" | "short" | "none" {
+  if (d1 === "bullish" && h4 !== "bearish") return "long";
+  if (d1 === "bearish" && h4 !== "bullish") return "short";
+  if (h4 === "bullish" && d1 !== "bearish") return "long";
+  if (h4 === "bearish" && d1 !== "bullish") return "short";
+  return "none";
+}
+
+export function boxWhere(last: number, high: number, low: number): "lower" | "mid" | "upper" | "broke-up" | "broke-down" {
+  const span = high - low;
+  if (!(span > 0) || !Number.isFinite(last)) return "mid";
+  if (last > high) return "broke-up";
+  if (last < low) return "broke-down";
+  const pos = (last - low) / span;
+  if (pos >= 0.72) return "upper";
+  if (pos <= 0.28) return "lower";
+  return "mid";
+}
+
 export function htfAllows(bias: "bullish" | "bearish" | "range" | undefined, action: "long" | "short") {
   if (!bias || bias === "range") return { ok: true, note: "H4 без стороны — часовик решает." };
   if (action === "long" && bias === "bearish") {
@@ -149,6 +171,8 @@ export function refineAdvice(
     premiumDiscount?: "premium" | "discount" | "equilibrium";
     play?: MacroPlay;
     changePct?: number;
+    rangeHigh?: number;
+    rangeLow?: number;
   },
 ): Advice {
   if (haltApplies(opts.id, opts.halt)) {
@@ -192,6 +216,60 @@ export function refineAdvice(
       title: "Ждать зону",
       therefore: "Нет живого блока или FVG. Пустой край не торгуем.",
     };
+  }
+  const senior = seniorSide(opts.htfBias, opts.d1Bias);
+  const hi = opts.rangeHigh;
+  const lo = opts.rangeLow;
+  if (hi != null && lo != null && last > 0) {
+    const where = boxWhere(last, hi, lo);
+    if (senior === "none") {
+      return {
+        ...advice,
+        action: "wait",
+        title: "Ждать: старший не выбрал",
+        therefore: "H4 и дневка во флэте. Часовой боковик — набор без стороны. Не гадаем из коробки.",
+      };
+    }
+    if (where === "mid") {
+      return {
+        ...advice,
+        action: "wait",
+        title: "Ждать: середина коробки",
+        therefore: "Большую часть времени цена во флэте. Вход только от края часовой коробки, в сторону H4/D1.",
+      };
+    }
+    if (senior === "long" && advice.action === "short") {
+      return {
+        ...advice,
+        action: "wait",
+        title: "Ждать: набор вверх",
+        therefore: "Старший копит лонг. Шорт коробки — против накопления.",
+      };
+    }
+    if (senior === "short" && advice.action === "long") {
+      return {
+        ...advice,
+        action: "wait",
+        title: "Ждать: раздача вниз",
+        therefore: "Старший копит шорт. Лонг коробки — против раздачи.",
+      };
+    }
+    if (senior === "long" && advice.action === "long" && where === "upper") {
+      return {
+        ...advice,
+        action: "wait",
+        title: "Ждать выноса коробки",
+        therefore: "Лонг из потолка H1 без закрытия выше — догон. Край: низ коробки или живой пробой верха.",
+      };
+    }
+    if (senior === "short" && advice.action === "short" && where === "lower") {
+      return {
+        ...advice,
+        action: "wait",
+        title: "Ждать слома коробки",
+        therefore: "Шорт из пола H1 без закрытия ниже — догон. Край: верх коробки или живой пробой низа.",
+      };
+    }
   }
   const pd = opts.premiumDiscount;
   if (!align.ok && advice.action === "long" && pd === "premium" && !opts.choch) {

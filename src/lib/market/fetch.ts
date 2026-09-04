@@ -568,6 +568,8 @@ async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }
       premiumDiscount: r.snap.premiumDiscount,
       play: fund.play,
       changePct: r.market.changePct,
+      rangeHigh: r.market.range.high,
+      rangeLow: r.market.range.low,
     };
     const advice = gateAdvice(r.market.advice, wind, fund.halt, ctx);
     return { ...r.market, wind, advice, htfBias: ctx.htfBias, d1Bias: ctx.d1Bias };

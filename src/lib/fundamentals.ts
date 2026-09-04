@@ -337,6 +337,8 @@ export function gateAdvice(
     premiumDiscount?: "premium" | "discount" | "equilibrium";
     play?: MacroPlay;
     changePct?: number;
+    rangeHigh?: number;
+    rangeLow?: number;
   },
 ): Advice {
   const base = ctx?.id
@@ -357,6 +359,8 @@ export function gateAdvice(
         premiumDiscount: ctx.premiumDiscount,
         play: ctx.play,
         changePct: ctx.changePct,
+        rangeHigh: ctx.rangeHigh,
+        rangeLow: ctx.rangeLow,
       })
     : advice;
   if (halt?.active && !ctx?.id) {
