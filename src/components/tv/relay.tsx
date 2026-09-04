@@ -38,8 +38,9 @@ export function TvRelay({ initialId }: { initialId?: string }) {
   async function postIdea() {
     if (!m || !pack) return;
     await copyText("Идея", pack.paste);
-    window.open(tvChartUrl(m.spec.id), "_blank", "noopener,noreferrer");
-    toast.message(`На TV: камера → Share idea. Сторона ${pack.tvSide}. Вставьте Ctrl+V в описание.`);
+    const url = tvChartUrl(m.spec.id, "60");
+    window.open(url, "_blank", "noopener,noreferrer");
+    toast.message(`${tvSymbol(m.spec.id)} · H1. Камера → Share idea → ${pack.tvSide}. Ctrl+V в описание.`);
   }
 
   return (
