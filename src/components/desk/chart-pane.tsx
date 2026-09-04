@@ -3,8 +3,11 @@ import type {
   IChartApi,
   IPriceLine,
   ISeriesApi,
+  ISeriesPrimitive,
   ISeriesMarkersPluginApi,
+  SeriesAttachedParameter,
   SeriesMarker,
+  Time,
   UTCTimestamp,
 } from "lightweight-charts";
 import type { Candle } from "@/lib/market/types";
@@ -15,20 +18,6 @@ import { zoneReach } from "@/lib/smc/engine";
 import { deltaOf } from "@/lib/smc/flow";
 import { cn } from "@/lib/utils";
 
-function sizeOverlay(canvas: HTMLCanvasElement, host?: HTMLElement | null) {
-  const w = host?.clientWidth || canvas.parentElement?.clientWidth || 0;
-  const h = host?.clientHeight || canvas.parentElement?.clientHeight || 0;
-  if (w < 8 || h < 8) return false;
-  canvas.style.position = "absolute";
-  canvas.style.left = "0";
-  canvas.style.top = "0";
-  canvas.style.width = `${w}px`;
-  canvas.style.height = `${h}px`;
-  canvas.style.zIndex = "40";
-  canvas.style.pointerEvents = "none";
-  return true;
-}
-
 function token(name: string, fallback: string) {
   if (typeof window === "undefined") return fallback;
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -36,7 +25,9 @@ function token(name: string, fallback: string) {
 }
 
 function drawZones(
-  canvas: HTMLCanvasElement,
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
   chart: IChartApi,
   series: ISeriesApi<"Candlestick">,
   zones: Zone[],
@@ -44,18 +35,12 @@ function drawZones(
   snap: SmcSnapshot | null,
   setup?: LocalSetup | null,
   order?: Advice | null,
+  wipe = true,
 ) {
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
-  const dpr = window.devicePixelRatio || 1;
-  const rect = canvas.getBoundingClientRect();
-  canvas.width = Math.floor(rect.width * dpr);
-  canvas.height = Math.floor(rect.height * dpr);
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.clearRect(0, 0, rect.width, rect.height);
-  if (rect.width < 16 || rect.height < 16) return;
+  if (width < 16 || height < 16) return;
+  if (wipe) ctx.clearRect(0, 0, width, height);
   const ts = chart.timeScale();
-  const plotW = Math.max(40, rect.width - 58);
+  const plotW = Math.max(40, width - 58);
   const band = (price: number, fill: string, stroke: string, label: string, thick = 16) => {
     const y = series.priceToCoordinate(price);
     if (y == null) return;
@@ -87,15 +72,15 @@ function drawZones(
       const y = Math.min(y1, y2);
       const h = Math.max(8, Math.abs(y2 - y1));
       ctx.fillStyle = fill;
-      ctx.fillRect(0, y, rect.width, h);
+      ctx.fillRect(0, y, width, h);
       ctx.strokeStyle = stroke;
       ctx.lineWidth = live ? 2 : 1;
       ctx.setLineDash(live ? [] : [6, 5]);
       ctx.beginPath();
       ctx.moveTo(0, y);
-      ctx.lineTo(rect.width, y);
+      ctx.lineTo(width, y);
       ctx.moveTo(0, y + h);
-      ctx.lineTo(rect.width, y + h);
+      ctx.lineTo(width, y + h);
       ctx.stroke();
       ctx.setLineDash([]);
       ctx.fillStyle = live ? "#f0e6d4" : "rgba(232,220,200,0.75)";
@@ -127,14 +112,14 @@ function drawZones(
       const y = Math.min(y1, y2);
       const h = Math.max(6, Math.abs(y2 - y1));
       ctx.fillStyle = "rgba(90,140,180,0.12)";
-      ctx.fillRect(0, y, rect.width, h);
+      ctx.fillRect(0, y, width, h);
       ctx.strokeStyle = "rgba(140,180,210,0.7)";
       ctx.setLineDash([4, 4]);
       ctx.beginPath();
       ctx.moveTo(0, y1);
-      ctx.lineTo(rect.width, y1);
+      ctx.lineTo(width, y1);
       ctx.moveTo(0, y2);
-      ctx.lineTo(rect.width, y2);
+      ctx.lineTo(width, y2);
       ctx.stroke();
       ctx.setLineDash([]);
       ctx.fillStyle = "#d8e6f0";
@@ -429,7 +414,8 @@ function drawProfile(
 }
 
 function drawTape(
-  canvas: HTMLCanvasElement,
+  ctx: CanvasRenderingContext2D,
+  width: number,
   chart: IChartApi,
   series: ISeriesApi<"Candlestick">,
   candles: Candle[],
@@ -437,9 +423,7 @@ function drawTape(
   on: boolean,
   book: { bids: { price: number; volume: number }[]; asks: { price: number; volume: number }[] } | null,
 ) {
-  const ctx = canvas.getContext("2d");
-  if (!ctx || !on) return;
-  const rect = canvas.getBoundingClientRect();
+  if (!on) return;
   const ts = chart.timeScale();
   const lastN = candles.slice(-18);
   const maxV = Math.max(...lastN.map((c) => c.volume), 1);
@@ -489,7 +473,7 @@ function drawTape(
     ctx.setLineDash(isTp ? [] : [5, 4]);
     ctx.beginPath();
     ctx.moveTo(0, y);
-    ctx.lineTo(rect.width, y);
+    ctx.lineTo(width, y);
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.fillStyle = isTp ? "#f0e6d4" : "rgba(232,220,200,0.7)";
@@ -509,7 +493,7 @@ function drawTape(
   }
   if (book && (book.bids.length || book.asks.length)) {
     const max = Math.max(...book.bids.map((l) => l.volume), ...book.asks.map((l) => l.volume), 1);
-    const x0 = rect.width - 70;
+    const x0 = width - 70;
     for (const l of book.asks.slice(0, 8)) {
       const y = series.priceToCoordinate(l.price);
       if (y == null) continue;
@@ -525,6 +509,98 @@ function drawTape(
     ctx.fillStyle = "rgba(232,220,200,0.8)";
     ctx.font = "9px IBM Plex Mono, monospace";
     ctx.fillText("ASK/BID", x0, 12);
+  }
+}
+
+class SmcPrimitive implements ISeriesPrimitive<Time> {
+  chart: IChartApi | null = null;
+  series: ISeriesApi<"Candlestick"> | null = null;
+  private _upd: (() => void) | null = null;
+  payload: {
+    zones: Zone[];
+    overlays: OverlayFlags;
+    snap: SmcSnapshot | null;
+    setup: LocalSetup | null;
+    order: Advice | null;
+    candles: Candle[];
+    book: { bids: { price: number; volume: number }[]; asks: { price: number; volume: number }[] } | null;
+  } = {
+    zones: [],
+    overlays: {
+      fvg: true,
+      ob: true,
+      liquidity: true,
+      profile: true,
+      waves: false,
+      divergences: true,
+      margin: true,
+      patterns: true,
+      flow: true,
+      structure: true,
+    },
+    snap: null,
+    setup: null,
+    order: null,
+    candles: [],
+    book: null,
+  };
+
+  attached(param: SeriesAttachedParameter<Time>) {
+    this.chart = param.chart as IChartApi;
+    this.series = param.series as ISeriesApi<"Candlestick">;
+    this._upd = param.requestUpdate;
+  }
+  detached() {
+    this.chart = null;
+    this.series = null;
+    this._upd = null;
+  }
+  refresh() {
+    this._upd?.();
+  }
+  paneViews() {
+    return [
+      {
+        zOrder: () => "top" as const,
+        renderer: () => ({
+          draw: (target: {
+            useMediaCoordinateSpace: (
+              fn: (scope: { context: CanvasRenderingContext2D; mediaSize: { width: number; height: number } }) => void,
+            ) => void;
+          }) => {
+            const chart = this.chart;
+            const series = this.series;
+            if (!chart || !series) return;
+            const p = this.payload;
+            target.useMediaCoordinateSpace((scope) => {
+              drawZones(
+                scope.context,
+                scope.mediaSize.width,
+                scope.mediaSize.height,
+                chart,
+                series,
+                p.zones,
+                p.overlays,
+                p.snap,
+                p.setup,
+                p.order,
+                false,
+              );
+              drawTape(
+                scope.context,
+                scope.mediaSize.width,
+                chart,
+                series,
+                p.candles,
+                p.snap,
+                p.overlays.flow,
+                p.book,
+              );
+            });
+          },
+        }),
+      },
+    ];
   }
 }
 
@@ -546,7 +622,7 @@ export function ChartPane({
   className?: string;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
-  const overlayRef = useRef<HTMLCanvasElement>(null);
+  const primitiveRef = useRef<SmcPrimitive | null>(null);
   const profileRef = useRef<HTMLCanvasElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
@@ -658,36 +734,26 @@ export function ChartPane({
       cvdRef.current = cvd;
       vwapRef.current = vwap;
       markersRef.current = markers as ISeriesMarkersPluginApi<UTCTimestamp>;
+      const primitive = new SmcPrimitive();
+      series.attachPrimitive(primitive);
+      primitiveRef.current = primitive;
 
       const paint = () => {
-        const c = chartRef.current;
-        const s = seriesRef.current;
-        if (!c || !s) return;
-        if (overlayRef.current) {
-          sizeOverlay(overlayRef.current, hostRef.current);
-          drawZones(
-            overlayRef.current,
-            c,
-            s,
-            [...(snapRef.current?.fvgs ?? []), ...(snapRef.current?.orderBlocks ?? [])],
-            overlaysRef.current,
-            snapRef.current,
-            setupRef.current,
-            orderRef.current,
-          );
-          if (overlaysRef.current.flow) {
-            drawTape(
-              overlayRef.current,
-              c,
-              s,
-              candlesRef.current,
-              snapRef.current,
-              true,
-              bookRef.current,
-            );
-          }
+        const prim = primitiveRef.current;
+        if (prim) {
+          prim.payload = {
+            zones: [...(snapRef.current?.fvgs ?? []), ...(snapRef.current?.orderBlocks ?? [])],
+            overlays: overlaysRef.current,
+            snap: snapRef.current,
+            setup: setupRef.current,
+            order: orderRef.current,
+            candles: candlesRef.current,
+            book: bookRef.current,
+          };
+          prim.refresh();
         }
-        if (profileRef.current) {
+        const s = seriesRef.current;
+        if (s && profileRef.current) {
           drawProfile(profileRef.current, s, snapRef.current, overlaysRef.current.profile);
         }
       };
@@ -702,6 +768,7 @@ export function ChartPane({
       cancelled = true;
       setReady(false);
       ro?.disconnect();
+      primitiveRef.current = null;
       chart?.remove();
       chartRef.current = null;
       seriesRef.current = null;
@@ -880,19 +947,18 @@ export function ChartPane({
           : []),
       ];
       markersRef.current?.setMarkers(markers);
-      if (overlayRef.current) {
-        sizeOverlay(overlayRef.current, hostRef.current);
-        drawZones(
-          overlayRef.current,
-          chart,
-          series,
-          [...snap.fvgs, ...snap.orderBlocks],
+      const prim = primitiveRef.current;
+      if (prim) {
+        prim.payload = {
+          zones: [...snap.fvgs, ...snap.orderBlocks],
           overlays,
           snap,
           setup,
           order,
-        );
-        if (overlays.flow) drawTape(overlayRef.current, chart, series, candles, snap, true, book);
+          candles,
+          book,
+        };
+        prim.refresh();
       }
       if (profileRef.current) drawProfile(profileRef.current, series, snap, overlays.profile);
     });
@@ -902,13 +968,8 @@ export function ChartPane({
     <div className={cn("relative overflow-hidden bg-bg", className)}>
       <div ref={hostRef} className="absolute inset-0" />
       <canvas
-        ref={overlayRef}
-        className="pointer-events-none absolute inset-0"
-        style={{ zIndex: 40, width: "100%", height: "100%" }}
-      />
-      <canvas
         ref={profileRef}
-        className="pointer-events-none absolute top-0 right-14 bottom-8 w-32"
+        className="pointer-events-none absolute top-0 right-14 bottom-8 z-10 w-32"
       />
     </div>
   );
