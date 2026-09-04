@@ -538,6 +538,22 @@ export function buildBoxVector(
       because: `Верх коробки вынесли, низ ${fmt(range.low)} цел. Вектор вниз к неснятой ликвидности.`,
     };
   }
+  if (last.close >= range.high - span * 0.21 && !tookHigh) {
+    return {
+      dir: "up",
+      magnet: range.high,
+      swept: null,
+      because: `Верхняя маржа: топливо (стопы и маржин-коллы у ${fmt(range.high)}) ещё не снято. Крупняк часто сначала идёт за ним, разворот — после выноса, не до.`,
+    };
+  }
+  if (last.close <= range.low + span * 0.21 && !tookLow) {
+    return {
+      dir: "down",
+      magnet: range.low,
+      swept: null,
+      because: `Нижняя маржа: топливо у ${fmt(range.low)} ещё цело. Сначала вынос маржи, набор — после съёма, не шорт в середину давления.`,
+    };
+  }
   return none;
 }
 
@@ -799,7 +815,7 @@ function buildMargin(
     bottom: range.high - width * 0.21,
     active: last >= range.high - width * 0.21,
     name: "Верхняя маржа",
-    hint: "Ритейл с плечом, кто лонговал от середины, уже в минусе. Выше максимума — стопы и маржин-коллы.",
+    hint: "Топливо крупняка: стопы лонгов и маржин-коллы выше хая. Сначала часто выносят маржу, потом отдают.",
   };
   const lower: MarginBand = {
     side: "lower",
@@ -807,7 +823,7 @@ function buildMargin(
     bottom: range.low,
     active: last <= range.low + width * 0.21,
     name: "Нижняя маржа",
-    hint: "Шорты от середины с плечом уже под давлением. Ниже минимума — стопы и маржин-коллы лонгов ждут выноса.",
+    hint: "Топливо крупняка: стопы шортов и маржин-коллы ниже лоя. Сначала часто выносят маржу, потом набирают.",
   };
   const where: MarginMap["where"] = upper.active ? "upper" : lower.active ? "lower" : "inside";
   const step = roundStep(last);
@@ -921,8 +937,8 @@ function buildStory(
       because: `Цена в ${band.name.toLowerCase()} диапазона ${fmt(range.low)}–${fmt(range.high)} (${fmt(band.bottom)}–${fmt(band.top)})`,
       therefore:
         margin.where === "upper"
-          ? "Лонги с плечом от середины уже в минусе. Крупняк часто сначала снимает маржу выше максимума, потом отдаёт. Догонять вверх здесь — кормить стопы."
-          : "Шорты с плечом от середины уже под давлением. Часто сначала вынос ниже минимума, потом набор. Шортить здесь — стоять в чужой марже.",
+          ? "Маржа — то же топливо, что стопы. Догонять лонг здесь = кормить вынос. Ждём съём хая или возврат из маржи."
+          : "Маржа — то же топливо, что стопы. Шортить здесь = стоять в чужих маржин-коллах. Ждём вынос лоя или возврат.",
     });
   }
 
