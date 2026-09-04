@@ -2,7 +2,8 @@ import { Link } from "@tanstack/react-router";
 import { AppNav } from "@/components/app-nav";
 import { NewsBoard } from "@/components/home/news";
 import { QuoteBoard } from "@/components/home/quotes";
-import { Ticker } from "@/components/home/ticker";
+import { Ticker, NewsTicker } from "@/components/home/ticker";
+import { BrandMark } from "@/components/home/brand-mark";
 import { HomeLeadPoster } from "@/components/home/lead-poster";
 import { SessionStrip } from "@/components/session-strip";
 import { HomeCalStrip } from "@/components/home/cal-strip";
@@ -14,6 +15,7 @@ export function Landing({ data }: { data: HomePayload }) {
     <div className="min-h-dvh">
       <AppNav />
       <Ticker quotes={data.quotes} />
+      <NewsTicker news={data.news} />
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
         <SessionStrip />
         <HomeCalStrip />
@@ -25,10 +27,11 @@ export function Landing({ data }: { data: HomePayload }) {
         <div className="mesh-orb absolute -right-16 top-10 size-[22rem] rounded-full bg-[radial-gradient(circle,rgba(79,208,222,0.2),transparent_70%)] [animation-delay:-6s]" />
         <div className="absolute inset-0 bg-gradient-to-r from-bg via-bg/70 to-bg/25" />
         <div className="relative mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-24">
-          <p className="font-mono text-xs tracking-[0.28em] text-accent">SLOI · {DOMAIN}</p>
-          <h1 className="mt-4 max-w-3xl text-5xl font-medium tracking-tight sm:text-7xl">
+          <BrandMark />
+          <p className="mt-3 font-mono text-xs tracking-[0.28em] text-accent">слои рынка · {DOMAIN}</p>
+          <h2 className="mt-6 max-w-3xl text-3xl font-medium tracking-tight sm:text-5xl">
             Котировки, новости и разбор крупняка — один стол
-          </h1>
+          </h2>
           <p className="mt-5 max-w-xl text-base leading-relaxed text-muted">
             Живая лента цен, главные истории дня с иллюстрациями и график со smart money. Советник MT4 читает спред с
             вашего терминала.

@@ -103,6 +103,15 @@
   }
 }
 
+@keyframes stratum-ticker-rev {
+  from {
+    transform: translateX(-50%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
 @keyframes ken-burns {
   from {
     transform: scale(1.05) translate(0, 0);
@@ -196,6 +205,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .ticker-track,
+  .ticker-track-rev,
   .on-air-dot,
   .img-live,
   .emoji-live,
@@ -208,6 +218,70 @@
 }
 
 @layer components {
+  .brand-mark {
+    position: relative;
+    display: inline-block;
+    line-height: 0.82;
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    font-size: clamp(4.6rem, 16vw, 10rem);
+    user-select: none;
+  }
+  .brand-extrude {
+    position: absolute;
+    inset: 0;
+    color: #3a2710;
+    text-shadow:
+      0 1px 0 #6a4a1c,
+      0 2px 0 #5a3c16,
+      0 3px 0 #4c3212,
+      0 4px 0 #3e280e,
+      0 6px 0 #2c1c0a,
+      0 9px 0 #1c1208,
+      0 14px 22px rgba(0, 0, 0, 0.62),
+      0 0 40px rgba(240, 215, 168, 0.28);
+    z-index: 0;
+  }
+  .brand-shine {
+    position: relative;
+    z-index: 1;
+    background-image: linear-gradient(
+      105deg,
+      #fff8e4 0%,
+      #f0d7a8 16%,
+      #4fd0de 34%,
+      #c4a4ff 50%,
+      #f0a36a 66%,
+      #ffe08a 82%,
+      #fff8e4 100%
+    );
+    background-size: 280% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: shimmer 7.5s linear infinite;
+    filter: drop-shadow(0 0 18px rgba(240, 215, 168, 0.35));
+  }
+
+  .ticker-rail {
+    overflow: hidden;
+    border-bottom: 1px solid color-mix(in oklab, var(--color-accent) 26%, transparent);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 236, 200, 0.18),
+      0 10px 24px -18px rgba(0, 0, 0, 0.7);
+  }
+  .ticker-chip {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    border-radius: 999px;
+    padding: 0.35rem 0.9rem;
+    background-image: linear-gradient(180deg, rgba(255, 236, 200, 0.14), rgba(0, 0, 0, 0.28));
+    box-shadow: var(--shadow-volume);
+    border: 1px solid color-mix(in oklab, var(--color-accent) 22%, transparent);
+  }
+
   .panel-volume {
     background-image:
       linear-gradient(180deg, rgba(255, 236, 200, 0.16) 0%, rgba(255, 255, 255, 0.03) 38%, rgba(0, 0, 0, 0.38) 100%),
