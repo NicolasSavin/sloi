@@ -21,7 +21,9 @@ export function Landing({ data }: { data: HomePayload }) {
       <HomeLeadPoster quotes={data.quotes} />
       <section className="relative overflow-hidden">
         <img src="/art/strata.jpg" alt="" className="absolute inset-0 h-full w-full object-cover opacity-40" />
-        <div className="absolute inset-0 bg-gradient-to-r from-bg via-bg/75 to-bg/30" />
+        <div className="mesh-orb absolute -left-24 -top-24 size-[28rem] rounded-full bg-[radial-gradient(circle,rgba(240,215,168,0.28),transparent_68%)]" />
+        <div className="mesh-orb absolute -right-16 top-10 size-[22rem] rounded-full bg-[radial-gradient(circle,rgba(79,208,222,0.2),transparent_70%)] [animation-delay:-6s]" />
+        <div className="absolute inset-0 bg-gradient-to-r from-bg via-bg/70 to-bg/25" />
         <div className="relative mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-24">
           <p className="font-mono text-xs tracking-[0.28em] text-accent">SLOI · {DOMAIN}</p>
           <h1 className="mt-4 max-w-3xl text-5xl font-medium tracking-tight sm:text-7xl">

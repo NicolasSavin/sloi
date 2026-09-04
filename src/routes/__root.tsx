@@ -19,7 +19,7 @@ export const Route = createRootRoute({
         name: "description",
         content: `${BRAND} — ${TAGLINE} Премиум-стол слоёв рынка и эксперт MT4 со спредом из терминала.`,
       },
-      { name: "theme-color", content: "#0a0a0b" },
+      { name: "theme-color", content: "#16110d" },
     ],
     links: [
       { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },

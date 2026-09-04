@@ -4,7 +4,7 @@ import { cn, formatPct, formatPrice } from "@/lib/utils";
 export function Ticker({ quotes }: { quotes: HomeQuote[] }) {
   const row = [...quotes, ...quotes, ...quotes];
   return (
-    <div className="overflow-hidden border-b border-border bg-elevated/80">
+    <div className="overflow-hidden border-b border-accent/25 bg-gradient-to-r from-[#1c1610] via-[#241c14] to-[#12100c] shadow-[inset_0_1px_0_rgba(255,236,200,0.16)]">
       <div className="ticker-track flex w-max gap-8 py-2.5 pr-8 [animation:stratum-ticker_38s_linear_infinite] hover:[animation-play-state:paused]">
         {row.map((q, i) => {
           const up = q.changePct >= 0;

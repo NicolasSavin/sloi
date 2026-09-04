@@ -166,13 +166,13 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
   return (
     <div className="flex min-h-dvh flex-col text-fg">
       <AppNav />
-      <div className="flex items-center gap-3 overflow-x-auto border-b border-border px-3 py-2 sm:px-5">
+      <div className="flex items-center gap-3 overflow-x-auto border-b border-accent/20 bg-gradient-to-r from-[#1a1510] to-[#100c09] px-3 py-2 sm:px-5">
         <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto">
           {SYMBOLS.map((s) => (
-            <button key={s.id} type="button" onClick={() => setSymbol(s.id)} className={cn("h-11 shrink-0 rounded-sm px-3 text-xs font-medium", s.id === symbol ? "bg-subtle text-fg" : "text-muted hover:text-fg")}>{s.label}</button>
+            <button key={s.id} type="button" onClick={() => setSymbol(s.id)} className={cn("h-11 shrink-0 rounded-md px-3 text-xs font-medium", s.id === symbol ? "nav-pill" : "chip-volume text-muted hover:text-fg")}>{s.label}</button>
           ))}
         </div>
-        <div className="flex items-center gap-1 rounded-md bg-subtle p-1">
+        <div className="flex items-center gap-1 rounded-md p-1 panel-volume">
           {TIMEFRAMES.map((tf) => (
             <button key={tf.id} type="button" onClick={() => setTimeframe(tf.id)} className={cn("h-9 min-w-11 rounded-sm px-2.5 font-mono text-xs", tf.id === timeframe ? "bg-elevated text-fg" : "text-muted")}>{tf.label}</button>
           ))}
@@ -252,7 +252,7 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
               </p>
             </div>
           </div>
-          <div className="mx-4 mt-2 rounded-lg bg-elevated px-4 py-3">
+          <div className="mx-4 mt-2 rounded-xl px-4 py-3 panel-volume">
             <p className="font-mono text-[10px] tracking-[0.18em] text-accent">
               {order?.action === "long" || order?.action === "short"
                 ? "ПРИКАЗ ДИСПЕТЧЕРА · ДЕРЖИМ, ПОКА НЕ СМЕНИТ"
@@ -288,7 +288,7 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
               {snap?.flow ? <FlowBanner snap={snap} /> : null}
               <BookBanner book={book} iceberg={snap?.flow.events.find((e) => e.kind === "absorption")?.therefore} />
               {snap?.clusters ? <ClusterBanner snap={snap} /> : null}
-              <ChartStage className="mx-4 mt-2 h-[220px] overflow-hidden rounded-lg border border-border lg:h-[320px]">
+              <ChartStage className="mx-4 mt-2 h-[220px] overflow-hidden rounded-xl panel-volume lg:h-[320px]">
                 <ChartPane candles={market.data?.candles ?? []} snap={snap} overlays={overlays} book={book} order={order} setup={deskMarket?.setup ?? null} className="absolute inset-0 h-full" />
                 <OrderHud order={order} setup={deskMarket?.setup ?? null} decimals={spec.decimals} loading={digestQ.isLoading} />
               </ChartStage>

@@ -21,13 +21,13 @@ const LINKS = [
 export function AppNav() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   return (
-    <header className="sticky top-0 z-20 border-b border-border/80 bg-bg/70 backdrop-blur-md">
+    <header className="nav-metal sticky top-0 z-20 backdrop-blur-md">
       <div className="flex items-center gap-3 overflow-x-auto px-3 py-3 sm:px-5">
         <Link to="/" className="flex shrink-0 items-baseline gap-2">
-          <span className="font-mono text-sm tracking-[0.22em] text-accent">{BRAND}</span>
+          <span className="font-mono text-sm tracking-[0.22em] text-accent drop-shadow-[0_0_12px_rgba(240,215,168,0.55)]">{BRAND}</span>
           <span className="text-xs text-dim">{DOMAIN}</span>
         </Link>
-        <div className="hidden h-4 w-px bg-border sm:block" />
+        <div className="hidden h-4 w-px bg-accent/30 sm:block" />
         <nav className="flex items-center gap-1">
           {LINKS.map((l) => {
             const active = l.to === "/" ? pathname === "/" : pathname.startsWith(l.to);
@@ -36,8 +36,8 @@ export function AppNav() {
                 key={l.to}
                 to={l.to}
                 className={cn(
-                  "inline-flex h-11 shrink-0 items-center rounded-sm px-3 text-xs font-medium transition-colors",
-                  active ? "bg-subtle text-fg" : "text-muted hover:text-fg",
+                  "inline-flex h-11 shrink-0 items-center rounded-md px-3 text-xs font-medium transition-[transform,box-shadow,background] duration-150",
+                  active ? "nav-pill" : "text-muted hover:bg-subtle/70 hover:text-fg",
                 )}
               >
                 {l.label}

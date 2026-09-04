@@ -10,8 +10,8 @@ const buttonVariants = cva(
       variant: {
         default: "btn-metal text-accent-fg hover:opacity-95",
         ghost: "bg-transparent text-fg hover:bg-subtle",
-        outline: "bg-transparent text-fg shadow-[var(--shadow-border)] hover:bg-subtle",
-        subtle: "bg-subtle text-fg hover:bg-subtle/80",
+        outline: "chip-volume bg-transparent text-fg hover:bg-subtle",
+        subtle: "panel-volume text-fg hover:brightness-110",
       },
       size: {
         default: "h-11 px-4",
