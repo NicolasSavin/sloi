@@ -1247,20 +1247,23 @@ export function analyzeMarket(
   const boxVector = buildBoxVector(last, dealingRange, liquidity, candles);
   const margin = buildMargin(dealingRange, last.close, liquidity);
   const wyckoff = detectWyckoff(candles, swings, liquidity, dealingRange, trend);
+  const marginAligned =
+    (margin.where === "lower" && (trend === "up" || bias === "bullish")) ||
+    (margin.where === "upper" && (trend === "down" || bias === "bearish"));
   confluence.push({
     id: "margin",
-    layer: "Маржа",
+    layer: "Маржа 21%",
     status:
       margin.where === "inside"
         ? "neutral"
-        : (margin.where === "lower" && trend === "up") || (margin.where === "upper" && trend === "down")
+        : marginAligned
           ? "for"
           : "against",
     note:
       margin.where === "upper"
-        ? `${margin.upper.name}: ${margin.upper.hint}`
+        ? `${margin.upper.name}: ${margin.upper.hint}${marginAligned ? " Край 21% в нашу сторону — доп. очки (как рабочая зона WS), вход всё равно от блока/FVG." : " Край против нас — очки не даю, догонять маржу нельзя."}`
         : margin.where === "lower"
-          ? `${margin.lower.name}: ${margin.lower.hint}`
+          ? `${margin.lower.name}: ${margin.lower.hint}${marginAligned ? " Край 21% в нашу сторону — доп. очки (как рабочая зона WS), вход всё равно от блока/FVG." : " Край против нас — очки не даю, догонять маржу нельзя."}`
           : "Цена внутри диапазона, не на марже. Плечи ещё не в критической зоне.",
   });
   const leadPat = patterns[0];
@@ -1394,7 +1397,9 @@ export function analyzeMarket(
     Math.round(
       (100 * (forCount + 0.45 * (confluence.length - forCount - againstCount))) /
         Math.max(confluence.length, 1),
-    ) + (flow.cvdDiv?.where === "edge" ? flow.cvdDiv.boost : 0),
+    ) +
+      (flow.cvdDiv?.where === "edge" ? flow.cvdDiv.boost : 0) +
+      (marginAligned ? 8 : 0),
   );
 
   const localSetup = buildSetup(
