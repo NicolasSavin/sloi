@@ -18,6 +18,7 @@ import { Route as DailyRouteImport } from './routes/daily'
 import { Route as DeskRouteImport } from './routes/desk'
 import { Route as DispatchRouteImport } from './routes/dispatch'
 import { Route as IdeasRouteImport } from './routes/ideas'
+import { Route as MonitorRouteImport } from './routes/monitor'
 import { Route as RatingRouteImport } from './routes/rating'
 import { Route as ReklamaRouteImport } from './routes/reklama'
 import { Route as StatsRouteImport } from './routes/stats'
@@ -73,6 +74,11 @@ const DispatchRoute = DispatchRouteImport.update({
 const IdeasRoute = IdeasRouteImport.update({
   id: '/ideas',
   path: '/ideas',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MonitorRoute = MonitorRouteImport.update({
+  id: '/monitor',
+  path: '/monitor',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RatingRoute = RatingRouteImport.update({
@@ -141,6 +147,7 @@ export interface FileRoutesByFullPath {
   '/desk': typeof DeskRoute
   '/dispatch': typeof DispatchRoute
   '/ideas': typeof IdeasRoute
+  '/monitor': typeof MonitorRoute
   '/rating': typeof RatingRoute
   '/reklama': typeof ReklamaRoute
   '/stats': typeof StatsRoute
@@ -163,6 +170,7 @@ export interface FileRoutesByTo {
   '/desk': typeof DeskRoute
   '/dispatch': typeof DispatchRoute
   '/ideas': typeof IdeasRoute
+  '/monitor': typeof MonitorRoute
   '/rating': typeof RatingRoute
   '/reklama': typeof ReklamaRoute
   '/stats': typeof StatsRoute
@@ -186,6 +194,7 @@ export interface FileRoutesById {
   '/desk': typeof DeskRoute
   '/dispatch': typeof DispatchRoute
   '/ideas': typeof IdeasRoute
+  '/monitor': typeof MonitorRoute
   '/rating': typeof RatingRoute
   '/reklama': typeof ReklamaRoute
   '/stats': typeof StatsRoute
@@ -210,6 +219,7 @@ export interface FileRouteTypes {
     | '/desk'
     | '/dispatch'
     | '/ideas'
+    | '/monitor'
     | '/rating'
     | '/reklama'
     | '/stats'
@@ -232,6 +242,7 @@ export interface FileRouteTypes {
     | '/desk'
     | '/dispatch'
     | '/ideas'
+    | '/monitor'
     | '/rating'
     | '/reklama'
     | '/stats'
@@ -254,6 +265,7 @@ export interface FileRouteTypes {
     | '/desk'
     | '/dispatch'
     | '/ideas'
+    | '/monitor'
     | '/rating'
     | '/reklama'
     | '/stats'
@@ -277,6 +289,7 @@ export interface RootRouteChildren {
   DeskRoute: typeof DeskRoute
   DispatchRoute: typeof DispatchRoute
   IdeasRoute: typeof IdeasRoute
+  MonitorRoute: typeof MonitorRoute
   RatingRoute: typeof RatingRoute
   ReklamaRoute: typeof ReklamaRoute
   StatsRoute: typeof StatsRoute
@@ -353,6 +366,13 @@ declare module '@tanstack/react-router' {
       path: '/ideas'
       fullPath: '/ideas'
       preLoaderRoute: typeof IdeasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/monitor': {
+      id: '/monitor'
+      path: '/monitor'
+      fullPath: '/monitor'
+      preLoaderRoute: typeof MonitorRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/rating': {
@@ -445,6 +465,7 @@ const rootRouteChildren: RootRouteChildren = {
   DeskRoute: DeskRoute,
   DispatchRoute: DispatchRoute,
   IdeasRoute: IdeasRoute,
+  MonitorRoute: MonitorRoute,
   RatingRoute: RatingRoute,
   ReklamaRoute: ReklamaRoute,
   StatsRoute: StatsRoute,

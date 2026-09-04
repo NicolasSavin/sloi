@@ -12,6 +12,7 @@ const LINKS = [
   { to: "/stats", label: "Статистика" },
   { to: "/rating", label: "Рейтинг" },
   { to: "/tv", label: "ТВ" },
+  { to: "/monitor", label: "Монитор" },
   { to: "/desk", label: "График" },
   { to: "/daily", label: "Сегодня" },
   { to: "/advisor", label: "Эксперт MT4" },

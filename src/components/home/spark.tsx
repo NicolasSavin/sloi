@@ -1,4 +1,4 @@
-export function Spark({ values, up }: { values: number[]; up: boolean }) {
+export function Spark({ values, up, className }: { values: number[]; up: boolean; className?: string }) {
   if (values.length < 2) return null;
   const min = Math.min(...values);
   const max = Math.max(...values);
@@ -13,7 +13,7 @@ export function Spark({ values, up }: { values: number[]; up: boolean }) {
     })
     .join(" ");
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="h-9 w-[120px]" aria-hidden>
+    <svg viewBox={`0 0 ${w} ${h}`} className={className ?? "h-9 w-[120px]"} aria-hidden>
       <path d={d} fill="none" stroke={up ? "#7eab95" : "#c48986"} strokeWidth="1.6" />
     </svg>
   );

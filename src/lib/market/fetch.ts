@@ -496,7 +496,7 @@ async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }
       oilChange: cl?.changePct,
       halt,
     });
-    return { spec, snap, candles: p.candles, market: toDigestMarket(spec, snap, spec.spread, p.candles.at(-1), p.options) };
+    return { spec, snap, candles: p.candles, market: toDigestMarket(spec, snap, spec.spread, p.candles.at(-1), p.options, p.candles) };
   });
   const { sessionNow } = await import("@/lib/sessions");
   const session = sessionNow();

@@ -23,6 +23,7 @@ export interface DigestMarket {
   construction?: OptionConstruction | null;
   htfBias?: SmcSnapshot["bias"];
   d1Bias?: SmcSnapshot["bias"];
+  spark?: number[];
 }
 
 export interface ChartNote {
@@ -136,7 +137,7 @@ export function shortDate(iso: string): string {
   return `${d}.${m}.${y}`;
 }
 
-export function toDigestMarket(spec: SymbolSpec, snap: SmcSnapshot, spread?: number, last?: Candle, options?: OptionsSnapshot | null): DigestMarket {
+export function toDigestMarket(spec: SymbolSpec, snap: SmcSnapshot, spread?: number, last?: Candle, options?: OptionsSnapshot | null, candles?: Candle[]): DigestMarket {
   return {
     spec,
     lastClose: snap.lastClose,
@@ -151,6 +152,7 @@ export function toDigestMarket(spec: SymbolSpec, snap: SmcSnapshot, spread?: num
     advice: advise(snap, spec, spread ?? spec.spread),
     premiumDiscount: snap.premiumDiscount,
     construction: buildConstruction(options, spec),
+    spark: candles?.slice(-48).map((c) => c.close),
   };
 }
 
