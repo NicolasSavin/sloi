@@ -119,42 +119,64 @@ function drawZones(
     }
   }
   if (overlays.fvg || overlays.ob) {
-  for (const z of zones) {
-    if (z.kind === "fvg" && !overlays.fvg) continue;
-    if ((z.kind === "ob" || z.kind === "breaker" || z.kind === "mitigation") && !overlays.ob) continue;
-    const x1 = ts.timeToCoordinate(z.startTime as UTCTimestamp) ?? 8;
-    const y1 = series.priceToCoordinate(z.top);
-    const y2 = series.priceToCoordinate(z.bottom);
-    if (y1 == null || y2 == null) continue;
-    const right = plotW;
-    const top = Math.min(y1, y2);
-    const h = Math.max(8, Math.abs(y2 - y1));
-    ctx.fillStyle =
-      z.side === "bull" ? "rgba(111, 158, 134, 0.28)" : "rgba(181, 122, 122, 0.28)";
-    ctx.strokeStyle =
-      z.side === "bull" ? "rgba(160, 210, 180, 0.95)" : "rgba(220, 160, 160, 0.95)";
-    ctx.lineWidth = 2;
-    ctx.fillRect(x1, top, right - x1, h);
-    ctx.strokeRect(x1, top, right - x1, h);
-    ctx.fillStyle = z.side === "bull" ? "#d4f0e0" : "#f0d4d4";
-    ctx.font = "bold 12px IBM Plex Sans, sans-serif";
-    const name =
-      z.kind === "breaker"
-        ? "БРЕЙКЕР"
-        : z.kind === "mitigation"
-          ? "МИТИГЕЙШН"
-          : z.kind === "ob"
-            ? z.side === "bull"
-              ? "БЛОК спрос"
-              : "БЛОК предложение"
-            : z.side === "bull"
-              ? "FVG спрос"
-              : "FVG предложение";
-    ctx.fillText(name, x1 + 6, top + Math.min(16, h - 2));
-  }
+    const last = snap?.lastClose ?? 0;
+    const dist = (z: Zone) => {
+      if (last >= Math.min(z.top, z.bottom) && last <= Math.max(z.top, z.bottom)) return 0;
+      return Math.min(Math.abs(last - z.top), Math.abs(last - z.bottom));
+    };
+    const live = zones.filter((z) => !z.mitigated);
+    const picked = [
+      ...(overlays.fvg
+        ? live.filter((z) => z.kind === "fvg").sort((a, b) => dist(a) - dist(b)).slice(0, 1)
+        : []),
+      ...(overlays.ob
+        ? live
+            .filter((z) => z.kind === "ob" || z.kind === "breaker" || z.kind === "mitigation")
+            .sort((a, b) => dist(a) - dist(b))
+            .slice(0, 1)
+        : []),
+    ];
+    const pill = (x: number, y: number, text: string, bg: string, fg: string) => {
+      ctx.font = "bold 14px IBM Plex Sans, sans-serif";
+      const w = ctx.measureText(text).width + 16;
+      ctx.fillStyle = bg;
+      ctx.fillRect(x, y - 17, w, 22);
+      ctx.fillStyle = fg;
+      ctx.fillText(text, x + 8, y);
+    };
+    for (const z of picked) {
+      const x1 = ts.timeToCoordinate(z.startTime as UTCTimestamp) ?? 8;
+      const y1 = series.priceToCoordinate(z.top);
+      const y2 = series.priceToCoordinate(z.bottom);
+      if (y1 == null || y2 == null) continue;
+      const top = Math.min(y1, y2);
+      const h = Math.abs(y2 - y1);
+      if (h < 12) continue;
+      const bull = z.side === "bull";
+      ctx.fillStyle = bull ? "rgba(46, 140, 96, 0.48)" : "rgba(176, 64, 64, 0.48)";
+      ctx.strokeStyle = bull ? "#7dffb8" : "#ff8a8a";
+      ctx.lineWidth = 3;
+      ctx.fillRect(x1, top, plotW - x1, h);
+      ctx.strokeRect(x1, top, plotW - x1, h);
+      const name =
+        z.kind === "breaker"
+          ? "БРЕЙКЕР"
+          : z.kind === "mitigation"
+            ? "МИТИГЕЙШН"
+            : z.kind === "ob"
+              ? bull
+                ? "БЛОК спрос"
+                : "БЛОК предложение"
+              : bull
+                ? "FVG спрос"
+                : "FVG предложение";
+      pill(x1 + 6, top + 18, name, bull ? "rgba(12,40,28,0.92)" : "rgba(48,16,16,0.92)", bull ? "#b6ffd4" : "#ffc4c4");
+    }
   }
   if (overlays.structure !== false && snap) {
-    for (const e of snap.events.slice(-8)) {
+    const lastBos = [...snap.events].reverse().find((e) => e.kind === "BOS");
+    const lastCh = [...snap.events].reverse().find((e) => e.kind === "CHoCH");
+    for (const e of [lastCh, lastBos].filter(Boolean) as typeof snap.events) {
       const x = ts.timeToCoordinate(e.time as UTCTimestamp);
       const y = series.priceToCoordinate(e.price);
       if (x == null || y == null) continue;
@@ -174,7 +196,7 @@ function drawZones(
 
   if (overlays.liquidity && snap) {
     const atr = snap.atr || 1;
-    for (const p of snap.liquidity.filter((l) => l.equal || l.swept).slice(-6)) {
+    for (const p of snap.liquidity.filter((l) => l.swept).slice(-2)) {
       const x = ts.timeToCoordinate(p.time as UTCTimestamp) ?? 8;
       const y = series.priceToCoordinate(p.price);
       if (y == null) continue;
@@ -190,7 +212,7 @@ function drawZones(
   }
 
   if (overlays.patterns !== false && snap) {
-    for (const p of snap.patterns.slice(0, 4)) {
+    for (const p of snap.patterns.slice(0, 1)) {
       ctx.strokeStyle = p.side === "bull" ? "rgba(180,220,190,0.95)" : "rgba(230,180,170,0.95)";
       ctx.lineWidth = 2.5;
       ctx.beginPath();

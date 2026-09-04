@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.45"
+#property version   "4.46"
 #property strict
 #property description "На графике: VWAP, профиль, футпринт бара, infusion/splash, Bid/Ask."
 
@@ -124,7 +124,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.45: блоки/FVG/паттерн прямо на свечах, не только на шкале.");
+   Print("SLOI 4.46: на чарте только ближайший блок и FVG, крупно.");
    return(INIT_SUCCEEDED);
   }
 
@@ -460,6 +460,13 @@ void DrawSmcOnChart()
    ObjectDelete(P+"lv_tp");
    ObjectDelete(P+"sw_h");
    ObjectDelete(P+"sw_l");
+   for(i = 0; i < 4; i++)
+     {
+      ObjectDelete(P+"fvg"+IntegerToString(i));
+      ObjectDelete(P+"fvg_t"+IntegerToString(i));
+      ObjectDelete(P+"ob"+IntegerToString(i));
+      ObjectDelete(P+"ob_t"+IntegerToString(i));
+     }
 
    int tf = PeriodOf(g_tf);
    datetime tNow = iTime(s, tf, 0);
@@ -491,20 +498,20 @@ void DrawSmcOnChart()
      }
 
    int drawn = 0;
-   for(i = 3; i < 80 && drawn < 3; i++)
+   for(i = 3; i < 80 && drawn < 1; i++)
      {
       double hi = iHigh(s, tf, i);
       double lo = iLow(s, tf, i);
       double hi2 = iHigh(s, tf, i - 2);
       double lo2 = iLow(s, tf, i - 2);
       datetime t1 = iTime(s, tf, i);
-      if(lo2 > hi)
+      if(lo2 > hi && (lo2 - hi) >= atr * 0.12)
         {
          Box("fvg"+IntegerToString(drawn), t1, hi, tRight, lo2, C_BUY);
          Tag("fvg_t"+IntegerToString(drawn), t1, lo2, "FVG спрос", C_BUY);
          drawn++;
         }
-      else if(hi2 < lo)
+      else if(hi2 < lo && (lo - hi2) >= atr * 0.12)
         {
          Box("fvg"+IntegerToString(drawn), t1, lo, tRight, hi2, C_SEL);
          Tag("fvg_t"+IntegerToString(drawn), t1, hi2, "FVG предложение", C_SEL);
@@ -513,7 +520,7 @@ void DrawSmcOnChart()
      }
 
    int obn = 0;
-   for(i = 4; i < 70 && obn < 2; i++)
+   for(i = 4; i < 70 && obn < 1; i++)
      {
       double o = iOpen(s, tf, i);
       double c = iClose(s, tf, i);
