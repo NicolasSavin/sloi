@@ -44,7 +44,7 @@ export function zoneReach(z: Pick<Zone, "top" | "bottom" | "mitigated">, last: n
   const hi = Math.max(z.top, z.bottom);
   if (last >= lo && last <= hi) return 0;
   const d = last < lo ? lo - last : last - hi;
-  if (d > atr * 1.15) return null;
+  if (d > atr * 2.2) return null;
   return d;
 }
 

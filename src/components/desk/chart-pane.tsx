@@ -15,6 +15,20 @@ import { zoneReach } from "@/lib/smc/engine";
 import { deltaOf } from "@/lib/smc/flow";
 import { cn } from "@/lib/utils";
 
+function sizeOverlay(canvas: HTMLCanvasElement, host?: HTMLElement | null) {
+  const w = host?.clientWidth || canvas.parentElement?.clientWidth || 0;
+  const h = host?.clientHeight || canvas.parentElement?.clientHeight || 0;
+  if (w < 8 || h < 8) return false;
+  canvas.style.position = "absolute";
+  canvas.style.left = "0";
+  canvas.style.top = "0";
+  canvas.style.width = `${w}px`;
+  canvas.style.height = `${h}px`;
+  canvas.style.zIndex = "40";
+  canvas.style.pointerEvents = "none";
+  return true;
+}
+
 function token(name: string, fallback: string) {
   if (typeof window === "undefined") return fallback;
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -39,6 +53,7 @@ function drawZones(
   canvas.height = Math.floor(rect.height * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, rect.width, rect.height);
+  if (rect.width < 16 || rect.height < 16) return;
   const ts = chart.timeScale();
   const plotW = Math.max(40, rect.width - 58);
   const band = (price: number, fill: string, stroke: string, label: string, thick = 16) => {
@@ -148,7 +163,7 @@ function drawZones(
       if (y1 == null || y2 == null) continue;
       const top = Math.min(y1, y2);
       const h = Math.abs(y2 - y1);
-      if (h < 12) continue;
+      if (h < 6) continue;
       const bull = z.side === "bull";
       const imb = z.kind === "fvg";
       ctx.fillStyle = imb
@@ -473,6 +488,7 @@ export function ChartPane({
     if (!host) return;
     let cancelled = false;
     let chart: IChartApi | null = null;
+    let ro: ResizeObserver | null = null;
 
     void import("lightweight-charts").then((lc) => {
       if (cancelled || !hostRef.current) return;
@@ -562,6 +578,7 @@ export function ChartPane({
         const s = seriesRef.current;
         if (!c || !s) return;
         if (overlayRef.current) {
+          sizeOverlay(overlayRef.current, hostRef.current);
           drawZones(
             overlayRef.current,
             c,
@@ -589,12 +606,16 @@ export function ChartPane({
         }
       };
       chart.timeScale().subscribeVisibleLogicalRangeChange(paint);
+      ro = new ResizeObserver(() => paint());
+      ro.observe(hostRef.current);
+      requestAnimationFrame(paint);
       setReady(true);
     });
 
     return () => {
       cancelled = true;
       setReady(false);
+      ro?.disconnect();
       chart?.remove();
       chartRef.current = null;
       seriesRef.current = null;
@@ -774,6 +795,7 @@ export function ChartPane({
       ];
       markersRef.current?.setMarkers(markers);
       if (overlayRef.current) {
+        sizeOverlay(overlayRef.current, hostRef.current);
         drawZones(
           overlayRef.current,
           chart,
@@ -793,7 +815,11 @@ export function ChartPane({
   return (
     <div className={cn("relative overflow-hidden bg-bg", className)}>
       <div ref={hostRef} className="absolute inset-0" />
-      <canvas ref={overlayRef} className="pointer-events-none absolute inset-0 z-20" />
+      <canvas
+        ref={overlayRef}
+        className="pointer-events-none absolute inset-0"
+        style={{ zIndex: 40, width: "100%", height: "100%" }}
+      />
       <canvas
         ref={profileRef}
         className="pointer-events-none absolute top-0 right-14 bottom-8 w-32"
