@@ -62,6 +62,7 @@ export interface LiquidityPool {
   side: "buy" | "sell";
   equal: boolean;
   swept: boolean;
+  sweptTime: number | null;
 }
 
 export interface Divergence {
@@ -429,31 +430,39 @@ function detectLiquidity(candles: Candle[], swings: Swing[], atr: number): Liqui
   const highs = swings.filter((s) => s.type === "high").slice(-8);
   const lows = swings.filter((s) => s.type === "low").slice(-8);
   const tol = atr * 0.25 || last.close * 0.001;
+  const firstTake = (after: number, side: "buy" | "sell", price: number) => {
+    for (const c of candles) {
+      if (c.time <= after) continue;
+      if (side === "buy" && c.high > price + tol * 0.2) return c.time;
+      if (side === "sell" && c.low < price - tol * 0.2) return c.time;
+    }
+    return null;
+  };
 
-  for (let i = 0; i < highs.length; i++) {
-    const a = highs[i]!;
-    const equal = highs.some((b, j) => j !== i && Math.abs(b.price - a.price) <= tol);
-    const recent = candles.slice(-8);
-    const swept = recent.some((c) => c.high > a.price + tol * 0.2) && last.close < a.price;
+  for (const a of highs) {
+    const equal = highs.some((b) => b !== a && Math.abs(b.price - a.price) <= tol);
+    const sweptTime = firstTake(a.time, "buy", a.price);
+    const swept = sweptTime != null && last.close < a.price;
     pools.push({
       price: a.price,
       time: a.time,
       side: "buy",
       equal,
       swept,
+      sweptTime: swept ? sweptTime : null,
     });
   }
-  for (let i = 0; i < lows.length; i++) {
-    const a = lows[i]!;
-    const equal = lows.some((b, j) => j !== i && Math.abs(b.price - a.price) <= tol);
-    const recentL = candles.slice(-8);
-    const swept = recentL.some((c) => c.low < a.price - tol * 0.2) && last.close > a.price;
+  for (const a of lows) {
+    const equal = lows.some((b) => b !== a && Math.abs(b.price - a.price) <= tol);
+    const sweptTime = firstTake(a.time, "sell", a.price);
+    const swept = sweptTime != null && last.close > a.price;
     pools.push({
       price: a.price,
       time: a.time,
       side: "sell",
       equal,
       swept,
+      sweptTime: swept ? sweptTime : null,
     });
   }
   return pools.slice(-10);

@@ -260,23 +260,29 @@ function drawZones(
     const bsl = [...near].filter((l) => l.side === "buy" && !l.swept).sort((a, b) => dLiq(a) - dLiq(b))[0];
     const ssl = [...near].filter((l) => l.side === "sell" && !l.swept).sort((a, b) => dLiq(a) - dLiq(b))[0];
     const sweep = [...near].filter((l) => l.swept).sort((a, b) => dLiq(a) - dLiq(b))[0];
-    const pool = bsl ?? ssl ?? sweep;
-    if (pool) {
+    const live = [bsl, ssl].filter(Boolean) as typeof snap.liquidity;
+    const drawn = [...live.slice(0, 2), ...(sweep && !live.some((l) => Math.abs(l.price - sweep.price) < atr * 0.15) ? [sweep] : [])];
+    for (const pool of drawn) {
       const y = series.priceToCoordinate(pool.price);
       const yPad = series.priceToCoordinate(pool.price + (pool.side === "buy" ? snap.atr * 0.35 : -snap.atr * 0.35));
       const x0 = ts.timeToCoordinate(pool.time as UTCTimestamp) ?? plotW * 0.45;
-      if (y != null && yPad != null) {
-        const top = Math.min(y, yPad);
-        const h = Math.max(10, Math.abs(yPad - y));
-        fillVolume(x0, top, plotW - x0 - 8, h, pool.swept ? "sweep" : "liq");
-        occupy(x0, top, plotW - x0 - 8, h);
-        ctx.strokeStyle = "rgba(80, 120, 180, 0.7)";
-        ctx.beginPath();
-        ctx.moveTo(x0, y);
-        ctx.lineTo(plotW - 8, y);
-        ctx.stroke();
-        mark(pool.time, pool.price, pool.swept ? "Съём" : "Ликвидность", pool.swept ? "sweep" : "liq");
-      }
+      const xEnd = pool.swept && pool.sweptTime
+        ? (ts.timeToCoordinate(pool.sweptTime as UTCTimestamp) ?? x0 + 40)
+        : (ts.timeToCoordinate(lastTime as UTCTimestamp) ?? plotW - 8);
+      if (y == null || yPad == null) continue;
+      const top = Math.min(y, yPad);
+      const h = Math.max(10, Math.abs(yPad - y));
+      const w = Math.max(24, xEnd - x0);
+      fillVolume(x0, top, w, h, pool.swept ? "sweep" : "liq");
+      occupy(x0, top, w, h);
+      ctx.strokeStyle = pool.swept ? "rgba(232, 160, 60, 0.75)" : "rgba(80, 120, 180, 0.7)";
+      ctx.setLineDash(pool.swept ? [5, 4] : []);
+      ctx.beginPath();
+      ctx.moveTo(x0, y);
+      ctx.lineTo(x0 + w, y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      mark(pool.swept && pool.sweptTime ? pool.sweptTime : pool.time, pool.price, pool.swept ? "Съём" : "Ликвидность", pool.swept ? "sweep" : "liq");
     }
   }
 
