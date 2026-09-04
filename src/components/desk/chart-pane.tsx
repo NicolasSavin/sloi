@@ -148,15 +148,20 @@ function drawZones(
     const dist = (z: Zone) => zoneReach(z, last, atr) ?? Number.POSITIVE_INFINITY;
     const live = zones.filter((z) => zoneReach(z, last, atr) != null);
     const picked = [
-      ...(overlays.fvg ? live.filter((z) => z.kind === "fvg").sort((a, b) => dist(a) - dist(b)).slice(0, 1) : []),
+      ...(overlays.fvg ? live.filter((z) => z.kind === "fvg").sort((a, b) => dist(a) - dist(b)).slice(0, 2) : []),
       ...(overlays.ob
         ? live
             .filter((z) => z.kind === "ob" || z.kind === "breaker" || z.kind === "mitigation")
             .sort((a, b) => dist(a) - dist(b))
-            .slice(0, 1)
+            .slice(0, 2)
         : []),
     ];
-    for (const z of picked) {
+    const ghost = overlays.fvg || overlays.ob
+      ? zones
+          .filter((z) => z.mitigated && Math.min(Math.abs(last - z.top), Math.abs(last - z.bottom)) <= atr * 2)
+          .slice(-1)
+      : [];
+    for (const z of [...picked, ...ghost]) {
       const x1 = ts.timeToCoordinate(z.startTime as UTCTimestamp) ?? 8;
       const y1 = series.priceToCoordinate(z.top);
       const y2 = series.priceToCoordinate(z.bottom);
@@ -166,6 +171,8 @@ function drawZones(
       if (h < 6) continue;
       const bull = z.side === "bull";
       const imb = z.kind === "fvg";
+      const dead = z.mitigated;
+      ctx.globalAlpha = dead ? 0.4 : 1;
       ctx.fillStyle = imb
         ? bull
           ? "rgba(212, 160, 48, 0.42)"
@@ -175,17 +182,21 @@ function drawZones(
           : "rgba(176, 64, 64, 0.50)";
       ctx.strokeStyle = imb ? "#ffd56a" : bull ? "#7dffb8" : "#ff8a8a";
       ctx.lineWidth = 3;
+      ctx.setLineDash(dead ? [6, 4] : []);
       ctx.fillRect(x1, top, plotW - x1, h);
       ctx.strokeRect(x1, top, plotW - x1, h);
-      const name = imb
-        ? bull
-          ? "ИМБАЛАНС спрос"
-          : "ИМБАЛАНС предложение"
-        : z.kind === "breaker"
-          ? "БЛОК брейкер"
-          : bull
-            ? "ОРДЕРБЛОК спрос"
-            : "ОРДЕРБЛОК предложение";
+      ctx.setLineDash([]);
+      const name = dead
+        ? "СНЯТ"
+        : imb
+          ? bull
+            ? "ИМБАЛАНС спрос"
+            : "ИМБАЛАНС предложение"
+          : z.kind === "breaker"
+            ? "БЛОК брейкер"
+            : bull
+              ? "ОРДЕРБЛОК спрос"
+              : "ОРДЕРБЛОК предложение";
       pill(
         x1 + 6,
         top + 18,
@@ -193,6 +204,7 @@ function drawZones(
         imb ? "rgba(40,28,8,0.94)" : bull ? "rgba(12,40,28,0.94)" : "rgba(48,16,16,0.94)",
         imb ? "#ffe7a0" : bull ? "#b6ffd4" : "#ffc4c4",
       );
+      ctx.globalAlpha = 1;
     }
   }
   if (overlays.structure !== false && snap) {
@@ -301,6 +313,80 @@ function drawZones(
     setup.targets.slice(0, 2).forEach((t, i) => {
       band(t, "rgba(111,158,134,0.22)", "rgba(150,210,180,0.95)", `ТЕЙК ${i + 1}`, 14);
     });
+  }
+
+  if (snap) {
+    const vis = ts.getVisibleRange();
+    const xNow = vis ? (ts.timeToCoordinate(vis.to as UTCTimestamp) ?? plotW - 12) : plotW - 12;
+    const yNow = series.priceToCoordinate(snap.lastClose);
+    const arrow = (x1: number, y1: number, x2: number, y2: number, color: string) => {
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      if (Math.hypot(dx, dy) < 12) return;
+      const ang = Math.atan2(dy, dx);
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color;
+      ctx.lineWidth = 3.5;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x2, y2);
+      ctx.lineTo(x2 - 18 * Math.cos(ang - 0.45), y2 - 18 * Math.sin(ang - 0.45));
+      ctx.lineTo(x2 - 18 * Math.cos(ang + 0.45), y2 - 18 * Math.sin(ang + 0.45));
+      ctx.closePath();
+      ctx.fill();
+    };
+    const sw = snap.swings;
+    if (sw.length >= 2) {
+      const a = sw[sw.length - 2]!;
+      const b = sw[sw.length - 1]!;
+      const x1 = ts.timeToCoordinate(a.time as UTCTimestamp);
+      const y1 = series.priceToCoordinate(a.price);
+      const x2 = ts.timeToCoordinate(b.time as UTCTimestamp);
+      const y2 = series.priceToCoordinate(b.price);
+      if (x1 != null && y1 != null && x2 != null && y2 != null) {
+        const down = b.price < a.price;
+        arrow(x1, y1, x2, y2, down ? "#ff8a8a" : "#7dffb8");
+        ctx.font = "bold 14px IBM Plex Sans, sans-serif";
+        ctx.fillStyle = down ? "#ffc4c4" : "#b6ffd4";
+        ctx.fillText(down ? "ход вниз" : "ход вверх", (x1 + x2) / 2 - 28, (y1 + y2) / 2 - 10);
+      }
+      if (yNow != null && x2 != null && y2 != null) {
+        arrow(x2, y2, xNow, yNow, snap.trend === "down" ? "#ff8a8a" : snap.trend === "up" ? "#7dffb8" : "#ffe08a");
+      }
+    }
+    if (yNow != null && setup?.targets[0] != null && (order?.action === "long" || order?.action === "short")) {
+      const yTp = series.priceToCoordinate(setup.targets[0]);
+      if (yTp != null) {
+        arrow(xNow, yNow, Math.min(plotW - 8, xNow + 80), yTp, order.action === "short" ? "#ff8a8a" : "#7dffb8");
+        ctx.fillStyle = "#f4eee4";
+        ctx.font = "bold 13px IBM Plex Sans, sans-serif";
+        ctx.fillText("к цели", Math.min(plotW - 70, xNow + 24), yTp - 8);
+      }
+    }
+    const itog =
+      order?.action === "short"
+        ? `ИТОГ: шорт · ${snap.story.doing}`
+        : order?.action === "long"
+          ? `ИТОГ: лонг · ${snap.story.doing}`
+          : `ИТОГ: ждут · ${snap.story.waiting || snap.story.doing}`;
+    const label = itog.length > 86 ? `${itog.slice(0, 84)}…` : itog;
+    if (yNow != null) {
+      ctx.font = "bold 14px IBM Plex Sans, sans-serif";
+      const tw = ctx.measureText(label).width + 20;
+      const bx = Math.max(8, xNow - tw);
+      const by = Math.max(28, yNow - 36);
+      ctx.fillStyle = "rgba(10,8,6,0.92)";
+      ctx.fillRect(bx, by - 18, tw, 26);
+      ctx.strokeStyle = "#e8c878";
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(bx, by - 18, tw, 26);
+      ctx.fillStyle = "#ffe7a0";
+      ctx.fillText(label, bx + 10, by);
+    }
   }
 }
 

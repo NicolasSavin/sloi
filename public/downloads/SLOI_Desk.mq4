@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.48"
+#property version   "4.49"
 #property strict
 #property description "На графике: VWAP, профиль, футпринт бара, infusion/splash, Bid/Ask."
 
@@ -124,7 +124,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.48: на чарте только зоны в радиусе ATR от цены.");
+   Print("SLOI 4.49: стрелка хода и ИТОГ на графике, последние зоны не стираем.");
    return(INIT_SUCCEEDED);
   }
 
@@ -501,7 +501,7 @@ void DrawSmcOnChart()
 
    double lastPx = iClose(s, tf, 0);
    int drawn = 0;
-   for(i = 3; i < 80 && drawn < 1; i++)
+   for(i = 3; i < 80 && drawn < 2; i++)
      {
       double hi = iHigh(s, tf, i);
       double lo = iLow(s, tf, i);
@@ -525,7 +525,7 @@ void DrawSmcOnChart()
      }
 
    int obn = 0;
-   for(i = 4; i < 70 && obn < 1; i++)
+   for(i = 4; i < 70 && obn < 2; i++)
      {
       double o = iOpen(s, tf, i);
       double c = iClose(s, tf, i);
@@ -562,6 +562,12 @@ void DrawSmcOnChart()
       Ray("bos_l", iTime(s, tf, sl2), iLow(s, tf, sl2), iTime(s, tf, sl), iLow(s, tf, sl), C_BUY);
       Box("liq_l", iTime(s, tf, sl), iLow(s, tf, sl) + pad, tRight, iLow(s, tf, sl) - pad * 2, C_GOLD);
       Tag("liq_l_t", iTime(s, tf, sl), iLow(s, tf, sl), "ЛИКВИДНОСТЬ SSL", C_GOLD);
+     }
+   if(sh > 0 && sl > 0)
+     {
+      color moveC = lastPx < iHigh(s, tf, sh) ? C_SEL : C_BUY;
+      Ray("move", iTime(s, tf, sh), iHigh(s, tf, sh), tNow, lastPx, moveC);
+      Tag("itog", tNow, lastPx, "ИТОГ "+verdict+" · "+why, C_GOLD);
      }
 
    DrawTape();
