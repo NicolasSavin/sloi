@@ -41,8 +41,8 @@ export function TvRelay({ initialId }: { initialId?: string }) {
         <p className="font-mono text-xs tracking-[0.22em] text-accent">TRADINGVIEW</p>
         <h1 className="mt-3 text-4xl font-medium tracking-tight sm:text-5xl">Идея на график TV</h1>
         <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted">
-          Платный TradingView не нужен. Скрипт не публикуем в библиотеку — его видно только вам: Pine Editor → вставить →
-          Add to chart. На сайте график TV уже открыт. Уровни вшиты в код: скопировали и заменили в редакторе.
+          Идею на TradingView выкладываете бесплатно: график → камера → Share idea. Платят за публикацию Pine в каталог
+          индикаторов, не за пост идеи. Текст и уровни копируете со стола.
         </p>
 
         <div className="mt-8 flex flex-wrap gap-2">
@@ -99,10 +99,10 @@ export function TvRelay({ initialId }: { initialId?: string }) {
                 </Button>
               </div>
               <ol className="list-decimal space-y-1 pl-5 text-sm text-muted">
-                <li>Кнопка «Открыть график» — бесплатный TV, любой аккаунт.</li>
-                <li>Внизу: Pine Editor → вставить скопированный Pine → Add to chart. Publish не нажимать.</li>
-                <li>Новый сигнал — снова копировать Pine и заменить код в редакторе (Save).</li>
-                <li>Текст идеи — в чат или пост. Публиковать скрипт в каталог TV не нужно.</li>
+                <li>«Открыть график» — бесплатный аккаунт.</li>
+                <li>«Копировать идею» — заголовок, лонг/шорт, вход, стоп, цель.</li>
+                <li>На TV: кнопка камеры / Share idea / Опубликовать идею. Вставить текст. Это бесплатно.</li>
+                <li>Линии на графике: либо руками, либо Pine Editor → вставить Pine → Add to chart. Publish script не нужен.</li>
               </ol>
             </div>
           </section>
