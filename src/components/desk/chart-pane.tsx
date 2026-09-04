@@ -45,6 +45,28 @@ function drawZones(
   const notes: { time: number; price: number; text: string }[] = [];
   const busy: { x: number; y: number; w: number; h: number }[] = [];
   const occupy = (x: number, y: number, w: number, h: number) => busy.push({ x, y, w, h });
+  const fillVolume = (x: number, y: number, w: number, h: number, top: string, mid: string, stroke: string) => {
+    const g = ctx.createLinearGradient(x, y, x, y + h);
+    g.addColorStop(0, top);
+    g.addColorStop(0.42, mid);
+    g.addColorStop(1, top);
+    ctx.shadowColor = "rgba(0,0,0,0.5)";
+    ctx.shadowBlur = 12;
+    ctx.shadowOffsetY = 4;
+    ctx.fillStyle = g;
+    ctx.fillRect(x, y, w, h);
+    ctx.shadowColor = "transparent";
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+    const shine = ctx.createLinearGradient(x, y, x, y + Math.min(10, h));
+    shine.addColorStop(0, "rgba(255,255,255,0.22)");
+    shine.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = shine;
+    ctx.fillRect(x, y, w, Math.min(10, h));
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1.6;
+    ctx.strokeRect(x, y, w, h);
+  };
   const mark = (time: number, price: number, text: string) => {
     if (notes.some((n) => n.text === text && Math.abs(n.price - price) < 1e-8)) return;
     notes.push({ time, price, text });
@@ -69,11 +91,7 @@ function drawZones(
       if (y1 == null || y2 == null) return;
       const y = Math.min(y1, y2);
       const h = Math.max(4, Math.abs(y2 - y1));
-      ctx.fillStyle = fill;
-      ctx.fillRect(0, y, plotW, h);
-      ctx.strokeStyle = stroke;
-      ctx.lineWidth = 1;
-      ctx.strokeRect(0, y, plotW, h);
+      fillVolume(0, y, plotW, h, fill, "rgba(232,210,160,0.28)", stroke);
       if (label.includes("цена")) mark(lastTime, (top + bottom) / 2, "Маржа");
       occupy(0, y, plotW * 0.45, h);
     };
@@ -115,11 +133,15 @@ function drawZones(
       const h = Math.max(4, Math.abs(y2 - y1));
       const bull = z.side === "bull";
       const imb = z.kind === "fvg";
-      ctx.fillStyle = imb ? (bull ? "rgba(212,160,48,0.16)" : "rgba(200,120,40,0.16)") : bull ? "rgba(46,140,96,0.18)" : "rgba(176,64,64,0.18)";
-      ctx.strokeStyle = imb ? "#c9a24a" : bull ? "#5a9e78" : "#b07070";
-      ctx.lineWidth = 1.5;
-      ctx.fillRect(x1, top, zw, h);
-      ctx.strokeRect(x1, top, zw, h);
+      fillVolume(
+        x1,
+        top,
+        zw,
+        h,
+        imb ? (bull ? "rgba(255,210,90,0.28)" : "rgba(230,150,60,0.28)") : bull ? "rgba(80,190,130,0.30)" : "rgba(210,80,80,0.28)",
+        imb ? "rgba(255,230,150,0.45)" : bull ? "rgba(140,230,180,0.42)" : "rgba(255,140,140,0.40)",
+        imb ? "#e8c86a" : bull ? "#7dffb8" : "#ff8a8a",
+      );
       occupy(x1, top, zw, h);
       mark(z.startTime, (z.top + z.bottom) / 2, imb ? "Имбаланс" : "Ордерблок");
     }
@@ -158,11 +180,7 @@ function drawZones(
       if (y != null && yPad != null) {
         const top = Math.min(y, yPad);
         const h = Math.max(10, Math.abs(yPad - y));
-        ctx.fillStyle = "rgba(236, 228, 168, 0.35)";
-        ctx.strokeStyle = "rgba(90, 140, 70, 0.85)";
-        ctx.lineWidth = 1.5;
-        ctx.fillRect(x0, top, plotW - x0 - 8, h);
-        ctx.strokeRect(x0, top, plotW - x0 - 8, h);
+        fillVolume(x0, top, plotW - x0 - 8, h, "rgba(255, 236, 160, 0.28)", "rgba(255, 248, 210, 0.5)", "rgba(200, 180, 80, 0.95)");
         occupy(x0, top, plotW - x0 - 8, h);
         ctx.strokeStyle = "rgba(80, 120, 180, 0.7)";
         ctx.beginPath();
@@ -307,13 +325,40 @@ function drawZones(
     ctx.lineTo(bx, by + r);
     ctx.quadraticCurveTo(bx, by, bx + r, by);
     ctx.closePath();
-    ctx.fillStyle = "rgba(247, 232, 190, 0.95)";
+    ctx.shadowColor = "rgba(0,0,0,0.45)";
+    ctx.shadowBlur = 14;
+    ctx.shadowOffsetY = 5;
+    const g = ctx.createLinearGradient(bx, by, bx, by + bh);
+    g.addColorStop(0, "rgba(255, 246, 214, 0.98)");
+    g.addColorStop(0.45, "rgba(243, 214, 150, 0.96)");
+    g.addColorStop(1, "rgba(196, 160, 80, 0.94)");
+    ctx.fillStyle = g;
     ctx.fill();
+    ctx.shadowColor = "transparent";
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+    ctx.strokeStyle = "rgba(232, 200, 120, 0.95)";
+    ctx.lineWidth = 1.4;
     ctx.stroke();
-    ctx.fillStyle = "#2f5a28";
+    const shine = ctx.createLinearGradient(bx, by, bx, by + 12);
+    shine.addColorStop(0, "rgba(255,255,255,0.35)");
+    shine.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = shine;
+    ctx.fill();
     ctx.font = "600 13px IBM Plex Sans, sans-serif";
     const tw = ctx.measureText(n.text).width;
-    ctx.fillText(n.text, bx + (bw - tw) / 2, by + 22);
+    const tx = bx + (bw - tw) / 2;
+    const ty = by + 22;
+    ctx.strokeStyle = "rgba(40, 28, 8, 0.55)";
+    ctx.lineWidth = 3;
+    ctx.lineJoin = "round";
+    ctx.strokeText(n.text, tx, ty);
+    const tg = ctx.createLinearGradient(tx, ty - 12, tx, ty + 4);
+    tg.addColorStop(0, "#fff6d8");
+    tg.addColorStop(0.45, "#d4f0a0");
+    tg.addColorStop(1, "#3d6a28");
+    ctx.fillStyle = tg;
+    ctx.fillText(n.text, tx, ty);
   }
 }
 
