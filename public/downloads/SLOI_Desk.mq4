@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.66"
+#property version   "4.67"
 #property strict
-#property description "SLOI 4.66: CD по каждому часу, не только последняя свеча."
+#property description "SLOI 4.67: ClusterDelta splash/infusion по всем парам (тики)."
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -38,7 +38,7 @@ input bool    FixForeign      = false;
 input string  ForeignTag      = "WS";
 input bool    AlertsOn        = true;
 input bool    VirtualPendings = true; // виртуал: отложка, стоп и тейк. Сдвиг со стола.
-input bool    UseClusterDelta = true; // iCustom CD с EURUSD и XAUUSD, сов один
+input bool    UseClusterDelta = true; // iCustom CD по всем парам списка, тики
 input string  CdVolume        = "ClusterDelta_#Volumes";
 input string  CdDelta         = "ClusterDelta_#Delta";
 input string  CdInfusion      = "ClusterDelta_#Infusion";
@@ -137,7 +137,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.66: CD бар с временем свечи.");
+   Print("SLOI 4.67: CD splash по всем парам.");
    return(INIT_SUCCEEDED);
   }
 
@@ -1107,8 +1107,6 @@ void AppendCdClusters(string &body, int sent)
   {
    for(int i = 0; i < g_n; i++)
      {
-      string n = Naked(g_sym[i]);
-      if(n != "EURUSD" && n != "XAUUSD") continue;
       AppendCdOne(body, g_sym[i], sent);
       AppendCdProfile(body, g_sym[i]);
       AppendCdBook(body, g_sym[i]);

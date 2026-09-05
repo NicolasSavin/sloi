@@ -457,6 +457,19 @@ function drawZones(
     );
   }
 
+  if (snap?.micro.vwap) {
+    const y = series.priceToCoordinate(snap.micro.vwap);
+    if (y != null) {
+      ctx.font = "700 12px IBM Plex Sans, sans-serif";
+      ctx.fillStyle = "#e8c070";
+      ctx.strokeStyle = "rgba(8,6,4,0.65)";
+      ctx.lineWidth = 3;
+      ctx.strokeText("VWAP", 10, y - 6);
+      ctx.fillText("VWAP", 10, y - 6);
+      mark(lastTime, snap.micro.vwap, "VWAP", "entry");
+    }
+  }
+
   if (overlays.fvg || overlays.ob) {
     const last = snap?.lastClose ?? 0;
     const atr = snap?.atr ?? 0;
