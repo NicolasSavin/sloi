@@ -1,5 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import { getSql, type Sql } from "@/lib/db";
+import { getSql, dbSource, type Sql } from "@/lib/db";
 import type { BrokerAccount } from "@/lib/broker-tape";
 
 export const LEGACY_TENANT = "legacy";
@@ -62,7 +62,7 @@ async function ensureSchema(sql: Sql) {
       `);
       await sql.query(`
         create table if not exists desk_tapes (
-          tenant_id text primary key references desk_tenants (id) on delete cascade,
+          tenant_id text primary key,
           body text,
           account_json text,
           updated_at timestamptz not null default now()
@@ -162,19 +162,23 @@ export async function resolveDesk(key: string | null | undefined) {
 
 export async function saveTape(tenantId: string, body: string, account: BrokerAccount | null) {
   const sql = await trySql();
+  let saved = false;
+  let err = "";
   if (sql && tenantId !== LEGACY_TENANT) {
     try {
       await ensureSchema(sql);
-      await sql`
-        insert into desk_tapes (tenant_id, body, account_json, updated_at)
-        values (${tenantId}, ${body.slice(0, 20000)}, ${account ? JSON.stringify(account) : null}, now())
-        on conflict (tenant_id) do update set
-          body = excluded.body,
-          account_json = excluded.account_json,
-          updated_at = now()
-      `;
-    } catch {
-      /* memory */
+      await sql.query(
+        `insert into desk_tapes (tenant_id, body, account_json, updated_at)
+         values ($1, $2, $3, now())
+         on conflict (tenant_id) do update set
+           body = excluded.body,
+           account_json = excluded.account_json,
+           updated_at = now()`,
+        [tenantId, body.slice(0, 24000), account ? JSON.stringify(account) : ""],
+      );
+      saved = true;
+    } catch (e) {
+      err = e instanceof Error ? e.message : String(e);
     }
   }
   for (const t of mem().values()) {
@@ -183,6 +187,7 @@ export async function saveTape(tenantId: string, body: string, account: BrokerAc
       t.account = account;
     }
   }
+  return { saved, err, db: dbSource };
 }
 
 export async function loadTape(tenantId: string): Promise<{ body: string; account: BrokerAccount | null } | null> {
