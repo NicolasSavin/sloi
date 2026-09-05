@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.60"
+#property version   "4.61"
 #property strict
-#property description "SLOI 4.60: NOTE CD в ленту, чтобы видеть буферы."
+#property description "SLOI 4.61: все буферы AskBid в NOTE."
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -137,7 +137,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.60: NOTE CD в ленту.");
+   Print("SLOI 4.61: скан буферов CD.");
    return(INIT_SUCCEEDED);
   }
 
@@ -1157,20 +1157,27 @@ void AppendCdBook(string &body, string s)
 void AppendCdAskBid(string &body, string s)
   {
    if(StringLen(CdAskBid) < 4) return;
-   double askV = Icd(s, PERIOD_H1, CdAskBid, 0, 0);
-   double bidV = Icd(s, PERIOD_H1, CdAskBid, 1, 0);
-   if(askV == EMPTY_VALUE || bidV == EMPTY_VALUE)
+   string dump = "";
+   double hit[8];
+   int nh = 0;
+   ArrayInitialize(hit, 0);
+   for(int b = 0; b <= 7 && nh < 8; b++)
      {
-      askV = Icd(s, PERIOD_H1, CdAskBid, 0, 1);
-      bidV = Icd(s, PERIOD_H1, CdAskBid, 1, 1);
+      double v = Icd(s, PERIOD_H1, CdAskBid, b, 0);
+      dump += " b" + IntegerToString(b) + "=" + DoubleToStr(v, 1);
+      if(v != EMPTY_VALUE && MathAbs(v) > 1 && MathAbs(v) < 1.0e9)
+        {
+         hit[nh] = v;
+         nh++;
+        }
      }
+   double vol0 = Icd(s, PERIOD_H1, CdVolume, 0, 0);
+   double del0 = Icd(s, PERIOD_H1, CdDelta, 0, 0);
    string dir = (StringLen(g_cdDir) > 0 ? g_cdDir : "none");
    body += "NOTE CD " + Naked(s) + " dir=" + dir
-        + " ask=" + DoubleToStr(askV, 1) + " bid=" + DoubleToStr(bidV, 1) + "\n";
-   if(askV == EMPTY_VALUE || bidV == EMPTY_VALUE) return;
-   if(MathAbs(askV) > 1.0e12 || MathAbs(bidV) > 1.0e12) return;
-   askV = MathAbs(askV);
-   bidV = MathAbs(bidV);
+        + " vol=" + DoubleToStr(vol0, 1) + " dlt=" + DoubleToStr(del0, 1) + dump + "\n";
+   double askV = (nh > 0 ? MathAbs(hit[0]) : 0);
+   double bidV = (nh > 1 ? MathAbs(hit[1]) : 0);
    if(askV <= 0 && bidV <= 0) return;
    body += "ASKBID " + Naked(s) + " " + DoubleToStr(askV, 0) + " " + DoubleToStr(bidV, 0) + "\n";
   }
