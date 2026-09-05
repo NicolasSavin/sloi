@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.62"
+#property version   "4.63"
 #property strict
-#property description "SLOI 4.62: CD с графика — объекты и GV."
+#property description "SLOI 4.63: цифры CD с подписей на графике."
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -137,7 +137,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.62: объекты и GV ClusterDelta.");
+   Print("SLOI 4.63: CD с подписей объёма и дельты.");
    return(INIT_SUCCEEDED);
   }
 
@@ -1156,58 +1156,52 @@ void AppendCdBook(string &body, string s)
 
 void AppendCdAskBid(string &body, string s)
   {
-   if(StringLen(CdAskBid) < 4) return;
-   string dump = "";
-   double hit[8];
-   int nh = 0;
-   ArrayInitialize(hit, 0);
-   for(int b = 0; b <= 7 && nh < 8; b++)
-     {
-      double v = Icd(s, PERIOD_H1, CdAskBid, b, 0);
-      dump += " b" + IntegerToString(b) + "=" + DoubleToStr(v, 1);
-      if(v != EMPTY_VALUE && MathAbs(v) > 1 && MathAbs(v) < 1.0e9)
-        {
-         hit[nh] = v;
-         nh++;
-        }
-     }
-   double localAsk = iCustom(NULL, 0, (StringLen(g_cdDir) > 0 ? g_cdDir : "Indicators\\") + CdAskBid, 0, 0);
-   double localBid = iCustom(NULL, 0, (StringLen(g_cdDir) > 0 ? g_cdDir : "Indicators\\") + CdAskBid, 1, 0);
-   dump += " loc=" + DoubleToStr(localAsk, 1) + "/" + DoubleToStr(localBid, 1);
-   int gvN = 0;
-   for(int g = 0; g < GlobalVariablesTotal() && gvN < 6; g++)
-     {
-      string gn = GlobalVariableName(g);
-      if(StringFind(gn, "Ask") < 0 && StringFind(gn, "CD") < 0 && StringFind(gn, "Cluster") < 0 && StringFind(gn, "Delta") < 0)
-         continue;
-      dump += " " + gn + "=" + DoubleToStr(GlobalVariableGet(gn), 1);
-      gvN++;
-     }
-   int objN = 0;
-   for(int o = ObjectsTotal() - 1; o >= 0 && objN < 8; o--)
+   if(Naked(s) != Naked(Symbol())) return;
+   double nums[32];
+   int nn = 0;
+   ArrayInitialize(nums, 0);
+   for(int o = ObjectsTotal() - 1; o >= 0 && nn < 32; o--)
      {
       string on = ObjectName(o);
-      if(StringFind(on, "Ask") < 0 && StringFind(on, "Bid") < 0 && StringFind(on, "CD") < 0 && StringFind(on, "Splash") < 0 && StringFind(on, "Infusion") < 0)
-         continue;
       string tx = ObjectDescription(on);
-      if(StringLen(tx) < 1) tx = on;
-      dump += " obj:" + tx;
-      objN++;
+      double v = StringToDouble(tx);
+      if(MathAbs(v) < 2 || MathAbs(v) > 1.0e8) continue;
+      bool dup = false;
+      for(int k = 0; k < nn; k++) if(MathAbs(nums[k] - v) < 0.1) dup = true;
+      if(dup) continue;
+      nums[nn] = v;
+      nn++;
      }
-   double vol0 = Icd(s, PERIOD_H1, CdVolume, 0, 0);
-   double del0 = Icd(s, PERIOD_H1, CdDelta, 0, 0);
-   string dir = (StringLen(g_cdDir) > 0 ? g_cdDir : "none");
-   body += "NOTE CD " + Naked(s) + " dir=" + dir
-        + " vol=" + DoubleToStr(vol0, 1) + " dlt=" + DoubleToStr(del0, 1) + dump + "\n";
-   if(nh < 2)
+   string dump = " n=" + IntegerToString(nn);
+   for(int i = 0; i < nn && i < 8; i++) dump += " " + DoubleToStr(nums[i], 0);
+   body += "NOTE CD " + Naked(s) + " obj" + dump + "\n";
+   if(nn < 1) return;
+   double vol = 0, dlt = 0, askV = 0, bidV = 0;
+   for(int j = 0; j < nn; j++)
      {
-      if(localAsk != EMPTY_VALUE && MathAbs(localAsk) > 1) { hit[0] = localAsk; nh = MathMax(nh, 1); }
-      if(localBid != EMPTY_VALUE && MathAbs(localBid) > 1) { hit[1] = localBid; nh = MathMax(nh, 2); }
+      double v = nums[j];
+      if(MathAbs(v) > vol) vol = MathAbs(v);
+      if(v < 0 && MathAbs(v) > MathAbs(dlt)) dlt = v;
      }
-   double askV = (nh > 0 ? MathAbs(hit[0]) : 0);
-   double bidV = (nh > 1 ? MathAbs(hit[1]) : 0);
-   if(askV <= 0 && bidV <= 0) return;
-   body += "ASKBID " + Naked(s) + " " + DoubleToStr(askV, 0) + " " + DoubleToStr(bidV, 0) + "\n";
+   for(int j = 0; j < nn; j++)
+     {
+      double v = MathAbs(nums[j]);
+      if(v < 2) continue;
+      if(MathAbs(v - vol) < 0.1) continue;
+      if(dlt != 0 && MathAbs(v - MathAbs(dlt)) < 0.1) continue;
+      if(askV <= 0) askV = v;
+      else if(bidV <= 0 && MathAbs(v - askV) > 0.1) bidV = v;
+     }
+   if(askV <= 0 && vol > 0) askV = vol;
+   if(bidV <= 0 && dlt != 0) bidV = MathAbs(dlt);
+   if(askV > 0 || bidV > 0)
+      body += "ASKBID " + Naked(s) + " " + DoubleToStr(askV, 0) + " " + DoubleToStr(bidV, 0) + "\n";
+   if(vol >= 100)
+     {
+      string kind = (dlt < 0 ? "SPLASH" : "INFUSION");
+      string sd = (dlt < 0 ? "SELL" : "BUY");
+      body += "CLUSTER " + Naked(s) + " " + kind + " " + DoubleToStr(Bid, Digits) + " " + sd + "\n";
+     }
   }
 
 void PostTape(string url, string body)
