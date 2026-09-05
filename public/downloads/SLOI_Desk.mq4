@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.54"
+#property version   "4.55"
 #property strict
-#property description "SLOI 4.54: CD AskBid, профиль, BookMap."
+#property description "SLOI 4.55: CD Imbalance и AskBid."
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -46,6 +46,7 @@ input string  CdSplash        = "ClusterDelta_#Splash";
 input string  CdProfile       = "ClusterDelta_#MarketProfile";
 input string  CdBookMap       = "ClusterDelta_#BookMap";
 input string  CdAskBid        = "ClusterDelta_#AskBid";
+input string  CdImbalance     = "ClusterDelta_#Imbalance";
 input int     PanelX          = 8;
 input int     PanelY          = 18;
 
@@ -136,7 +137,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.54: CD AskBid/профиль/BookMap. Сов один.");
+   Print("SLOI 4.55: CD Imbalance/AskBid. Сов один.");
    return(INIT_SUCCEEDED);
   }
 
@@ -1043,6 +1044,7 @@ void AppendCdOne(string &body, string s, int &sent)
      }
    AppendNamed(body, s, CdInfusion, "INFUSION", sent);
    AppendNamed(body, s, CdSplash, "SPLASH", sent);
+   AppendNamed(body, s, CdImbalance, "IMBALANCE", sent);
   }
 
 void AppendNamed(string &body, string s, string ind, string kind, int &sent)

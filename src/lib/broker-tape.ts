@@ -148,7 +148,11 @@ export function ingestBrokerTape(text: string, tenant = "legacy") {
     if (p[0] === "CLUSTER" && p.length >= 5) {
       const id = (p[1] ?? "").replace(/[^A-Za-z]/g, "").toUpperCase();
       const kind =
-        p[2] === "SPLASH" || p[2] === "splash" || p[2] === "BTRADE" || p[2] === "btrade" ? "splash" : "infusion";
+        p[2] === "SPLASH" || p[2] === "splash" || p[2] === "BTRADE" || p[2] === "btrade"
+          ? "splash"
+          : p[2] === "IMBALANCE" || p[2] === "imbalance"
+            ? "imbalance"
+            : "infusion";
       const price = Number(p[3]);
       const side = p[4] === "SELL" || p[4] === "sell" ? "sell" : "buy";
       if (!id || !Number.isFinite(price) || price <= 0) continue;

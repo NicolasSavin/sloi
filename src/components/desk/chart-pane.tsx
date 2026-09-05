@@ -596,6 +596,20 @@ function drawTape(
     ctx.font = "bold 10px IBM Plex Mono, monospace";
     ctx.fillText(isTp ? "TP · INFUSION" : "INFUSION", 8, y - 4);
   }
+  for (const n of snap?.micro.nodes.filter((x) => x.kind === "imbalance").slice(-4) ?? []) {
+    const y = series.priceToCoordinate(n.price);
+    if (y == null) continue;
+    ctx.strokeStyle = "rgba(220,160,90,0.55)";
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(width, y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = "rgba(240,200,140,0.85)";
+    ctx.font = "bold 10px IBM Plex Mono, monospace";
+    ctx.fillText("ДИСБАЛАНС", 8, y - 4);
+  }
   if (snap?.micro.splash && last) {
     const x = ts.timeToCoordinate(last.time as UTCTimestamp);
     const y = series.priceToCoordinate(last.close);

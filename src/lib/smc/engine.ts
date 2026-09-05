@@ -1544,7 +1544,7 @@ export function compactForAi(symbol: string, timeframe: string, snap: SmcSnapsho
       footprint: snap.micro.footprint,
       infusion: snap.micro.infusion,
       splash: snap.micro.splash,
-      nodes: snap.micro.nodes.filter((n) => n.kind === "infusion").slice(-6),
+      nodes: snap.micro.nodes.filter((n) => n.kind === "infusion" || n.kind === "imbalance").slice(-8),
       cmeTicker: snap.micro.cmeTicker,
       therefore: snap.micro.therefore,
     },

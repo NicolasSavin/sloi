@@ -15,7 +15,7 @@ export interface VolumeMark {
 export interface VolumeNode {
   price: number;
   side: "buy" | "sell";
-  kind: "infusion" | "splash";
+  kind: "infusion" | "splash" | "imbalance";
   time: number;
 }
 

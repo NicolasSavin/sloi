@@ -10,7 +10,7 @@ const STEPS = [
   {
     n: "02",
     t: "Скачать советник",
-    d: "В кабинете скачайте SLOI_Desk.mq4 (должно быть 4.54 в шапке файла). Положите в MQL4\\Experts, заменив старый. Один файл, F7, на график один экземпляр.",
+    d: "В кабинете скачайте SLOI_Desk.mq4 (должно быть 4.55 в шапке файла). Один файл, F7, на график один экземпляр.",
   },
   {
     n: "03",
@@ -37,7 +37,7 @@ const STEPS = [
 const FAQ = [
   {
     q: "ClusterDelta куда ставить?",
-    a: "Советник один. На EURUSD и XAUUSD: #Volumes, #Delta, #Infusion, #Splash, #MarketProfile, #BookMap, #AskBid. Сов 4.54 шлёт их на сайт. Нет буфера — прокси свечей.",
+    a: "Советник один. На EURUSD и XAUUSD: #Volumes #Delta #Infusion #Splash #MarketProfile #BookMap #AskBid #Imbalance. Сов 4.55. Нет буфера — прокси свечей.",
   },
   {
     q: "Чужой увидит мой счёт?",
