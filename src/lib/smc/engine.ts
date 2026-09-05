@@ -1162,6 +1162,7 @@ export function analyzeMarket(
     candles,
     opts?.symbol ? liveClusters(opts.symbol) : [],
     opts?.symbol ? liveAskBid(opts.symbol) : null,
+    opts?.symbol ? liveCdBars(opts.symbol) : [],
   );
   const sweepFuel = buildSweepFuel(candles, liquidity, micro.nodes, atr, last.close);
   const auction = buildAuction(candles, opts?.kind);
@@ -1183,8 +1184,8 @@ export function analyzeMarket(
     bid: tapeAb?.bid ?? null,
     volume: tapeFlow?.volume ?? null,
     delta: tapeFlow?.delta ?? null,
-    splash: tapeNodes.some((n) => n.kind === "splash"),
-    infusion: tapeNodes.some((n) => n.kind === "infusion"),
+    splash: tapeNodes.some((n) => n.kind === "splash") || (opts?.symbol ? liveCdBars(opts.symbol).some((b) => b.splash) : false),
+    infusion: tapeNodes.some((n) => n.kind === "infusion") || (opts?.symbol ? liveCdBars(opts.symbol).some((b) => b.infusion) : false),
     book: tapeBook ? [...tapeBook.bids, ...tapeBook.asks].slice(0, 12) : [],
     bars: opts?.symbol ? liveCdBars(opts.symbol) : [],
   };

@@ -1,5 +1,6 @@
 import type { Candle } from "@/lib/market/types";
 import { buyVolumeOf, deltaOf } from "@/lib/smc/flow";
+import type { CdBar } from "@/lib/broker-tape";
 
 export function barVolume(c: Candle) {
   return (c.cmeVolume != null && c.cmeVolume > 0 ? c.cmeVolume : c.volume) || 1;
@@ -100,7 +101,12 @@ export function nearestStall(entry: number, dir: 1 | -1, atr: number, nodes: Vol
   return { price, from: from as "infusion" | "hvn" };
 }
 
-export function buildMicro(candles: Candle[], live: VolumeNode[] = [], ab: { ask: number; bid: number } | null = null): MicroSnap {
+export function buildMicro(
+  candles: Candle[],
+  live: VolumeNode[] = [],
+  ab: { ask: number; bid: number } | null = null,
+  cdBars: CdBar[] = [],
+): MicroSnap {
   const use = candles.slice(-80);
   let pv = 0;
   let vv = 0;
@@ -147,6 +153,29 @@ export function buildMicro(candles: Candle[], live: VolumeNode[] = [], ab: { ask
   // Крупный объём + узкий бар + слабая дельта = остановка (infusion / вливание).
   // Крупный объём + широкий бар + сильная дельта = толчок (splash).
   const raw: VolumeNode[] = [];
+  const fromCd = live.length > 0 || cdBars.some((b) => b.splash || b.infusion);
+  if (fromCd) {
+    raw.push(...live.map((n) => ({ ...n })));
+    for (const b of cdBars) {
+      const c = use.find((x) => Math.abs(x.time - b.time) < 3600) ?? last;
+      if (b.splash && !raw.some((n) => n.kind === "splash" && Math.abs(n.time - b.time) < 60)) {
+        raw.push({
+          price: c.close >= c.open ? c.high : c.low,
+          side: c.close >= c.open ? "buy" : "sell",
+          kind: "splash",
+          time: b.time,
+        });
+      }
+      if (b.infusion && !raw.some((n) => n.kind === "infusion" && Math.abs(n.time - b.time) < 60)) {
+        raw.push({
+          price: (c.high + c.low) / 2,
+          side: b.delta >= 0 ? "buy" : "sell",
+          kind: "infusion",
+          time: b.time,
+        });
+      }
+    }
+  } else {
   for (let i = 6; i < use.length; i++) {
     const c = use[i]!;
     const look = use.slice(Math.max(0, i - 14), i);
@@ -180,6 +209,7 @@ export function buildMicro(candles: Candle[], live: VolumeNode[] = [], ab: { ask
       });
     }
   }
+  }
   const nodes: VolumeNode[] = [];
   for (const n of raw) {
     const near = nodes.find((x) => x.kind === n.kind && Math.abs(x.price - n.price) < atrLike * 0.35);
@@ -190,31 +220,6 @@ export function buildMicro(candles: Candle[], live: VolumeNode[] = [], ab: { ask
     } else nodes.push({ ...n });
   }
   const step = last.time - (use.at(-2)?.time ?? last.time - 3600_000);
-  if (live.length) {
-    const merged: VolumeNode[] = [];
-    for (const n of live) {
-      if (n.kind === "splash") {
-        const c = use.find((x) => Math.abs(x.time - n.time) < step * 1.2) ?? use.at(-1);
-        if (!c) continue;
-        const look = use.filter((x) => x.time < c.time).slice(-14);
-        if (look.length < 4) continue;
-        const swingH = Math.max(...look.map((x) => x.high));
-        const swingL = Math.min(...look.map((x) => x.low));
-        const barSpan = c.high - c.low || 1e-9;
-        const upperWick = c.high - Math.max(c.open, c.close);
-        const lowerWick = Math.min(c.open, c.close) - c.low;
-        const took = (c.high > swingH && upperWick >= barSpan * 0.28 && c.close <= swingH) || (c.low < swingL && lowerWick >= barSpan * 0.28 && c.close >= swingL);
-        if (!took) continue;
-      }
-      merged.push({ ...n });
-    }
-    for (const n of nodes) {
-      if (!merged.some((x) => x.kind === n.kind && Math.abs(x.price - n.price) < atrLike * 0.35)) merged.push(n);
-    }
-    nodes.length = 0;
-    nodes.push(...merged);
-  }
-  const fromCd = live.length > 0;
   const fresh = (t: number) => last.time - t <= step * 5;
 
   let infusion: MicroSnap["infusion"] = null;
