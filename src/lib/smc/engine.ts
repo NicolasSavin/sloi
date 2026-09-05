@@ -441,28 +441,32 @@ function detectLiquidity(candles: Candle[], swings: Swing[], atr: number): Liqui
 
   for (const a of highs) {
     const equal = highs.some((b) => b !== a && Math.abs(b.price - a.price) <= tol);
-    const sweptTime = firstTake(a.time, "buy", a.price);
-    const swept = sweptTime != null && last.close < a.price;
+    const takeTime = firstTake(a.time, "buy", a.price);
+    const back =
+      takeTime != null &&
+      candles.some((c) => c.time >= takeTime && c.close < a.price);
     pools.push({
       price: a.price,
       time: a.time,
       side: "buy",
       equal,
-      swept,
-      sweptTime: swept ? sweptTime : null,
+      swept: back,
+      sweptTime: takeTime,
     });
   }
   for (const a of lows) {
     const equal = lows.some((b) => b !== a && Math.abs(b.price - a.price) <= tol);
-    const sweptTime = firstTake(a.time, "sell", a.price);
-    const swept = sweptTime != null && last.close > a.price;
+    const takeTime = firstTake(a.time, "sell", a.price);
+    const back =
+      takeTime != null &&
+      candles.some((c) => c.time >= takeTime && c.close > a.price);
     pools.push({
       price: a.price,
       time: a.time,
       side: "sell",
       equal,
-      swept,
-      sweptTime: swept ? sweptTime : null,
+      swept: back,
+      sweptTime: takeTime,
     });
   }
   return pools.slice(-10);
