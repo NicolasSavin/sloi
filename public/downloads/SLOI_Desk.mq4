@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.61"
+#property version   "4.62"
 #property strict
-#property description "SLOI 4.61: все буферы AskBid в NOTE."
+#property description "SLOI 4.62: CD с графика — объекты и GV."
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -137,7 +137,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.61: скан буферов CD.");
+   Print("SLOI 4.62: объекты и GV ClusterDelta.");
    return(INIT_SUCCEEDED);
   }
 
@@ -1171,11 +1171,39 @@ void AppendCdAskBid(string &body, string s)
          nh++;
         }
      }
+   double localAsk = iCustom(NULL, 0, (StringLen(g_cdDir) > 0 ? g_cdDir : "Indicators\\") + CdAskBid, 0, 0);
+   double localBid = iCustom(NULL, 0, (StringLen(g_cdDir) > 0 ? g_cdDir : "Indicators\\") + CdAskBid, 1, 0);
+   dump += " loc=" + DoubleToStr(localAsk, 1) + "/" + DoubleToStr(localBid, 1);
+   int gvN = 0;
+   for(int g = 0; g < GlobalVariablesTotal() && gvN < 6; g++)
+     {
+      string gn = GlobalVariableName(g);
+      if(StringFind(gn, "Ask") < 0 && StringFind(gn, "CD") < 0 && StringFind(gn, "Cluster") < 0 && StringFind(gn, "Delta") < 0)
+         continue;
+      dump += " " + gn + "=" + DoubleToStr(GlobalVariableGet(gn), 1);
+      gvN++;
+     }
+   int objN = 0;
+   for(int o = ObjectsTotal() - 1; o >= 0 && objN < 8; o--)
+     {
+      string on = ObjectName(o);
+      if(StringFind(on, "Ask") < 0 && StringFind(on, "Bid") < 0 && StringFind(on, "CD") < 0 && StringFind(on, "Splash") < 0 && StringFind(on, "Infusion") < 0)
+         continue;
+      string tx = ObjectDescription(on);
+      if(StringLen(tx) < 1) tx = on;
+      dump += " obj:" + tx;
+      objN++;
+     }
    double vol0 = Icd(s, PERIOD_H1, CdVolume, 0, 0);
    double del0 = Icd(s, PERIOD_H1, CdDelta, 0, 0);
    string dir = (StringLen(g_cdDir) > 0 ? g_cdDir : "none");
    body += "NOTE CD " + Naked(s) + " dir=" + dir
         + " vol=" + DoubleToStr(vol0, 1) + " dlt=" + DoubleToStr(del0, 1) + dump + "\n";
+   if(nh < 2)
+     {
+      if(localAsk != EMPTY_VALUE && MathAbs(localAsk) > 1) { hit[0] = localAsk; nh = MathMax(nh, 1); }
+      if(localBid != EMPTY_VALUE && MathAbs(localBid) > 1) { hit[1] = localBid; nh = MathMax(nh, 2); }
+     }
    double askV = (nh > 0 ? MathAbs(hit[0]) : 0);
    double bidV = (nh > 1 ? MathAbs(hit[1]) : 0);
    if(askV <= 0 && bidV <= 0) return;
