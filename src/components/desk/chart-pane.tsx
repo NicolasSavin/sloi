@@ -510,60 +510,75 @@ function drawZones(
   const cd = snap?.cdTape;
   if (cd?.live && snap) {
     const ax = ts.timeToCoordinate(lastTime as UTCTimestamp);
-    const ay = series.priceToCoordinate(snap.lastClose);
-    const chips: { label: string; sub: string; fill: string; stroke: string; on: boolean }[] = [
-      { label: "ОБЪЁМ", sub: cd.volume != null ? String(Math.round(cd.volume)) : "—", fill: "#3a2a10", stroke: "#e8c070", on: true },
-      {
-        label: "ДЕЛЬТА",
-        sub: cd.delta != null ? `${cd.delta > 0 ? "+" : ""}${Math.round(cd.delta)}` : "—",
-        fill: (cd.delta ?? 0) < 0 ? "#4a1010" : "#10381c",
-        stroke: (cd.delta ?? 0) < 0 ? "#ff7070" : "#50e090",
-        on: true,
-      },
-      { label: "ASK", sub: cd.ask != null ? String(Math.round(cd.ask)) : "—", fill: "#0e3a24", stroke: "#5dffb0", on: true },
-      { label: "BID", sub: cd.bid != null ? String(Math.round(cd.bid)) : "—", fill: "#4a1212", stroke: "#ff6a6a", on: true },
-      { label: "СПЛЭШ", sub: cd.splash ? "вынос стопов" : "нет", fill: cd.splash ? "#5a3800" : "#1a1a20", stroke: cd.splash ? "#ffb020" : "#666", on: true },
-      { label: "ВЛИВАНИЕ", sub: cd.infusion ? "цель / стоп крупняка" : "нет", fill: cd.infusion ? "#3a4808" : "#1a1a20", stroke: cd.infusion ? "#c8f030" : "#666", on: true },
-    ];
-    const chipW = 168;
-    const chipH = 44;
-    const colX = Math.max(12, Math.min((ax ?? plotW) + 36, width - chipW - 16));
-    let cy = Math.max(12, (ay ?? 80) - chips.length * (chipH + 8) * 0.45);
-    chips.forEach((c) => {
-      ctx.shadowColor = "rgba(0,0,0,0.55)";
-      ctx.shadowBlur = 16;
-      ctx.beginPath();
-      const r = 22;
-      ctx.arc(colX - 6, cy + chipH / 2, r, 0, Math.PI * 2);
-      ctx.fillStyle = c.stroke;
-      ctx.fill();
-      ctx.shadowBlur = 0;
-      ctx.beginPath();
-      ctx.arc(colX - 6, cy + chipH / 2, 16, 0, Math.PI * 2);
-      ctx.fillStyle = c.fill;
-      ctx.fill();
-      ctx.strokeStyle = "#fff";
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      const bx = colX + 18;
-      ctx.fillStyle = c.fill;
-      ctx.strokeStyle = c.stroke;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.roundRect?.(bx, cy, chipW, chipH, 10);
-      if (!ctx.roundRect) {
-        ctx.rect(bx, cy, chipW, chipH);
+    const yClose = series.priceToCoordinate(snap.lastClose);
+    if (ax != null && yClose != null) {
+      const chipW = 196;
+      const chipH = 42;
+      const scaleLeft = plotW - 8;
+      const items: { title: string; sub: string; stroke: string; fill: string; y: number }[] = [
+        { title: "ОБЪЁМ", sub: cd.volume != null ? String(Math.round(cd.volume)) : "—", stroke: "#e8c070", fill: "#2a1e0c", y: yClose - 36 },
+        {
+          title: "ДЕЛЬТА",
+          sub: cd.delta != null ? `${cd.delta > 0 ? "+" : ""}${Math.round(cd.delta)}` : "—",
+          stroke: (cd.delta ?? 0) < 0 ? "#ff7070" : "#50e090",
+          fill: (cd.delta ?? 0) < 0 ? "#3a1010" : "#0e2818",
+          y: yClose,
+        },
+        { title: "ASK", sub: cd.ask != null ? String(Math.round(cd.ask)) : "—", stroke: "#5dffb0", fill: "#0e3a24", y: yClose + 28 },
+        { title: "BID", sub: cd.bid != null ? String(Math.round(cd.bid)) : "—", stroke: "#ff6a6a", fill: "#3a1010", y: yClose + 56 },
+      ];
+      if (cd.splash) items.push({ title: "СПЛЭШ", sub: "вынос стопов, не цель", stroke: "#ffb020", fill: "#4a2c00", y: yClose - 72 });
+      if (cd.infusion) items.push({ title: "ВЛИВАНИЕ", sub: "цель / остановка", stroke: "#c8f030", fill: "#2a3808", y: yClose + 84 });
+      for (const it of items) {
+        const py = Math.max(18, Math.min(height - 18, it.y));
+        ctx.beginPath();
+        ctx.arc(ax, py, 9, 0, Math.PI * 2);
+        ctx.fillStyle = it.stroke;
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "#1a1208";
+        ctx.stroke();
+        const candidates = [
+          { x: ax - chipW - 28, y: py - chipH / 2 },
+          { x: ax - chipW - 28, y: py - chipH - 12 },
+          { x: ax - chipW - 28, y: py + 14 },
+          { x: ax - chipW * 2 - 40, y: py - chipH / 2 },
+          { x: ax + 22, y: py - chipH / 2 },
+          { x: 12, y: py - chipH / 2 },
+        ];
+        let box: { x: number; y: number } | null = null;
+        for (const c of candidates) {
+          const x = Math.max(8, Math.min(c.x, scaleLeft - chipW - 4));
+          const y = Math.max(8, Math.min(c.y, height - chipH - 8));
+          const b = { x, y, w: chipW, h: chipH };
+          if (hits(b)) continue;
+          box = { x, y };
+          break;
+        }
+        if (!box) continue;
+        occupy(box.x, box.y, chipW, chipH);
+        ctx.strokeStyle = it.stroke;
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.moveTo(ax - 9, py);
+        ctx.lineTo(box.x + chipW, box.y + chipH / 2);
+        ctx.stroke();
+        ctx.fillStyle = it.fill;
+        ctx.strokeStyle = it.stroke;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(box.x, box.y, chipW, chipH, 10);
+        else ctx.rect(box.x, box.y, chipW, chipH);
+        ctx.fill();
+        ctx.stroke();
+        ctx.font = "bold 13px IBM Plex Sans, sans-serif";
+        ctx.fillStyle = it.stroke;
+        ctx.fillText(it.title, box.x + 12, box.y + 16);
+        ctx.font = "bold 15px IBM Plex Mono, monospace";
+        ctx.fillStyle = "#fff6e0";
+        ctx.fillText(it.sub, box.x + 12, box.y + 34);
       }
-      ctx.fill();
-      ctx.stroke();
-      ctx.font = "bold 13px IBM Plex Sans, sans-serif";
-      ctx.fillStyle = c.stroke;
-      ctx.fillText(c.label, bx + 12, cy + 18);
-      ctx.font = "bold 16px IBM Plex Mono, monospace";
-      ctx.fillStyle = "#fff6e0";
-      ctx.fillText(c.sub, bx + 12, cy + 36);
-      cy += chipH + 8;
-    });
+    }
   }
 }
 
