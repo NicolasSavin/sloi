@@ -51,8 +51,8 @@ function drawVolumeCandles(
     const bot = Math.max(yO, yC);
     const h = Math.max(1.8, bot - top);
     const left = x - bodyW / 2;
-    ctx.strokeStyle = up ? "rgba(120,255,180,0.9)" : "rgba(255,140,140,0.9)";
-    ctx.lineWidth = Math.max(1.2, spacing * 0.12);
+    ctx.strokeStyle = up ? "rgba(180,255,220,1)" : "rgba(255,180,180,1)";
+    ctx.lineWidth = Math.max(1.4, spacing * 0.14);
     ctx.beginPath();
     ctx.moveTo(x, yH);
     ctx.lineTo(x, yL);
@@ -75,17 +75,17 @@ function drawVolumeCandles(
     ctx.fill();
     const g = ctx.createLinearGradient(left, top, left + bodyW, bot);
     if (up) {
-      g.addColorStop(0, "#d4ffe8");
-      g.addColorStop(0.4, "#3edc82");
-      g.addColorStop(1, "#0d5a32");
+      g.addColorStop(0, "#f2fff8");
+      g.addColorStop(0.35, "#6affb0");
+      g.addColorStop(1, "#148a48");
     } else {
-      g.addColorStop(0, "#ffc8c8");
-      g.addColorStop(0.4, "#e04848");
-      g.addColorStop(1, "#6a1010");
+      g.addColorStop(0, "#ffe0e0");
+      g.addColorStop(0.35, "#ff6a6a");
+      g.addColorStop(1, "#8a1818");
     }
     ctx.fillStyle = g;
     ctx.fillRect(left, top, bodyW, h);
-    ctx.strokeStyle = up ? "rgba(220,255,236,0.55)" : "rgba(255,210,210,0.4)";
+    ctx.strokeStyle = up ? "rgba(240,255,246,0.85)" : "rgba(255,230,230,0.75)";
     ctx.lineWidth = 1;
     ctx.strokeRect(left, top, bodyW, h);
   }
@@ -137,13 +137,12 @@ function drawZones(
   const notes: { time: number; price: number; text: string; tone: string }[] = [];
   const busy: { x: number; y: number; w: number; h: number }[] = [];
   const occupy = (x: number, y: number, w: number, h: number) => busy.push({ x, y, w, h });
-  occupy(plotW * 0.22, 4, plotW * 0.56, 42);
-  occupy(6, height - 32, plotW - 14, 28);
+  occupy(plotW * 0.18, 4, plotW * 0.64, 72);
   const PALETTE: Record<string, { top: string; mid: string; stroke: string; b0: string; b1: string; t0: string; t1: string }> = {
-    fvg: { top: "rgba(255,186,40,0.38)", mid: "rgba(255,230,120,0.62)", stroke: "#ffd24a", b0: "#fff3b0", b1: "#c48410", t0: "#fff6c8", t1: "#7a4a00" },
-    ob: { top: "rgba(20,170,90,0.40)", mid: "rgba(90,255,160,0.58)", stroke: "#5dffb0", b0: "#c8ffdc", b1: "#0e7a40", t0: "#e8fff0", t1: "#0a4a24" },
-    obBear: { top: "rgba(210,40,50,0.40)", mid: "rgba(255,110,110,0.58)", stroke: "#ff6a6a", b0: "#ffd0d0", b1: "#a01818", t0: "#ffe8e8", t1: "#6a0808" },
-    liq: { top: "rgba(170,220,40,0.38)", mid: "rgba(230,255,120,0.58)", stroke: "#c8f030", b0: "#f0ffb0", b1: "#6a8a10", t0: "#f6ffd0", t1: "#3a5208" },
+    fvg: { top: "rgba(255,186,40,0.18)", mid: "rgba(255,230,120,0.32)", stroke: "#ffd24a", b0: "#fff3b0", b1: "#c48410", t0: "#fff6c8", t1: "#7a4a00" },
+    ob: { top: "rgba(20,170,90,0.20)", mid: "rgba(90,255,160,0.32)", stroke: "#5dffb0", b0: "#c8ffdc", b1: "#0e7a40", t0: "#e8fff0", t1: "#0a4a24" },
+    obBear: { top: "rgba(210,40,50,0.20)", mid: "rgba(255,110,110,0.32)", stroke: "#ff6a6a", b0: "#ffd0d0", b1: "#a01818", t0: "#ffe8e8", t1: "#6a0808" },
+    liq: { top: "rgba(170,220,40,0.18)", mid: "rgba(230,255,120,0.30)", stroke: "#c8f030", b0: "#f0ffb0", b1: "#6a8a10", t0: "#f6ffd0", t1: "#3a5208" },
     sweep: { top: "rgba(255,160,20,0.40)", mid: "rgba(255,210,80,0.58)", stroke: "#ffb020", b0: "#ffe090", b1: "#b06000", t0: "#fff0c0", t1: "#6a3800" },
     choch: { top: "rgba(120,90,255,0.32)", mid: "rgba(190,170,255,0.50)", stroke: "#b8a0ff", b0: "#ece0ff", b1: "#4a30b0", t0: "#f6f0ff", t1: "#2a1878" },
     vec: { top: "rgba(20,190,200,0.32)", mid: "rgba(100,240,250,0.50)", stroke: "#40e8f0", b0: "#c8ffff", b1: "#087878", t0: "#e8ffff", t1: "#045050" },
@@ -321,6 +320,7 @@ function drawZones(
       if (fuel.target != null) mark(lastTime, fuel.target, "Цель отката", "entry");
     }
   }
+  if (candles.length) drawVolumeCandles(ctx, width, height, chart, series, candles);
 
   if (snap?.cdTape?.live) {
     const book = snap.cdTape.book;
@@ -711,10 +711,10 @@ function drawZones(
   const nowMs = Date.now();
   const pretty = pair.replace(/[^A-Za-z]/g, "").toUpperCase();
   const title = pretty.length === 6 ? `${pretty.slice(0, 3)} / ${pretty.slice(3)}` : pretty || "SLOI";
-  ctx.font = "700 30px Cormorant Garamond, Times New Roman, serif";
+  ctx.font = "700 32px Cormorant Garamond, Times New Roman, serif";
   const tw = ctx.measureText(title).width;
   const tx = Math.max(8, (plotW - tw) / 2);
-  const ty = 34;
+  const ty = 30;
   const slide = ((nowMs / 22) % Math.max(tw, 80)) / Math.max(tw, 80);
   const g = ctx.createLinearGradient(tx, ty - 24, tx + tw, ty);
   g.addColorStop(0, "#8a6a28");
@@ -739,21 +739,22 @@ function drawZones(
   else if (order?.action === "short") tape = `Приказ: продажа. Ход вниз. ${order.because} ${order.therefore}`;
   else if (order?.action === "skip") tape = `Пропуск. ${order.because} ${order.therefore} ${vecBit}.`;
   tape = `${tape}    ·    ${tape}    ·    `;
-  const by = height - 8;
-  ctx.fillStyle = "rgba(8,8,12,0.72)";
-  ctx.fillRect(6, height - 30, plotW - 14, 24);
+  const tapeBoxW = plotW * 0.64;
+  const tapeX = (plotW - tapeBoxW) / 2;
+  ctx.fillStyle = "rgba(8,8,12,0.62)";
+  ctx.fillRect(tapeX, 40, tapeBoxW, 28);
   ctx.strokeStyle = "rgba(212,184,112,0.28)";
-  ctx.strokeRect(6, height - 30, plotW - 14, 24);
+  ctx.strokeRect(tapeX, 40, tapeBoxW, 28);
   ctx.save();
   ctx.beginPath();
-  ctx.rect(8, height - 30, plotW - 18, 24);
+  ctx.rect(tapeX + 2, 40, tapeBoxW - 4, 28);
   ctx.clip();
-  ctx.font = "600 13px IBM Plex Sans, sans-serif";
+  ctx.font = "700 16px IBM Plex Sans, sans-serif";
   const tapeW = ctx.measureText(tape).width;
   const mx = -((nowMs / 28) % tapeW);
-  ctx.fillStyle = "#f0e6d4";
-  ctx.fillText(tape, 12 + mx, by - 6);
-  ctx.fillText(tape, 12 + mx + tapeW, by - 6);
+  ctx.fillStyle = "#fff6e0";
+  ctx.fillText(tape, tapeX + 8 + mx, 60);
+  ctx.fillText(tape, tapeX + 8 + mx + tapeW, 60);
   ctx.restore();
 }
 
