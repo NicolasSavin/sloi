@@ -345,6 +345,7 @@ export function LevelsTable({ snap, decimals }: { snap: SmcSnapshot | null; deci
     { name: "Маржа низ", price: snap.margin.lower.top },
     { name: "Range low", price: snap.dealingRange.low },
     { name: "POC", price: snap.volumeProfile.poc },
+    { name: "dPOC", price: snap.volumeProfile.dpoc },
     { name: "VAH", price: snap.volumeProfile.vah },
     { name: "VAL", price: snap.volumeProfile.val },
     ...snap.orderBlocks.slice(0, 4).map((z) => ({ name: `OB ${z.side}`, price: (z.top + z.bottom) / 2 })),

@@ -148,6 +148,7 @@ export interface SmcSnapshot {
   margin: MarginMap;
   volumeProfile: {
     poc: number;
+    dpoc: number;
     vah: number;
     val: number;
     bins: { price: number; volume: number }[];
@@ -1157,8 +1158,10 @@ export function analyzeMarket(
     book: tapeBook ? [...tapeBook.bids, ...tapeBook.asks].slice(0, 12) : [],
     bars: opts?.symbol ? liveCdBars(opts.symbol) : [],
   };
+  const developed = volumeProfile(candles.slice(-16), 18);
   const vp = {
     poc: tapeProf?.poc ?? clusters.poc,
+    dpoc: developed.poc,
     vah: tapeProf?.vah ?? clusters.vah,
     val: tapeProf?.val ?? clusters.val,
     bins: clusters.bins.map((b) => ({ price: b.price, volume: b.volume })),
@@ -1550,6 +1553,7 @@ export function compactForAi(symbol: string, timeframe: string, snap: SmcSnapsho
     margin: snap.margin,
     volumeProfile: {
       poc: snap.volumeProfile.poc,
+      dpoc: snap.volumeProfile.dpoc,
       vah: snap.volumeProfile.vah,
       val: snap.volumeProfile.val,
     },

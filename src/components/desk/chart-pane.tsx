@@ -579,6 +579,64 @@ function drawZones(
       ctx.fillText(sub, box.x + 12, box.y + 34);
     }
   }
+
+  if (overlays.profile !== false && snap?.volumeProfile?.bins?.length) {
+    const bins = snap.volumeProfile.bins;
+    const maxV = Math.max(...bins.map((b) => b.volume), 1);
+    const histW = 72;
+    const x0 = plotW - histW - 4;
+    occupy(x0, 8, histW, height - 16);
+    ctx.fillStyle = "rgba(8,10,14,0.35)";
+    ctx.fillRect(x0 - 4, 8, histW + 8, height - 16);
+    for (const b of bins) {
+      const y = series.priceToCoordinate(b.price);
+      if (y == null) continue;
+      const w = 6 + (b.volume / maxV) * (histW - 10);
+      const pocish = Math.abs(b.price - snap.volumeProfile.poc) < snap.atr * 0.08;
+      const dpocish = Math.abs(b.price - snap.volumeProfile.dpoc) < snap.atr * 0.08;
+      ctx.fillStyle = dpocish ? "rgba(80,224,144,0.85)" : pocish ? "rgba(212,176,112,0.75)" : "rgba(180,170,150,0.38)";
+      ctx.fillRect(x0 + histW - w, y - 4, w, 8);
+    }
+    const yPoc = series.priceToCoordinate(snap.volumeProfile.poc);
+    const yD = series.priceToCoordinate(snap.volumeProfile.dpoc);
+    if (yPoc != null) {
+      ctx.strokeStyle = "rgba(212,176,112,0.85)";
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      ctx.moveTo(x0 - 8, yPoc);
+      ctx.lineTo(plotW, yPoc);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    if (yD != null) {
+      ctx.strokeStyle = "rgba(80,224,144,0.95)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x0 - 16, yD);
+      ctx.lineTo(plotW, yD);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(x0 - 16, yD, 6, 0, Math.PI * 2);
+      ctx.fillStyle = "#50e090";
+      ctx.fill();
+      const lab = { x: x0 - 118, y: yD - 16, w: 96, h: 28 };
+      if (!hits(lab)) {
+        occupy(lab.x, lab.y, lab.w, lab.h);
+        ctx.fillStyle = "rgba(10,28,18,0.92)";
+        ctx.strokeStyle = "#50e090";
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(lab.x, lab.y, lab.w, lab.h, 8);
+        else ctx.rect(lab.x, lab.y, lab.w, lab.h);
+        ctx.fill();
+        ctx.stroke();
+        ctx.font = "bold 13px IBM Plex Sans, sans-serif";
+        ctx.fillStyle = "#50e090";
+        ctx.fillText("dPOC", lab.x + 10, lab.y + 19);
+      }
+    }
+  }
 }
 
 function drawProfile(
@@ -1101,7 +1159,8 @@ export function ChartPane({
         }
       }
       if (overlays.profile) {
-        add(snap.volumeProfile.poc, snap.cdTape?.live ? "CD POC" : "POC", accent);
+        add(snap.volumeProfile.poc, "POC", accent);
+        add(snap.volumeProfile.dpoc, "dPOC", token("--color-bull", "#6f9e86"), false, true);
         add(snap.volumeProfile.vah, "VAH", muted, true);
         add(snap.volumeProfile.val, "VAL", muted, true);
         add(snap.micro.vwap, "VWAP", accent);
