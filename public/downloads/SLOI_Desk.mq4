@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.68"
+#property version   "4.69"
 #property strict
-#property description "SLOI 4.68: ClusterDelta #CumDelta с терминала, не прокси свечей."
+#property description "SLOI 4.69: ClusterDelta по всем мажорам, не только евро и золото."
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -138,7 +138,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.68: CumDelta с ClusterDelta_#CumDelta.");
+   Print("SLOI 4.69: CD CumDelta/Splash по всему WatchList.");
    return(INIT_SUCCEEDED);
   }
 
@@ -1035,7 +1035,7 @@ double Icd(string s, int tf, string ind, int buf, int sh)
 
 void AppendCdOne(string &body, string s, int &sent)
   {
-   if(sent >= 28) return;
+   if(sent >= 80) return;
    int tf = PERIOD_H1;
    double vol[12];
    double del[12];
@@ -1057,7 +1057,7 @@ void AppendCdOne(string &body, string s, int &sent)
      }
    if(ok < 4) return;
    double avg = sum / ok;
-   for(int j = 0; j < 8 && sent < 28; j++)
+   for(int j = 0; j < 8 && sent < 80; j++)
      {
       double v = vol[j];
       double d = del[j];
@@ -1108,11 +1108,11 @@ void AppendCdClusters(string &body, int sent)
   {
    for(int i = 0; i < g_n; i++)
      {
+      AppendCdCum(body, g_sym[i]);
       AppendCdOne(body, g_sym[i], sent);
       AppendCdProfile(body, g_sym[i]);
       AppendCdBook(body, g_sym[i]);
       AppendCdAskBid(body, g_sym[i]);
-      AppendCdCum(body, g_sym[i]);
      }
   }
 
@@ -1256,7 +1256,23 @@ void AppendCdAskBid(string &body, string s)
         }
       ch = ChartNext(ch);
      }
-   if(Naked(s) == Naked(Symbol())) ScrapeChartCd(0, s, body);
+   if(Naked(s) == Naked(Symbol()))
+     {
+      ScrapeChartCd(0, s, body);
+      return;
+     }
+   double vol = Icd(s, PERIOD_H1, CdVolume, 0, 0);
+   double dlt = Icd(s, PERIOD_H1, CdDelta, 0, 0);
+   double askV = Icd(s, PERIOD_H1, CdAskBid, 0, 0);
+   double bidV = Icd(s, PERIOD_H1, CdAskBid, 1, 0);
+   if(vol == EMPTY_VALUE || vol < 0 || vol > 1.0e12) vol = 0;
+   if(dlt == EMPTY_VALUE || MathAbs(dlt) > 1.0e12) dlt = 0;
+   if(askV == EMPTY_VALUE || askV < 0 || askV > 1.0e12) askV = 0;
+   if(bidV == EMPTY_VALUE || bidV < 0 || bidV > 1.0e12) bidV = 0;
+   if(askV > 0 || bidV > 0)
+      body += "ASKBID " + Naked(s) + " " + DoubleToStr(askV, 0) + " " + DoubleToStr(bidV, 0) + "\n";
+   if(vol >= 1) body += "VOLUME " + Naked(s) + " " + DoubleToStr(vol, 0) + "\n";
+   if(dlt != 0) body += "DELTA " + Naked(s) + " " + DoubleToStr(dlt, 0) + "\n";
   }
 
 void PostTape(string url, string body)
