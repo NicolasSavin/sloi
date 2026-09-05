@@ -115,6 +115,151 @@ function pulseRings(ctx: CanvasRenderingContext2D, x: number, y: number, color: 
   ctx.stroke();
 }
 
+function drawCreature(
+  ctx: CanvasRenderingContext2D,
+  kind: "bull" | "bear",
+  lively: boolean,
+  now: number,
+) {
+  const t = now / 1000;
+  const bounce = Math.sin(t * (lively ? 5.2 : 2.4)) * (lively ? 6 : 2.5);
+  const wave = lively ? 0.15 + Math.sin(t * 7.5) * 0.85 : Math.sin(t * 1.6) * 0.18;
+  const blink = Math.sin(t * 2.1) > 0.92;
+  const smile = lively ? 0.9 : 0.45;
+  ctx.save();
+  ctx.translate(0, bounce);
+  ctx.scale(lively ? 1.05 : 0.95, lively ? 1.05 : 0.95);
+
+  if (kind === "bull") {
+    ctx.fillStyle = "#6a4814";
+    ctx.beginPath();
+    ctx.ellipse(-14, 18, 7, 12, -0.2, 0, Math.PI * 2);
+    ctx.ellipse(10, 18, 7, 12, 0.15, 0, Math.PI * 2);
+    ctx.fill();
+    const body = ctx.createRadialGradient(-6, -4, 4, 0, 6, 28);
+    body.addColorStop(0, "#f0d48a");
+    body.addColorStop(1, "#a06a18");
+    ctx.fillStyle = body;
+    ctx.beginPath();
+    ctx.ellipse(0, 6, 22, 18, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#c48a28";
+    ctx.beginPath();
+    ctx.ellipse(0, -14, 16, 14, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#f6e0a8";
+    ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    ctx.moveTo(-12, -22);
+    ctx.quadraticCurveTo(-22, -36, -8, -24);
+    ctx.moveTo(12, -22);
+    ctx.quadraticCurveTo(22, -36, 8, -24);
+    ctx.stroke();
+    ctx.save();
+    ctx.translate(18, -2);
+    ctx.rotate(-0.4 + wave);
+    ctx.fillStyle = "#d4a040";
+    ctx.beginPath();
+    ctx.ellipse(10, 0, 11, 6, 0.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#5a3810";
+    ctx.beginPath();
+    ctx.ellipse(20, 0, 5, 6, 0.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = "#1a1208";
+    if (blink) {
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(-7, -16);
+      ctx.lineTo(-3, -16);
+      ctx.moveTo(3, -16);
+      ctx.lineTo(7, -16);
+      ctx.strokeStyle = "#1a1208";
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.arc(-5, -16, 2.2, 0, Math.PI * 2);
+      ctx.arc(5, -16, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.strokeStyle = "#3a2208";
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.arc(0, -10, 6, 0.15, Math.PI - 0.15);
+    ctx.stroke();
+    ctx.strokeStyle = "#8a6020";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(-20, 4);
+    ctx.quadraticCurveTo(-32, 4 + Math.sin(t * 8) * 8, -26, 14);
+    ctx.stroke();
+  } else {
+    ctx.fillStyle = "#3a2414";
+    ctx.beginPath();
+    ctx.ellipse(-12, 18, 8, 11, -0.15, 0, Math.PI * 2);
+    ctx.ellipse(12, 18, 8, 11, 0.15, 0, Math.PI * 2);
+    ctx.fill();
+    const fur = ctx.createRadialGradient(-4, -2, 6, 2, 8, 30);
+    fur.addColorStop(0, "#c48448");
+    fur.addColorStop(1, "#5a3010");
+    ctx.fillStyle = fur;
+    ctx.beginPath();
+    ctx.ellipse(0, 6, 24, 20, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(0, -12, 16, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(-13, -24, 7, 0, Math.PI * 2);
+    ctx.arc(13, -24, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#e8c090";
+    ctx.beginPath();
+    ctx.ellipse(0, -8, 8, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#2a1810";
+    ctx.beginPath();
+    ctx.arc(0, -8, 2.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.save();
+    ctx.translate(16, 0);
+    ctx.rotate(-0.3 + wave);
+    ctx.fillStyle = "#8a4a20";
+    ctx.beginPath();
+    ctx.ellipse(12, 2, 12, 7, 0.15, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#f0c8a0";
+    ctx.beginPath();
+    ctx.arc(22, 2, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = "#1a1208";
+    if (blink) {
+      ctx.strokeStyle = "#1a1208";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(-8, -16);
+      ctx.lineTo(-3, -16);
+      ctx.moveTo(3, -16);
+      ctx.lineTo(8, -16);
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.arc(-6, -16, 2.4, 0, Math.PI * 2);
+      ctx.arc(6, -16, 2.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.strokeStyle = "#2a1408";
+    ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    if (smile > 0.6) ctx.arc(0, -6, 7, 0.25, Math.PI - 0.25);
+    else ctx.arc(0, -5, 5, 0.4, Math.PI - 0.4);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function drawZones(
   ctx: CanvasRenderingContext2D,
   width: number,
@@ -809,53 +954,25 @@ function drawZones(
   ctx.fillText(tape, tapeX + 10 + mx + tapeW, ty2);
   ctx.restore();
 
-  const bullFace = ["📈", "🚀", "💎", "🤑", "🐂", "💰", "😎", "🏆", "✨", "🟢", "🥂", "👑"];
-  const bearFace = ["📉", "🐻", "🧊", "💥", "🔻", "😅", "🌧️", "⛈️", "🥶", "💣"];
-  const waitFace = ["🎯", "🤔", "👀", "⏳", "🎲", "🧿", "🫡", "🧘", "🔍", "🪙", "🪄", "📺"];
-  const faces =
-    (vec && vec.dir === "up") || snap?.bias === "bullish"
-      ? bullFace
-      : (vec && vec.dir === "down") || snap?.bias === "bearish"
-        ? bearFace
-        : waitFace;
-  let seed = faceI * 7 + 3;
-  for (let i = 0; i < pair.length; i++) seed += pair.charCodeAt(i);
-  const emoji = faces[Math.abs(seed) % faces.length]!;
-  const bounce = Math.sin(nowMs / 180) * 12;
-  const slot = { x: 22, y: Math.max(96, height - 128) };
-  occupy(slot.x, slot.y - 10, 88, 88);
+  const action = order?.action;
+  const kind: "bull" | "bear" =
+    action === "short" || vec?.dir === "down" || snap?.bias === "bearish" ? "bear" : "bull";
+  const lively = action === "long" || action === "short";
+  const slot = { x: 28, y: Math.max(96, height - 132) };
+  occupy(slot.x, slot.y - 12, 96, 96);
   ctx.save();
-  ctx.translate(slot.x + 40, slot.y + 40 + bounce);
-  ctx.rotate(Math.sin(nowMs / 380) * 0.18);
-  const sc = 1 + 0.1 * Math.sin(nowMs / 140);
-  ctx.scale(sc, sc);
-  const beat = 0.5 + 0.5 * Math.sin(nowMs / 160);
+  ctx.translate(slot.x + 44, slot.y + 48);
+  const beat = 0.5 + 0.5 * Math.sin(nowMs / 180);
   for (let r = 1; r <= 3; r++) {
     ctx.beginPath();
-    ctx.arc(0, 0, 28 + r * 10 * beat, 0, Math.PI * 2);
-    ctx.strokeStyle = "rgba(240,200,120,0.35)";
+    ctx.arc(0, 8, 34 + r * 9 * beat, 0, Math.PI * 2);
+    ctx.strokeStyle = kind === "bull" ? "rgba(232,190,80,0.35)" : "rgba(200,90,70,0.32)";
     ctx.globalAlpha = (1 - r / 4) * beat;
     ctx.lineWidth = 2;
     ctx.stroke();
   }
   ctx.globalAlpha = 1;
-  ctx.beginPath();
-  ctx.arc(0, 0, 30, 0, Math.PI * 2);
-  const orb = ctx.createRadialGradient(-8, -10, 4, 0, 0, 30);
-  orb.addColorStop(0, "#fff6dc");
-  orb.addColorStop(0.45, "#e8c070");
-  orb.addColorStop(1, "#6a4810");
-  ctx.fillStyle = orb;
-  ctx.fill();
-  ctx.strokeStyle = "#fff3c0";
-  ctx.lineWidth = 2;
-  ctx.stroke();
-  ctx.font = "52px Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.shadowColor = "rgba(255,230,160,0.8)";
-  ctx.shadowBlur = 16;
-  ctx.fillText(emoji, 0, 3);
+  drawCreature(ctx, kind, lively, nowMs);
   ctx.restore();
 }
 
