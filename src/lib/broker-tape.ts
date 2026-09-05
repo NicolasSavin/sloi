@@ -7,6 +7,17 @@ export interface BrokerTick {
   at: number;
 }
 
+export interface CdBar {
+  time: number;
+  volume: number;
+  delta: number;
+  ask: number;
+  bid: number;
+  splash: boolean;
+  infusion: boolean;
+  imbalance: boolean;
+}
+
 export interface BookLevel {
   side: "bid" | "ask";
   price: number;
@@ -55,6 +66,7 @@ type Room = {
   profiles: Map<string, { at: number; poc: number; vah: number; val: number }>;
   askbid: Map<string, { at: number; ask: number; bid: number }>;
   flow: Map<string, { at: number; volume: number; delta: number }>;
+  cdBars: Map<string, CdBar[]>;
 };
 
 const g = globalThis as typeof globalThis & { __sloiRooms__?: Map<string, Room> };
@@ -66,13 +78,14 @@ function room(tenant = "legacy"): Room {
   const map = rooms();
   let r = map.get(tenant);
   if (!r) {
-    r = { ticks: new Map(), books: new Map(), account: null, clusters: new Map(), profiles: new Map(), askbid: new Map(), flow: new Map() };
+    r = { ticks: new Map(), books: new Map(), account: null, clusters: new Map(), profiles: new Map(), askbid: new Map(), flow: new Map(), cdBars: new Map() };
     map.set(tenant, r);
   }
   if (!r.profiles) r.profiles = new Map();
   if (!r.clusters) r.clusters = new Map();
   if (!r.askbid) r.askbid = new Map();
   if (!r.flow) r.flow = new Map();
+  if (!r.cdBars) r.cdBars = new Map();
   return r;
 }
 
@@ -196,7 +209,25 @@ export function ingestBrokerTape(text: string, tenant = "legacy") {
       }
       continue;
     }
-    if (p[0] === "CUMDELTA" && p.length >= 3) {
+    if (p[0] === "CDBAR" && p.length >= 6) {
+      const id = (p[1] ?? "").replace(/[^A-Za-z]/g, "").toUpperCase();
+      const time = Number(p[2]);
+      const volume = Number(p[3]);
+      const delta = Number(p[4]);
+      const ask = Number(p[5]);
+      const bid = Number(p[6]);
+      const splash = p[7] === "1";
+      const infusion = p[8] === "1";
+      const imbalance = p[9] === "1";
+      if (id && time > 0) {
+        const bar: CdBar = { time, volume, delta, ask, bid, splash, infusion, imbalance };
+        const list = r.cdBars.get(id) ?? [];
+        const i = list.findIndex((b) => b.time === time);
+        if (i >= 0) list[i] = bar;
+        else list.push(bar);
+        list.sort((a, b) => a.time - b.time);
+        r.cdBars.set(id, list.slice(-48));
+      }
       continue;
     }
     if (p.length < 3) continue;
@@ -289,25 +320,37 @@ export function snapshotBroker(tenant = "legacy") {
   for (const [id, v] of r.flow) if (now - v.at < 90_000) flow[id] = { volume: v.volume, delta: v.delta };
   const clusters: Record<string, VolumeNode[]> = {};
   for (const [id, v] of r.clusters) if (now - v.at < 90_000) clusters[id] = v.nodes;
+  const bars: Record<string, CdBar[]> = {};
+  for (const [id, v] of r.cdBars) bars[id] = v;
   return {
     ticks: [...r.ticks.values()].filter((t) => now - t.at < 90_000),
     books: [...r.books.values()].filter((b) => now - b.at < 90_000),
     account: tenant === "legacy" ? null : brokerAccount(tenant),
     tenant: tenant === "legacy" ? null : tenant,
-    cd: { askbid, flow, clusters },
+    cd: { askbid, flow, clusters, bars },
   };
 }
 
-export function hydrateClientCd(cd: { askbid?: Record<string, { ask: number; bid: number }>; flow?: Record<string, { volume: number; delta: number }>; clusters?: Record<string, VolumeNode[]> } | null | undefined) {
+export function hydrateClientCd(cd: { askbid?: Record<string, { ask: number; bid: number }>; flow?: Record<string, { volume: number; delta: number }>; clusters?: Record<string, VolumeNode[]>; bars?: Record<string, CdBar[]> } | null | undefined) {
   if (!cd) return;
   const r = room("client");
   const at = Date.now();
   r.askbid = new Map();
   r.flow = new Map();
   r.clusters = new Map();
+  r.cdBars = new Map();
   for (const [id, v] of Object.entries(cd.askbid ?? {})) r.askbid.set(id, { at, ask: v.ask, bid: v.bid });
   for (const [id, v] of Object.entries(cd.flow ?? {})) r.flow.set(id, { at, volume: v.volume, delta: v.delta });
   for (const [id, v] of Object.entries(cd.clusters ?? {})) r.clusters.set(id, { at, nodes: v });
+  for (const [id, v] of Object.entries(cd.bars ?? {})) r.cdBars.set(id, v);
+}
+
+export function liveCdBars(id: string): CdBar[] {
+  const map = new Map<number, CdBar>();
+  for (const r of rooms().values()) {
+    for (const b of r.cdBars.get(id) ?? []) map.set(b.time, b);
+  }
+  return [...map.values()].sort((a, b) => a.time - b.time);
 }
 
 export function hydrateAccount(tenant: string, account: BrokerAccount | null) {
@@ -337,6 +380,11 @@ export function exportBrokerTape(tenant = "legacy"): string {
   for (const b of r.books.values()) {
     const bits = b.asks.map((l) => `S ${l.price} ${l.volume}`).concat(b.bids.map((l) => `B ${l.price} ${l.volume}`));
     lines.push(`BOOK ${b.id} ${bits.join(" ")}`);
+  }
+  for (const [id, list] of r.cdBars) {
+    for (const b of list) {
+      lines.push(`CDBAR ${id} ${b.time} ${b.volume} ${b.delta} ${b.ask} ${b.bid} ${b.splash ? 1 : 0} ${b.infusion ? 1 : 0} ${b.imbalance ? 1 : 0}`);
+    }
   }
   return `${lines.join("\n")}\n`;
 }

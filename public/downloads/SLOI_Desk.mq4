@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.65"
+#property version   "4.66"
 #property strict
-#property description "SLOI 4.65: AskBid, дельта, splash только если есть объект."
+#property description "SLOI 4.66: CD по каждому часу, не только последняя свеча."
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -137,7 +137,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.65: не всё подряд сплэш.");
+   Print("SLOI 4.66: CD бар с временем свечи.");
    return(INIT_SUCCEEDED);
   }
 
@@ -1218,6 +1218,15 @@ void ScrapeChartCd(long ch, string s, string &body)
    if(inf) body += "CLUSTER " + Naked(s) + " INFUSION " + DoubleToStr(px, DigitsOf(s)) + " " + (dlt < 0 ? "SELL" : "BUY") + "\n";
    if(imb) body += "CLUSTER " + Naked(s) + " IMBALANCE " + DoubleToStr(px, DigitsOf(s)) + " " + (dlt < 0 ? "SELL" : "BUY") + "\n";
    if(cum && dlt != 0) body += "CUMDELTA " + Naked(s) + " " + DoubleToStr(dlt, 0) + "\n";
+   datetime bt = iTime(ChartSymbol(ch), PERIOD_H1, 0);
+   if(bt <= 0) bt = TimeCurrent();
+   int sp = (vol > 200 && MathAbs(dlt) > vol * 0.12) ? 1 : 0;
+   int infg = (vol > 200 && MathAbs(dlt) <= vol * 0.08) ? 1 : 0;
+   int im = (askV > 1 && bidV > 1 && (askV > bidV * 1.45 || bidV > askV * 1.45)) ? 1 : 0;
+   body += "CDBAR " + Naked(s) + " " + IntegerToString(bt) + " "
+        + DoubleToStr(vol, 0) + " " + DoubleToStr(dlt, 0) + " "
+        + DoubleToStr(askV, 0) + " " + DoubleToStr(bidV, 0) + " "
+        + IntegerToString(sp) + " " + IntegerToString(infg) + " " + IntegerToString(im) + "\n";
   }
 
 void AppendCdAskBid(string &body, string s)

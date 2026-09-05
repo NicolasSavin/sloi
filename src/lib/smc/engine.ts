@@ -7,7 +7,7 @@ import { buildAuction, type AuctionSnap } from "@/lib/smc/auction";
 import { buildCoilBreak, type CoilBreak } from "@/lib/smc/coil";
 import { buildCorr, type CorrSnap } from "@/lib/corr";
 import { buildIvNews, type IvNewsSnap } from "@/lib/iv-news";
-import { brokerBook, liveAskBid, liveCdFlow, liveClusters, liveProfile } from "@/lib/broker-tape";
+import { brokerBook, liveAskBid, liveCdBars, liveCdFlow, liveClusters, liveProfile } from "@/lib/broker-tape";
 import type { NewsHalt } from "@/lib/calendar";
 
 export type Bias = "bullish" | "bearish" | "range";
@@ -169,6 +169,7 @@ export interface SmcSnapshot {
     splash: boolean;
     infusion: boolean;
     book: { side: "bid" | "ask"; price: number; volume: number }[];
+    bars: { time: number; volume: number; delta: number; ask: number; bid: number; splash: boolean; infusion: boolean; imbalance: boolean }[];
   };
   auction: AuctionSnap;
   coil: CoilBreak;
@@ -1146,7 +1147,7 @@ export function analyzeMarket(
   const tapeFlow = opts?.symbol ? liveCdFlow(opts.symbol) : null;
   const tapeNodes = opts?.symbol ? liveClusters(opts.symbol) : [];
   const cdTape = {
-    live: Boolean(tapeNodes.length || tapeProf || tapeAb || tapeBook || tapeFlow),
+    live: Boolean(tapeNodes.length || tapeProf || tapeAb || tapeBook || tapeFlow || (opts?.symbol ? liveCdBars(opts.symbol).length : 0)),
     ask: tapeAb?.ask ?? null,
     bid: tapeAb?.bid ?? null,
     volume: tapeFlow?.volume ?? null,
@@ -1154,6 +1155,7 @@ export function analyzeMarket(
     splash: tapeNodes.some((n) => n.kind === "splash"),
     infusion: tapeNodes.some((n) => n.kind === "infusion"),
     book: tapeBook ? [...tapeBook.bids, ...tapeBook.asks].slice(0, 12) : [],
+    bars: opts?.symbol ? liveCdBars(opts.symbol) : [],
   };
   const vp = {
     poc: tapeProf?.poc ?? clusters.poc,

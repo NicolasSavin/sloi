@@ -37,8 +37,16 @@ export const Route = createFileRoute("/api/broker")({
         const text = await request.text();
         const desk = await resolveDesk(keyOf(request));
         const tenant = desk?.id ?? LEGACY_TENANT;
+        if (desk && desk.id !== LEGACY_TENANT) {
+          const stored = await loadTape(desk.id);
+          if (stored?.body) ingestBrokerTape(stored.body, tenant);
+        }
         const account = ingestBrokerTape(text, tenant);
-        const rec = await saveTape(tenant, text, account);
+        const merged = `${text.trim()}\n${exportBrokerTape(tenant)
+          .split("\n")
+          .filter((l) => l.startsWith("CDBAR "))
+          .join("\n")}\n`;
+        const rec = await saveTape(tenant, merged, account);
         return new Response(`ok saved=${rec.saved ? 1 : 0} db=${rec.db}${rec.err ? ` err=${rec.err}` : ""}\n`, {
           headers: {
             "Content-Type": "text/plain; charset=utf-8",

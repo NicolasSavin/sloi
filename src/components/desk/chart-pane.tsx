@@ -103,6 +103,7 @@ function drawZones(
   order?: Advice | null,
   lastTime = 0,
   wipe = true,
+  candles: Candle[] = [],
 ) {
   if (width < 16 || height < 16) return;
   if (wipe) ctx.clearRect(0, 0, width, height);
@@ -509,75 +510,73 @@ function drawZones(
 
   const cd = snap?.cdTape;
   if (cd?.live && snap) {
-    const ax = ts.timeToCoordinate(lastTime as UTCTimestamp);
-    const yClose = series.priceToCoordinate(snap.lastClose);
-    if (ax != null && yClose != null) {
-      const chipW = 196;
-      const chipH = 42;
-      const scaleLeft = plotW - 8;
-      const items: { title: string; sub: string; stroke: string; fill: string; y: number }[] = [
-        { title: "ОБЪЁМ", sub: cd.volume != null ? String(Math.round(cd.volume)) : "—", stroke: "#e8c070", fill: "#2a1e0c", y: yClose - 36 },
-        {
-          title: "ДЕЛЬТА",
-          sub: cd.delta != null ? `${cd.delta > 0 ? "+" : ""}${Math.round(cd.delta)}` : "—",
-          stroke: (cd.delta ?? 0) < 0 ? "#ff7070" : "#50e090",
-          fill: (cd.delta ?? 0) < 0 ? "#3a1010" : "#0e2818",
-          y: yClose,
-        },
-        { title: "ASK", sub: cd.ask != null ? String(Math.round(cd.ask)) : "—", stroke: "#5dffb0", fill: "#0e3a24", y: yClose + 28 },
-        { title: "BID", sub: cd.bid != null ? String(Math.round(cd.bid)) : "—", stroke: "#ff6a6a", fill: "#3a1010", y: yClose + 56 },
+    const scaleLeft = plotW - 8;
+    const chipW = 200;
+    const chipH = 42;
+    const bars = cd.bars?.length ? cd.bars : [{ time: lastTime, volume: cd.volume ?? 0, delta: cd.delta ?? 0, ask: cd.ask ?? 0, bid: cd.bid ?? 0, splash: cd.splash, infusion: cd.infusion, imbalance: false }];
+    const lastIx = bars.length - 1;
+    for (let i = 0; i < bars.length; i++) {
+      const bar = bars[i]!;
+      const candle = candles.find((c) => Math.abs(c.time - bar.time) < 3600) ?? (i === lastIx ? candles.at(-1) : undefined);
+      if (!candle) continue;
+      const ax = ts.timeToCoordinate(candle.time as UTCTimestamp);
+      const ay = series.priceToCoordinate(candle.close);
+      if (ax == null || ay == null) continue;
+      if (ax < 12 || ax > scaleLeft - 8) continue;
+      const notable = bar.splash || bar.infusion || bar.imbalance || i === lastIx;
+      const col = bar.splash ? "#ffb020" : bar.infusion ? "#c8f030" : bar.imbalance ? "#ff6a6a" : "#e8c070";
+      ctx.beginPath();
+      ctx.arc(ax, ay, notable ? 10 : 6, 0, Math.PI * 2);
+      ctx.fillStyle = col;
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "#1a1208";
+      ctx.stroke();
+      if (!notable) continue;
+      const title = bar.splash ? "СПЛЭШ" : bar.infusion ? "ВЛИВАНИЕ" : i === lastIx ? "CD" : "ASK/BID";
+      const sub = i === lastIx
+        ? `V ${Math.round(bar.volume)}  Δ ${Math.round(bar.delta)}  A ${Math.round(bar.ask)}  B ${Math.round(bar.bid)}`
+        : bar.splash
+          ? "вынос стопов, не цель"
+          : bar.infusion
+            ? "цель / остановка"
+            : `A ${Math.round(bar.ask)}  B ${Math.round(bar.bid)}`;
+      const candidates = [
+        { x: ax - chipW - 22, y: ay - chipH / 2 },
+        { x: ax - chipW - 22, y: ay - chipH - 14 },
+        { x: ax - chipW - 22, y: ay + 16 },
+        { x: ax - chipW * 2 - 36, y: ay - chipH / 2 },
+        { x: 10, y: ay - chipH / 2 },
       ];
-      if (cd.splash) items.push({ title: "СПЛЭШ", sub: "вынос стопов, не цель", stroke: "#ffb020", fill: "#4a2c00", y: yClose - 72 });
-      if (cd.infusion) items.push({ title: "ВЛИВАНИЕ", sub: "цель / остановка", stroke: "#c8f030", fill: "#2a3808", y: yClose + 84 });
-      for (const it of items) {
-        const py = Math.max(18, Math.min(height - 18, it.y));
-        ctx.beginPath();
-        ctx.arc(ax, py, 9, 0, Math.PI * 2);
-        ctx.fillStyle = it.stroke;
-        ctx.fill();
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = "#1a1208";
-        ctx.stroke();
-        const candidates = [
-          { x: ax - chipW - 28, y: py - chipH / 2 },
-          { x: ax - chipW - 28, y: py - chipH - 12 },
-          { x: ax - chipW - 28, y: py + 14 },
-          { x: ax - chipW * 2 - 40, y: py - chipH / 2 },
-          { x: ax + 22, y: py - chipH / 2 },
-          { x: 12, y: py - chipH / 2 },
-        ];
-        let box: { x: number; y: number } | null = null;
-        for (const c of candidates) {
-          const x = Math.max(8, Math.min(c.x, scaleLeft - chipW - 4));
-          const y = Math.max(8, Math.min(c.y, height - chipH - 8));
-          const b = { x, y, w: chipW, h: chipH };
-          if (hits(b)) continue;
-          box = { x, y };
-          break;
-        }
-        if (!box) continue;
-        occupy(box.x, box.y, chipW, chipH);
-        ctx.strokeStyle = it.stroke;
-        ctx.lineWidth = 1.6;
-        ctx.beginPath();
-        ctx.moveTo(ax - 9, py);
-        ctx.lineTo(box.x + chipW, box.y + chipH / 2);
-        ctx.stroke();
-        ctx.fillStyle = it.fill;
-        ctx.strokeStyle = it.stroke;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        if (ctx.roundRect) ctx.roundRect(box.x, box.y, chipW, chipH, 10);
-        else ctx.rect(box.x, box.y, chipW, chipH);
-        ctx.fill();
-        ctx.stroke();
-        ctx.font = "bold 13px IBM Plex Sans, sans-serif";
-        ctx.fillStyle = it.stroke;
-        ctx.fillText(it.title, box.x + 12, box.y + 16);
-        ctx.font = "bold 15px IBM Plex Mono, monospace";
-        ctx.fillStyle = "#fff6e0";
-        ctx.fillText(it.sub, box.x + 12, box.y + 34);
+      let box: { x: number; y: number } | null = null;
+      for (const c of candidates) {
+        const x = Math.max(8, Math.min(c.x, scaleLeft - chipW - 6));
+        const y = Math.max(8, Math.min(c.y, height - chipH - 8));
+        const b = { x, y, w: chipW, h: chipH };
+        if (hits(b)) continue;
+        box = { x, y };
+        break;
       }
+      if (!box) continue;
+      occupy(box.x, box.y, chipW, chipH);
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(ax - 10, ay);
+      ctx.lineTo(box.x + chipW, box.y + chipH / 2);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(12,10,8,0.92)";
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(box.x, box.y, chipW, chipH, 10);
+      else ctx.rect(box.x, box.y, chipW, chipH);
+      ctx.fill();
+      ctx.stroke();
+      ctx.font = "bold 13px IBM Plex Sans, sans-serif";
+      ctx.fillStyle = col;
+      ctx.fillText(title, box.x + 12, box.y + 16);
+      ctx.font = "bold 12px IBM Plex Mono, monospace";
+      ctx.fillStyle = "#fff6e0";
+      ctx.fillText(sub, box.x + 12, box.y + 34);
     }
   }
 }
@@ -819,6 +818,7 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
                 p.order,
                 p.candles.at(-1)?.time ?? 0,
                 false,
+                p.candles,
               );
               drawTape(
                 scope.context,
