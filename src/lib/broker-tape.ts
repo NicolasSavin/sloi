@@ -176,6 +176,9 @@ export function ingestBrokerTape(text: string, tenant = "legacy") {
       if (id && ask >= 0 && bid >= 0) r.askbid.set(id, { at, ask, bid });
       continue;
     }
+    if ((p[0] === "VOLUME" || p[0] === "DELTA" || p[0] === "CUMDELTA") && p.length >= 3) {
+      continue;
+    }
     if (p.length < 3) continue;
     const id = p[0]!.replace(/[^A-Za-z]/g, "").toUpperCase();
     const bid = Number(p[1]);

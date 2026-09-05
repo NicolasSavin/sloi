@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.64"
+#property version   "4.65"
 #property strict
-#property description "SLOI 4.64: CD с окон золота и евро, сов один."
+#property description "SLOI 4.65: AskBid, дельта, splash только если есть объект."
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -137,7 +137,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.64: CD читает оба окна H1, сов один.");
+   Print("SLOI 4.65: не всё подряд сплэш.");
    return(INIT_SUCCEEDED);
   }
 
@@ -1198,14 +1198,26 @@ void ScrapeChartCd(long ch, string s, string &body)
    if(bidV <= 0 && dlt != 0) bidV = MathAbs(dlt);
    if(askV > 0 || bidV > 0)
       body += "ASKBID " + Naked(s) + " " + DoubleToStr(askV, 0) + " " + DoubleToStr(bidV, 0) + "\n";
-   if(vol >= 100)
+   if(vol >= 1) body += "VOLUME " + Naked(s) + " " + DoubleToStr(vol, 0) + "\n";
+   if(dlt != 0) body += "DELTA " + Naked(s) + " " + DoubleToStr(dlt, 0) + "\n";
+   bool inf = false, spl = false, imb = false, cum = false;
+   int total2 = (int)ObjectsTotal(ch, -1, -1);
+   for(int o2 = total2 - 1; o2 >= 0; o2--)
      {
-      string kind = (dlt < 0 ? "SPLASH" : "INFUSION");
-      string sd = (dlt < 0 ? "SELL" : "BUY");
-      double px = MarketInfo(s, MODE_BID);
-      if(px <= 0) px = Bid;
-      body += "CLUSTER " + Naked(s) + " " + kind + " " + DoubleToStr(px, DigitsOf(s)) + " " + sd + "\n";
+      string nm = ObjectName(ch, o2, -1, -1);
+      string low = nm;
+      StringToLower(low);
+      if(StringFind(low, "infusion") >= 0) inf = true;
+      if(StringFind(low, "splash") >= 0) spl = true;
+      if(StringFind(low, "imbalance") >= 0) imb = true;
+      if(StringFind(low, "cumdelta") >= 0 || StringFind(low, "cum_delta") >= 0) cum = true;
      }
+   double px = MarketInfo(s, MODE_BID);
+   if(px <= 0) px = Bid;
+   if(spl) body += "CLUSTER " + Naked(s) + " SPLASH " + DoubleToStr(px, DigitsOf(s)) + " " + (dlt < 0 ? "SELL" : "BUY") + "\n";
+   if(inf) body += "CLUSTER " + Naked(s) + " INFUSION " + DoubleToStr(px, DigitsOf(s)) + " " + (dlt < 0 ? "SELL" : "BUY") + "\n";
+   if(imb) body += "CLUSTER " + Naked(s) + " IMBALANCE " + DoubleToStr(px, DigitsOf(s)) + " " + (dlt < 0 ? "SELL" : "BUY") + "\n";
+   if(cum && dlt != 0) body += "CUMDELTA " + Naked(s) + " " + DoubleToStr(dlt, 0) + "\n";
   }
 
 void AppendCdAskBid(string &body, string s)
