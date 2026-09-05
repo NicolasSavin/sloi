@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.57"
+#property version   "4.58"
 #property strict
-#property description "SLOI 4.57: CD из подпапки Indicators."
+#property description "SLOI 4.58: CD путь один раз, без спама журнала."
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -137,7 +137,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.57: CD путь Indicators\\\\имя.");
+   Print("SLOI 4.58: CD путь запоминается.");
    return(INIT_SUCCEEDED);
   }
 
@@ -1005,19 +1005,31 @@ void AppendClusters(string &body)
    if(g_cd) AppendCdClusters(body, sent);
   }
 
+string g_cdDir = "";
+
 double Icd(string s, int tf, string ind, int buf, int sh)
   {
    if(StringLen(ind) < 3) return(EMPTY_VALUE);
-   ResetLastError();
-   double v = iCustom(s, tf, ind, buf, sh);
-   int err = GetLastError();
-   if(err != 2 && err != 4072) return(v);
-   ResetLastError();
-   v = iCustom(s, tf, "Indicators\\" + ind, buf, sh);
-   err = GetLastError();
-   if(err != 2 && err != 4072) return(v);
-   ResetLastError();
-   return(iCustom(s, tf, "ClusterDelta\\" + ind, buf, sh));
+   string names[5];
+   names[0] = (StringLen(g_cdDir) > 0 ? g_cdDir + ind : "Indicators\\" + ind);
+   names[1] = "Indicators\\" + ind;
+   names[2] = "ClusterDelta\\" + ind;
+   names[3] = ind;
+   names[4] = StringSubstr(ind, StringFind(ind, "#"));
+   for(int i = 0; i < 5; i++)
+     {
+      if(StringLen(names[i]) < 2) continue;
+      if(i > 0 && names[i] == names[0]) continue;
+      ResetLastError();
+      double v = iCustom(s, tf, names[i], buf, sh);
+      int err = GetLastError();
+      if(err == 2 || err == 4072) continue;
+      int slash = StringFind(names[i], "\\");
+      if(slash > 0) g_cdDir = StringSubstr(names[i], 0, slash + 1);
+      else g_cdDir = "";
+      return(v);
+     }
+   return(EMPTY_VALUE);
   }
 
 void AppendCdOne(string &body, string s, int &sent)
