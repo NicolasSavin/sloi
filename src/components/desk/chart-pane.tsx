@@ -812,40 +812,45 @@ function drawZones(
       : (vec && vec.dir === "down") || snap?.bias === "bearish"
         ? bearFace
         : waitFace;
-  let seed = Math.floor(nowMs / 4500);
+  let seed = Math.floor(nowMs / 2200);
   for (let i = 0; i < pair.length; i++) seed += pair.charCodeAt(i);
   const emoji = faces[Math.abs(seed) % faces.length]!;
-  const ew = 78;
-  const eh = 78;
-  const bounce = Math.sin(nowMs / 240) * 7;
-  const spots = [
-    { x: 16, y: height - 118 },
-    { x: 16, y: height * 0.52 },
-    { x: plotW * 0.2, y: height - 126 },
-    { x: plotW * 0.48, y: height - 112 },
-  ];
-  let slot: { x: number; y: number } | null = null;
-  for (const s of spots) {
-    const box = { x: s.x, y: s.y + bounce - 8, w: ew, h: eh };
-    if (hits(box)) continue;
-    slot = s;
-    break;
+  const bounce = Math.sin(nowMs / 180) * 12;
+  const slot = { x: 22, y: Math.max(96, height - 128) };
+  occupy(slot.x, slot.y - 10, 88, 88);
+  ctx.save();
+  ctx.translate(slot.x + 40, slot.y + 40 + bounce);
+  ctx.rotate(Math.sin(nowMs / 380) * 0.18);
+  const sc = 1 + 0.1 * Math.sin(nowMs / 140);
+  ctx.scale(sc, sc);
+  const beat = 0.5 + 0.5 * Math.sin(nowMs / 160);
+  for (let r = 1; r <= 3; r++) {
+    ctx.beginPath();
+    ctx.arc(0, 0, 28 + r * 10 * beat, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(240,200,120,0.35)";
+    ctx.globalAlpha = (1 - r / 4) * beat;
+    ctx.lineWidth = 2;
+    ctx.stroke();
   }
-  if (slot) {
-    occupy(slot.x, slot.y - 8, ew, eh);
-    ctx.save();
-    ctx.translate(slot.x + ew / 2, slot.y + eh / 2 + bounce);
-    ctx.rotate(Math.sin(nowMs / 520) * 0.12);
-    const sc = 1 + 0.07 * Math.sin(nowMs / 180);
-    ctx.scale(sc, sc);
-    ctx.font = "72px Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.shadowColor = "rgba(240,200,120,0.55)";
-    ctx.shadowBlur = 18;
-    ctx.fillText(emoji, 0, 4);
-    ctx.restore();
-  }
+  ctx.globalAlpha = 1;
+  ctx.beginPath();
+  ctx.arc(0, 0, 30, 0, Math.PI * 2);
+  const orb = ctx.createRadialGradient(-8, -10, 4, 0, 0, 30);
+  orb.addColorStop(0, "#fff6dc");
+  orb.addColorStop(0.45, "#e8c070");
+  orb.addColorStop(1, "#6a4810");
+  ctx.fillStyle = orb;
+  ctx.fill();
+  ctx.strokeStyle = "#fff3c0";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.font = "52px Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.shadowColor = "rgba(255,230,160,0.8)";
+  ctx.shadowBlur = 16;
+  ctx.fillText(emoji, 0, 3);
+  ctx.restore();
 }
 
 function drawProfile(
