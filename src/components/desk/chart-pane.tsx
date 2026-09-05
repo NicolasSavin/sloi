@@ -309,38 +309,52 @@ function drawZones(
       ctx.strokeRect(x, y - h / 2, w, h);
     }
     if (book[0]) mark(lastTime, book[0].price, book[0].side === "bid" ? "Стакан бид" : "Стакан аск", book[0].side === "bid" ? "ob" : "obBear");
-    if (snap.cdTape.ask != null && snap.cdTape.bid != null) {
-      const lastY = series.priceToCoordinate(snap.lastClose);
-      if (lastY != null) {
-        const buy = snap.cdTape.ask;
-        const sell = snap.cdTape.bid;
-        const tot = Math.max(1, buy + sell);
-        ctx.fillStyle = "rgba(8,12,18,0.82)";
-        ctx.fillRect(8, lastY - 28, 168, 36);
-        ctx.strokeStyle = "rgba(212,184,140,0.55)";
-        ctx.strokeRect(8, lastY - 28, 168, 36);
-        ctx.fillStyle = "rgba(80,220,140,0.9)";
-        ctx.fillRect(12, lastY - 8, (154 * buy) / tot, 8);
-        ctx.fillStyle = "rgba(230,90,90,0.9)";
-        ctx.fillRect(12 + (154 * buy) / tot, lastY - 8, (154 * sell) / tot, 8);
-        ctx.fillStyle = "#f0e6d4";
-        ctx.font = "bold 10px IBM Plex Mono, monospace";
-        ctx.fillText(`AskBid CD  buy ${Math.round(buy)}  sell ${Math.round(sell)}`, 12, lastY - 14);
-      }
+    const cd = snap.cdTape;
+    const panelH = 118;
+    ctx.fillStyle = "rgba(6,8,14,0.88)";
+    ctx.fillRect(8, 8, 268, panelH);
+    ctx.strokeStyle = "rgba(212,184,140,0.55)";
+    ctx.strokeRect(8, 8, 268, panelH);
+    ctx.fillStyle = "#d4b878";
+    ctx.font = "bold 12px IBM Plex Sans, sans-serif";
+    ctx.fillText("ClusterDelta на этом часе", 16, 26);
+    ctx.font = "bold 13px IBM Plex Mono, monospace";
+    ctx.fillStyle = "#f0e6d4";
+    ctx.fillText(`объём  ${cd.volume != null ? Math.round(cd.volume) : "—"}`, 16, 48);
+    ctx.fillStyle = (cd.delta ?? 0) < 0 ? "#ff8a8a" : "#7dffb0";
+    ctx.fillText(`дельта ${cd.delta != null ? (cd.delta > 0 ? "+" : "") + Math.round(cd.delta) : "—"}`, 16, 66);
+    const buy = cd.ask ?? 0;
+    const sell = cd.bid ?? 0;
+    ctx.fillStyle = "#9dffc0";
+    ctx.fillText(`Ask ${Math.round(buy)}`, 16, 84);
+    ctx.fillStyle = "#ff9a9a";
+    ctx.fillText(`Bid ${Math.round(sell)}`, 130, 84);
+    if (buy + sell > 0) {
+      const tot = buy + sell;
+      ctx.fillStyle = "rgba(80,220,140,0.95)";
+      ctx.fillRect(16, 90, (236 * buy) / tot, 8);
+      ctx.fillStyle = "rgba(230,90,90,0.95)";
+      ctx.fillRect(16 + (236 * buy) / tot, 90, (236 * sell) / tot, 8);
     }
+    ctx.font = "bold 11px IBM Plex Sans, sans-serif";
+    ctx.fillStyle = cd.splash ? "#ffb020" : "rgba(200,190,170,0.45)";
+    ctx.fillText(cd.splash ? "СПЛЭШ" : "сплэш нет", 16, 116);
+    ctx.fillStyle = cd.infusion ? "#c8f030" : "rgba(200,190,170,0.45)";
+    ctx.fillText(cd.infusion ? "ВЛИВАНИЕ" : "вливание нет", 110, 116);
+    if (cd.splash) mark(lastTime, snap.lastClose, "Сплэш CD", "sweep");
+    if (cd.infusion) mark(lastTime, snap.lastClose, "Вливание CD", "liq");
     const legend = [
-      ["#c8f030", "Ликвидность / вливание — цель, остановка"],
-      ["#ffb020", "Сплэш — вынос стопов, не цель"],
-      ["#ffb060", "Дисбаланс Ask/Bid"],
-      ["#50e090", "Зелёные палки справа — биды стакана"],
-      ["#ff6a6a", "Красные палки справа — аски стакана"],
+      ["#7dffb0", "Ask — покупки по рынку"],
+      ["#ff9a9a", "Bid — продажи по рынку"],
+      ["#ffb020", "Сплэш — вынос, не цель"],
+      ["#c8f030", "Вливание — остановка / тейк"],
     ];
     let ly = height - 18 - legend.length * 14;
     ctx.fillStyle = "rgba(8,10,16,0.72)";
-    ctx.fillRect(8, ly - 16, 310, legend.length * 14 + 22);
+    ctx.fillRect(8, ly - 16, 280, legend.length * 14 + 22);
     ctx.fillStyle = "#d4b878";
     ctx.font = "bold 11px IBM Plex Sans, sans-serif";
-    ctx.fillText("ClusterDelta на графике", 16, ly - 2);
+    ctx.fillText("Как читать", 16, ly - 2);
     legend.forEach(([c, t], i) => {
       ctx.fillStyle = c;
       ctx.fillRect(16, ly + 6 + i * 14, 10, 10);

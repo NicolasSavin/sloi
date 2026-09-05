@@ -54,6 +54,7 @@ type Room = {
   clusters: Map<string, { at: number; nodes: VolumeNode[] }>;
   profiles: Map<string, { at: number; poc: number; vah: number; val: number }>;
   askbid: Map<string, { at: number; ask: number; bid: number }>;
+  flow: Map<string, { at: number; volume: number; delta: number }>;
 };
 
 const g = globalThis as typeof globalThis & { __sloiRooms__?: Map<string, Room> };
@@ -65,12 +66,13 @@ function room(tenant = "legacy"): Room {
   const map = rooms();
   let r = map.get(tenant);
   if (!r) {
-    r = { ticks: new Map(), books: new Map(), account: null, clusters: new Map(), profiles: new Map(), askbid: new Map() };
+    r = { ticks: new Map(), books: new Map(), account: null, clusters: new Map(), profiles: new Map(), askbid: new Map(), flow: new Map() };
     map.set(tenant, r);
   }
   if (!r.profiles) r.profiles = new Map();
   if (!r.clusters) r.clusters = new Map();
   if (!r.askbid) r.askbid = new Map();
+  if (!r.flow) r.flow = new Map();
   return r;
 }
 
@@ -176,7 +178,25 @@ export function ingestBrokerTape(text: string, tenant = "legacy") {
       if (id && ask >= 0 && bid >= 0) r.askbid.set(id, { at, ask, bid });
       continue;
     }
-    if ((p[0] === "VOLUME" || p[0] === "DELTA" || p[0] === "CUMDELTA") && p.length >= 3) {
+    if (p[0] === "VOLUME" && p.length >= 3) {
+      const id = (p[1] ?? "").replace(/[^A-Za-z]/g, "").toUpperCase();
+      const volume = Number(p[2]);
+      if (id && Number.isFinite(volume)) {
+        const prev = r.flow.get(id);
+        r.flow.set(id, { at, volume, delta: prev?.delta ?? 0 });
+      }
+      continue;
+    }
+    if (p[0] === "DELTA" && p.length >= 3) {
+      const id = (p[1] ?? "").replace(/[^A-Za-z]/g, "").toUpperCase();
+      const delta = Number(p[2]);
+      if (id && Number.isFinite(delta)) {
+        const prev = r.flow.get(id);
+        r.flow.set(id, { at, volume: prev?.volume ?? 0, delta });
+      }
+      continue;
+    }
+    if (p[0] === "CUMDELTA" && p.length >= 3) {
       continue;
     }
     if (p.length < 3) continue;
@@ -228,6 +248,15 @@ export function liveAskBid(id: string): { ask: number; bid: number } | null {
   for (const roomItem of rooms().values()) {
     const a = roomItem.askbid.get(id);
     if (a && now - a.at < 90_000) return { ask: a.ask, bid: a.bid };
+  }
+  return null;
+}
+
+export function liveCdFlow(id: string): { volume: number; delta: number } | null {
+  const now = Date.now();
+  for (const roomItem of rooms().values()) {
+    const f = roomItem.flow.get(id);
+    if (f && now - f.at < 90_000) return { volume: f.volume, delta: f.delta };
   }
   return null;
 }
