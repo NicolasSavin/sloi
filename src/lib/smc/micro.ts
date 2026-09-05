@@ -147,26 +147,35 @@ export function buildMicro(candles: Candle[], live: VolumeNode[] = [], ab: { ask
   // Крупный объём + узкий бар + слабая дельта = остановка (infusion / вливание).
   // Крупный объём + широкий бар + сильная дельта = толчок (splash).
   const raw: VolumeNode[] = [];
-  for (const c of use) {
+  for (let i = 6; i < use.length; i++) {
+    const c = use[i]!;
+    const look = use.slice(Math.max(0, i - 14), i);
+    const swingH = Math.max(...look.map((x) => x.high));
+    const swingL = Math.min(...look.map((x) => x.low));
     const barSpan = c.high - c.low || 1e-9;
     const d = deltaOf(c);
     const v = barVolume(c);
     if (v < thresh) continue;
     const rangeRatio = barSpan / spanMed;
     const deltaShare = Math.abs(d) / v;
-    const body = Math.abs(c.close - c.open) / barSpan;
+    const upperWick = c.high - Math.max(c.open, c.close);
+    const lowerWick = Math.min(c.open, c.close) - c.low;
+    const tookHigh = c.high > swingH && upperWick >= barSpan * 0.32 && c.close < swingH;
+    const tookLow = c.low < swingL && lowerWick >= barSpan * 0.32 && c.close > swingL;
+    if (tookHigh || tookLow) {
+      raw.push({
+        price: tookHigh ? c.high : c.low,
+        side: tookHigh ? "sell" : "buy",
+        kind: "splash",
+        time: c.time,
+      });
+      continue;
+    }
     if (rangeRatio < 0.88 && deltaShare < 0.48) {
       raw.push({
         price: (c.high + c.low) / 2,
         side: d >= 0 ? "buy" : "sell",
         kind: "infusion",
-        time: c.time,
-      });
-    } else if (rangeRatio > 1.22 && deltaShare > 0.32 && body > 0.5) {
-      raw.push({
-        price: c.close,
-        side: c.close >= c.open ? "buy" : "sell",
-        kind: "splash",
         time: c.time,
       });
     }
@@ -180,8 +189,25 @@ export function buildMicro(candles: Candle[], live: VolumeNode[] = [], ab: { ask
       near.side = n.side;
     } else nodes.push({ ...n });
   }
+  const step = last.time - (use.at(-2)?.time ?? last.time - 3600_000);
   if (live.length) {
-    const merged: VolumeNode[] = live.map((n) => ({ ...n }));
+    const merged: VolumeNode[] = [];
+    for (const n of live) {
+      if (n.kind === "splash") {
+        const c = use.find((x) => Math.abs(x.time - n.time) < step * 1.2) ?? use.at(-1);
+        if (!c) continue;
+        const look = use.filter((x) => x.time < c.time).slice(-14);
+        if (look.length < 4) continue;
+        const swingH = Math.max(...look.map((x) => x.high));
+        const swingL = Math.min(...look.map((x) => x.low));
+        const barSpan = c.high - c.low || 1e-9;
+        const upperWick = c.high - Math.max(c.open, c.close);
+        const lowerWick = Math.min(c.open, c.close) - c.low;
+        const took = (c.high > swingH && upperWick >= barSpan * 0.28 && c.close <= swingH) || (c.low < swingL && lowerWick >= barSpan * 0.28 && c.close >= swingL);
+        if (!took) continue;
+      }
+      merged.push({ ...n });
+    }
     for (const n of nodes) {
       if (!merged.some((x) => x.kind === n.kind && Math.abs(x.price - n.price) < atrLike * 0.35)) merged.push(n);
     }
@@ -189,8 +215,6 @@ export function buildMicro(candles: Candle[], live: VolumeNode[] = [], ab: { ask
     nodes.push(...merged);
   }
   const fromCd = live.length > 0;
-
-  const step = last.time - (use.at(-2)?.time ?? last.time - 3600_000);
   const fresh = (t: number) => last.time - t <= step * 5;
 
   let infusion: MicroSnap["infusion"] = null;

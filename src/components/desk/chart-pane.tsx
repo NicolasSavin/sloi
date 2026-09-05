@@ -1178,7 +1178,17 @@ function drawTape(
     const x = ts.timeToCoordinate(n.time as UTCTimestamp);
     const y = series.priceToCoordinate(n.price);
     if (x == null || y == null) continue;
-    pulseRings(ctx, x, y, n.kind === "splash" ? "#ffb020" : "#c8f030", n.kind === "splash");
+    const splash = n.kind === "splash";
+    pulseRings(ctx, x, y, splash ? "#ffb020" : "#c8f030", splash);
+    ctx.font = "bold 12px IBM Plex Sans, sans-serif";
+    ctx.strokeStyle = "rgba(8,6,4,0.7)";
+    ctx.lineWidth = 3;
+    const label = splash ? "СПЛЭШ" : "ВЛИВАНИЕ";
+    const lx = x + 12;
+    const ly = y - 10;
+    ctx.strokeText(label, lx, ly);
+    ctx.fillStyle = splash ? "#ffb020" : "#c8f030";
+    ctx.fillText(label, lx, ly);
   }
   const tp = snap?.localSetup.targets[0];
   for (const n of snap?.micro.nodes.filter((x) => x.kind === "infusion").slice(-6) ?? []) {
