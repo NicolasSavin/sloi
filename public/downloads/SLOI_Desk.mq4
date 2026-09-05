@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.51"
+#property version   "4.52"
 #property strict
-#property description "SLOI 4.51: ClusterDelta с евро и золота на сайт. Сов один."
+#property description "SLOI 4.52: CD Infusion/Splash. Сов один."
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -133,7 +133,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.51: CD Volume/Delta с евро и золота. Сов один.");
+   Print("SLOI 4.52: CD Volume/Delta/Infusion/Splash. Сов один.");
    return(INIT_SUCCEEDED);
   }
 
@@ -1007,6 +1007,8 @@ void AppendCdOne(string &body, string s, int &sent)
    int tf = PERIOD_H1;
    double vol[12];
    double del[12];
+   ArrayInitialize(vol, 0);
+   ArrayInitialize(del, 0);
    double sum = 0;
    int ok = 0;
    for(int i = 1; i <= 12; i++)
@@ -1047,6 +1049,7 @@ void AppendNamed(string &body, string s, string ind, string kind, int &sent)
    double acc = 0;
    int n = 0;
    double val[8];
+   ArrayInitialize(val, 0);
    for(int i = 1; i <= 8; i++)
      {
       double x = iCustom(s, tf, ind, 0, i);
@@ -1355,8 +1358,8 @@ void DeleteWrongPending(string s, int dir)
       int ty = OrderType();
       bool buyP = (ty == OP_BUYLIMIT || ty == OP_BUYSTOP);
       bool selP = (ty == OP_SELLLIMIT || ty == OP_SELLSTOP);
-      if(dir > 0 && selP) OrderDelete(OrderTicket());
-      if(dir < 0 && buyP) OrderDelete(OrderTicket());
+      if(dir > 0 && selP) { if(!OrderDelete(OrderTicket())) Print("OrderDelete ", GetLastError()); }
+      if(dir < 0 && buyP) { if(!OrderDelete(OrderTicket())) Print("OrderDelete ", GetLastError()); }
      }
   }
 
