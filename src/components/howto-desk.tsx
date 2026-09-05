@@ -37,7 +37,7 @@ const STEPS = [
 const FAQ = [
   {
     q: "ClusterDelta куда ставить?",
-    a: "Советник один, на любом графике. На EURUSD и XAUUSD повесьте ClusterDelta_#Volumes и ClusterDelta_#Delta (окна можно свернуть). По желанию #Infusion и #Splash — глазами. Сов 4.51 читает объём/дельту и шлёт сплэш/infusion на сайт.",
+    a: "Советник один. На EURUSD и XAUUSD: ClusterDelta_#Volumes, #Delta, #Infusion, #Splash. Окна можно свернуть. Сов читает все четыре и шлёт сплэш/вливание на сайт.",
   },
   {
     q: "Чужой увидит мой счёт?",

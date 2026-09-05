@@ -41,6 +41,8 @@ input bool    VirtualPendings = true; // виртуал: отложка, сто�
 input bool    UseClusterDelta = true; // iCustom CD с EURUSD и XAUUSD, сов один
 input string  CdVolume        = "ClusterDelta_#Volumes";
 input string  CdDelta         = "ClusterDelta_#Delta";
+input string  CdInfusion      = "ClusterDelta_#Infusion";
+input string  CdSplash        = "ClusterDelta_#Splash";
 input int     PanelX          = 8;
 input int     PanelY          = 18;
 
@@ -1031,6 +1033,36 @@ void AppendCdOne(string &body, string s, int &sent)
       string kind = "INFUSION";
       if(MathAbs(d) > 0.42 * v) kind = "SPLASH";
       string sd = (d >= 0) ? "BUY" : "SELL";
+      body += "CLUSTER " + Naked(s) + " " + kind + " " + DoubleToStr(px, DigitsOf(s)) + " " + sd + "\n";
+      sent++;
+     }
+   AppendNamed(body, s, CdInfusion, "INFUSION", sent);
+   AppendNamed(body, s, CdSplash, "SPLASH", sent);
+  }
+
+void AppendNamed(string &body, string s, string ind, string kind, int &sent)
+  {
+   if(StringLen(ind) < 3 || sent >= 28) return;
+   int tf = PERIOD_H1;
+   double acc = 0;
+   int n = 0;
+   double val[8];
+   for(int i = 1; i <= 8; i++)
+     {
+      double x = iCustom(s, tf, ind, 0, i);
+      if(x == EMPTY_VALUE || x <= 0 || x > 1.0e12) { val[i - 1] = 0; continue; }
+      val[i - 1] = x;
+      acc += x;
+      n++;
+     }
+   if(n < 3) return;
+   double avg = acc / n;
+   for(int j = 0; j < 6 && sent < 28; j++)
+     {
+      if(val[j] < avg * 1.5) continue;
+      double px = iClose(s, tf, j + 1);
+      if(px <= 0) continue;
+      string sd = (iClose(s, tf, j + 1) >= iOpen(s, tf, j + 1)) ? "BUY" : "SELL";
       body += "CLUSTER " + Naked(s) + " " + kind + " " + DoubleToStr(px, DigitsOf(s)) + " " + sd + "\n";
       sent++;
      }
