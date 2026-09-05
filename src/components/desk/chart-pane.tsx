@@ -243,28 +243,29 @@ function drawZones(
     const last = snap?.lastClose ?? 0;
     const atr = snap?.atr ?? 0;
     const dist = (z: Zone) => zoneReach(z, last, atr) ?? Number.POSITIVE_INFINITY;
-    const live = zones.filter((z) => zoneReach(z, last, atr) != null);
+    const liveOb = zones.filter((z) => z.kind !== "fvg" && zoneReach(z, last, atr) != null);
+    const liveFvg = zones.filter((z) => z.kind === "fvg" && !z.mitigated);
     const picked = [
-      ...(overlays.fvg ? live.filter((z) => z.kind === "fvg").sort((a, b) => dist(a) - dist(b)).slice(0, 3) : []),
+      ...(overlays.fvg ? liveFvg.slice(-6) : []),
       ...(overlays.ob
-        ? live.filter((z) => z.kind === "ob" || z.kind === "breaker" || z.kind === "mitigation").sort((a, b) => dist(a) - dist(b)).slice(0, 3)
+        ? liveOb.filter((z) => z.kind === "ob" || z.kind === "breaker" || z.kind === "mitigation").sort((a, b) => dist(a) - dist(b)).slice(0, 3)
         : []),
     ];
     for (const z of picked) {
       const x1 = ts.timeToCoordinate(z.startTime as UTCTimestamp) ?? 8;
-      const xEnd = ts.timeToCoordinate(z.endTime as UTCTimestamp);
-      const zw = Math.max(110, Math.min(plotW - Math.max(0, x1) - 8, (xEnd != null ? xEnd - x1 : 90) + plotW * 0.42));
+      const left = Math.max(4, x1);
+      const zw = Math.max(80, plotW - left - 8);
       const y1 = series.priceToCoordinate(z.top);
       const y2 = series.priceToCoordinate(z.bottom);
       if (y1 == null || y2 == null) continue;
       const top = Math.min(y1, y2);
-      const h = Math.max(16, Math.abs(y2 - y1));
+      const h = Math.max(18, Math.abs(y2 - y1));
       const bull = z.side === "bull";
       const imb = z.kind === "fvg";
       const tone = imb ? "fvg" : bull ? "ob" : "obBear";
-      const near = dist(z) <= (atr || 1) * 0.9;
-      fillVolume(x1, top, zw, h, tone, near);
-      occupy(x1, top, zw, h);
+      const near = imb || dist(z) <= (atr || 1) * 0.9;
+      fillVolume(left, top, zw, h, tone, near);
+      occupy(left, top, zw, h);
       mark(z.startTime, (z.top + z.bottom) / 2, imb ? "Имбаланс" : "Ордерблок", tone);
     }
   }

@@ -351,32 +351,39 @@ function detectFvgs(candles: Candle[]): Zone[] {
     const a = candles[i - 2]!;
     const c = candles[i]!;
     if (a.high < c.low) {
-      const mitigated = candles.slice(i + 1).some((x) => x.low <= a.high);
+      const top = c.low;
+      const bottom = a.high;
+      const ce = (top + bottom) / 2;
+      // Отработан, когда цена зашла хотя бы до середины гэпа (CE). Касание края не считается.
+      const mitigated = candles.slice(i + 1).some((x) => x.low <= ce);
       zones.push({
         id: `fvg-b-${i}`,
         kind: "fvg",
         side: "bull",
-        top: c.low,
-        bottom: a.high,
+        top,
+        bottom,
         startTime: a.time,
         endTime: c.time,
         mitigated,
       });
     } else if (a.low > c.high) {
-      const mitigated = candles.slice(i + 1).some((x) => x.high >= a.low);
+      const top = a.low;
+      const bottom = c.high;
+      const ce = (top + bottom) / 2;
+      const mitigated = candles.slice(i + 1).some((x) => x.high >= ce);
       zones.push({
         id: `fvg-s-${i}`,
         kind: "fvg",
         side: "bear",
-        top: a.low,
-        bottom: c.high,
+        top,
+        bottom,
         startTime: a.time,
         endTime: c.time,
         mitigated,
       });
     }
   }
-  return zones.filter((z) => !z.mitigated).slice(-12);
+  return zones.filter((z) => !z.mitigated).slice(-16);
 }
 
 function detectOrderBlocks(candles: Candle[], events: StructureEvent[]): Zone[] {
