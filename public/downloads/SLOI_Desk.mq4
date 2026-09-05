@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.52"
+#property version   "4.53"
 #property strict
-#property description "SLOI 4.52: CD Infusion/Splash. Сов один."
+#property description "SLOI 4.53: CD профиль и BookMap с евро и золота."
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -43,6 +43,8 @@ input string  CdVolume        = "ClusterDelta_#Volumes";
 input string  CdDelta         = "ClusterDelta_#Delta";
 input string  CdInfusion      = "ClusterDelta_#Infusion";
 input string  CdSplash        = "ClusterDelta_#Splash";
+input string  CdProfile       = "ClusterDelta_#MarketProfile";
+input string  CdBookMap       = "ClusterDelta_#BookMap";
 input int     PanelX          = 8;
 input int     PanelY          = 18;
 
@@ -133,7 +135,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.52: CD Volume/Delta/Infusion/Splash. Сов один.");
+   Print("SLOI 4.53: CD профиль и BookMap. Сов один.");
    return(INIT_SUCCEEDED);
   }
 
@@ -1078,7 +1080,47 @@ void AppendCdClusters(string &body, int sent)
       string n = Naked(g_sym[i]);
       if(n != "EURUSD" && n != "XAUUSD") continue;
       AppendCdOne(body, g_sym[i], sent);
+      AppendCdProfile(body, g_sym[i]);
+      AppendCdBook(body, g_sym[i]);
      }
+  }
+
+bool LooksPx(double x, double bid)
+  {
+   if(x <= 0 || x == EMPTY_VALUE || x > 1.0e12 || bid <= 0) return(false);
+   return(MathAbs(x - bid) / bid < 0.08);
+  }
+
+void AppendCdProfile(string &body, string s)
+  {
+   if(StringLen(CdProfile) < 4) return;
+   double bid = BidOf(s);
+   double poc = iCustom(s, PERIOD_H1, CdProfile, 0, 0);
+   double vah = iCustom(s, PERIOD_H1, CdProfile, 1, 0);
+   double val = iCustom(s, PERIOD_H1, CdProfile, 2, 0);
+   if(!LooksPx(poc, bid)) return;
+   if(!LooksPx(vah, bid)) vah = poc;
+   if(!LooksPx(val, bid)) val = poc;
+   int d = DigitsOf(s);
+   body += "PROFILE " + Naked(s) + " " + DoubleToStr(poc, d) + " " + DoubleToStr(vah, d) + " " + DoubleToStr(val, d) + "\n";
+  }
+
+void AppendCdBook(string &body, string s)
+  {
+   if(StringLen(CdBookMap) < 4) return;
+   double bid = BidOf(s);
+   string row = "BOOK " + Naked(s);
+   int n = 0;
+   for(int b = 0; b <= 10 && n < 8; b += 2)
+     {
+      double px = iCustom(s, PERIOD_CURRENT, CdBookMap, b, 0);
+      double vol = iCustom(s, PERIOD_CURRENT, CdBookMap, b + 1, 0);
+      if(!LooksPx(px, bid) || vol == EMPTY_VALUE || vol <= 0 || vol > 1.0e12) continue;
+      string sd = (px <= bid ? "B" : "S");
+      row += " " + sd + " " + DoubleToStr(px, DigitsOf(s)) + " " + DoubleToStr(vol, 0);
+      n++;
+     }
+   if(n >= 2) body += row + "\n";
   }
 
 void PushTape()

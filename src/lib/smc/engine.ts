@@ -7,7 +7,7 @@ import { buildAuction, type AuctionSnap } from "@/lib/smc/auction";
 import { buildCoilBreak, type CoilBreak } from "@/lib/smc/coil";
 import { buildCorr, type CorrSnap } from "@/lib/corr";
 import { buildIvNews, type IvNewsSnap } from "@/lib/iv-news";
-import { liveClusters } from "@/lib/broker-tape";
+import { liveClusters, liveProfile } from "@/lib/broker-tape";
 import type { NewsHalt } from "@/lib/calendar";
 
 export type Bias = "bullish" | "bearish" | "range";
@@ -1126,10 +1126,11 @@ export function analyzeMarket(
     oilChange: opts?.oilChange,
   });
   const ivNews = buildIvNews(opts?.halt, options);
+  const tapeProf = opts?.symbol ? liveProfile(opts.symbol) : null;
   const vp = {
-    poc: clusters.poc,
-    vah: clusters.vah,
-    val: clusters.val,
+    poc: tapeProf?.poc ?? clusters.poc,
+    vah: tapeProf?.vah ?? clusters.vah,
+    val: tapeProf?.val ?? clusters.val,
     bins: clusters.bins.map((b) => ({ price: b.price, volume: b.volume })),
   };
   const swingHighs = swings.filter((s) => s.type === "high");

@@ -52,6 +52,7 @@ type Room = {
   books: Map<string, BrokerBook>;
   account: BrokerAccount | null;
   clusters: Map<string, { at: number; nodes: VolumeNode[] }>;
+  profiles: Map<string, { at: number; poc: number; vah: number; val: number }>;
 };
 
 const g = globalThis as typeof globalThis & { __sloiRooms__?: Map<string, Room> };
@@ -63,9 +64,11 @@ function room(tenant = "legacy"): Room {
   const map = rooms();
   let r = map.get(tenant);
   if (!r) {
-    r = { ticks: new Map(), books: new Map(), account: null, clusters: new Map() };
+    r = { ticks: new Map(), books: new Map(), account: null, clusters: new Map(), profiles: new Map() };
     map.set(tenant, r);
   }
+  if (!r.profiles) r.profiles = new Map();
+  if (!r.clusters) r.clusters = new Map();
   return r;
 }
 
@@ -152,6 +155,14 @@ export function ingestBrokerTape(text: string, tenant = "legacy") {
       batch.set(id, list);
       continue;
     }
+    if (p[0] === "PROFILE" && p.length >= 5) {
+      const id = (p[1] ?? "").replace(/[^A-Za-z]/g, "").toUpperCase();
+      const poc = Number(p[2]);
+      const vah = Number(p[3]);
+      const val = Number(p[4]);
+      if (id && poc > 0 && vah > 0 && val > 0) r.profiles.set(id, { at, poc, vah, val });
+      continue;
+    }
     if (p.length < 3) continue;
     const id = p[0]!.replace(/[^A-Za-z]/g, "").toUpperCase();
     const bid = Number(p[1]);
@@ -194,6 +205,15 @@ export function brokerAccount(tenant = "legacy"): BrokerAccount | null {
   if (!a) return null;
   if (Date.now() - a.at > 180_000) return null;
   return a;
+}
+
+export function liveProfile(id: string): { poc: number; vah: number; val: number } | null {
+  const now = Date.now();
+  for (const roomItem of rooms().values()) {
+    const p = roomItem.profiles.get(id);
+    if (p && now - p.at < 90_000) return { poc: p.poc, vah: p.vah, val: p.val };
+  }
+  return null;
 }
 
 export function liveClusters(id: string): VolumeNode[] {
