@@ -12,6 +12,7 @@ import type {
 } from "lightweight-charts";
 import type { Candle } from "@/lib/market/types";
 import type { OverlayFlags } from "@/lib/desk-store";
+import { useDeskStore } from "@/lib/desk-store";
 import type { Advice } from "@/lib/advisor";
 import type { LocalSetup, SmcSnapshot, Zone } from "@/lib/smc/engine";
 import { zoneReach } from "@/lib/smc/engine";
@@ -127,6 +128,7 @@ function drawZones(
   lastTime = 0,
   wipe = true,
   candles: Candle[] = [],
+  pair = "",
 ) {
   if (width < 16 || height < 16) return;
   if (wipe) ctx.clearRect(0, 0, width, height);
@@ -135,6 +137,8 @@ function drawZones(
   const notes: { time: number; price: number; text: string; tone: string }[] = [];
   const busy: { x: number; y: number; w: number; h: number }[] = [];
   const occupy = (x: number, y: number, w: number, h: number) => busy.push({ x, y, w, h });
+  occupy(plotW * 0.22, 4, plotW * 0.56, 42);
+  occupy(6, height - 32, plotW - 14, 28);
   const PALETTE: Record<string, { top: string; mid: string; stroke: string; b0: string; b1: string; t0: string; t1: string }> = {
     fvg: { top: "rgba(255,186,40,0.38)", mid: "rgba(255,230,120,0.62)", stroke: "#ffd24a", b0: "#fff3b0", b1: "#c48410", t0: "#fff6c8", t1: "#7a4a00" },
     ob: { top: "rgba(20,170,90,0.40)", mid: "rgba(90,255,160,0.58)", stroke: "#5dffb0", b0: "#c8ffdc", b1: "#0e7a40", t0: "#e8fff0", t1: "#0a4a24" },
@@ -703,6 +707,54 @@ function drawZones(
       }
     }
   }
+
+  const nowMs = Date.now();
+  const pretty = pair.replace(/[^A-Za-z]/g, "").toUpperCase();
+  const title = pretty.length === 6 ? `${pretty.slice(0, 3)} / ${pretty.slice(3)}` : pretty || "SLOI";
+  ctx.font = "700 30px Cormorant Garamond, Times New Roman, serif";
+  const tw = ctx.measureText(title).width;
+  const tx = Math.max(8, (plotW - tw) / 2);
+  const ty = 34;
+  const slide = ((nowMs / 22) % Math.max(tw, 80)) / Math.max(tw, 80);
+  const g = ctx.createLinearGradient(tx, ty - 24, tx + tw, ty);
+  g.addColorStop(0, "#8a6a28");
+  g.addColorStop(Math.max(0.05, slide - 0.12), "#f0d7a8");
+  g.addColorStop(Math.min(0.95, slide), "#fff6dc");
+  g.addColorStop(Math.min(1, slide + 0.12), "#f0d7a8");
+  g.addColorStop(1, "#8a6a28");
+  ctx.strokeStyle = "rgba(20,12,4,0.55)";
+  ctx.lineWidth = 4;
+  ctx.strokeText(title, tx, ty);
+  ctx.fillStyle = g;
+  ctx.fillText(title, tx, ty);
+
+  const vec = snap?.boxVector;
+  const map = snap?.bias === "bullish" ? "карта бычья" : snap?.bias === "bearish" ? "карта медвежья" : "карта в диапазоне";
+  const vecBit =
+    vec && vec.dir !== "none"
+      ? `небольшое движение ${vec.dir === "up" ? "вверх" : "вниз"}`
+      : "без явного вектора";
+  let tape = `Ждать. ${order?.because ?? "Приказа нет."} ${vecBit}. ${map}.`;
+  if (order?.action === "long") tape = `Приказ: покупка. Ход вверх. ${order.because} ${order.therefore}`;
+  else if (order?.action === "short") tape = `Приказ: продажа. Ход вниз. ${order.because} ${order.therefore}`;
+  else if (order?.action === "skip") tape = `Пропуск. ${order.because} ${order.therefore} ${vecBit}.`;
+  tape = `${tape}    ·    ${tape}    ·    `;
+  const by = height - 8;
+  ctx.fillStyle = "rgba(8,8,12,0.72)";
+  ctx.fillRect(6, height - 30, plotW - 14, 24);
+  ctx.strokeStyle = "rgba(212,184,112,0.28)";
+  ctx.strokeRect(6, height - 30, plotW - 14, 24);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(8, height - 30, plotW - 18, 24);
+  ctx.clip();
+  ctx.font = "600 13px IBM Plex Sans, sans-serif";
+  const tapeW = ctx.measureText(tape).width;
+  const mx = -((nowMs / 28) % tapeW);
+  ctx.fillStyle = "#f0e6d4";
+  ctx.fillText(tape, 12 + mx, by - 6);
+  ctx.fillText(tape, 12 + mx + tapeW, by - 6);
+  ctx.restore();
 }
 
 function drawProfile(
@@ -885,6 +937,7 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
     order: Advice | null;
     candles: Candle[];
     book: { bids: { price: number; volume: number }[]; asks: { price: number; volume: number }[] } | null;
+    pair: string;
   } = {
     zones: [],
     overlays: {
@@ -904,6 +957,7 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
     order: null,
     candles: [],
     book: null,
+    pair: "EURUSD",
   };
 
   private unsub: (() => void) | null = null;
@@ -963,6 +1017,7 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
                 p.candles.at(-1)?.time ?? 0,
                 false,
                 p.candles,
+                p.pair,
               );
               drawTape(
                 scope.context,
@@ -1015,8 +1070,16 @@ export function ChartPane({
   const bookRef = useRef(book);
   const orderRef = useRef(order);
   const setupRef = useRef(setup);
+  const pair = useDeskStore((s) => s.symbol);
+  const pairRef = useRef(pair);
   const [ready, setReady] = useState(false);
   snapRef.current = snap;
+  overlaysRef.current = overlays;
+  candlesRef.current = candles;
+  bookRef.current = book;
+  orderRef.current = order;
+  setupRef.current = setup;
+  pairRef.current = pair;
   overlaysRef.current = overlays;
   candlesRef.current = candles;
   bookRef.current = book;
@@ -1127,6 +1190,7 @@ export function ChartPane({
             order: orderRef.current,
             candles: candlesRef.current,
             book: bookRef.current,
+            pair: pairRef.current,
           };
           prim.refresh();
         }
@@ -1345,6 +1409,7 @@ export function ChartPane({
           order,
           candles,
           book,
+          pair,
         };
         prim.refresh();
       }
@@ -1353,7 +1418,7 @@ export function ChartPane({
         /* overlay must not blank candles */
       }
     });
-  }, [snap, overlays, ready, order, setup]);
+  }, [snap, overlays, ready, order, setup, pair]);
 
   return (
     <div className={cn("relative overflow-hidden bg-bg", className)}>
