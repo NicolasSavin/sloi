@@ -100,7 +100,7 @@ export function nearestStall(entry: number, dir: 1 | -1, atr: number, nodes: Vol
   return { price, from: from as "infusion" | "hvn" };
 }
 
-export function buildMicro(candles: Candle[], live: VolumeNode[] = []): MicroSnap {
+export function buildMicro(candles: Candle[], live: VolumeNode[] = [], ab: { ask: number; bid: number } | null = null): MicroSnap {
   const use = candles.slice(-80);
   let pv = 0;
   let vv = 0;
@@ -124,9 +124,14 @@ export function buildMicro(candles: Candle[], live: VolumeNode[] = []): MicroSna
 
   const tape = candles.some((c) => c.buyVolume != null);
   const cme = candles.some((c) => (c.cmeVolume ?? 0) > 0);
-  const buy = buyVolumeOf(last);
-  const sell = Math.max(0, last.volume - buy);
-  const delta = deltaOf(last);
+  let buy = buyVolumeOf(last);
+  let sell = Math.max(0, last.volume - buy);
+  let delta = deltaOf(last);
+  if (ab && (ab.ask > 0 || ab.bid > 0)) {
+    buy = ab.ask;
+    sell = ab.bid;
+    delta = ab.ask - ab.bid;
+  }
   const vols = use.map((c) => barVolume(c));
   const sorted = [...vols].sort((a, b) => a - b);
   const median = sorted[Math.floor(sorted.length / 2)] || 1;
@@ -220,7 +225,9 @@ export function buildMicro(candles: Candle[], live: VolumeNode[] = []): MicroSna
     };
   }
 
-  const src = tape
+  const src = ab
+    ? "AskBid ClusterDelta"
+    : tape
     ? "лента"
     : live.length
       ? "ClusterDelta / терминал"
@@ -243,7 +250,7 @@ export function buildMicro(candles: Candle[], live: VolumeNode[] = []): MicroSna
     upper,
     lower,
     where,
-    footprint: { buy, sell, delta, source: tape ? "tape" : cme ? "cme-delayed" : "proxy" },
+    footprint: { buy, sell, delta, source: ab || tape ? "tape" : cme ? "cme-delayed" : "proxy" },
     infusion,
     splash,
     nodes: nodes.slice(-16),

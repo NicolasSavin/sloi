@@ -53,6 +53,7 @@ type Room = {
   account: BrokerAccount | null;
   clusters: Map<string, { at: number; nodes: VolumeNode[] }>;
   profiles: Map<string, { at: number; poc: number; vah: number; val: number }>;
+  askbid: Map<string, { at: number; ask: number; bid: number }>;
 };
 
 const g = globalThis as typeof globalThis & { __sloiRooms__?: Map<string, Room> };
@@ -64,11 +65,12 @@ function room(tenant = "legacy"): Room {
   const map = rooms();
   let r = map.get(tenant);
   if (!r) {
-    r = { ticks: new Map(), books: new Map(), account: null, clusters: new Map(), profiles: new Map() };
+    r = { ticks: new Map(), books: new Map(), account: null, clusters: new Map(), profiles: new Map(), askbid: new Map() };
     map.set(tenant, r);
   }
   if (!r.profiles) r.profiles = new Map();
   if (!r.clusters) r.clusters = new Map();
+  if (!r.askbid) r.askbid = new Map();
   return r;
 }
 
@@ -163,6 +165,13 @@ export function ingestBrokerTape(text: string, tenant = "legacy") {
       if (id && poc > 0 && vah > 0 && val > 0) r.profiles.set(id, { at, poc, vah, val });
       continue;
     }
+    if (p[0] === "ASKBID" && p.length >= 4) {
+      const id = (p[1] ?? "").replace(/[^A-Za-z]/g, "").toUpperCase();
+      const ask = Number(p[2]);
+      const bid = Number(p[3]);
+      if (id && ask >= 0 && bid >= 0) r.askbid.set(id, { at, ask, bid });
+      continue;
+    }
     if (p.length < 3) continue;
     const id = p[0]!.replace(/[^A-Za-z]/g, "").toUpperCase();
     const bid = Number(p[1]);
@@ -205,6 +214,15 @@ export function brokerAccount(tenant = "legacy"): BrokerAccount | null {
   if (!a) return null;
   if (Date.now() - a.at > 180_000) return null;
   return a;
+}
+
+export function liveAskBid(id: string): { ask: number; bid: number } | null {
+  const now = Date.now();
+  for (const roomItem of rooms().values()) {
+    const a = roomItem.askbid.get(id);
+    if (a && now - a.at < 90_000) return { ask: a.ask, bid: a.bid };
+  }
+  return null;
 }
 
 export function liveProfile(id: string): { poc: number; vah: number; val: number } | null {

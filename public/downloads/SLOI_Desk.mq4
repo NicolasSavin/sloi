@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.53"
+#property version   "4.54"
 #property strict
-#property description "SLOI 4.53: CD профиль и BookMap с евро и золота."
+#property description "SLOI 4.54: CD AskBid, профиль, BookMap."
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -45,6 +45,7 @@ input string  CdInfusion      = "ClusterDelta_#Infusion";
 input string  CdSplash        = "ClusterDelta_#Splash";
 input string  CdProfile       = "ClusterDelta_#MarketProfile";
 input string  CdBookMap       = "ClusterDelta_#BookMap";
+input string  CdAskBid        = "ClusterDelta_#AskBid";
 input int     PanelX          = 8;
 input int     PanelY          = 18;
 
@@ -135,7 +136,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.53: CD профиль и BookMap. Сов один.");
+   Print("SLOI 4.54: CD AskBid/профиль/BookMap. Сов один.");
    return(INIT_SUCCEEDED);
   }
 
@@ -1082,6 +1083,7 @@ void AppendCdClusters(string &body, int sent)
       AppendCdOne(body, g_sym[i], sent);
       AppendCdProfile(body, g_sym[i]);
       AppendCdBook(body, g_sym[i]);
+      AppendCdAskBid(body, g_sym[i]);
      }
   }
 
@@ -1121,6 +1123,17 @@ void AppendCdBook(string &body, string s)
       n++;
      }
    if(n >= 2) body += row + "\n";
+  }
+
+void AppendCdAskBid(string &body, string s)
+  {
+   if(StringLen(CdAskBid) < 4) return;
+   double askV = iCustom(s, PERIOD_H1, CdAskBid, 0, 1);
+   double bidV = iCustom(s, PERIOD_H1, CdAskBid, 1, 1);
+   if(askV == EMPTY_VALUE || bidV == EMPTY_VALUE) return;
+   if(askV < 0 || bidV < 0 || askV > 1.0e12 || bidV > 1.0e12) return;
+   if(askV <= 0 && bidV <= 0) return;
+   body += "ASKBID " + Naked(s) + " " + DoubleToStr(askV, 0) + " " + DoubleToStr(bidV, 0) + "\n";
   }
 
 void PushTape()

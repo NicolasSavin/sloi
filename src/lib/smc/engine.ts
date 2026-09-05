@@ -7,7 +7,7 @@ import { buildAuction, type AuctionSnap } from "@/lib/smc/auction";
 import { buildCoilBreak, type CoilBreak } from "@/lib/smc/coil";
 import { buildCorr, type CorrSnap } from "@/lib/corr";
 import { buildIvNews, type IvNewsSnap } from "@/lib/iv-news";
-import { liveClusters, liveProfile } from "@/lib/broker-tape";
+import { liveAskBid, liveClusters, liveProfile } from "@/lib/broker-tape";
 import type { NewsHalt } from "@/lib/calendar";
 
 export type Bias = "bullish" | "bearish" | "range";
@@ -1116,7 +1116,11 @@ export function analyzeMarket(
   const patterns = detectPatterns(swings, atr, candles);
   let flow = buildFlow(candles, swings, atr);
   const clusters = (trades?.length ? clustersFromTrades(trades) : null) ?? clustersFromCandles(candles);
-  const micro = buildMicro(candles, opts?.symbol ? liveClusters(opts.symbol) : []);
+  const micro = buildMicro(
+    candles,
+    opts?.symbol ? liveClusters(opts.symbol) : [],
+    opts?.symbol ? liveAskBid(opts.symbol) : null,
+  );
   const sweepFuel = buildSweepFuel(candles, liquidity, micro.nodes, atr, last.close);
   const auction = buildAuction(candles, opts?.kind);
   const coil = buildCoilBreak(candles, atr, swings);
