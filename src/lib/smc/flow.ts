@@ -31,6 +31,8 @@ export interface FlowSnap {
     source: "cvd" | "delta" | "fvg";
     because: string;
     therefore: string;
+    from?: { time: number; price: number };
+    to?: { time: number; price: number };
   } | null;
 }
 
@@ -46,14 +48,35 @@ export function deltaOf(c: Candle) {
   return buy - (c.volume - buy);
 }
 
-export function buildFlow(candles: Candle[], swings: Swing[], atr: number): FlowSnap {
+export function buildFlow(
+  candles: Candle[],
+  swings: Swing[],
+  atr: number,
+  cum?: { time: number; value: number }[] | null,
+): FlowSnap {
   const tape = candles.some((c) => c.buyVolume != null);
+  const fromCd = Boolean(cum && cum.length > 3);
   const bars: FlowBar[] = [];
-  let cvd = 0;
-  for (const c of candles) {
-    const delta = deltaOf(c);
-    cvd += delta;
-    bars.push({ time: c.time, delta, cvd, volume: c.volume });
+  if (fromCd) {
+    const path = [...cum!].sort((a, b) => a.time - b.time);
+    for (let i = 0; i < path.length; i++) {
+      const p = path[i]!;
+      const prev = path[i - 1];
+      const c = candles.find((x) => Math.abs(x.time - p.time) < 1800) ?? candles.find((x) => x.time === p.time);
+      bars.push({
+        time: p.time,
+        delta: prev ? p.value - prev.value : 0,
+        cvd: p.value,
+        volume: c?.volume ?? 0,
+      });
+    }
+  } else {
+    let cvd = 0;
+    for (const c of candles) {
+      const delta = deltaOf(c);
+      cvd += delta;
+      bars.push({ time: c.time, delta, cvd, volume: c.volume });
+    }
   }
   const last = candles.at(-1)!;
   const lastBar = bars.at(-1)!;
@@ -131,10 +154,16 @@ export function buildFlow(candles: Candle[], swings: Swing[], atr: number): Flow
       cvdDiv = {
         side: "bear",
         where: "mid",
-        boost: 0,
+        boost: fromCd ? 1 : 0,
         source: "cvd",
-        because: "Цена сделала выше максимум, а кумулятивная дельта — нет. Покупки не подтверждают хай",
-        therefore: "Медвежья дивергенция потока. Ход вверх на слабеющей агрессии — часто отдают после этого.",
+        because: fromCd
+          ? "Цена выше максимум, ClusterDelta CumDelta ниже — тиковый поток не подтверждает хай"
+          : "Цена сделала выше максимум, а кумулятивная дельта — нет. Покупки не подтверждают хай",
+        therefore: fromCd
+          ? "Медвежий дивер цена vs #CumDelta. Агрессии покупок нет — часто отдают."
+          : "Медвежья дивергенция потока. Ход вверх на слабеющей агрессии — часто отдают после этого.",
+        from: { time: a.time, price: a.price },
+        to: { time: b.time, price: b.price },
       };
     }
   }
@@ -145,10 +174,16 @@ export function buildFlow(candles: Candle[], swings: Swing[], atr: number): Flow
       cvdDiv = {
         side: "bull",
         where: "mid",
-        boost: 0,
+        boost: fromCd ? 1 : 0,
         source: "cvd",
-        because: "Цена сделала ниже минимум, кумулятивная дельта растёт. Продажи не подтверждают лой",
-        therefore: "Бычья дивергенция потока. Вынос вниз без новых продавцов — классика набора.",
+        because: fromCd
+          ? "Цена ниже минимум, ClusterDelta CumDelta выше — продаж в выносе нет"
+          : "Цена сделала ниже минимум, кумулятивная дельта растёт. Продажи не подтверждают лой",
+        therefore: fromCd
+          ? "Бычий дивер цена vs #CumDelta. Съём без новых продавцов — классика набора."
+          : "Бычья дивергенция потока. Вынос вниз без новых продавцов — классика набора.",
+        from: { time: a.time, price: a.price },
+        to: { time: b.time, price: b.price },
       };
     }
   }
@@ -180,7 +215,7 @@ export function buildFlow(candles: Candle[], swings: Swing[], atr: number): Flow
     lastDelta: lastBar.delta,
     cvd: lastBar.cvd,
     cvdSlope,
-    source: tape ? "tape" : "proxy",
+    source: fromCd ? "tape" : tape ? "tape" : "proxy",
     bars: bars.slice(-120),
     events: events.slice(-4),
     cvdDiv,

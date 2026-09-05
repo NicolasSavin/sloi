@@ -1157,7 +1157,7 @@ export function analyzeMarket(
   const divergences = detectDivergence(candles, swings);
   const waves = detectWaves(swings);
   const patterns = detectPatterns(swings, atr, candles);
-  let flow = buildFlow(candles, swings, atr);
+  let flow = buildFlow(candles, swings, atr, opts?.symbol ? liveCumDelta(opts.symbol) : []);
   const clusters = (trades?.length ? clustersFromTrades(trades) : null) ?? clustersFromCandles(candles);
   const micro = buildMicro(
     candles,

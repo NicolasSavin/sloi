@@ -558,6 +558,27 @@ function drawZones(
     }
   }
 
+  if (overlays.divergences !== false && snap?.flow.cvdDiv?.from && snap.flow.cvdDiv.to) {
+    const d = snap.flow.cvdDiv;
+    const a = d.from!;
+    const b = d.to!;
+    const x1 = ts.timeToCoordinate(a.time as UTCTimestamp);
+    const y1 = series.priceToCoordinate(a.price);
+    const x2 = ts.timeToCoordinate(b.time as UTCTimestamp);
+    const y2 = series.priceToCoordinate(b.price);
+    if (x1 != null && y1 != null && x2 != null && y2 != null) {
+      ctx.strokeStyle = d.side === "bull" ? "#7dffc0" : "#ff8888";
+      ctx.lineWidth = 2.4;
+      ctx.setLineDash([7, 5]);
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      mark(b.time, b.price, d.side === "bull" ? "Дивер CumDelta ↑" : "Дивер CumDelta ↓", d.side === "bull" ? "ob" : "obBear");
+    }
+  }
+
   if (overlays.liquidity && snap) {
     const atr = snap.atr || 1;
     const last = snap.lastClose;
