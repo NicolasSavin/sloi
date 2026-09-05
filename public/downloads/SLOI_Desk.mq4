@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.63"
+#property version   "4.64"
 #property strict
-#property description "SLOI 4.63: цифры CD с подписей на графике."
+#property description "SLOI 4.64: CD с окон золота и евро, сов один."
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -137,7 +137,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.63: CD с подписей объёма и дельты.");
+   Print("SLOI 4.64: CD читает оба окна H1, сов один.");
    return(INIT_SUCCEEDED);
   }
 
@@ -1154,16 +1154,18 @@ void AppendCdBook(string &body, string s)
    if(n >= 2) body += row + "\n";
   }
 
-void AppendCdAskBid(string &body, string s)
+void ScrapeChartCd(long ch, string s, string &body)
   {
-   if(Naked(s) != Naked(Symbol())) return;
    double nums[32];
    int nn = 0;
    ArrayInitialize(nums, 0);
-   for(int o = ObjectsTotal() - 1; o >= 0 && nn < 32; o--)
+   int total = (int)ObjectsTotal(ch, -1, -1);
+   for(int o = total - 1; o >= 0 && nn < 32; o--)
      {
-      string on = ObjectName(o);
-      string tx = ObjectDescription(on);
+      string on = ObjectName(ch, o, -1, -1);
+      if(StringLen(on) < 1) continue;
+      string tx = ObjectGetString(ch, on, OBJPROP_TEXT);
+      if(StringLen(tx) < 1) tx = ObjectGetString(ch, on, OBJPROP_TOOLTIP);
       double v = StringToDouble(tx);
       if(MathAbs(v) < 2 || MathAbs(v) > 1.0e8) continue;
       bool dup = false;
@@ -1200,8 +1202,25 @@ void AppendCdAskBid(string &body, string s)
      {
       string kind = (dlt < 0 ? "SPLASH" : "INFUSION");
       string sd = (dlt < 0 ? "SELL" : "BUY");
-      body += "CLUSTER " + Naked(s) + " " + kind + " " + DoubleToStr(Bid, Digits) + " " + sd + "\n";
+      double px = MarketInfo(s, MODE_BID);
+      if(px <= 0) px = Bid;
+      body += "CLUSTER " + Naked(s) + " " + kind + " " + DoubleToStr(px, DigitsOf(s)) + " " + sd + "\n";
      }
+  }
+
+void AppendCdAskBid(string &body, string s)
+  {
+   long ch = ChartFirst();
+   while(ch >= 0)
+     {
+      if(Naked(ChartSymbol(ch)) == Naked(s) && ChartPeriod(ch) == PERIOD_H1)
+        {
+         ScrapeChartCd(ch, s, body);
+         return;
+        }
+      ch = ChartNext(ch);
+     }
+   if(Naked(s) == Naked(Symbol())) ScrapeChartCd(0, s, body);
   }
 
 void PostTape(string url, string body)
