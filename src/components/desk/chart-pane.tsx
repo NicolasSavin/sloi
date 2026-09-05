@@ -525,10 +525,24 @@ function drawZones(
       if (ax < 12 || ax > scaleLeft - 8) continue;
       const notable = bar.splash || bar.infusion || bar.imbalance || i === lastIx;
       const col = bar.splash ? "#ffb020" : bar.infusion ? "#c8f030" : bar.imbalance ? "#ff6a6a" : "#e8c070";
+      const beat = 0.5 + 0.5 * Math.sin(Date.now() / 200);
+      if (bar.splash || bar.infusion) {
+        for (let r = 1; r <= 3; r++) {
+          ctx.beginPath();
+          ctx.arc(ax, ay, 10 + r * 7 * beat, 0, Math.PI * 2);
+          ctx.strokeStyle = col;
+          ctx.globalAlpha = (1 - r / 4) * (0.35 + 0.65 * beat);
+          ctx.lineWidth = 2.4;
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+      }
       ctx.beginPath();
-      ctx.arc(ax, ay, notable ? 10 : 6, 0, Math.PI * 2);
+      ctx.arc(ax, ay, notable ? 8 + 5 * (bar.splash || bar.infusion ? beat : 0) : 5, 0, Math.PI * 2);
       ctx.fillStyle = col;
+      ctx.globalAlpha = bar.splash || bar.infusion ? 0.55 + 0.45 * beat : 1;
       ctx.fill();
+      ctx.globalAlpha = 1;
       ctx.lineWidth = 2;
       ctx.strokeStyle = "#1a1208";
       ctx.stroke();
@@ -573,7 +587,9 @@ function drawZones(
       ctx.stroke();
       ctx.font = "bold 13px IBM Plex Sans, sans-serif";
       ctx.fillStyle = col;
+      ctx.globalAlpha = bar.splash || bar.infusion ? 0.5 + 0.5 * beat : 1;
       ctx.fillText(title, box.x + 12, box.y + 16);
+      ctx.globalAlpha = 1;
       ctx.font = "bold 12px IBM Plex Mono, monospace";
       ctx.fillStyle = "#fff6e0";
       ctx.fillText(sub, box.x + 12, box.y + 34);
@@ -794,6 +810,7 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
   chart: IChartApi | null = null;
   series: ISeriesApi<"Candlestick"> | null = null;
   private _upd: (() => void) | null = null;
+  private blink: ReturnType<typeof setInterval> | null = null;
   payload: {
     zones: Zone[];
     overlays: OverlayFlags;
@@ -828,11 +845,14 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
     this.chart = param.chart as IChartApi;
     this.series = param.series as ISeriesApi<"Candlestick">;
     this._upd = param.requestUpdate;
+    this.blink = setInterval(() => this._upd?.(), 180);
     this.unsub = this.chart.timeScale().subscribeVisibleLogicalRangeChange(() => this._upd?.()) as unknown as () => void;
   }
   detached() {
     this.unsub?.();
     this.unsub = null;
+    if (this.blink) clearInterval(this.blink);
+    this.blink = null;
     this.chart = null;
     this.series = null;
     this._upd = null;
