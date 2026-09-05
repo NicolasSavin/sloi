@@ -137,7 +137,8 @@ function drawZones(
   const notes: { time: number; price: number; text: string; tone: string }[] = [];
   const busy: { x: number; y: number; w: number; h: number }[] = [];
   const occupy = (x: number, y: number, w: number, h: number) => busy.push({ x, y, w, h });
-  occupy(plotW * 0.18, 4, plotW * 0.64, 72);
+  occupy(plotW * 0.28, 4, plotW * 0.44, 40);
+  occupy(Math.min(plotW * 0.38, 360), 44, plotW - Math.min(plotW * 0.38, 360) - 12, 40);
   const PALETTE: Record<string, { top: string; mid: string; stroke: string; b0: string; b1: string; t0: string; t1: string }> = {
     fvg: { top: "rgba(255,186,40,0.18)", mid: "rgba(255,230,120,0.32)", stroke: "#ffd24a", b0: "#fff3b0", b1: "#c48410", t0: "#fff6c8", t1: "#7a4a00" },
     ob: { top: "rgba(20,170,90,0.20)", mid: "rgba(90,255,160,0.32)", stroke: "#5dffb0", b0: "#c8ffdc", b1: "#0e7a40", t0: "#e8fff0", t1: "#0a4a24" },
@@ -711,49 +712,95 @@ function drawZones(
   const nowMs = Date.now();
   const pretty = pair.replace(/[^A-Za-z]/g, "").toUpperCase();
   const title = pretty.length === 6 ? `${pretty.slice(0, 3)} / ${pretty.slice(3)}` : pretty || "SLOI";
-  ctx.font = "700 32px Cormorant Garamond, Times New Roman, serif";
+  ctx.font = "700 40px Cormorant Garamond, Times New Roman, serif";
   const tw = ctx.measureText(title).width;
   const tx = Math.max(8, (plotW - tw) / 2);
-  const ty = 30;
-  const slide = ((nowMs / 22) % Math.max(tw, 80)) / Math.max(tw, 80);
-  const g = ctx.createLinearGradient(tx, ty - 24, tx + tw, ty);
-  g.addColorStop(0, "#8a6a28");
-  g.addColorStop(Math.max(0.05, slide - 0.12), "#f0d7a8");
-  g.addColorStop(Math.min(0.95, slide), "#fff6dc");
-  g.addColorStop(Math.min(1, slide + 0.12), "#f0d7a8");
-  g.addColorStop(1, "#8a6a28");
-  ctx.strokeStyle = "rgba(20,12,4,0.55)";
-  ctx.lineWidth = 4;
+  const ty = 34;
+  const slide = ((nowMs / 18) % Math.max(tw, 80)) / Math.max(tw, 80);
+  const g = ctx.createLinearGradient(tx, ty - 28, tx + tw, ty);
+  g.addColorStop(0, "#6a4a12");
+  g.addColorStop(Math.max(0.04, slide - 0.15), "#e8c070");
+  g.addColorStop(Math.min(0.96, slide), "#fff8e0");
+  g.addColorStop(Math.min(1, slide + 0.15), "#e8c070");
+  g.addColorStop(1, "#6a4a12");
+  ctx.shadowColor = "rgba(240,200,120,0.45)";
+  ctx.shadowBlur = 16;
+  ctx.fillStyle = "#3a2208";
+  ctx.fillText(title, tx + 2, ty + 2);
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = "rgba(20,12,4,0.7)";
+  ctx.lineWidth = 5;
   ctx.strokeText(title, tx, ty);
   ctx.fillStyle = g;
   ctx.fillText(title, tx, ty);
 
+  const lastEv = snap?.events.at(-1);
+  const smart =
+    snap?.micro.splash
+      ? "крупняк снял стопы"
+      : snap?.micro.infusion
+        ? "крупняк набирает объём"
+        : lastEv?.kind === "CHoCH" && lastEv.side === "bear"
+          ? "крупняк сломал структуру вниз"
+          : lastEv?.kind === "CHoCH" && lastEv.side === "bull"
+            ? "крупняк сломал структуру вверх"
+            : lastEv?.kind === "BOS" && lastEv.side === "bear"
+              ? "крупняк давит вниз"
+              : lastEv?.kind === "BOS" && lastEv.side === "bull"
+                ? "крупняк толкает вверх"
+                : snap?.sweepFuel
+                  ? "сняли ликвидность"
+                  : "крупняк в диапазоне";
   const vec = snap?.boxVector;
-  const map = snap?.bias === "bullish" ? "карта бычья" : snap?.bias === "bearish" ? "карта медвежья" : "диапазон";
-  const vecBit = vec && vec.dir !== "none" ? (vec.dir === "up" ? "пока тянет вверх" : "пока тянет вниз") : "без явного хода";
-  const why = (order?.because ?? "").replace(/\s+/g, " ").trim().split(/(?<=[.!?])\s/)[0] ?? "";
-  const shortWhy = why.length > 72 ? `${why.slice(0, 70).replace(/\s+\S*$/, "")}…` : why;
-  let tape = `Ждать · ${map} · ${vecBit} · вход не ставить`;
-  if (order?.action === "long") tape = `Покупать · ход вверх${shortWhy ? ` · ${shortWhy}` : ""}`;
-  else if (order?.action === "short") tape = `Продавать · ход вниз${shortWhy ? ` · ${shortWhy}` : ""}`;
-  else if (order?.action === "skip") tape = `Не входить · хода на спред мало · ${vecBit}`;
+  const near = vec && vec.dir === "up" ? "в ближайшее время вверх" : vec && vec.dir === "down" ? "в ближайшее время вниз" : "ближайший ход боком";
+  let tape = `Ждать · ${near} · ${smart} · входа нет`;
+  if (order?.action === "long") tape = `Покупать · ${near} · ${smart}`;
+  else if (order?.action === "short") tape = `Продавать · ${near} · ${smart}`;
+  else if (order?.action === "skip") tape = `Не входить · ${near} · ${smart} · хода на спред мало`;
   tape = `${tape}     ·     ${tape}     ·     `;
-  const tapeBoxW = plotW * 0.64;
-  const tapeX = (plotW - tapeBoxW) / 2;
-  ctx.fillStyle = "rgba(8,8,12,0.62)";
-  ctx.fillRect(tapeX, 40, tapeBoxW, 28);
-  ctx.strokeStyle = "rgba(212,184,112,0.28)";
-  ctx.strokeRect(tapeX, 40, tapeBoxW, 28);
+  const tapeX = Math.min(plotW * 0.38, 368);
+  const tapeBoxW = Math.max(180, plotW - tapeX - 16);
+  const tapeY = 46;
+  const tapeH = 36;
+  const barG = ctx.createLinearGradient(tapeX, tapeY, tapeX, tapeY + tapeH);
+  barG.addColorStop(0, "rgba(70,52,22,0.92)");
+  barG.addColorStop(0.45, "rgba(22,16,10,0.9)");
+  barG.addColorStop(1, "rgba(12,8,6,0.92)");
+  ctx.shadowColor = "rgba(0,0,0,0.55)";
+  ctx.shadowBlur = 12;
+  ctx.shadowOffsetY = 4;
+  ctx.fillStyle = barG;
+  ctx.fillRect(tapeX, tapeY, tapeBoxW, tapeH);
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
+  ctx.strokeStyle = "rgba(240,210,140,0.55)";
+  ctx.lineWidth = 1.4;
+  ctx.strokeRect(tapeX + 0.5, tapeY + 0.5, tapeBoxW - 1, tapeH - 1);
+  ctx.strokeStyle = "rgba(255,248,220,0.22)";
+  ctx.beginPath();
+  ctx.moveTo(tapeX + 1, tapeY + 1);
+  ctx.lineTo(tapeX + tapeBoxW - 1, tapeY + 1);
+  ctx.stroke();
   ctx.save();
   ctx.beginPath();
-  ctx.rect(tapeX + 2, 40, tapeBoxW - 4, 28);
+  ctx.rect(tapeX + 6, tapeY, tapeBoxW - 12, tapeH);
   ctx.clip();
-  ctx.font = "700 16px IBM Plex Sans, sans-serif";
+  ctx.font = "700 20px IBM Plex Sans, sans-serif";
   const tapeW = ctx.measureText(tape).width;
-  const mx = -((nowMs / 28) % tapeW);
-  ctx.fillStyle = "#fff6e0";
-  ctx.fillText(tape, tapeX + 8 + mx, 60);
-  ctx.fillText(tape, tapeX + 8 + mx + tapeW, 60);
+  const mx = -((nowMs / 16) % tapeW);
+  const ty2 = tapeY + 25;
+  const tg = ctx.createLinearGradient(tapeX + mx, ty2, tapeX + mx + tapeW, ty2);
+  const pulse = 0.35 + 0.3 * Math.sin(nowMs / 400);
+  tg.addColorStop(0, "#c4a060");
+  tg.addColorStop(pulse, "#fff6dc");
+  tg.addColorStop(1, "#c4a060");
+  ctx.strokeStyle = "rgba(20,12,4,0.65)";
+  ctx.lineWidth = 3.5;
+  ctx.strokeText(tape, tapeX + 10 + mx, ty2);
+  ctx.strokeText(tape, tapeX + 10 + mx + tapeW, ty2);
+  ctx.fillStyle = tg;
+  ctx.fillText(tape, tapeX + 10 + mx, ty2);
+  ctx.fillText(tape, tapeX + 10 + mx + tapeW, ty2);
   ctx.restore();
 }
 
