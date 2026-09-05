@@ -17,12 +17,7 @@ export function ChartHud({ boxRef }: { boxRef: RefObject<HTMLDivElement | null> 
     setWide(Boolean(el && document.fullscreenElement === el));
   }, [boxRef]);
 
-  useEffect(() => {
-    document.addEventListener("fullscreenchange", sync);
-    return () => document.removeEventListener("fullscreenchange", sync);
-  }, [sync]);
-
-  async function toggle() {
+  const toggle = useCallback(async () => {
     const el = boxRef.current;
     if (!el) return;
     try {
@@ -31,7 +26,23 @@ export function ChartHud({ boxRef }: { boxRef: RefObject<HTMLDivElement | null> 
     } catch {
       /* браузер запретил */
     }
-  }
+  }, [boxRef]);
+
+  useEffect(() => {
+    document.addEventListener("fullscreenchange", sync);
+    return () => document.removeEventListener("fullscreenchange", sync);
+  }, [sync]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "F1") return;
+      e.preventDefault();
+      e.stopPropagation();
+      void toggle();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [toggle]);
 
   return (
     <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-2 p-2">
@@ -54,10 +65,11 @@ export function ChartHud({ boxRef }: { boxRef: RefObject<HTMLDivElement | null> 
         type="button"
         onClick={() => void toggle()}
         className="pointer-events-auto inline-flex h-8 items-center gap-1 rounded-md bg-bg/80 px-2 font-mono text-[11px] text-muted backdrop-blur-sm hover:text-fg"
-        aria-label={wide ? "Свернуть график" : "Полный экран"}
+        aria-label={wide ? "Свернуть график" : "Полный экран F1"}
+        title="F1 — полный экран"
       >
         {wide ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
-        {wide ? "свернуть" : "экран"}
+        {wide ? "свернуть" : "F1 экран"}
       </button>
     </div>
   );
@@ -103,7 +115,7 @@ export function OrderHud({
 export function ChartStage({ children, className }: { children: ReactNode; className?: string }) {
   const boxRef = useRef<HTMLDivElement>(null);
   return (
-    <div ref={boxRef} className={cn("relative min-h-[220px] bg-bg", className)}>
+    <div ref={boxRef} className={cn("desk-chart relative min-h-[220px] bg-bg", className)}>
       {children}
       <ChartHud boxRef={boxRef} />
     </div>

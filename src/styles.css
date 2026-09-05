@@ -523,3 +523,11 @@
     animation: none !important;
   }
 }
+
+.desk-chart:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  border-radius: 0;
+  max-height: none;
+}
