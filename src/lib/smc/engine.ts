@@ -149,6 +149,7 @@ export interface SmcSnapshot {
   volumeProfile: {
     poc: number;
     dpoc: number;
+    dpocPath: { time: number; price: number }[];
     vah: number;
     val: number;
     bins: { price: number; volume: number }[];
@@ -1158,10 +1159,16 @@ export function analyzeMarket(
     book: tapeBook ? [...tapeBook.bids, ...tapeBook.asks].slice(0, 12) : [],
     bars: opts?.symbol ? liveCdBars(opts.symbol) : [],
   };
-  const developed = volumeProfile(candles.slice(-16), 18);
+  const src = candles.slice(-64);
+  const dpocPath: { time: number; price: number }[] = [];
+  for (let i = 4; i < src.length; i++) {
+    dpocPath.push({ time: src[i]!.time, price: volumeProfile(src.slice(0, i + 1), 16).poc });
+  }
+  const developed = dpocPath.at(-1)?.price ?? volumeProfile(src.slice(-16), 18).poc;
   const vp = {
     poc: tapeProf?.poc ?? clusters.poc,
-    dpoc: developed.poc,
+    dpoc: developed,
+    dpocPath,
     vah: tapeProf?.vah ?? clusters.vah,
     val: tapeProf?.val ?? clusters.val,
     bins: clusters.bins.map((b) => ({ price: b.price, volume: b.volume })),

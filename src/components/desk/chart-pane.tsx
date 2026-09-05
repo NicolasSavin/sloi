@@ -526,7 +526,8 @@ function drawZones(
       const notable = bar.splash || bar.infusion || bar.imbalance || i === lastIx;
       const col = bar.splash ? "#ffb020" : bar.infusion ? "#c8f030" : bar.imbalance ? "#ff6a6a" : "#e8c070";
       const beat = 0.5 + 0.5 * Math.sin(Date.now() / 200);
-      if (bar.splash || bar.infusion) {
+      const blink = bar.splash || bar.infusion || i === lastIx;
+      if (blink) {
         for (let r = 1; r <= 3; r++) {
           ctx.beginPath();
           ctx.arc(ax, ay, 10 + r * 7 * beat, 0, Math.PI * 2);
@@ -538,9 +539,9 @@ function drawZones(
         ctx.globalAlpha = 1;
       }
       ctx.beginPath();
-      ctx.arc(ax, ay, notable ? 8 + 5 * (bar.splash || bar.infusion ? beat : 0) : 5, 0, Math.PI * 2);
+      ctx.arc(ax, ay, notable ? 8 + 5 * (blink ? beat : 0) : 5, 0, Math.PI * 2);
       ctx.fillStyle = col;
-      ctx.globalAlpha = bar.splash || bar.infusion ? 0.55 + 0.45 * beat : 1;
+      ctx.globalAlpha = blink ? 0.55 + 0.45 * beat : 1;
       ctx.fill();
       ctx.globalAlpha = 1;
       ctx.lineWidth = 2;
@@ -614,9 +615,8 @@ function drawZones(
       ctx.fillRect(x0 + histW - w, y - 4, w, 8);
     }
     const yPoc = series.priceToCoordinate(snap.volumeProfile.poc);
-    const yD = series.priceToCoordinate(snap.volumeProfile.dpoc);
     if (yPoc != null) {
-      ctx.strokeStyle = "rgba(212,176,112,0.85)";
+      ctx.strokeStyle = "rgba(212,176,112,0.7)";
       ctx.lineWidth = 1.2;
       ctx.setLineDash([4, 3]);
       ctx.beginPath();
@@ -625,31 +625,45 @@ function drawZones(
       ctx.stroke();
       ctx.setLineDash([]);
     }
-    if (yD != null) {
+    const path = snap.volumeProfile.dpocPath ?? [];
+    if (path.length > 1) {
       ctx.strokeStyle = "rgba(80,224,144,0.95)";
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 2.2;
       ctx.beginPath();
-      ctx.moveTo(x0 - 16, yD);
-      ctx.lineTo(plotW, yD);
+      let started = false;
+      for (const p of path) {
+        const x = ts.timeToCoordinate(p.time as UTCTimestamp);
+        const y = series.priceToCoordinate(p.price);
+        if (x == null || y == null || x > plotW - 8) continue;
+        if (!started) {
+          ctx.moveTo(x, y);
+          started = true;
+        } else ctx.lineTo(x, y);
+      }
       ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(x0 - 16, yD, 6, 0, Math.PI * 2);
-      ctx.fillStyle = "#50e090";
-      ctx.fill();
-      const lab = { x: x0 - 118, y: yD - 16, w: 96, h: 28 };
-      if (!hits(lab)) {
-        occupy(lab.x, lab.y, lab.w, lab.h);
-        ctx.fillStyle = "rgba(10,28,18,0.92)";
-        ctx.strokeStyle = "#50e090";
-        ctx.lineWidth = 1.6;
+      const lastP = path.at(-1)!;
+      const lx = ts.timeToCoordinate(lastP.time as UTCTimestamp);
+      const ly = series.priceToCoordinate(lastP.price);
+      if (lx != null && ly != null && lx < plotW - 8) {
         ctx.beginPath();
-        if (ctx.roundRect) ctx.roundRect(lab.x, lab.y, lab.w, lab.h, 8);
-        else ctx.rect(lab.x, lab.y, lab.w, lab.h);
-        ctx.fill();
-        ctx.stroke();
-        ctx.font = "bold 13px IBM Plex Sans, sans-serif";
+        ctx.arc(lx, ly, 5, 0, Math.PI * 2);
         ctx.fillStyle = "#50e090";
-        ctx.fillText("dPOC", lab.x + 10, lab.y + 19);
+        ctx.fill();
+        const lab = { x: Math.max(8, lx - 108), y: ly - 16, w: 96, h: 28 };
+        if (!hits(lab) && lab.x + lab.w < plotW - 8) {
+          occupy(lab.x, lab.y, lab.w, lab.h);
+          ctx.fillStyle = "rgba(10,28,18,0.92)";
+          ctx.strokeStyle = "#50e090";
+          ctx.lineWidth = 1.6;
+          ctx.beginPath();
+          if (ctx.roundRect) ctx.roundRect(lab.x, lab.y, lab.w, lab.h, 8);
+          else ctx.rect(lab.x, lab.y, lab.w, lab.h);
+          ctx.fill();
+          ctx.stroke();
+          ctx.font = "bold 13px IBM Plex Sans, sans-serif";
+          ctx.fillStyle = "#50e090";
+          ctx.fillText("dPOC", lab.x + 10, lab.y + 19);
+        }
       }
     }
   }
@@ -1180,7 +1194,6 @@ export function ChartPane({
       }
       if (overlays.profile) {
         add(snap.volumeProfile.poc, "POC", accent);
-        add(snap.volumeProfile.dpoc, "dPOC", token("--color-bull", "#6f9e86"), false, true);
         add(snap.volumeProfile.vah, "VAH", muted, true);
         add(snap.volumeProfile.val, "VAL", muted, true);
         add(snap.micro.vwap, "VWAP", accent);
