@@ -35,7 +35,7 @@ export function ChartHud({ boxRef }: { boxRef: RefObject<HTMLDivElement | null> 
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "F1") return;
+      if (e.key !== "F8") return;
       e.preventDefault();
       e.stopPropagation();
       void toggle();
@@ -65,11 +65,11 @@ export function ChartHud({ boxRef }: { boxRef: RefObject<HTMLDivElement | null> 
         type="button"
         onClick={() => void toggle()}
         className="pointer-events-auto inline-flex h-8 items-center gap-1 rounded-md bg-bg/80 px-2 font-mono text-[11px] text-muted backdrop-blur-sm hover:text-fg"
-        aria-label={wide ? "Свернуть график" : "Полный экран F1"}
-        title="F1 — полный экран"
+        aria-label={wide ? "Свернуть график" : "Полный экран F8"}
+        title="F8 — полный экран"
       >
         {wide ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
-        {wide ? "свернуть" : "F1 экран"}
+        {wide ? "свернуть" : "F8 экран"}
       </button>
     </div>
   );
