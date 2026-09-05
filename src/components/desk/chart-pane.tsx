@@ -286,6 +286,12 @@ function drawZones(
       ctx.setLineDash([]);
       mark(hit ? pool.sweptTime! : pool.time, pool.price, hit ? "Съём" : "Ликвидность", hit ? "sweep" : "liq");
     }
+    const fuel = snap.sweepFuel;
+    if (fuel) {
+      const label = fuel.grade === "strong" ? "Откат сильный" : fuel.grade === "mid" ? "Откат средний" : "Откат слабый";
+      mark(fuel.takeTime, fuel.takePrice, label, fuel.reverse === "up" ? "tp" : "stop");
+      if (fuel.target != null) mark(lastTime, fuel.target, "Цель отката", "entry");
+    }
   }
 
   if (snap && snap.boxVector && snap.boxVector.dir !== "none" && snap.boxVector.magnet != null) {

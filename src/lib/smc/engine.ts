@@ -2,7 +2,7 @@ import type { Candle, MarketKind, OptionsSnapshot } from "@/lib/market/types";
 import { detectPatterns, detectWyckoff, type PatternHit, type WyckoffRead } from "@/lib/smc/patterns";
 import { buildFlow, locateEdgeDiv, type FlowSnap } from "@/lib/smc/flow";
 import { clustersFromCandles, clustersFromTrades, type ClusterMap } from "@/lib/smc/clusters";
-import { buildMicro, nearestStall, type MicroSnap } from "@/lib/smc/micro";
+import { buildMicro, buildSweepFuel, nearestStall, type MicroSnap, type SweepFuel } from "@/lib/smc/micro";
 import { buildAuction, type AuctionSnap } from "@/lib/smc/auction";
 import { buildCoilBreak, type CoilBreak } from "@/lib/smc/coil";
 import { buildCorr, type CorrSnap } from "@/lib/corr";
@@ -159,6 +159,7 @@ export interface SmcSnapshot {
   flow: FlowSnap;
   clusters: ClusterMap;
   micro: MicroSnap;
+  sweepFuel: SweepFuel | null;
   auction: AuctionSnap;
   coil: CoilBreak;
   boxVector: BoxVector;
@@ -881,6 +882,7 @@ function buildStory(
   flow: FlowSnap,
   clusters: ClusterMap,
   micro: MicroSnap,
+  fuel: SweepFuel | null = null,
 ): MarketStory {
   const chain: StoryBeat[] = [];
   const lastEv = events.at(-1);
@@ -962,6 +964,7 @@ function buildStory(
   chain.push({ because: micro.because, therefore: micro.therefore });
   if (micro.infusion) chain.push({ because: micro.infusion.because, therefore: micro.infusion.therefore });
   if (micro.splash) chain.push({ because: micro.splash.because, therefore: micro.splash.therefore });
+  if (fuel) chain.push({ because: fuel.because, therefore: fuel.therefore });
   if (setup.targets[0] != null && /infusion|HVN|кластер/i.test(setup.thesis)) {
     chain.push({
       because: `Первая цель ${fmt(setup.targets[0])} — узел infusion по ходу: там объём уже тормозил цену`,
@@ -1114,6 +1117,7 @@ export function analyzeMarket(
   let flow = buildFlow(candles, swings, atr);
   const clusters = (trades?.length ? clustersFromTrades(trades) : null) ?? clustersFromCandles(candles);
   const micro = buildMicro(candles, opts?.symbol ? liveClusters(opts.symbol) : []);
+  const sweepFuel = buildSweepFuel(candles, liquidity, micro.nodes, atr, last.close);
   const auction = buildAuction(candles, opts?.kind);
   const coil = buildCoilBreak(candles, atr, swings);
   const corr = buildCorr(opts?.symbol ?? "", {
@@ -1375,6 +1379,14 @@ export function analyzeMarket(
           : "neutral",
     note: `${coil.because} ${coil.therefore}`,
   });
+  if (sweepFuel) {
+    confluence.push({
+      id: "fuel",
+      layer: "Топливо съёма",
+      status: sweepFuel.grade === "strong" ? "for" : sweepFuel.grade === "weak" ? "against" : "neutral",
+      note: `${sweepFuel.because} ${sweepFuel.therefore}`,
+    });
+  }
   confluence.push({
     id: "box",
     layer: "Вектор коробки",
@@ -1439,6 +1451,7 @@ export function analyzeMarket(
     flow,
     clusters,
     micro,
+    sweepFuel,
   );
 
   return {
@@ -1464,6 +1477,7 @@ export function analyzeMarket(
     flow,
     clusters,
     micro,
+    sweepFuel,
     auction,
     coil,
     boxVector,
@@ -1529,6 +1543,7 @@ export function compactForAi(symbol: string, timeframe: string, snap: SmcSnapsho
       cmeTicker: snap.micro.cmeTicker,
       therefore: snap.micro.therefore,
     },
+    sweepFuel: snap.sweepFuel,
     auction: snap.auction,
     coil: snap.coil,
     boxVector: snap.boxVector,
