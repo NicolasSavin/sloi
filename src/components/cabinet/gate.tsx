@@ -120,23 +120,24 @@ export function CabinetGate() {
       <div className="panel-volume rounded-xl p-5">
         <p className="font-mono text-xs tracking-[0.2em] text-accent">КАБИНЕТ · {prefix}…</p>
         <p className="mt-2 text-sm text-muted">
-          Лента советника: <span className="font-mono text-fg">{SITE_URL}/api/signals.txt?k=…</span>
+          Лента сигналов (сов читает):{" "}
+          <a className="font-mono text-fg underline" href={`${SITE_URL}/api/signals.txt?k=${encodeURIComponent(key)}`}>
+            /api/signals.txt
+          </a>
         </p>
-        {fresh ? (
-          <div className="mt-4 rounded-lg bg-subtle p-4">
-            <p className="text-sm font-medium">Сохраните ключ. Второй раз целиком не покажем.</p>
-            <p className="mt-2 break-all font-mono text-sm text-accent">{fresh}</p>
-            <Button
-              className="mt-3"
-              variant="outline"
-              onClick={() => void navigator.clipboard.writeText(fresh)}
-            >
-              Копировать ключ
-            </Button>
-          </div>
-        ) : (
-          <p className="mt-3 font-mono text-xs text-dim">{key.slice(0, 12)}…{key.slice(-4)}</p>
-        )}
+        <p className="mt-1 text-sm text-muted">
+          Лента терминала (сов шлёт счёт):{" "}
+          <a className="font-mono text-fg underline" href={`${SITE_URL}/api/broker?k=${encodeURIComponent(key)}`}>
+            /api/broker
+          </a>
+        </p>
+        <div className="mt-4 rounded-lg bg-subtle p-4">
+          <p className="text-sm font-medium">Ключ стола — тот же, что в советнике DeskKey.</p>
+          <p className="mt-2 break-all font-mono text-sm text-accent">{key}</p>
+          <Button className="mt-3" variant="outline" onClick={() => void navigator.clipboard.writeText(key)}>
+            Копировать ключ
+          </Button>
+        </div>
         <div className="mt-4 flex flex-wrap gap-2">
           <Button
             variant="outline"
