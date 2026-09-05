@@ -88,6 +88,7 @@ export function OrderHud({
   loading?: boolean;
   boxVector?: { dir: "up" | "down" | "none"; magnet: number | null; because: string } | null;
 }) {
+  const [open, setOpen] = useState(true);
   const live = order?.action === "long" || order?.action === "short";
   const side = order ? actionLabel(order.action) : loading ? "гружу стол…" : "нет ленты";
   const entry = live && setup?.entry != null ? formatPrice(setup.entry, decimals) : null;
@@ -99,15 +100,31 @@ export function OrderHud({
       : null;
   return (
     <div className="pointer-events-none absolute inset-x-0 top-12 z-30 px-2">
-      <div className="max-w-xl rounded-md border border-accent/40 bg-bg px-3 py-2 shadow-[var(--shadow-volume)]">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          "pointer-events-auto max-w-xl rounded-md border border-accent/40 bg-bg text-left shadow-[var(--shadow-volume)]",
+          open ? "px-3 py-2" : "px-3 py-1.5",
+        )}
+        title={open ? "Свернуть приказ" : "Развернуть приказ"}
+      >
         <p className="font-mono text-[10px] tracking-[0.16em] text-accent">
-          {live ? "ПРИКАЗ ДИСПЕТЧЕРА · ДЕРЖИМ, ПОКА НЕ СМЕНИТ" : "ПРИКАЗ ДИСПЕТЧЕРА"}
+          {open
+            ? live
+              ? "ПРИКАЗ ДИСПЕТЧЕРА · ДЕРЖИМ, ПОКА НЕ СМЕНИТ"
+              : "ПРИКАЗ ДИСПЕТЧЕРА"
+            : `ПРИКАЗ · ${side}`}
         </p>
-        <p className="mt-1 text-sm font-medium">
-          {live ? `${side} · вход ${entry} · стоп ${stop} · цель ${tp}` : `${side}. Зоны на графике — карта, не ордер.`}
-        </p>
-        {vec ? <p className="mt-1 text-xs text-muted">{vec}. Середина не вход.</p> : null}
-      </div>
+        {open ? (
+          <>
+            <p className="mt-1 text-sm font-medium">
+              {live ? `${side} · вход ${entry} · стоп ${stop} · цель ${tp}` : `${side}. Зоны на графике — карта, не ордер.`}
+            </p>
+            {vec ? <p className="mt-1 text-xs text-muted">{vec}. Середина не вход.</p> : null}
+          </>
+        ) : null}
+      </button>
     </div>
   );
 }
