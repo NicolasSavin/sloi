@@ -67,6 +67,7 @@ type Room = {
   askbid: Map<string, { at: number; ask: number; bid: number }>;
   flow: Map<string, { at: number; volume: number; delta: number }>;
   cdBars: Map<string, CdBar[]>;
+  cum: Map<string, { at: number; path: { time: number; value: number }[] }>;
 };
 
 const g = globalThis as typeof globalThis & { __sloiRooms__?: Map<string, Room> };
@@ -78,7 +79,7 @@ function room(tenant = "legacy"): Room {
   const map = rooms();
   let r = map.get(tenant);
   if (!r) {
-    r = { ticks: new Map(), books: new Map(), account: null, clusters: new Map(), profiles: new Map(), askbid: new Map(), flow: new Map(), cdBars: new Map() };
+    r = { ticks: new Map(), books: new Map(), account: null, clusters: new Map(), profiles: new Map(), askbid: new Map(), flow: new Map(), cdBars: new Map(), cum: new Map() };
     map.set(tenant, r);
   }
   if (!r.profiles) r.profiles = new Map();
@@ -86,6 +87,7 @@ function room(tenant = "legacy"): Room {
   if (!r.askbid) r.askbid = new Map();
   if (!r.flow) r.flow = new Map();
   if (!r.cdBars) r.cdBars = new Map();
+  if (!r.cum) r.cum = new Map();
   return r;
 }
 
@@ -209,6 +211,23 @@ export function ingestBrokerTape(text: string, tenant = "legacy") {
       }
       continue;
     }
+    if (p[0] === "CUMDELTA" && p.length >= 3) {
+      const id = (p[1] ?? "").replace(/[^A-Za-z]/g, "").toUpperCase();
+      const a = Number(p[2]);
+      const b = Number(p[3]);
+      if (id && Number.isFinite(a)) {
+        const time = Number.isFinite(b) && a > 1_000_000 ? a : Math.floor(Date.now() / 1000);
+        const value = Number.isFinite(b) && a > 1_000_000 ? b : a;
+        const prev = r.cum.get(id);
+        const path = [...(prev?.path ?? [])];
+        const i = path.findIndex((x) => x.time === time);
+        if (i >= 0) path[i] = { time, value };
+        else path.push({ time, value });
+        path.sort((x, y) => x.time - y.time);
+        r.cum.set(id, { at, path: path.slice(-64) });
+      }
+      continue;
+    }
     if (p[0] === "CDBAR" && p.length >= 6) {
       const id = (p[1] ?? "").replace(/[^A-Za-z]/g, "").toUpperCase();
       const time = Number(p[2]);
@@ -322,16 +341,18 @@ export function snapshotBroker(tenant = "legacy") {
   for (const [id, v] of r.clusters) if (now - v.at < 90_000) clusters[id] = v.nodes;
   const bars: Record<string, CdBar[]> = {};
   for (const [id, v] of r.cdBars) bars[id] = v;
+  const cum: Record<string, { time: number; value: number }[]> = {};
+  for (const [id, v] of r.cum) if (now - v.at < 180_000) cum[id] = v.path;
   return {
     ticks: [...r.ticks.values()].filter((t) => now - t.at < 90_000),
     books: [...r.books.values()].filter((b) => now - b.at < 90_000),
     account: tenant === "legacy" ? null : brokerAccount(tenant),
     tenant: tenant === "legacy" ? null : tenant,
-    cd: { askbid, flow, clusters, bars },
+    cd: { askbid, flow, clusters, bars, cum },
   };
 }
 
-export function hydrateClientCd(cd: { askbid?: Record<string, { ask: number; bid: number }>; flow?: Record<string, { volume: number; delta: number }>; clusters?: Record<string, VolumeNode[]>; bars?: Record<string, CdBar[]> } | null | undefined) {
+export function hydrateClientCd(cd: { askbid?: Record<string, { ask: number; bid: number }>; flow?: Record<string, { volume: number; delta: number }>; clusters?: Record<string, VolumeNode[]>; bars?: Record<string, CdBar[]>; cum?: Record<string, { time: number; value: number }[]> } | null | undefined) {
   if (!cd) return;
   const r = room("client");
   const at = Date.now();
@@ -339,10 +360,23 @@ export function hydrateClientCd(cd: { askbid?: Record<string, { ask: number; bid
   r.flow = new Map();
   r.clusters = new Map();
   r.cdBars = new Map();
+  r.cum = new Map();
   for (const [id, v] of Object.entries(cd.askbid ?? {})) r.askbid.set(id, { at, ask: v.ask, bid: v.bid });
   for (const [id, v] of Object.entries(cd.flow ?? {})) r.flow.set(id, { at, volume: v.volume, delta: v.delta });
   for (const [id, v] of Object.entries(cd.clusters ?? {})) r.clusters.set(id, { at, nodes: v });
   for (const [id, v] of Object.entries(cd.bars ?? {})) r.cdBars.set(id, v);
+  for (const [id, v] of Object.entries(cd.cum ?? {})) r.cum.set(id, { at, path: v });
+}
+
+export function liveCumDelta(id: string): { time: number; value: number }[] {
+  const map = new Map<number, number>();
+  const now = Date.now();
+  for (const r of rooms().values()) {
+    const v = r.cum.get(id);
+    if (!v || now - v.at > 180_000) continue;
+    for (const p of v.path) map.set(p.time, p.value);
+  }
+  return [...map.entries()].sort((a, b) => a[0] - b[0]).map(([time, value]) => ({ time, value }));
 }
 
 export function liveCdBars(id: string): CdBar[] {

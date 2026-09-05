@@ -7,7 +7,7 @@ import { buildAuction, type AuctionSnap } from "@/lib/smc/auction";
 import { buildCoilBreak, type CoilBreak } from "@/lib/smc/coil";
 import { buildCorr, type CorrSnap } from "@/lib/corr";
 import { buildIvNews, type IvNewsSnap } from "@/lib/iv-news";
-import { brokerBook, liveAskBid, liveCdBars, liveCdFlow, liveClusters, liveProfile } from "@/lib/broker-tape";
+import { brokerBook, liveAskBid, liveCdBars, liveCdFlow, liveClusters, liveCumDelta, liveProfile } from "@/lib/broker-tape";
 import type { NewsHalt } from "@/lib/calendar";
 
 export type Bias = "bullish" | "bearish" | "range";
@@ -172,6 +172,7 @@ export interface SmcSnapshot {
     infusion: boolean;
     book: { side: "bid" | "ask"; price: number; volume: number }[];
     bars: { time: number; volume: number; delta: number; ask: number; bid: number; splash: boolean; infusion: boolean; imbalance: boolean }[];
+    cum: { time: number; value: number }[];
   };
   auction: AuctionSnap;
   coil: CoilBreak;
@@ -1188,6 +1189,7 @@ export function analyzeMarket(
     infusion: tapeNodes.some((n) => n.kind === "infusion") || (opts?.symbol ? liveCdBars(opts.symbol).some((b) => b.infusion) : false),
     book: tapeBook ? [...tapeBook.bids, ...tapeBook.asks].slice(0, 12) : [],
     bars: opts?.symbol ? liveCdBars(opts.symbol) : [],
+    cum: opts?.symbol ? liveCumDelta(opts.symbol) : [],
   };
   const src = candles.slice(-64);
   const dpocPath: { time: number; price: number }[] = [];

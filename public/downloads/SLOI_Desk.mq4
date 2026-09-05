@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.67"
+#property version   "4.68"
 #property strict
-#property description "SLOI 4.67: ClusterDelta splash/infusion по всем парам (тики)."
+#property description "SLOI 4.68: ClusterDelta #CumDelta с терминала, не прокси свечей."
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -47,6 +47,7 @@ input string  CdProfile       = "ClusterDelta_#MarketProfile";
 input string  CdBookMap       = "ClusterDelta_#BookMap";
 input string  CdAskBid        = "ClusterDelta_#AskBid";
 input string  CdImbalance     = "ClusterDelta_#Imbalance";
+input string  CdCumDelta      = "ClusterDelta_#CumDelta";
 input int     PanelX          = 8;
 input int     PanelY          = 18;
 
@@ -137,7 +138,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.67: CD splash по всем парам.");
+   Print("SLOI 4.68: CumDelta с ClusterDelta_#CumDelta.");
    return(INIT_SUCCEEDED);
   }
 
@@ -1111,6 +1112,7 @@ void AppendCdClusters(string &body, int sent)
       AppendCdProfile(body, g_sym[i]);
       AppendCdBook(body, g_sym[i]);
       AppendCdAskBid(body, g_sym[i]);
+      AppendCdCum(body, g_sym[i]);
      }
   }
 
@@ -1225,6 +1227,21 @@ void ScrapeChartCd(long ch, string s, string &body)
         + DoubleToStr(vol, 0) + " " + DoubleToStr(dlt, 0) + " "
         + DoubleToStr(askV, 0) + " " + DoubleToStr(bidV, 0) + " "
         + IntegerToString(sp) + " " + IntegerToString(infg) + " " + IntegerToString(im) + "\n";
+  }
+
+void AppendCdCum(string &body, string s)
+  {
+   if(StringLen(CdCumDelta) < 4) return;
+   int tf = PERIOD_H1;
+   for(int i = 24; i >= 0; i--)
+     {
+      ResetLastError();
+      double x = Icd(s, tf, CdCumDelta, 0, i);
+      if(x == EMPTY_VALUE || MathAbs(x) > 1.0e12) continue;
+      datetime t = iTime(s, tf, i);
+      if(t <= 0) continue;
+      body += "CUMDELTA " + Naked(s) + " " + IntegerToString((int)t) + " " + DoubleToStr(x, 0) + "\n";
+     }
   }
 
 void AppendCdAskBid(string &body, string s)

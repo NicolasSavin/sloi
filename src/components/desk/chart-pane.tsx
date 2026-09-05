@@ -1514,11 +1514,12 @@ export function ChartPane({
         scaleMargins: { top: 0.82, bottom: 0 },
       });
       const cvd = chart.addSeries(lc.LineSeries, {
-        color: "rgba(201,184,150,0.85)",
+        color: "rgba(120,200,220,0.95)",
         lineWidth: 2,
         priceScaleId: "cvd",
         lastValueVisible: true,
         priceLineVisible: false,
+        title: "CumDelta",
       });
       chart.priceScale("cvd").applyOptions({
         scaleMargins: { top: 0.68, bottom: 0.16 },
@@ -1600,7 +1601,6 @@ export function ChartPane({
         close: c.close,
       })),
     );
-    let run = 0;
     volume.setData(
       candles.map((c) => {
         const d = deltaOf(c);
@@ -1612,10 +1612,19 @@ export function ChartPane({
       }),
     );
     cvd.setData(
-      candles.map((c) => {
-        run += deltaOf(c);
-        return { time: c.time as UTCTimestamp, value: run };
-      }),
+      (() => {
+        const cum = snap?.cdTape?.cum ?? [];
+        if (cum.length > 3) {
+          cvd.applyOptions({ title: "CumDelta", color: "rgba(120,200,220,0.95)" });
+          return cum.map((p) => ({ time: p.time as UTCTimestamp, value: p.value }));
+        }
+        cvd.applyOptions({ title: "CVD", color: "rgba(201,184,150,0.55)" });
+        let run = 0;
+        return candles.map((c) => {
+          run += deltaOf(c);
+          return { time: c.time as UTCTimestamp, value: run };
+        });
+      })(),
     );
     if (vwap) {
       let pv = 0;
@@ -1631,7 +1640,7 @@ export function ChartPane({
       );
     }
     chartRef.current?.timeScale().fitContent();
-  }, [candles, ready]);
+  }, [candles, ready, snap?.cdTape?.cum]);
 
   useEffect(() => {
     const series = seriesRef.current;
