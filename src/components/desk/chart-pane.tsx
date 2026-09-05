@@ -487,11 +487,22 @@ function drawZones(
       const top = Math.min(y1, y2);
       const h = Math.max(imb ? 6 : 14, Math.abs(y2 - y1));
       const bull = z.side === "bull";
-      const tone = imb ? "fvg" : bull ? "ob" : "obBear";
+      const broken =
+        z.kind === "breaker" ||
+        (z.kind === "ob" && (z.side === "bull" ? lastPx < z.bottom : lastPx > z.top));
+      const tone = imb ? "fvg" : broken ? "choch" : bull ? "ob" : "obBear";
       const near = !imb && dist(z) <= (atr || 1) * 0.9;
       fillVolume(left, top, zw, h, tone, near);
       occupy(left, top, zw, h);
-      mark(z.startTime, (z.top + z.bottom) / 2, imb ? "Имбаланс" : "Ордерблок", tone);
+      const title =
+        imb
+          ? "Имбаланс"
+          : broken
+            ? "Брейкер-блок|ордерблок пробит"
+            : z.kind === "mitigation"
+              ? "Митигейшн|возврат в блок"
+              : "Ордерблок";
+      mark(z.startTime, (z.top + z.bottom) / 2, title, tone);
     }
   }
 
@@ -662,8 +673,6 @@ function drawZones(
   if (candles.length) drawVolumeCandles(ctx, width, height, chart, series, candles, false);
 
   ctx.font = "13px IBM Plex Sans, sans-serif";
-  const bw = 124;
-  const bh = 34;
   const hits = (box: { x: number; y: number; w: number; h: number }) =>
     busy.some(
       (b) => box.x < b.x + b.w + 8 && box.x + box.w + 8 > b.x && box.y < b.y + b.h + 8 && box.y + box.h + 8 > b.y,
@@ -674,6 +683,11 @@ function drawZones(
     const ax = ts.timeToCoordinate(n.time as UTCTimestamp);
     const ay = series.priceToCoordinate(n.price);
     if (ax == null || ay == null) continue;
+    const lines = n.text.split("|");
+    ctx.font = "600 13px IBM Plex Sans, sans-serif";
+    const lineW = Math.max(...lines.map((l) => ctx.measureText(l).width), 80);
+    const bw = Math.min(220, lineW + 22);
+    const bh = lines.length > 1 ? 48 : 34;
     const candidates = [
       { x: ax + 28, y: ay + 22 },
       { x: ax + 28, y: ay - bh - 22 },
@@ -721,7 +735,7 @@ function drawZones(
       n.tone === "tp" ||
       n.tone === "stop" ||
       n.tone === "choch" ||
-      /ВЛИВАНИЕ|СПЛЭШ|Имбаланс|Лонг|Шорт/.test(n.text);
+      /ВЛИВАНИЕ|СПЛЭШ|Имбаланс|Лонг|Шорт|Брейкер/.test(n.text);
     const beat = hot ? 0.82 + 0.18 * Math.sin(tick / 260) : 1;
     ctx.globalAlpha = beat;
     ctx.shadowColor = hot ? pal.stroke : "rgba(0,0,0,0.45)";
@@ -748,18 +762,20 @@ function drawZones(
     ctx.fill();
     ctx.globalAlpha = 1;
     ctx.font = "600 13px IBM Plex Sans, sans-serif";
-    const tw = ctx.measureText(n.text).width;
-    const tx = bx + (bw - tw) / 2;
-    const ty = by + 22;
-    ctx.strokeStyle = "rgba(20,12,4,0.55)";
-    ctx.lineWidth = 3.2;
-    ctx.lineJoin = "round";
-    ctx.strokeText(n.text, tx, ty);
-    const tg = ctx.createLinearGradient(tx, ty - 12, tx, ty + 4);
-    tg.addColorStop(0, pal.t0);
-    tg.addColorStop(1, pal.t1);
-    ctx.fillStyle = tg;
-    ctx.fillText(n.text, tx, ty);
+    lines.forEach((line, i) => {
+      const tw = ctx.measureText(line).width;
+      const tx = bx + (bw - tw) / 2;
+      const ty = by + (lines.length > 1 ? 20 + i * 16 : 22);
+      ctx.strokeStyle = "rgba(20,12,4,0.55)";
+      ctx.lineWidth = 3.2;
+      ctx.lineJoin = "round";
+      ctx.strokeText(line, tx, ty);
+      const tg = ctx.createLinearGradient(tx, ty - 12, tx, ty + 4);
+      tg.addColorStop(0, pal.t0);
+      tg.addColorStop(1, pal.t1);
+      ctx.fillStyle = tg;
+      ctx.fillText(line, tx, ty);
+    });
   }
 
   const cd = snap?.cdTape;
