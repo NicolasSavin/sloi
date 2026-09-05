@@ -92,6 +92,42 @@ function drawVolumeCandles(
   }
 }
 
+function paintPathArrow(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  yFrom: number,
+  yTo: number,
+  color: string,
+  width: number,
+  blink: boolean,
+) {
+  if (yFrom == null || yTo == null || Math.abs(yTo - yFrom) < 10) return;
+  const fade = blink ? 0.18 + 0.82 * (0.5 + 0.5 * Math.sin(Date.now() / 280)) : 0.95;
+  const up = yTo < yFrom;
+  const head = Math.max(12, width * 2.2);
+  ctx.save();
+  ctx.globalAlpha = fade;
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = width;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.shadowColor = color;
+  ctx.shadowBlur = blink ? 14 : 8;
+  const tip = yTo + (up ? head * 0.15 : -head * 0.15);
+  ctx.beginPath();
+  ctx.moveTo(x, yFrom);
+  ctx.quadraticCurveTo(x + 8 + width * 1.4, (yFrom + yTo) / 2, x, tip);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x, yTo);
+  ctx.lineTo(x - head * 0.62, yTo + (up ? 1 : -1) * head * 0.85);
+  ctx.lineTo(x + head * 0.62, yTo + (up ? 1 : -1) * head * 0.85);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
 function pulseRings(ctx: CanvasRenderingContext2D, x: number, y: number, color: string, strong = true) {
   const beat = 0.5 + 0.5 * Math.sin(Date.now() / 200);
   const rings = strong ? 3 : 2;
@@ -489,27 +525,7 @@ function drawZones(
   }
 
   if (snap && snap.boxVector && snap.boxVector.dir !== "none" && snap.boxVector.magnet != null) {
-    const magY = series.priceToCoordinate(snap.boxVector.magnet);
-    const lastY = series.priceToCoordinate(snap.lastClose);
-    if (magY != null && lastY != null) {
-      const up = snap.boxVector.dir === "up";
-      ctx.strokeStyle = up ? "rgba(150,210,180,0.85)" : "rgba(220,150,150,0.85)";
-      ctx.fillStyle = ctx.strokeStyle;
-      ctx.lineWidth = 2;
-      ctx.setLineDash([6, 4]);
-      ctx.beginPath();
-      ctx.moveTo(plotW - 22, lastY);
-      ctx.lineTo(plotW - 22, magY);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.beginPath();
-      ctx.moveTo(plotW - 22, magY);
-      ctx.lineTo(plotW - 28, magY + (up ? 10 : -10));
-      ctx.lineTo(plotW - 16, magY + (up ? 10 : -10));
-      ctx.closePath();
-      ctx.fill();
-      mark(lastTime, snap.boxVector.magnet, up ? "Вектор вверх" : "Вектор вниз", "vec");
-    }
+    mark(lastTime, snap.boxVector.magnet, snap.boxVector.dir === "up" ? "Вектор вверх" : "Вектор вниз", "vec");
   }
 
   if (overlays.patterns !== false && snap) {
@@ -597,6 +613,54 @@ function drawZones(
   }
 
   if (candles.length) drawVolumeCandles(ctx, width, height, chart, series, candles, false);
+
+  if (snap) {
+    const yNow = series.priceToCoordinate(snap.lastClose);
+    if (yNow != null) {
+      const atr = snap.atr || Math.abs(snap.lastClose) * 0.002;
+      let shortDir: "up" | "down" | null = null;
+      let shortTo = snap.lastClose;
+      if (snap.boxVector && snap.boxVector.dir !== "none" && snap.boxVector.magnet != null) {
+        shortDir = snap.boxVector.dir === "up" ? "up" : "down";
+        shortTo = snap.boxVector.magnet;
+      } else if (snap.bias === "bullish") {
+        shortDir = "up";
+        shortTo = snap.lastClose + atr * 0.7;
+      } else if (snap.bias === "bearish") {
+        shortDir = "down";
+        shortTo = snap.lastClose - atr * 0.7;
+      }
+      const yShort = series.priceToCoordinate(shortTo);
+      if (shortDir && yShort != null) {
+        paintPathArrow(
+          ctx,
+          plotW - 54,
+          yNow,
+          yShort,
+          shortDir === "up" ? "#5dffb0" : "#ff6a6a",
+          3.2,
+          true,
+        );
+      }
+      const live = order?.action === "long" || order?.action === "short";
+      if (live) {
+        const up = order!.action === "long";
+        const tgt = setup?.targets[0] ?? (up ? snap.lastClose + atr * 1.6 : snap.lastClose - atr * 1.6);
+        const yT = series.priceToCoordinate(tgt);
+        if (yT != null) {
+          paintPathArrow(
+            ctx,
+            plotW - 26,
+            yNow,
+            yT,
+            up ? "#7dffc0" : "#ff8080",
+            7.4,
+            false,
+          );
+        }
+      }
+    }
+  }
 
   ctx.font = "13px IBM Plex Sans, sans-serif";
   const bw = 124;
