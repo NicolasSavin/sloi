@@ -500,9 +500,7 @@ function drawZones(
       const top = Math.min(y1, y2);
       const h = Math.max(imb ? 6 : 14, Math.abs(y2 - y1));
       const bull = z.side === "bull";
-      const broken =
-        z.kind === "breaker" ||
-        (z.kind === "ob" && (z.side === "bull" ? lastPx < z.bottom : lastPx > z.top));
+      const broken = z.kind === "breaker";
       const tone = imb ? "fvg" : broken ? "choch" : bull ? "ob" : "obBear";
       const near = !imb && dist(z) <= (atr || 1) * 0.9;
       fillVolume(left, top, zw, h, tone, near);

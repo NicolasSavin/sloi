@@ -426,6 +426,15 @@ function detectOrderBlocks(candles: Candle[], events: StructureEvent[]): Zone[] 
   return zones.filter((z) => !z.mitigated).slice(-10);
 }
 
+function bodyBrokeOb(origin: Side, x: Candle, top: number, bottom: number) {
+  const hi = Math.max(x.open, x.close);
+  const lo = Math.min(x.open, x.close);
+  const range = x.high - x.low || 1;
+  if ((hi - lo) / range < 0.35) return false;
+  if (origin === "bull") return hi < bottom;
+  return lo > top;
+}
+
 function classifyBlock(
   id: string,
   origin: Side,
@@ -436,21 +445,23 @@ function classifyBlock(
   const top = origin === "bull" ? Math.max(c.open, c.close) : c.high;
   const bottom = origin === "bull" ? c.low : Math.min(c.open, c.close);
   const after = candles.slice(ev.index + 1);
-  const breakAt = after.findIndex((x) => (origin === "bull" ? x.close < bottom : x.close > top));
+  const breakAt = after.findIndex((x) => bodyBrokeOb(origin, x, top, bottom));
   if (breakAt >= 0) {
-    const side: Side = origin === "bull" ? "bear" : "bull";
     const rest = after.slice(breakAt + 1);
-    const dead = side === "bear" ? rest.some((x) => x.close > top) : rest.some((x) => x.close < bottom);
-    return {
-      id: `brk-${id}`,
-      kind: "breaker",
-      side,
-      top,
-      bottom,
-      startTime: c.time,
-      endTime: candles[ev.index]!.time,
-      mitigated: dead,
-    };
+    const reclaimed = rest.some((x) => (origin === "bull" ? x.close > bottom : x.close < top));
+    if (!reclaimed) {
+      const side: Side = origin === "bull" ? "bear" : "bull";
+      return {
+        id: `brk-${id}`,
+        kind: "breaker",
+        side,
+        top,
+        bottom,
+        startTime: c.time,
+        endTime: candles[ev.index]!.time,
+        mitigated: false,
+      };
+    }
   }
   const tapped =
     origin === "bull"
