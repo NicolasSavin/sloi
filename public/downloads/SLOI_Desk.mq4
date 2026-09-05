@@ -1117,8 +1117,8 @@ void AppendCdBook(string &body, string s)
    int n = 0;
    for(int b = 0; b <= 10 && n < 8; b += 2)
      {
-      double px = iCustom(s, PERIOD_CURRENT, CdBookMap, b, 0);
-      double vol = iCustom(s, PERIOD_CURRENT, CdBookMap, b + 1, 0);
+      double px = iCustom(s, PERIOD_H1, CdBookMap, b, 0);
+      double vol = iCustom(s, PERIOD_H1, CdBookMap, b + 1, 0);
       if(!LooksPx(px, bid) || vol == EMPTY_VALUE || vol <= 0 || vol > 1.0e12) continue;
       string sd = (px <= bid ? "B" : "S");
       row += " " + sd + " " + DoubleToStr(px, DigitsOf(s)) + " " + DoubleToStr(vol, 0);
