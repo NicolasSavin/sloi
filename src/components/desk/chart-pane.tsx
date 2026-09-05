@@ -451,6 +451,7 @@ function drawZones(
       (b) => box.x < b.x + b.w + 8 && box.x + box.w + 8 > b.x && box.y < b.y + b.h + 8 && box.y + box.h + 8 > b.y,
     );
   const shown = notes.slice(0, 8);
+  const tick = Date.now();
   for (const n of shown) {
     const ax = ts.timeToCoordinate(n.time as UTCTimestamp);
     const ay = series.priceToCoordinate(n.price);
@@ -497,25 +498,37 @@ function drawZones(
     ctx.lineTo(bx, by + r);
     ctx.quadraticCurveTo(bx, by, bx + r, by);
     ctx.closePath();
-    ctx.shadowColor = "rgba(0,0,0,0.45)";
-    ctx.shadowBlur = 14;
+    const hot =
+      n.tone === "sweep" ||
+      n.tone === "tp" ||
+      n.tone === "stop" ||
+      n.tone === "choch" ||
+      /ВЛИВАНИЕ|СПЛЭШ|Имбаланс|Лонг|Шорт/.test(n.text);
+    const beat = hot ? 0.82 + 0.18 * Math.sin(tick / 260) : 1;
+    ctx.globalAlpha = beat;
+    ctx.shadowColor = hot ? pal.stroke : "rgba(0,0,0,0.45)";
+    ctx.shadowBlur = hot ? 18 + 8 * Math.sin(tick / 260) : 14;
     ctx.shadowOffsetY = 5;
-    const g = ctx.createLinearGradient(bx, by, bx, by + bh);
+    const g = ctx.createLinearGradient(bx, by, bx + bw, by + bh);
     g.addColorStop(0, pal.b0);
-    g.addColorStop(1, pal.b1);
+    g.addColorStop(0.45, pal.b1);
+    g.addColorStop(1, pal.b0);
     ctx.fillStyle = g;
     ctx.fill();
     ctx.shadowColor = "transparent";
     ctx.shadowBlur = 0;
     ctx.shadowOffsetY = 0;
     ctx.strokeStyle = pal.stroke;
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = hot ? 2 : 1.5;
     ctx.stroke();
-    const shine = ctx.createLinearGradient(bx, by, bx, by + 12);
-    shine.addColorStop(0, "rgba(255,255,255,0.4)");
+    const slide = ((tick / 18) % (bw + 50)) - 25;
+    const shine = ctx.createLinearGradient(bx + slide - 20, by, bx + slide + 40, by + bh);
+    shine.addColorStop(0, "rgba(255,255,255,0)");
+    shine.addColorStop(0.45, "rgba(255,248,220,0.38)");
     shine.addColorStop(1, "rgba(255,255,255,0)");
     ctx.fillStyle = shine;
     ctx.fill();
+    ctx.globalAlpha = 1;
     ctx.font = "600 13px IBM Plex Sans, sans-serif";
     const tw = ctx.measureText(n.text).width;
     const tx = bx + (bw - tw) / 2;
