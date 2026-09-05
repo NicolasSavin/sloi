@@ -90,6 +90,29 @@ function drawVolumeCandles(
   }
 }
 
+function pulseRings(ctx: CanvasRenderingContext2D, x: number, y: number, color: string, strong = true) {
+  const beat = 0.5 + 0.5 * Math.sin(Date.now() / 200);
+  const rings = strong ? 3 : 2;
+  for (let r = 1; r <= rings; r++) {
+    ctx.beginPath();
+    ctx.arc(x, y, 8 + r * (strong ? 8 : 5) * beat, 0, Math.PI * 2);
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = (1 - r / (rings + 1)) * (0.3 + 0.7 * beat);
+    ctx.lineWidth = strong ? 2.6 : 1.8;
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  ctx.beginPath();
+  ctx.arc(x, y, 6 + 4 * beat, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.globalAlpha = 0.5 + 0.5 * beat;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = "#1a1208";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+
 function drawZones(
   ctx: CanvasRenderingContext2D,
   width: number,
@@ -744,18 +767,34 @@ function drawTape(
     }
   }
   const last = candles.at(-1);
+  const beat = 0.5 + 0.5 * Math.sin(Date.now() / 200);
   if (snap?.micro.infusion && last) {
     const x = ts.timeToCoordinate(last.time as UTCTimestamp);
     const yH = series.priceToCoordinate(last.high);
     const yL = series.priceToCoordinate(last.low);
-    if (x != null && yH != null && yL != null) {
-      ctx.strokeStyle = "rgba(201,184,150,0.95)";
-      ctx.lineWidth = 3;
-      ctx.strokeRect(x - 10, Math.min(yH, yL) - 4, 20, Math.abs(yH - yL) + 8);
-      ctx.fillStyle = "#f0e6d4";
-      ctx.font = "bold 11px IBM Plex Mono, monospace";
-      ctx.fillText("INFUSION", x - 28, Math.min(yH, yL) - 8);
+    const yC = series.priceToCoordinate(last.close);
+    if (x != null && yH != null && yL != null && yC != null) {
+      ctx.strokeStyle = `rgba(200,240,48,${0.45 + 0.55 * beat})`;
+      ctx.lineWidth = 2 + 2 * beat;
+      ctx.strokeRect(x - 10 - 4 * beat, Math.min(yH, yL) - 4, 20 + 8 * beat, Math.abs(yH - yL) + 8);
+      pulseRings(ctx, x, yC, "#c8f030", true);
+      ctx.font = "bold 13px IBM Plex Sans, sans-serif";
+      ctx.fillStyle = "#c8f030";
+      ctx.globalAlpha = 0.55 + 0.45 * beat;
+      ctx.fillText("ВЛИВАНИЕ", x - 36, Math.min(yH, yL) - 12);
+      ctx.globalAlpha = 1;
     }
+  }
+  if (snap?.micro.splash && last) {
+    const x = ts.timeToCoordinate(last.time as UTCTimestamp);
+    const yC = series.priceToCoordinate(last.close);
+    if (x != null && yC != null) pulseRings(ctx, x, yC, "#ffb020", true);
+  }
+  for (const n of snap?.micro.nodes.filter((x) => x.kind === "splash" || x.kind === "infusion").slice(-8) ?? []) {
+    const x = ts.timeToCoordinate(n.time as UTCTimestamp);
+    const y = series.priceToCoordinate(n.price);
+    if (x == null || y == null) continue;
+    pulseRings(ctx, x, y, n.kind === "splash" ? "#ffb020" : "#c8f030", n.kind === "splash");
   }
   const tp = snap?.localSetup.targets[0];
   for (const n of snap?.micro.nodes.filter((x) => x.kind === "infusion").slice(-6) ?? []) {

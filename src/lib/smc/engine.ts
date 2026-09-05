@@ -2,7 +2,7 @@ import type { Candle, MarketKind, OptionsSnapshot } from "@/lib/market/types";
 import { detectPatterns, detectWyckoff, type PatternHit, type WyckoffRead } from "@/lib/smc/patterns";
 import { buildFlow, locateEdgeDiv, type FlowSnap } from "@/lib/smc/flow";
 import { clustersFromCandles, clustersFromTrades, type ClusterMap } from "@/lib/smc/clusters";
-import { buildMicro, buildSweepFuel, nearestStall, type MicroSnap, type SweepFuel } from "@/lib/smc/micro";
+import { barVolume, buildMicro, buildSweepFuel, nearestStall, type MicroSnap, type SweepFuel } from "@/lib/smc/micro";
 import { buildAuction, type AuctionSnap } from "@/lib/smc/auction";
 import { buildCoilBreak, type CoilBreak } from "@/lib/smc/coil";
 import { buildCorr, type CorrSnap } from "@/lib/corr";
@@ -252,15 +252,23 @@ function volumeProfile(candles: Candle[], bins = 24) {
   const lo = Math.min(...lows);
   const span = hi - lo || 1;
   const vol = Array.from({ length: bins }, () => 0);
+  let pv = 0;
+  let vv = 0;
   for (const c of candles) {
-    const mid = (c.high + c.low) / 2;
-    const i = Math.min(bins - 1, Math.max(0, Math.floor(((mid - lo) / span) * bins)));
-    vol[i]! += c.volume;
+    const typical = (c.high + c.low + c.close) / 3;
+    const raw = barVolume(c);
+    const v = raw > 1 ? raw : Math.max(c.high - c.low, span / 1000);
+    pv += typical * v;
+    vv += v;
+    const i = Math.min(bins - 1, Math.max(0, Math.floor(((c.close - lo) / span) * bins)));
+    vol[i]! += v;
   }
-  const total = vol.reduce((a, b) => a + b, 0) || 1;
+  const vwap = vv > 0 ? pv / vv : candles.at(-1)?.close ?? lo;
+  const peak = Math.max(...vol);
+  const flat = peak <= 0 || vol.every((x) => Math.abs(x - vol[0]!) < 1e-9);
   let pocIdx = 0;
   for (let i = 1; i < bins; i++) if (vol[i]! > vol[pocIdx]!) pocIdx = i;
-  const target = total * 0.7;
+  const target = vol.reduce((a, b) => a + b, 0) * 0.7 || 1;
   let acc = vol[pocIdx]!;
   let loIdx = pocIdx;
   let hiIdx = pocIdx;
@@ -276,8 +284,9 @@ function volumeProfile(candles: Candle[], bins = 24) {
     }
   }
   const priceOf = (i: number) => lo + ((i + 0.5) / bins) * span;
+  const poc = flat ? vwap : priceOf(pocIdx);
   return {
-    poc: priceOf(pocIdx),
+    poc,
     vah: priceOf(hiIdx),
     val: priceOf(loIdx),
     bins: vol.map((v, i) => ({ price: priceOf(i), volume: v })),
