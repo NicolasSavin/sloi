@@ -345,17 +345,32 @@ function detectStructure(
   return { trend, events };
 }
 
+function fvgCovered(top: number, bottom: number, later: Candle[]): boolean {
+  const hi = Math.max(top, bottom);
+  const lo = Math.min(top, bottom);
+  const size = hi - lo;
+  if (size <= 0) return true;
+  for (const x of later) {
+    const ov = Math.min(hi, x.high) - Math.max(lo, x.low);
+    if (ov <= 0) continue;
+    const bodyLo = Math.min(x.open, x.close);
+    const bodyHi = Math.max(x.open, x.close);
+    const bodyOv = Math.min(hi, bodyHi) - Math.max(lo, bodyLo);
+    if (bodyOv > 0) return true;
+    if (ov >= size * 0.25) return true;
+  }
+  return false;
+}
+
 function detectFvgs(candles: Candle[]): Zone[] {
   const zones: Zone[] = [];
   for (let i = 2; i < candles.length; i++) {
     const a = candles[i - 2]!;
     const c = candles[i]!;
+    const later = candles.slice(i + 1);
     if (a.high < c.low) {
       const top = c.low;
       const bottom = a.high;
-      const ce = (top + bottom) / 2;
-      // Отработан, когда цена зашла хотя бы до середины гэпа (CE). Касание края не считается.
-      const mitigated = candles.slice(i + 1).some((x) => x.low <= ce);
       zones.push({
         id: `fvg-b-${i}`,
         kind: "fvg",
@@ -364,13 +379,11 @@ function detectFvgs(candles: Candle[]): Zone[] {
         bottom,
         startTime: a.time,
         endTime: c.time,
-        mitigated,
+        mitigated: fvgCovered(top, bottom, later),
       });
     } else if (a.low > c.high) {
       const top = a.low;
       const bottom = c.high;
-      const ce = (top + bottom) / 2;
-      const mitigated = candles.slice(i + 1).some((x) => x.high >= ce);
       zones.push({
         id: `fvg-s-${i}`,
         kind: "fvg",
@@ -379,11 +392,11 @@ function detectFvgs(candles: Candle[]): Zone[] {
         bottom,
         startTime: a.time,
         endTime: c.time,
-        mitigated,
+        mitigated: fvgCovered(top, bottom, later),
       });
     }
   }
-  return zones.filter((z) => !z.mitigated).slice(-16);
+  return zones.filter((z) => !z.mitigated).slice(-12);
 }
 
 function detectOrderBlocks(candles: Candle[], events: StructureEvent[]): Zone[] {
