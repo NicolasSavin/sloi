@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { PosterChart } from "@/components/daily/poster-chart";
 import {
@@ -9,8 +9,10 @@ import {
   type DailyDigest,
   type PosterCard,
 } from "@/lib/digest";
-import { fetchMarket } from "@/lib/market/fetch";
+import { fetchBroker, fetchMarket } from "@/lib/market/fetch";
 import { analyzeMarket } from "@/lib/smc/engine";
+import { hydrateClientCd } from "@/lib/broker-tape";
+import { readDeskKey } from "@/lib/desk-key";
 import { actionLabel } from "@/lib/advisor";
 import { cn } from "@/lib/utils";
 
@@ -120,22 +122,35 @@ export function DailyInfographic({
   const isLead = id === digest.lead.spec.id;
   const picked = digest.markets.find((m) => m.spec.id === id) ?? digest.lead;
 
+  const [deskKey, setDeskKey] = useState("");
+  useEffect(() => { setDeskKey(readDeskKey()); }, []);
   const extra = useQuery({
     queryKey: ["daily-pair", id, "1h"],
     queryFn: () => fetchMarket({ data: { symbol: id, timeframe: "1h" } }),
     enabled: Boolean(id),
     staleTime: 45_000,
   });
+  const bookQ = useQuery({
+    queryKey: ["broker-book", deskKey],
+    queryFn: () => fetchBroker({ data: { key: deskKey } }),
+    enabled: Boolean(deskKey),
+    staleTime: 15_000,
+    refetchInterval: 20_000,
+  });
 
   const built = useMemo(() => {
     if (!extra.data?.candles.length) return null;
-    const snap = analyzeMarket(extra.data.candles, extra.data.options, extra.data.trades);
+    hydrateClientCd(bookQ.data?.cd);
+    const snap = analyzeMarket(extra.data.candles, extra.data.options, extra.data.trades, {
+      symbol: id,
+      kind: picked.spec.kind,
+    });
     const market = toDigestMarket(picked.spec, snap, picked.spec.spread, extra.data.candles.at(-1), extra.data.options);
     return {
       poster: buildPoster(market, snap, todayKey()),
       chart: chartFromSnap(snap, extra.data.candles, picked.spec.decimals),
     };
-  }, [extra.data, picked.spec]);
+  }, [extra.data, picked.spec, id, bookQ.data]);
 
   const p = built?.poster ?? (id === digest.lead.spec.id ? digest.poster : null);
   const chart = built?.chart ?? (id === digest.lead.spec.id ? digest.chart : null);
