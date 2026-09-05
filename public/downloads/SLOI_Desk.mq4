@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.50"
+#property version   "4.51"
 #property strict
-#property description "SLOI 4.50: виртуальные отложка, стоп и тейк. Сдвиг со стола. Не 4.42."
+#property description "SLOI 4.51: ClusterDelta с евро и золота на сайт. Сов один."
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -38,6 +38,9 @@ input bool    FixForeign      = false;
 input string  ForeignTag      = "WS";
 input bool    AlertsOn        = true;
 input bool    VirtualPendings = true; // виртуал: отложка, стоп и тейк. Сдвиг со стола.
+input bool    UseClusterDelta = true; // iCustom CD с EURUSD и XAUUSD, сов один
+input string  CdVolume        = "ClusterDelta_#Volume";
+input string  CdDelta         = "ClusterDelta_#Delta";
 input int     PanelX          = 8;
 input int     PanelY          = 18;
 
@@ -75,6 +78,7 @@ int    g_maxSp;
 double g_skew;
 bool   g_alerts;
 bool   g_virt;
+bool   g_cd;
 bool   g_seeded = false;
 bool   g_ready = false;
 bool   g_min = false;
@@ -119,6 +123,7 @@ int OnInit()
    g_skew   = MaxSkewPct;
    g_alerts = AlertsOn;
    g_virt   = VirtualPendings;
+   g_cd     = UseClusterDelta;
    Wipe();
    ParseWatch();
    EventSetTimer(2);
@@ -126,7 +131,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.50: виртуальные стоп и тейк, сдвиг со стола.");
+   Print("SLOI 4.51: CD Volume/Delta с евро и золота. Сов один.");
    return(INIT_SUCCEEDED);
   }
 
@@ -990,6 +995,54 @@ void AppendClusters(string &body)
       string sd = (red > green + 20) ? "SELL" : "BUY";
       body += "CLUSTER " + Naked(Symbol()) + " " + kind + " " + DoubleToStr(px, Digits) + " " + sd + "\n";
       sent++;
+     }
+   if(g_cd) AppendCdClusters(body, sent);
+  }
+
+void AppendCdOne(string &body, string s, int &sent)
+  {
+   if(sent >= 28) return;
+   int tf = PERIOD_H1;
+   double vol[12];
+   double del[12];
+   double sum = 0;
+   int ok = 0;
+   for(int i = 1; i <= 12; i++)
+     {
+      ResetLastError();
+      double v = iCustom(s, tf, CdVolume, 0, i);
+      double d = iCustom(s, tf, CdDelta, 0, i);
+      if(v == EMPTY_VALUE || v <= 0 || v > 1.0e12) { vol[i - 1] = 0; del[i - 1] = 0; continue; }
+      if(d == EMPTY_VALUE || MathAbs(d) > 1.0e12) d = 0;
+      vol[i - 1] = v;
+      del[i - 1] = d;
+      sum += v;
+      ok++;
+     }
+   if(ok < 4) return;
+   double avg = sum / ok;
+   for(int j = 0; j < 8 && sent < 28; j++)
+     {
+      double v = vol[j];
+      double d = del[j];
+      if(v < avg * 1.7) continue;
+      double px = iClose(s, tf, j + 1);
+      if(px <= 0) continue;
+      string kind = "INFUSION";
+      if(MathAbs(d) > 0.42 * v) kind = "SPLASH";
+      string sd = (d >= 0) ? "BUY" : "SELL";
+      body += "CLUSTER " + Naked(s) + " " + kind + " " + DoubleToStr(px, DigitsOf(s)) + " " + sd + "\n";
+      sent++;
+     }
+  }
+
+void AppendCdClusters(string &body, int sent)
+  {
+   for(int i = 0; i < g_n; i++)
+     {
+      string n = Naked(g_sym[i]);
+      if(n != "EURUSD" && n != "XAUUSD") continue;
+      AppendCdOne(body, g_sym[i], sent);
      }
   }
 
