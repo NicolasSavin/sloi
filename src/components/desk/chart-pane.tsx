@@ -94,18 +94,25 @@ function drawVolumeCandles(
 
 function paintPathArrow(
   ctx: CanvasRenderingContext2D,
-  x: number,
-  yFrom: number,
-  yTo: number,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
   color: string,
   width: number,
   blink: boolean,
 ) {
-  const up = yTo < yFrom;
-  let dest = yTo;
-  if (Math.abs(dest - yFrom) < 88) dest = yFrom + (up ? -96 : 96);
-  const fade = blink ? 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(Date.now() / 260)) : 1;
-  const head = Math.max(16, width * 2.4);
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  const len = Math.hypot(dx, dy);
+  if (len < 24) return;
+  const fade = blink ? 0.5 + 0.5 * (0.5 + 0.5 * Math.sin(Date.now() / 260)) : 1;
+  const ang = Math.atan2(dy, dx);
+  const head = Math.max(14, width * 2.2);
+  const ux = dx / len;
+  const uy = dy / len;
+  const bx = x1 - ux * head;
+  const by = y1 - uy * head;
   ctx.save();
   ctx.globalAlpha = fade;
   ctx.strokeStyle = color;
@@ -114,15 +121,18 @@ function paintPathArrow(
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   ctx.shadowColor = color;
-  ctx.shadowBlur = blink ? 18 : 10;
+  ctx.shadowBlur = blink ? 16 : 8;
   ctx.beginPath();
-  ctx.moveTo(x, yFrom);
-  ctx.lineTo(x, dest + (up ? head * 0.35 : -head * 0.35));
+  ctx.moveTo(x0, y0);
+  ctx.quadraticCurveTo((x0 + x1) / 2, (y0 + y1) / 2 + (dy > 0 ? 8 : -8), bx, by);
   ctx.stroke();
+  ctx.translate(x1, y1);
+  ctx.rotate(ang);
   ctx.beginPath();
-  ctx.moveTo(x, dest);
-  ctx.lineTo(x - head * 0.7, dest + (up ? 1 : -1) * head * 0.9);
-  ctx.lineTo(x + head * 0.7, dest + (up ? 1 : -1) * head * 0.9);
+  ctx.moveTo(0, 0);
+  ctx.lineTo(-head, head * 0.42);
+  ctx.lineTo(-head * 0.72, 0);
+  ctx.lineTo(-head, -head * 0.42);
   ctx.closePath();
   ctx.fill();
   ctx.restore();
@@ -143,24 +153,25 @@ function drawPathArrows(
   if (yNow == null) return;
   const ts = chart.timeScale();
   const scaleW = typeof ts.width === "function" ? ts.width() : width - 64;
-  const lastX = ts.timeToCoordinate(lastTime as UTCTimestamp);
-  const x0 = Math.min((scaleW || width) - 40, Math.max(48, (lastX ?? (scaleW || width) - 90) + 28));
+  const lastX = ts.timeToCoordinate(lastTime as UTCTimestamp) ?? Math.max(80, (scaleW || width) - 140);
+  const xStart = lastX;
   const atr = snap.atr || Math.abs(snap.lastClose) * 0.002;
   let shortDir: "up" | "down" | null = null;
   if (snap.boxVector && snap.boxVector.dir !== "none") shortDir = snap.boxVector.dir;
   else if (snap.bias === "bullish") shortDir = "up";
   else if (snap.bias === "bearish") shortDir = "down";
   if (shortDir) {
-    const magnet = snap.boxVector?.magnet;
-    const yMag = magnet != null ? series.priceToCoordinate(magnet) : null;
-    const yShort = yMag ?? yNow + (shortDir === "up" ? -110 : 110);
-    paintPathArrow(ctx, x0, yNow, yShort, shortDir === "up" ? "#4dffb0" : "#ff5a5a", 4.5, true);
+    const magnet = snap.boxVector?.magnet ?? snap.sweepFuel?.target ?? (shortDir === "up" ? snap.lastClose + atr : snap.lastClose - atr);
+    const yMag = series.priceToCoordinate(magnet) ?? yNow + (shortDir === "up" ? -80 : 80);
+    const xEnd = Math.min((scaleW || width) - 18, xStart + 92);
+    paintPathArrow(ctx, xStart, yNow, xEnd, yMag, shortDir === "up" ? "#4dffb0" : "#ff5a5a", 4.2, true);
   }
   if (order?.action === "long" || order?.action === "short") {
     const up = order.action === "long";
     const tgt = setup?.targets[0] ?? (up ? snap.lastClose + atr * 1.8 : snap.lastClose - atr * 1.8);
-    const yT = series.priceToCoordinate(tgt) ?? yNow + (up ? -150 : 150);
-    paintPathArrow(ctx, x0 + 26, yNow, yT, up ? "#8affc8" : "#ff8888", 9, false);
+    const yT = series.priceToCoordinate(tgt) ?? yNow + (up ? -140 : 140);
+    const xEnd = Math.min((scaleW || width) - 10, xStart + 150);
+    paintPathArrow(ctx, xStart + 6, yNow, xEnd, yT, up ? "#8affc8" : "#ff8888", 8.5, false);
   }
 }
 
@@ -539,7 +550,7 @@ function drawZones(
     if (fuel) {
       const label = fuel.grade === "strong" ? "Откат сильный" : fuel.grade === "mid" ? "Откат средний" : "Откат слабый";
       mark(fuel.takeTime, fuel.takePrice, label, fuel.reverse === "up" ? "tp" : "stop");
-      if (fuel.target != null) mark(lastTime, fuel.target, "Цель отката", "entry");
+      if (fuel.target != null) mark(lastTime, fuel.target, "Куда вернут после съёма", "entry");
     }
   }
 
