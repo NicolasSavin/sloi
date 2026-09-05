@@ -129,6 +129,7 @@ function drawZones(
   wipe = true,
   candles: Candle[] = [],
   pair = "",
+  faceI = 0,
 ) {
   if (width < 16 || height < 16) return;
   if (wipe) ctx.clearRect(0, 0, width, height);
@@ -812,7 +813,7 @@ function drawZones(
       : (vec && vec.dir === "down") || snap?.bias === "bearish"
         ? bearFace
         : waitFace;
-  let seed = Math.floor(nowMs / 2200);
+  let seed = faceI * 7 + 3;
   for (let i = 0; i < pair.length; i++) seed += pair.charCodeAt(i);
   const emoji = faces[Math.abs(seed) % faces.length]!;
   const bounce = Math.sin(nowMs / 180) * 12;
@@ -1025,6 +1026,8 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
   series: ISeriesApi<"Candlestick"> | null = null;
   private _upd: (() => void) | null = null;
   private blink: ReturnType<typeof setInterval> | null = null;
+  private faceClock: ReturnType<typeof setInterval> | null = null;
+  faceI = 0;
   payload: {
     zones: Zone[];
     overlays: OverlayFlags;
@@ -1062,6 +1065,10 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
     this.series = param.series as ISeriesApi<"Candlestick">;
     this._upd = param.requestUpdate;
     this.blink = setInterval(() => this._upd?.(), 180);
+    this.faceClock = setInterval(() => {
+      this.faceI += 1;
+      this._upd?.();
+    }, 1800);
     this.unsub = this.chart.timeScale().subscribeVisibleLogicalRangeChange(() => this._upd?.()) as unknown as () => void;
   }
   detached() {
@@ -1069,6 +1076,8 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
     this.unsub = null;
     if (this.blink) clearInterval(this.blink);
     this.blink = null;
+    if (this.faceClock) clearInterval(this.faceClock);
+    this.faceClock = null;
     this.chart = null;
     this.series = null;
     this._upd = null;
@@ -1114,6 +1123,7 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
                 false,
                 p.candles,
                 p.pair,
+                this.faceI,
               );
               drawTape(
                 scope.context,
