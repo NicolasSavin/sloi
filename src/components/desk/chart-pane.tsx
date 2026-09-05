@@ -802,6 +802,48 @@ function drawZones(
   ctx.fillText(tape, tapeX + 10 + mx, ty2);
   ctx.fillText(tape, tapeX + 10 + mx + tapeW, ty2);
   ctx.restore();
+
+  const emoji =
+    (vec && vec.dir === "up") || snap?.bias === "bullish"
+      ? "📈"
+      : (vec && vec.dir === "down") || snap?.bias === "bearish"
+        ? "📉"
+        : order?.action === "long"
+          ? "🤑"
+          : order?.action === "short"
+            ? "🧊"
+            : "🎯";
+  const ew = 78;
+  const eh = 78;
+  const bounce = Math.sin(nowMs / 240) * 7;
+  const spots = [
+    { x: 16, y: height - 118 },
+    { x: 16, y: height * 0.52 },
+    { x: plotW * 0.2, y: height - 126 },
+    { x: plotW * 0.48, y: height - 112 },
+  ];
+  let slot: { x: number; y: number } | null = null;
+  for (const s of spots) {
+    const box = { x: s.x, y: s.y + bounce - 8, w: ew, h: eh };
+    if (hits(box)) continue;
+    slot = s;
+    break;
+  }
+  if (slot) {
+    occupy(slot.x, slot.y - 8, ew, eh);
+    ctx.save();
+    ctx.translate(slot.x + ew / 2, slot.y + eh / 2 + bounce);
+    ctx.rotate(Math.sin(nowMs / 520) * 0.12);
+    const sc = 1 + 0.07 * Math.sin(nowMs / 180);
+    ctx.scale(sc, sc);
+    ctx.font = "72px Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.shadowColor = "rgba(240,200,120,0.55)";
+    ctx.shadowBlur = 18;
+    ctx.fillText(emoji, 0, 4);
+    ctx.restore();
+  }
 }
 
 function drawProfile(
