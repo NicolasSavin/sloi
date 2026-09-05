@@ -183,6 +183,7 @@ export function buildMicro(candles: Candle[], live: VolumeNode[] = []): MicroSna
     nodes.length = 0;
     nodes.push(...merged);
   }
+  const fromCd = live.length > 0;
 
   const step = last.time - (use.at(-2)?.time ?? last.time - 3600_000);
   const fresh = (t: number) => last.time - t <= step * 5;
@@ -193,7 +194,9 @@ export function buildMicro(candles: Candle[], live: VolumeNode[] = []): MicroSna
     infusion = {
       price: lastInf.price,
       side: lastInf.side,
-      because: `Вливание (Cluster Search): объём выше порога ТФ (${Math.round(thresh)}), бар узкий, дельта слабая — лимит впитал удар.`,
+      because: fromCd
+        ? `Вливание ClusterDelta: узкий бар, слабая дельта — лимит впитал удар.`
+        : `Вливание (прокси свечей, CD нет): объём выше порога, бар узкий, дельта слабая.`,
       therefore:
         lastInf.side === "buy"
           ? "Остановка снизу. Цель шорта — сюда. Лонг от этой лужи, не сквозь неё."
@@ -207,7 +210,9 @@ export function buildMicro(candles: Candle[], live: VolumeNode[] = []): MicroSna
     splash = {
       price: lastSplash.price,
       side: lastSplash.side,
-      because: `Сплэш (Cluster Search): объём выше порога и бар широкий — объём толкнул цену (стопы или старт).`,
+      because: fromCd
+        ? `Сплэш ClusterDelta: объём толкнул цену (стопы или старт).`
+        : `Сплэш (прокси свечей, CD нет): объём и широкий бар.`,
       therefore:
         lastSplash.side === "buy"
           ? "Вынос вверх. Не цель. Ждём закрытие и возврат."
@@ -218,13 +223,13 @@ export function buildMicro(candles: Candle[], live: VolumeNode[] = []): MicroSna
   const src = tape
     ? "лента"
     : live.length
-      ? "ProVolume с терминала"
+      ? "ClusterDelta / терминал"
       : cme
         ? `CME ${cmeTicker ?? ""} задержка ~10м`
         : "оценка по свече";
   const because = `VWAP ${vwap.toFixed(last.close > 50 ? 2 : 5)}. Объём: ${src}. Порог Cluster Search ${Math.round(thresh)}. Δ ${delta >= 0 ? "+" : ""}${delta.toFixed(0)}.`;
   const therefore = live.length
-    ? "Вливание/сплэш с графика ProVolume идут в приказ: сплэш против — ждём, тейк — во вливание."
+    ? "CD жив: сплэш против — ждём, тейк во вливание. Пропадёт фид — через ~1.5 мин стол сам на прокси свечей."
     : cme
     ? "Splash/infusion как у FxForTrader ProVolume: крупный объём либо толкает (splash), либо останавливает (вливание). Тейк — в остановку."
     : where === "above"

@@ -201,7 +201,7 @@ export function liveClusters(id: string): VolumeNode[] {
   const out: VolumeNode[] = [];
   for (const r of rooms().values()) {
     const c = r.clusters.get(id);
-    if (c && now - c.at < 180_000) out.push(...c.nodes);
+    if (c && now - c.at < 90_000) out.push(...c.nodes);
   }
   return out;
 }
