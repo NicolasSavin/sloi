@@ -729,16 +729,15 @@ function drawZones(
   ctx.fillText(title, tx, ty);
 
   const vec = snap?.boxVector;
-  const map = snap?.bias === "bullish" ? "карта бычья" : snap?.bias === "bearish" ? "карта медвежья" : "карта в диапазоне";
-  const vecBit =
-    vec && vec.dir !== "none"
-      ? `небольшое движение ${vec.dir === "up" ? "вверх" : "вниз"}`
-      : "без явного вектора";
-  let tape = `Ждать. ${order?.because ?? "Приказа нет."} ${vecBit}. ${map}.`;
-  if (order?.action === "long") tape = `Приказ: покупка. Ход вверх. ${order.because} ${order.therefore}`;
-  else if (order?.action === "short") tape = `Приказ: продажа. Ход вниз. ${order.because} ${order.therefore}`;
-  else if (order?.action === "skip") tape = `Пропуск. ${order.because} ${order.therefore} ${vecBit}.`;
-  tape = `${tape}    ·    ${tape}    ·    `;
+  const map = snap?.bias === "bullish" ? "карта бычья" : snap?.bias === "bearish" ? "карта медвежья" : "диапазон";
+  const vecBit = vec && vec.dir !== "none" ? (vec.dir === "up" ? "пока тянет вверх" : "пока тянет вниз") : "без явного хода";
+  const why = (order?.because ?? "").replace(/\s+/g, " ").trim().split(/(?<=[.!?])\s/)[0] ?? "";
+  const shortWhy = why.length > 72 ? `${why.slice(0, 70).replace(/\s+\S*$/, "")}…` : why;
+  let tape = `Ждать · ${map} · ${vecBit} · вход не ставить`;
+  if (order?.action === "long") tape = `Покупать · ход вверх${shortWhy ? ` · ${shortWhy}` : ""}`;
+  else if (order?.action === "short") tape = `Продавать · ход вниз${shortWhy ? ` · ${shortWhy}` : ""}`;
+  else if (order?.action === "skip") tape = `Не входить · хода на спред мало · ${vecBit}`;
+  tape = `${tape}     ·     ${tape}     ·     `;
   const tapeBoxW = plotW * 0.64;
   const tapeX = (plotW - tapeBoxW) / 2;
   ctx.fillStyle = "rgba(8,8,12,0.62)";
