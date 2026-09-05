@@ -287,43 +287,33 @@ function drawZones(
   occupy(plotW * 0.28, 4, plotW * 0.44, 40);
   occupy(Math.min(plotW * 0.38, 360), 44, plotW - Math.min(plotW * 0.38, 360) - 12, 40);
   const PALETTE: Record<string, { top: string; mid: string; stroke: string; b0: string; b1: string; t0: string; t1: string }> = {
-    fvg: { top: "rgba(255,186,40,0.46)", mid: "rgba(255,230,120,0.72)", stroke: "#ffe070", b0: "#fff3b0", b1: "#c48410", t0: "#fff6c8", t1: "#7a4a00" },
-    ob: { top: "rgba(20,170,90,0.46)", mid: "rgba(90,255,160,0.72)", stroke: "#7dffc0", b0: "#c8ffdc", b1: "#0e7a40", t0: "#e8fff0", t1: "#0a4a24" },
-    obBear: { top: "rgba(210,40,50,0.46)", mid: "rgba(255,110,110,0.72)", stroke: "#ff8888", b0: "#ffd0d0", b1: "#a01818", t0: "#ffe8e8", t1: "#6a0808" },
-    liq: { top: "rgba(170,220,40,0.44)", mid: "rgba(230,255,120,0.68)", stroke: "#d8ff50", b0: "#f0ffb0", b1: "#6a8a10", t0: "#f6ffd0", t1: "#3a5208" },
-    sweep: { top: "rgba(255,160,20,0.58)", mid: "rgba(255,210,80,0.82)", stroke: "#ffc040", b0: "#ffe090", b1: "#b06000", t0: "#fff0c0", t1: "#6a3800" },
+    fvg: { top: "rgba(255,186,40,0.16)", mid: "rgba(255,230,120,0.28)", stroke: "#ffe070", b0: "#fff3b0", b1: "#c48410", t0: "#fff6c8", t1: "#7a4a00" },
+    ob: { top: "rgba(20,170,90,0.16)", mid: "rgba(90,255,160,0.28)", stroke: "#7dffc0", b0: "#c8ffdc", b1: "#0e7a40", t0: "#e8fff0", t1: "#0a4a24" },
+    obBear: { top: "rgba(210,40,50,0.16)", mid: "rgba(255,110,110,0.28)", stroke: "#ff8888", b0: "#ffd0d0", b1: "#a01818", t0: "#ffe8e8", t1: "#6a0808" },
+    liq: { top: "rgba(170,220,40,0.14)", mid: "rgba(230,255,120,0.24)", stroke: "#d8ff50", b0: "#f0ffb0", b1: "#6a8a10", t0: "#f6ffd0", t1: "#3a5208" },
+    sweep: { top: "rgba(255,160,20,0.22)", mid: "rgba(255,210,80,0.34)", stroke: "#ffc040", b0: "#ffe090", b1: "#b06000", t0: "#fff0c0", t1: "#6a3800" },
     choch: { top: "rgba(120,90,255,0.50)", mid: "rgba(190,170,255,0.74)", stroke: "#c8b4ff", b0: "#ece0ff", b1: "#4a30b0", t0: "#f6f0ff", t1: "#2a1878" },
     vec: { top: "rgba(20,190,200,0.46)", mid: "rgba(100,240,250,0.70)", stroke: "#40e8f0", b0: "#c8ffff", b1: "#087878", t0: "#e8ffff", t1: "#045050" },
     entry: { top: "rgba(232,190,80,0.44)", mid: "rgba(255,220,140,0.68)", stroke: "#f0c860", b0: "#fff0b8", b1: "#a07018", t0: "#fff8d8", t1: "#5a4010" },
     stop: { top: "rgba(220,50,50,0.44)", mid: "rgba(255,120,120,0.66)", stroke: "#ff7070", b0: "#ffd0d0", b1: "#901818", t0: "#fff0f0", t1: "#5a0808" },
     tp: { top: "rgba(30,170,100,0.44)", mid: "rgba(110,230,160,0.66)", stroke: "#50e090", b0: "#c8ffdc", b1: "#0e7040", t0: "#e8fff0", t1: "#0a4020" },
     wait: { top: "rgba(160,160,180,0.32)", mid: "rgba(210,210,230,0.52)", stroke: "#c0c0d0", b0: "#f0f0f8", b1: "#505068", t0: "#ffffff", t1: "#303048" },
-    margin: { top: "rgba(201,160,90,0.36)", mid: "rgba(240,210,140,0.58)", stroke: "#d4b070", b0: "#f8e8c0", b1: "#8a6020", t0: "#fff8e0", t1: "#5a3810" },
+    margin: { top: "rgba(201,160,90,0.10)", mid: "rgba(240,210,140,0.18)", stroke: "#d4b070", b0: "#f8e8c0", b1: "#8a6020", t0: "#fff8e0", t1: "#5a3810" },
     pat: { top: "rgba(80,140,220,0.40)", mid: "rgba(150,190,255,0.64)", stroke: "#80b8ff", b0: "#d8e8ff", b1: "#2058a8", t0: "#f0f6ff", t1: "#103868" },
   };
   const fillVolume = (x: number, y: number, w: number, h: number, tone: string, blink = false) => {
     const p = PALETTE[tone] ?? PALETTE.fvg!;
-    const pulse = blink ? 0.62 + 0.38 * (0.5 + 0.5 * Math.sin(Date.now() / 260)) : 1;
+    const pulse = blink ? 0.42 + 0.16 * (0.5 + 0.5 * Math.sin(Date.now() / 260)) : 0.72;
     ctx.save();
     ctx.globalAlpha = pulse;
     const g = ctx.createLinearGradient(x, y, x, y + h);
     g.addColorStop(0, p.top);
     g.addColorStop(0.42, p.mid);
     g.addColorStop(1, p.top);
-    ctx.shadowColor = p.stroke;
-    ctx.shadowBlur = blink ? 18 : 10;
-    ctx.shadowOffsetY = 0;
     ctx.fillStyle = g;
     ctx.fillRect(x, y, w, h);
-    ctx.shadowColor = "transparent";
-    ctx.shadowBlur = 0;
-    const shine = ctx.createLinearGradient(x, y, x, y + Math.min(12, h));
-    shine.addColorStop(0, "rgba(255,255,255,0.38)");
-    shine.addColorStop(1, "rgba(255,255,255,0)");
-    ctx.fillStyle = shine;
-    ctx.fillRect(x, y, w, Math.min(12, h));
     ctx.strokeStyle = p.stroke;
-    ctx.lineWidth = blink ? 3 : 2.4;
+    ctx.lineWidth = blink ? 2.2 : 1.6;
     ctx.strokeRect(x, y, w, h);
     ctx.restore();
     ctx.strokeStyle = "rgba(255,255,255,0.38)";
@@ -605,6 +595,8 @@ function drawZones(
       mark(lastTime, snap.lastClose, t, t === "Лонг" ? "tp" : t === "Шорт" ? "stop" : "wait");
     }
   }
+
+  if (candles.length) drawVolumeCandles(ctx, width, height, chart, series, candles, false);
 
   ctx.font = "13px IBM Plex Sans, sans-serif";
   const bw = 124;
