@@ -101,10 +101,11 @@ function paintPathArrow(
   width: number,
   blink: boolean,
 ) {
-  if (yFrom == null || yTo == null || Math.abs(yTo - yFrom) < 10) return;
-  const fade = blink ? 0.18 + 0.82 * (0.5 + 0.5 * Math.sin(Date.now() / 280)) : 0.95;
   const up = yTo < yFrom;
-  const head = Math.max(12, width * 2.2);
+  let dest = yTo;
+  if (Math.abs(dest - yFrom) < 88) dest = yFrom + (up ? -96 : 96);
+  const fade = blink ? 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(Date.now() / 260)) : 1;
+  const head = Math.max(16, width * 2.4);
   ctx.save();
   ctx.globalAlpha = fade;
   ctx.strokeStyle = color;
@@ -113,19 +114,54 @@ function paintPathArrow(
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   ctx.shadowColor = color;
-  ctx.shadowBlur = blink ? 14 : 8;
-  const tip = yTo + (up ? head * 0.15 : -head * 0.15);
+  ctx.shadowBlur = blink ? 18 : 10;
   ctx.beginPath();
   ctx.moveTo(x, yFrom);
-  ctx.quadraticCurveTo(x + 8 + width * 1.4, (yFrom + yTo) / 2, x, tip);
+  ctx.lineTo(x, dest + (up ? head * 0.35 : -head * 0.35));
   ctx.stroke();
   ctx.beginPath();
-  ctx.moveTo(x, yTo);
-  ctx.lineTo(x - head * 0.62, yTo + (up ? 1 : -1) * head * 0.85);
-  ctx.lineTo(x + head * 0.62, yTo + (up ? 1 : -1) * head * 0.85);
+  ctx.moveTo(x, dest);
+  ctx.lineTo(x - head * 0.7, dest + (up ? 1 : -1) * head * 0.9);
+  ctx.lineTo(x + head * 0.7, dest + (up ? 1 : -1) * head * 0.9);
   ctx.closePath();
   ctx.fill();
   ctx.restore();
+}
+
+function drawPathArrows(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  chart: IChartApi,
+  series: ISeriesApi<"Candlestick">,
+  snap: SmcSnapshot | null,
+  order: Advice | null,
+  setup: LocalSetup | null,
+  lastTime: number,
+) {
+  if (!snap) return;
+  const yNow = series.priceToCoordinate(snap.lastClose);
+  if (yNow == null) return;
+  const ts = chart.timeScale();
+  const scaleW = typeof ts.width === "function" ? ts.width() : width - 64;
+  const lastX = ts.timeToCoordinate(lastTime as UTCTimestamp);
+  const x0 = Math.min((scaleW || width) - 40, Math.max(48, (lastX ?? (scaleW || width) - 90) + 28));
+  const atr = snap.atr || Math.abs(snap.lastClose) * 0.002;
+  let shortDir: "up" | "down" | null = null;
+  if (snap.boxVector && snap.boxVector.dir !== "none") shortDir = snap.boxVector.dir;
+  else if (snap.bias === "bullish") shortDir = "up";
+  else if (snap.bias === "bearish") shortDir = "down";
+  if (shortDir) {
+    const magnet = snap.boxVector?.magnet;
+    const yMag = magnet != null ? series.priceToCoordinate(magnet) : null;
+    const yShort = yMag ?? yNow + (shortDir === "up" ? -110 : 110);
+    paintPathArrow(ctx, x0, yNow, yShort, shortDir === "up" ? "#4dffb0" : "#ff5a5a", 4.5, true);
+  }
+  if (order?.action === "long" || order?.action === "short") {
+    const up = order.action === "long";
+    const tgt = setup?.targets[0] ?? (up ? snap.lastClose + atr * 1.8 : snap.lastClose - atr * 1.8);
+    const yT = series.priceToCoordinate(tgt) ?? yNow + (up ? -150 : 150);
+    paintPathArrow(ctx, x0 + 26, yNow, yT, up ? "#8affc8" : "#ff8888", 9, false);
+  }
 }
 
 function pulseRings(ctx: CanvasRenderingContext2D, x: number, y: number, color: string, strong = true) {
@@ -613,54 +649,6 @@ function drawZones(
   }
 
   if (candles.length) drawVolumeCandles(ctx, width, height, chart, series, candles, false);
-
-  if (snap) {
-    const yNow = series.priceToCoordinate(snap.lastClose);
-    if (yNow != null) {
-      const atr = snap.atr || Math.abs(snap.lastClose) * 0.002;
-      let shortDir: "up" | "down" | null = null;
-      let shortTo = snap.lastClose;
-      if (snap.boxVector && snap.boxVector.dir !== "none" && snap.boxVector.magnet != null) {
-        shortDir = snap.boxVector.dir === "up" ? "up" : "down";
-        shortTo = snap.boxVector.magnet;
-      } else if (snap.bias === "bullish") {
-        shortDir = "up";
-        shortTo = snap.lastClose + atr * 0.7;
-      } else if (snap.bias === "bearish") {
-        shortDir = "down";
-        shortTo = snap.lastClose - atr * 0.7;
-      }
-      const yShort = series.priceToCoordinate(shortTo);
-      if (shortDir && yShort != null) {
-        paintPathArrow(
-          ctx,
-          plotW - 54,
-          yNow,
-          yShort,
-          shortDir === "up" ? "#5dffb0" : "#ff6a6a",
-          3.2,
-          true,
-        );
-      }
-      const live = order?.action === "long" || order?.action === "short";
-      if (live) {
-        const up = order!.action === "long";
-        const tgt = setup?.targets[0] ?? (up ? snap.lastClose + atr * 1.6 : snap.lastClose - atr * 1.6);
-        const yT = series.priceToCoordinate(tgt);
-        if (yT != null) {
-          paintPathArrow(
-            ctx,
-            plotW - 26,
-            yNow,
-            yT,
-            up ? "#7dffc0" : "#ff8080",
-            7.4,
-            false,
-          );
-        }
-      }
-    }
-  }
 
   ctx.font = "13px IBM Plex Sans, sans-serif";
   const bw = 124;
@@ -1320,6 +1308,16 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
                 p.snap,
                 p.overlays.flow,
                 p.book,
+              );
+              drawPathArrows(
+                scope.context,
+                scope.mediaSize.width,
+                chart,
+                series,
+                p.snap,
+                p.order,
+                p.setup,
+                p.candles.at(-1)?.time ?? 0,
               );
             });
           },
