@@ -26,6 +26,7 @@ import { KIND_LABEL, SYMBOLS, TIMEFRAMES, getSymbol } from "@/lib/market/symbols
 import { readDeskKey } from "@/lib/desk-key";
 import { playSignal, unlockSound } from "@/lib/sound";
 import { analyzeMarket, compactForAi, type SmcSnapshot } from "@/lib/smc/engine";
+import { hydrateClientCd } from "@/lib/broker-tape";
 import { makeTvBrief } from "@/lib/tv-brief";
 import { cn, formatPct, formatPrice } from "@/lib/utils";
 
@@ -89,8 +90,15 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
   const lastSignal = useRef("");
   const digestQ = useQuery({ queryKey: ["dispatch-digest"], queryFn: fetchDigest, staleTime: 60_000 });
   const fund = digestQ.data?.digest.fund;
+  const bookQ = useQuery({
+    queryKey: ["broker-book", deskKey],
+    queryFn: () => fetchBroker({ data: { key: deskKey } }),
+    refetchInterval: 20_000,
+    staleTime: 8_000,
+  });
   const snap = useMemo<SmcSnapshot | null>(() => {
     if (!market.data?.candles?.length) return null;
+    hydrateClientCd(bookQ.data?.cd);
     return analyzeMarket(market.data.candles, market.data.options, market.data.trades, {
       swing: chochLen,
       chochClose,
@@ -101,7 +109,7 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
       oilChange: fund?.oilChange,
       halt: fund?.halt,
     });
-  }, [market.data, chochLen, chochClose, spec.id, spec.kind, fund]);
+  }, [market.data, chochLen, chochClose, spec.id, spec.kind, fund, bookQ.data]);
   const [brief, setBrief] = useState<AiBrief | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
@@ -109,12 +117,6 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
   const [journal, setJournal] = useState<JournalEntry[]>([]);
   const lastKey = `${symbol}|${timeframe}|${snap?.events.at(-1)?.time ?? 0}`;
   const tvQ = useQuery({ queryKey: ["tv-guide"], queryFn: fetchTvGuide, staleTime: 120_000 });
-  const bookQ = useQuery({
-    queryKey: ["broker-book", deskKey],
-    queryFn: () => fetchBroker({ data: { key: deskKey } }),
-    refetchInterval: 20_000,
-    staleTime: 8_000,
-  });
   const book = bookQ.data?.books.find((b) => b.id === spec.id) ?? null;
   const ether = makeTvBrief(tvQ.data ?? [], [fund?.driver ?? "", fund?.line ?? "", ...(fund?.themes ?? [])].filter(Boolean));
   const deskMarket = digestQ.data?.digest.markets.find((m) => m.spec.id === spec.id);

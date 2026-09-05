@@ -283,12 +283,31 @@ export function liveClusters(id: string): VolumeNode[] {
 export function snapshotBroker(tenant = "legacy") {
   const now = Date.now();
   const r = room(tenant);
+  const askbid: Record<string, { ask: number; bid: number }> = {};
+  for (const [id, v] of r.askbid) if (now - v.at < 90_000) askbid[id] = { ask: v.ask, bid: v.bid };
+  const flow: Record<string, { volume: number; delta: number }> = {};
+  for (const [id, v] of r.flow) if (now - v.at < 90_000) flow[id] = { volume: v.volume, delta: v.delta };
+  const clusters: Record<string, VolumeNode[]> = {};
+  for (const [id, v] of r.clusters) if (now - v.at < 90_000) clusters[id] = v.nodes;
   return {
     ticks: [...r.ticks.values()].filter((t) => now - t.at < 90_000),
     books: [...r.books.values()].filter((b) => now - b.at < 90_000),
     account: tenant === "legacy" ? null : brokerAccount(tenant),
     tenant: tenant === "legacy" ? null : tenant,
+    cd: { askbid, flow, clusters },
   };
+}
+
+export function hydrateClientCd(cd: { askbid?: Record<string, { ask: number; bid: number }>; flow?: Record<string, { volume: number; delta: number }>; clusters?: Record<string, VolumeNode[]> } | null | undefined) {
+  if (!cd) return;
+  const r = room("client");
+  const at = Date.now();
+  r.askbid = new Map();
+  r.flow = new Map();
+  r.clusters = new Map();
+  for (const [id, v] of Object.entries(cd.askbid ?? {})) r.askbid.set(id, { at, ask: v.ask, bid: v.bid });
+  for (const [id, v] of Object.entries(cd.flow ?? {})) r.flow.set(id, { at, volume: v.volume, delta: v.delta });
+  for (const [id, v] of Object.entries(cd.clusters ?? {})) r.clusters.set(id, { at, nodes: v });
 }
 
 export function hydrateAccount(tenant: string, account: BrokerAccount | null) {
