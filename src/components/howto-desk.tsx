@@ -37,7 +37,7 @@ const STEPS = [
 const FAQ = [
   {
     q: "ClusterDelta куда ставить?",
-    a: "Советник один, на любом графике. На EURUSD и XAUUSD повесьте ClusterDelta_#Volume и ClusterDelta_#Delta (окна можно свернуть). Сов 4.51 сам читает буферы и шлёт сплэш/infusion на сайт. Без CD стол остаётся на своей прокси.",
+    a: "Советник один, на любом графике. На EURUSD и XAUUSD повесьте ClusterDelta_#Volumes и ClusterDelta_#Delta (окна можно свернуть). По желанию #Infusion и #Splash — глазами. Сов 4.51 читает объём/дельту и шлёт сплэш/infusion на сайт.",
   },
   {
     q: "Чужой увидит мой счёт?",
