@@ -7,7 +7,7 @@ import { buildAuction, type AuctionSnap } from "@/lib/smc/auction";
 import { buildCoilBreak, type CoilBreak } from "@/lib/smc/coil";
 import { buildCorr, type CorrSnap } from "@/lib/corr";
 import { buildIvNews, type IvNewsSnap } from "@/lib/iv-news";
-import { liveAskBid, liveClusters, liveProfile } from "@/lib/broker-tape";
+import { brokerBook, liveAskBid, liveClusters, liveProfile } from "@/lib/broker-tape";
 import type { NewsHalt } from "@/lib/calendar";
 
 export type Bias = "bullish" | "bearish" | "range";
@@ -160,6 +160,12 @@ export interface SmcSnapshot {
   clusters: ClusterMap;
   micro: MicroSnap;
   sweepFuel: SweepFuel | null;
+  cdTape: {
+    live: boolean;
+    ask: number | null;
+    bid: number | null;
+    book: { side: "bid" | "ask"; price: number; volume: number }[];
+  };
   auction: AuctionSnap;
   coil: CoilBreak;
   boxVector: BoxVector;
@@ -1131,6 +1137,14 @@ export function analyzeMarket(
   });
   const ivNews = buildIvNews(opts?.halt, options);
   const tapeProf = opts?.symbol ? liveProfile(opts.symbol) : null;
+  const tapeAb = opts?.symbol ? liveAskBid(opts.symbol) : null;
+  const tapeBook = opts?.symbol ? brokerBook(opts.symbol) : null;
+  const cdTape = {
+    live: Boolean((opts?.symbol ? liveClusters(opts.symbol).length : 0) || tapeProf || tapeAb || tapeBook),
+    ask: tapeAb?.ask ?? null,
+    bid: tapeAb?.bid ?? null,
+    book: tapeBook ? [...tapeBook.bids, ...tapeBook.asks].slice(0, 12) : [],
+  };
   const vp = {
     poc: tapeProf?.poc ?? clusters.poc,
     vah: tapeProf?.vah ?? clusters.vah,
@@ -1459,6 +1473,14 @@ export function analyzeMarket(
     sweepFuel,
   );
 
+  if (cdTape.live) {
+    story.chain.unshift({
+      because: `ClusterDelta с терминала${cdTape.ask != null ? `: Ask ${Math.round(cdTape.ask)} Bid ${Math.round(cdTape.bid ?? 0)}` : ""}${tapeProf ? `, POC ${tapeProf.poc}` : ""}.`,
+      therefore:
+        "На графике: вливание — остановка/цель, сплэш — вынос, дисбаланс — перекос Ask/Bid. Полоски справа — BookMap (стакан), не вся теплокарта футпринта.",
+    });
+  }
+
   return {
     bias,
     trend,
@@ -1483,6 +1505,7 @@ export function analyzeMarket(
     clusters,
     micro,
     sweepFuel,
+    cdTape,
     auction,
     coil,
     boxVector,
@@ -1549,6 +1572,7 @@ export function compactForAi(symbol: string, timeframe: string, snap: SmcSnapsho
       therefore: snap.micro.therefore,
     },
     sweepFuel: snap.sweepFuel,
+    cdTape: snap.cdTape,
     auction: snap.auction,
     coil: snap.coil,
     boxVector: snap.boxVector,

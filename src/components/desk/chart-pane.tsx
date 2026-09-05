@@ -294,6 +294,62 @@ function drawZones(
     }
   }
 
+  if (snap?.cdTape?.live) {
+    const book = snap.cdTape.book;
+    const maxV = Math.max(1, ...book.map((l) => l.volume));
+    for (const l of book) {
+      const y = series.priceToCoordinate(l.price);
+      if (y == null) continue;
+      const w = 10 + (l.volume / maxV) * 42;
+      const h = 7;
+      const x = plotW - w - 2;
+      ctx.fillStyle = l.side === "bid" ? "rgba(50,200,120,0.45)" : "rgba(230,80,80,0.45)";
+      ctx.fillRect(x, y - h / 2, w, h);
+      ctx.strokeStyle = l.side === "bid" ? "rgba(120,255,180,0.8)" : "rgba(255,140,140,0.8)";
+      ctx.strokeRect(x, y - h / 2, w, h);
+    }
+    if (book[0]) mark(lastTime, book[0].price, book[0].side === "bid" ? "Стакан бид" : "Стакан аск", book[0].side === "bid" ? "ob" : "obBear");
+    if (snap.cdTape.ask != null && snap.cdTape.bid != null) {
+      const lastY = series.priceToCoordinate(snap.lastClose);
+      if (lastY != null) {
+        const buy = snap.cdTape.ask;
+        const sell = snap.cdTape.bid;
+        const tot = Math.max(1, buy + sell);
+        ctx.fillStyle = "rgba(8,12,18,0.82)";
+        ctx.fillRect(8, lastY - 28, 168, 36);
+        ctx.strokeStyle = "rgba(212,184,140,0.55)";
+        ctx.strokeRect(8, lastY - 28, 168, 36);
+        ctx.fillStyle = "rgba(80,220,140,0.9)";
+        ctx.fillRect(12, lastY - 8, (154 * buy) / tot, 8);
+        ctx.fillStyle = "rgba(230,90,90,0.9)";
+        ctx.fillRect(12 + (154 * buy) / tot, lastY - 8, (154 * sell) / tot, 8);
+        ctx.fillStyle = "#f0e6d4";
+        ctx.font = "bold 10px IBM Plex Mono, monospace";
+        ctx.fillText(`AskBid CD  buy ${Math.round(buy)}  sell ${Math.round(sell)}`, 12, lastY - 14);
+      }
+    }
+    const legend = [
+      ["#c8f030", "Ликвидность / вливание — цель, остановка"],
+      ["#ffb020", "Сплэш — вынос стопов, не цель"],
+      ["#ffb060", "Дисбаланс Ask/Bid"],
+      ["#50e090", "Зелёные палки справа — биды стакана"],
+      ["#ff6a6a", "Красные палки справа — аски стакана"],
+    ];
+    let ly = height - 18 - legend.length * 14;
+    ctx.fillStyle = "rgba(8,10,16,0.72)";
+    ctx.fillRect(8, ly - 16, 310, legend.length * 14 + 22);
+    ctx.fillStyle = "#d4b878";
+    ctx.font = "bold 11px IBM Plex Sans, sans-serif";
+    ctx.fillText("ClusterDelta на графике", 16, ly - 2);
+    legend.forEach(([c, t], i) => {
+      ctx.fillStyle = c;
+      ctx.fillRect(16, ly + 6 + i * 14, 10, 10);
+      ctx.fillStyle = "#e8dcc8";
+      ctx.font = "11px IBM Plex Sans, sans-serif";
+      ctx.fillText(t, 32, ly + 15 + i * 14);
+    });
+  }
+
   if (snap && snap.boxVector && snap.boxVector.dir !== "none" && snap.boxVector.magnet != null) {
     const magY = series.priceToCoordinate(snap.boxVector.magnet);
     const lastY = series.priceToCoordinate(snap.lastClose);
@@ -1010,7 +1066,7 @@ export function ChartPane({
         }
       }
       if (overlays.profile) {
-        add(snap.volumeProfile.poc, "POC", accent);
+        add(snap.volumeProfile.poc, snap.cdTape?.live ? "CD POC" : "POC", accent);
         add(snap.volumeProfile.vah, "VAH", muted, true);
         add(snap.volumeProfile.val, "VAL", muted, true);
         add(snap.micro.vwap, "VWAP", accent);

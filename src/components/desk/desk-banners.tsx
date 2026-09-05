@@ -210,7 +210,7 @@ export function FlowBanner({ snap }: { snap: SmcSnapshot }) {
   return (
     <div className="mx-4 mt-2 rounded-lg bg-elevated/70 px-4 py-3">
       <p className="font-mono text-[10px] tracking-[0.18em] text-accent">
-        ОБЪЁМ · CLUSTER SEARCH {f.source === "tape" ? "· ЛЕНТА" : snap.micro.footprint.source === "cme-delayed" ? `· CME ${snap.micro.cmeTicker ?? ""}` : "· ОЦЕНКА"}
+        ОБЪЁМ · CLUSTER SEARCH {snap.cdTape?.live ? "· CLUSTERDELTA" : f.source === "tape" ? "· ЛЕНТА" : snap.micro.footprint.source === "cme-delayed" ? `· CME ${snap.micro.cmeTicker ?? ""}` : "· ОЦЕНКА"}
       </p>
       <p className="mt-1 text-sm font-medium">
         дельта {f.lastDelta >= 0 ? "+" : ""}
