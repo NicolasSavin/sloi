@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.55"
+#property version   "4.56"
 #property strict
-#property description "SLOI 4.55: CD Imbalance и AskBid."
+#property description "SLOI 4.56: сначала котировки на сайт, потом CD."
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -137,7 +137,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.55: CD Imbalance/AskBid. Сов один.");
+   Print("SLOI 4.56: лента счёта сразу, CD следом.");
    return(INIT_SUCCEEDED);
   }
 
@@ -1138,6 +1138,20 @@ void AppendCdAskBid(string &body, string s)
    body += "ASKBID " + Naked(s) + " " + DoubleToStr(askV, 0) + " " + DoubleToStr(bidV, 0) + "\n";
   }
 
+void PostTape(string url, string body)
+  {
+   char data[];
+   char result[];
+   string rh = "";
+   int n = StringToCharArray(body, data, 0, WHOLE_ARRAY, CP_UTF8);
+   if(n > 0) ArrayResize(data, n - 1);
+   string hdr = "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)\r\nContent-Type: text/plain\r\n";
+   ResetLastError();
+   int res = WebRequest("POST", url, hdr, 8000, data, result, rh);
+   if(res == -1) Print("SLOI tape POST fail ", GetLastError(), " ", url);
+   else if(res != 200) Print("SLOI tape HTTP ", res, " ", url);
+  }
+
 void PushTape()
   {
    string url = FeedUrl();
@@ -1180,15 +1194,10 @@ void PushTape()
       if(bid <= 0 || ask <= 0) continue;
       body += Naked(s) + " " + DoubleToStr(bid, DigitsOf(s)) + " " + DoubleToStr(ask, DigitsOf(s)) + "\n";
      }
-   AppendClusters(body);
-   char data[];
-   char result[];
-   string rh = "";
-   int n = StringToCharArray(body, data, 0, WHOLE_ARRAY, CP_UTF8);
-   if(n > 0) ArrayResize(data, n - 1);
-   string hdr = "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)\r\nContent-Type: text/plain\r\n";
-   ResetLastError();
-   WebRequest("POST", url, hdr, 8000, data, result, rh);
+   PostTape(url, body);
+   string extra = "";
+   AppendClusters(extra);
+   if(StringLen(extra) > 8) PostTape(url, body + extra);
   }
 
 void ReadSite(string naked, int &dir, double &entry, double &stop, double &target, double &siteLast, string &verdict, string &why, double &skewCap, int &lim)
