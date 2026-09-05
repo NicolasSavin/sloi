@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.59"
+#property version   "4.60"
 #property strict
-#property description "SLOI 4.59: AskBid с минусом тоже шлём."
+#property description "SLOI 4.60: NOTE CD в ленту, чтобы видеть буферы."
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -137,7 +137,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.59: счёт на сайт идёт, AskBid Abs.");
+   Print("SLOI 4.60: NOTE CD в ленту.");
    return(INIT_SUCCEEDED);
   }
 
@@ -1159,11 +1159,14 @@ void AppendCdAskBid(string &body, string s)
    if(StringLen(CdAskBid) < 4) return;
    double askV = Icd(s, PERIOD_H1, CdAskBid, 0, 0);
    double bidV = Icd(s, PERIOD_H1, CdAskBid, 1, 0);
-   if(askV == EMPTY_VALUE || bidV == EMPTY_VALUE || askV > 1.0e12 || bidV > 1.0e12)
+   if(askV == EMPTY_VALUE || bidV == EMPTY_VALUE)
      {
       askV = Icd(s, PERIOD_H1, CdAskBid, 0, 1);
       bidV = Icd(s, PERIOD_H1, CdAskBid, 1, 1);
      }
+   string dir = (StringLen(g_cdDir) > 0 ? g_cdDir : "none");
+   body += "NOTE CD " + Naked(s) + " dir=" + dir
+        + " ask=" + DoubleToStr(askV, 1) + " bid=" + DoubleToStr(bidV, 1) + "\n";
    if(askV == EMPTY_VALUE || bidV == EMPTY_VALUE) return;
    if(MathAbs(askV) > 1.0e12 || MathAbs(bidV) > 1.0e12) return;
    askV = MathAbs(askV);
