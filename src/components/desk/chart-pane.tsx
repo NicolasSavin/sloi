@@ -803,16 +803,18 @@ function drawZones(
   ctx.fillText(tape, tapeX + 10 + mx + tapeW, ty2);
   ctx.restore();
 
-  const emoji =
+  const bullFace = ["📈", "🚀", "💎", "🤑", "🐂", "💰", "😎", "🏆", "✨", "🟢", "🥂", "👑"];
+  const bearFace = ["📉", "🐻", "🧊", "💥", "🔻", "😅", "🌧️", "⛈️", "🥶", "💣"];
+  const waitFace = ["🎯", "🤔", "👀", "⏳", "🎲", "🧿", "🫡", "🧘", "🔍", "🪙", "🪄", "📺"];
+  const faces =
     (vec && vec.dir === "up") || snap?.bias === "bullish"
-      ? "📈"
+      ? bullFace
       : (vec && vec.dir === "down") || snap?.bias === "bearish"
-        ? "📉"
-        : order?.action === "long"
-          ? "🤑"
-          : order?.action === "short"
-            ? "🧊"
-            : "🎯";
+        ? bearFace
+        : waitFace;
+  let seed = Math.floor(nowMs / 4500);
+  for (let i = 0; i < pair.length; i++) seed += pair.charCodeAt(i);
+  const emoji = faces[Math.abs(seed) % faces.length]!;
   const ew = 78;
   const eh = 78;
   const bounce = Math.sin(nowMs / 240) * 7;
