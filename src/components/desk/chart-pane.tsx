@@ -494,15 +494,37 @@ function drawZones(
       const near = !imb && dist(z) <= (atr || 1) * 0.9;
       fillVolume(left, top, zw, h, tone, near);
       occupy(left, top, zw, h);
-      const title =
-        imb
-          ? "Имбаланс"
-          : broken
-            ? "Брейкер-блок|ордерблок пробит"
-            : z.kind === "mitigation"
-              ? "Митигейшн|возврат в блок"
-              : "Ордерблок";
-      mark(z.startTime, (z.top + z.bottom) / 2, title, tone);
+      const inside = imb ? "Имбаланс" : broken ? "Брейкер блок" : z.kind === "mitigation" ? "Митигейшн" : "Ордерблок";
+      const note = broken ? "ордерблок пробит" : z.kind === "mitigation" ? "возврат в блок" : "";
+      const pal = PALETTE[tone] ?? PALETTE.fvg!;
+      if (zw >= 86 && h >= 20) {
+        ctx.save();
+        ctx.font = `700 ${Math.min(18, Math.max(11, h * 0.42))}px IBM Plex Sans, sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        const label = inside;
+        let size = Math.min(18, Math.max(11, h * 0.42));
+        ctx.font = `700 ${size}px IBM Plex Sans, sans-serif`;
+        while (size > 10 && ctx.measureText(label).width > zw - 16) {
+          size -= 1;
+          ctx.font = `700 ${size}px IBM Plex Sans, sans-serif`;
+        }
+        if (ctx.measureText(label).width <= zw - 12) {
+          ctx.strokeStyle = "rgba(8,6,4,0.55)";
+          ctx.lineWidth = 3.5;
+          ctx.strokeText(label, left + zw / 2, top + h / 2);
+          const lg = ctx.createLinearGradient(left, top, left, top + h);
+          lg.addColorStop(0, pal.t0);
+          lg.addColorStop(1, pal.t1);
+          ctx.fillStyle = lg;
+          ctx.fillText(label, left + zw / 2, top + h / 2);
+        }
+        ctx.restore();
+        ctx.textAlign = "left";
+        ctx.textBaseline = "alphabetic";
+      }
+      if (note) mark(z.startTime, (z.top + z.bottom) / 2, note, tone);
+      else if (zw < 86 || h < 20) mark(z.startTime, (z.top + z.bottom) / 2, inside, tone);
     }
   }
 
