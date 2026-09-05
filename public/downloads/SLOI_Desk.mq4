@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.58"
+#property version   "4.59"
 #property strict
-#property description "SLOI 4.58: CD путь один раз, без спама журнала."
+#property description "SLOI 4.59: AskBid с минусом тоже шлём."
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -137,7 +137,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.58: CD путь запоминается.");
+   Print("SLOI 4.59: счёт на сайт идёт, AskBid Abs.");
    return(INIT_SUCCEEDED);
   }
 
@@ -1157,10 +1157,17 @@ void AppendCdBook(string &body, string s)
 void AppendCdAskBid(string &body, string s)
   {
    if(StringLen(CdAskBid) < 4) return;
-   double askV = Icd(s, PERIOD_H1, CdAskBid, 0, 1);
-   double bidV = Icd(s, PERIOD_H1, CdAskBid, 1, 1);
+   double askV = Icd(s, PERIOD_H1, CdAskBid, 0, 0);
+   double bidV = Icd(s, PERIOD_H1, CdAskBid, 1, 0);
+   if(askV == EMPTY_VALUE || bidV == EMPTY_VALUE || askV > 1.0e12 || bidV > 1.0e12)
+     {
+      askV = Icd(s, PERIOD_H1, CdAskBid, 0, 1);
+      bidV = Icd(s, PERIOD_H1, CdAskBid, 1, 1);
+     }
    if(askV == EMPTY_VALUE || bidV == EMPTY_VALUE) return;
-   if(askV < 0 || bidV < 0 || askV > 1.0e12 || bidV > 1.0e12) return;
+   if(MathAbs(askV) > 1.0e12 || MathAbs(bidV) > 1.0e12) return;
+   askV = MathAbs(askV);
+   bidV = MathAbs(bidV);
    if(askV <= 0 && bidV <= 0) return;
    body += "ASKBID " + Naked(s) + " " + DoubleToStr(askV, 0) + " " + DoubleToStr(bidV, 0) + "\n";
   }
