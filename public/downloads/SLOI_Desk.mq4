@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.56"
+#property version   "4.57"
 #property strict
-#property description "SLOI 4.56: сначала котировки на сайт, потом CD."
+#property description "SLOI 4.57: CD из подпапки Indicators."
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -137,7 +137,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.56: лента счёта сразу, CD следом.");
+   Print("SLOI 4.57: CD путь Indicators\\\\имя.");
    return(INIT_SUCCEEDED);
   }
 
@@ -1005,6 +1005,21 @@ void AppendClusters(string &body)
    if(g_cd) AppendCdClusters(body, sent);
   }
 
+double Icd(string s, int tf, string ind, int buf, int sh)
+  {
+   if(StringLen(ind) < 3) return(EMPTY_VALUE);
+   ResetLastError();
+   double v = iCustom(s, tf, ind, buf, sh);
+   int err = GetLastError();
+   if(err != 2 && err != 4072) return(v);
+   ResetLastError();
+   v = iCustom(s, tf, "Indicators\\" + ind, buf, sh);
+   err = GetLastError();
+   if(err != 2 && err != 4072) return(v);
+   ResetLastError();
+   return(iCustom(s, tf, "ClusterDelta\\" + ind, buf, sh));
+  }
+
 void AppendCdOne(string &body, string s, int &sent)
   {
    if(sent >= 28) return;
@@ -1018,8 +1033,8 @@ void AppendCdOne(string &body, string s, int &sent)
    for(int i = 1; i <= 12; i++)
      {
       ResetLastError();
-      double v = iCustom(s, tf, CdVolume, 0, i);
-      double d = iCustom(s, tf, CdDelta, 0, i);
+      double v = Icd(s, tf, CdVolume, 0, i);
+      double d = Icd(s, tf, CdDelta, 0, i);
       if(v == EMPTY_VALUE || v <= 0 || v > 1.0e12) { vol[i - 1] = 0; del[i - 1] = 0; continue; }
       if(d == EMPTY_VALUE || MathAbs(d) > 1.0e12) d = 0;
       vol[i - 1] = v;
@@ -1057,7 +1072,7 @@ void AppendNamed(string &body, string s, string ind, string kind, int &sent)
    ArrayInitialize(val, 0);
    for(int i = 1; i <= 8; i++)
      {
-      double x = iCustom(s, tf, ind, 0, i);
+      double x = Icd(s, tf, ind, 0, i);
       if(x == EMPTY_VALUE || x <= 0 || x > 1.0e12) { val[i - 1] = 0; continue; }
       val[i - 1] = x;
       acc += x;
@@ -1099,9 +1114,9 @@ void AppendCdProfile(string &body, string s)
   {
    if(StringLen(CdProfile) < 4) return;
    double bid = BidOf(s);
-   double poc = iCustom(s, PERIOD_H1, CdProfile, 0, 0);
-   double vah = iCustom(s, PERIOD_H1, CdProfile, 1, 0);
-   double val = iCustom(s, PERIOD_H1, CdProfile, 2, 0);
+   double poc = Icd(s, PERIOD_H1, CdProfile, 0, 0);
+   double vah = Icd(s, PERIOD_H1, CdProfile, 1, 0);
+   double val = Icd(s, PERIOD_H1, CdProfile, 2, 0);
    if(!LooksPx(poc, bid)) return;
    if(!LooksPx(vah, bid)) vah = poc;
    if(!LooksPx(val, bid)) val = poc;
@@ -1117,8 +1132,8 @@ void AppendCdBook(string &body, string s)
    int n = 0;
    for(int b = 0; b <= 10 && n < 8; b += 2)
      {
-      double px = iCustom(s, PERIOD_H1, CdBookMap, b, 0);
-      double vol = iCustom(s, PERIOD_H1, CdBookMap, b + 1, 0);
+      double px = Icd(s, PERIOD_H1, CdBookMap, b, 0);
+      double vol = Icd(s, PERIOD_H1, CdBookMap, b + 1, 0);
       if(!LooksPx(px, bid) || vol == EMPTY_VALUE || vol <= 0 || vol > 1.0e12) continue;
       string sd = (px <= bid ? "B" : "S");
       row += " " + sd + " " + DoubleToStr(px, DigitsOf(s)) + " " + DoubleToStr(vol, 0);
@@ -1130,8 +1145,8 @@ void AppendCdBook(string &body, string s)
 void AppendCdAskBid(string &body, string s)
   {
    if(StringLen(CdAskBid) < 4) return;
-   double askV = iCustom(s, PERIOD_H1, CdAskBid, 0, 1);
-   double bidV = iCustom(s, PERIOD_H1, CdAskBid, 1, 1);
+   double askV = Icd(s, PERIOD_H1, CdAskBid, 0, 1);
+   double bidV = Icd(s, PERIOD_H1, CdAskBid, 1, 1);
    if(askV == EMPTY_VALUE || bidV == EMPTY_VALUE) return;
    if(askV < 0 || bidV < 0 || askV > 1.0e12 || bidV > 1.0e12) return;
    if(askV <= 0 && bidV <= 0) return;
