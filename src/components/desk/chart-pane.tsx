@@ -32,8 +32,9 @@ function drawVolumeCandles(
   chart: IChartApi,
   series: ISeriesApi<"Candlestick">,
   candles: Candle[],
+  clear = false,
 ) {
-  ctx.clearRect(0, 0, width, height);
+  if (clear) ctx.clearRect(0, 0, width, height);
   const ts = chart.timeScale();
   const spacing = Math.max(3, (ts.options().barSpacing as number | undefined) ?? 8);
   const bodyW = Math.max(2.8, spacing * 0.64);
@@ -326,7 +327,6 @@ function drawZones(
       if (fuel.target != null) mark(lastTime, fuel.target, "Цель отката", "entry");
     }
   }
-  if (candles.length) drawVolumeCandles(ctx, width, height, chart, series, candles);
 
   if (snap?.cdTape?.live) {
     const book = snap.cdTape.book;
@@ -1111,6 +1111,7 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
                 chart,
                 series,
                 p.candles,
+                true,
               );
               drawZones(
                 scope.context,
