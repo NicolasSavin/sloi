@@ -193,7 +193,7 @@ export function buildMicro(
       }
     }
   }
-  if (!fromCd && !raw.some((n) => n.kind === "infusion")) {
+  if (!raw.some((n) => n.kind === "infusion")) {
     for (let i = 6; i < use.length; i++) {
       const c = use[i]!;
       const barSpan = c.high - c.low || 1e-9;
@@ -212,7 +212,7 @@ export function buildMicro(
       }
     }
   }
-  if (!fromCd && !raw.some((n) => n.kind === "splash")) {
+  if (!raw.some((n) => n.kind === "splash")) {
     for (let i = 6; i < use.length; i++) {
       const c = use[i]!;
       const barSpan = c.high - c.low || 1e-9;
