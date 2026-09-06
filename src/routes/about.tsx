@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppNav } from "@/components/app-nav";
-import { HowToDesk } from "@/components/howto-desk";
+import { HowToDesk, SiteManual } from "@/components/howto-desk";
 import { BRAND, DOMAIN, SITE_URL, VERSION, VERSION_DATE, TAGLINE } from "@/lib/brand";
 
 export const Route = createFileRoute("/about")({
@@ -8,6 +8,13 @@ export const Route = createFileRoute("/about")({
 });
 
 const UPDATES = [
+  {
+    v: "1.8.40",
+    d: "2026-09-06",
+    items: [
+      "О сайте: как пользоваться, правила стола, легенда графика, термины, как подтверждается дивер",
+    ],
+  },
   {
     v: "1.8.39",
     d: "2026-09-06",
@@ -393,6 +400,8 @@ function AboutPage() {
         </ol>
 
         <HowToDesk />
+
+        <SiteManual />
 
         <h2 className="mt-14 text-2xl">Версии и апдейты</h2>
         <p className="mt-2 font-mono text-xs text-dim">
