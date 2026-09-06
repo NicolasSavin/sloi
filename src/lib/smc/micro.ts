@@ -233,7 +233,12 @@ export function buildMicro(
   }
   const nodes: VolumeNode[] = [];
   for (const n of raw) {
-    const near = nodes.find((x) => x.kind === n.kind && Math.abs(x.price - n.price) < atrLike * 0.35);
+    const near = nodes.find(
+      (x) =>
+        x.kind === n.kind &&
+        Math.abs(x.price - n.price) < atrLike * 0.08 &&
+        Math.abs(x.time - n.time) < 900,
+    );
     if (near) {
       near.price = (near.price + n.price) / 2;
       near.time = n.time;
@@ -318,7 +323,7 @@ export function buildMicro(
     footprint: { buy, sell, delta, source: ab || tape ? "tape" : cme ? "cme-delayed" : "proxy" },
     infusion,
     splash,
-    nodes: nodes.slice(-16),
+    nodes: nodes.slice(-80),
     cmeTicker,
     because,
     therefore,

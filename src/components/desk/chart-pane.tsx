@@ -1242,7 +1242,7 @@ function drawTape(
   book: { bids: { price: number; volume: number }[]; asks: { price: number; volume: number }[] } | null,
 ) {
   const ts = chart.timeScale();
-  for (const n of snap?.micro.nodes.filter((x) => x.kind === "splash" || x.kind === "infusion" || x.kind === "imbalance").slice(-16) ?? []) {
+  for (const n of snap?.micro.nodes.filter((x) => x.kind === "splash" || x.kind === "infusion" || x.kind === "imbalance").slice(-64) ?? []) {
     const t = n.time > 1e12 ? Math.floor(n.time / 1000) : n.time;
     let x = ts.timeToCoordinate(t as UTCTimestamp);
     const y = series.priceToCoordinate(n.price);

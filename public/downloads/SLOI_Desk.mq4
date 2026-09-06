@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.82"
+#property version   "4.83"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -141,7 +141,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.82: infusion жёлто-зелёный не путать со сплэшем");
+   Print("SLOI 4.83: больше кружков Splash/Infusion/IMB с индюка");
    return(INIT_SUCCEEDED);
   }
 
@@ -990,7 +990,7 @@ bool ChartHasInd(long ch, string needle)
 
 void DumpCdObject(long ch, string n, string &body, int &sent, bool hasSplash, bool hasInf, bool hasImb)
   {
-   if(sent >= 120) return;
+   if(sent >= 400) return;
    if(StringFind(n, "SLOI_") == 0) return;
    string low = n;
    StringToLower(low);
@@ -1050,13 +1050,13 @@ void AppendClusters(string &body)
   {
    int sent = 0;
    long ch = ChartFirst();
-   while(ch >= 0 && sent < 120)
+   while(ch >= 0 && sent < 400)
      {
       bool hasS = ChartHasInd(ch, "splash");
       bool hasI = ChartHasInd(ch, "infusion");
       bool hasM = ChartHasInd(ch, "imbalance");
       int total = (int)ObjectsTotal(ch, -1, -1);
-      for(int i = 0; i < total && sent < 120; i++)
+      for(int i = 0; i < total && sent < 400; i++)
         {
          string n = ObjectName(ch, i, -1, -1);
          if(StringLen(n) < 1) continue;
@@ -1108,7 +1108,7 @@ bool CdFut(string s)
 void AppendCdHist(string &body, string s, int &sent)
   {
    int tf = PERIOD_H1;
-   for(int i = 0; i < 16 && sent < 80; i++)
+   for(int i = 0; i < 48 && sent < 200; i++)
      {
       datetime t = iTime(s, tf, i);
       if(t <= 0) continue;
@@ -1197,10 +1197,10 @@ void AppendCdOne(string &body, string s, int &sent)
 
 void AppendNamed(string &body, string s, string ind, string kind, int &sent)
   {
-   if(StringLen(ind) < 3 || sent >= 80) return;
+   if(StringLen(ind) < 3 || sent >= 200) return;
    int tf = PERIOD_H1;
    double bid = BidOf(s);
-   for(int i = 0; i < 10 && sent < 80; i++)
+   for(int i = 0; i < 40 && sent < 200; i++)
      {
       double x = Icd(s, tf, ind, 0, i);
       if(x == EMPTY_VALUE || x == 0) x = Icd(s, tf, ind, 1, i);

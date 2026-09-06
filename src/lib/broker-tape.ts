@@ -285,7 +285,7 @@ export function ingestBrokerTape(text: string, tenant = "legacy") {
   } else if (pos.length && r.account && Date.now() - r.account.at < 120_000) {
     r.account = { ...r.account, at, positions: pos.slice(0, 24) };
   }
-  for (const [id, nodes] of batch) r.clusters.set(id, { at, nodes: nodes.slice(-16) });
+  for (const [id, nodes] of batch) r.clusters.set(id, { at, nodes: nodes.slice(-80) });
   return r.account;
 }
 
