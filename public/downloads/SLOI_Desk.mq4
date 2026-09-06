@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.80"
+#property version   "4.81"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -141,7 +141,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.80: Imbalance CD — точка с индюка, не FVG");
+   Print("SLOI 4.81: кружки Splash/IMB по цвету, даже если на графике и Infusion");
    return(INIT_SUCCEEDED);
   }
 
@@ -990,7 +990,7 @@ bool ChartHasInd(long ch, string needle)
 
 void DumpCdObject(long ch, string n, string &body, int &sent, bool hasSplash, bool hasInf, bool hasImb)
   {
-   if(sent >= 80) return;
+   if(sent >= 120) return;
    if(StringFind(n, "SLOI_") == 0) return;
    string low = n;
    StringToLower(low);
@@ -1018,9 +1018,19 @@ void DumpCdObject(long ch, string n, string &body, int &sent, bool hasSplash, bo
    else if(namedSplash && !namedInf) kind = "SPLASH";
    else if(namedInf && !namedSplash) kind = "INFUSION";
    else if(namedSplash && namedInf) kind = "SPLASH";
-   else if(hasImb && !hasSplash && !hasInf && isDot) kind = "IMBALANCE";
-   else if(hasSplash && !hasInf && !hasImb && isDot) kind = "SPLASH";
-   else if(hasInf && !hasSplash && !hasImb && isDot) kind = "INFUSION";
+   else if(isDot)
+     {
+      color c0 = (color)ObjectGetInteger(ch, n, OBJPROP_COLOR);
+      int r0 = (c0 & 0xFF);
+      int g0 = ((c0 >> 8) & 0xFF);
+      int b0 = ((c0 >> 16) & 0xFF);
+      if(hasInf && g0 >= r0 + 20 && g0 >= b0) kind = "INFUSION";
+      else if(hasSplash && (r0 >= 140 || (r0 + g0 > 220 && b0 < 90))) kind = "SPLASH";
+      else if(hasImb && (b0 >= 110 || r0 >= 170)) kind = "IMBALANCE";
+      else if(hasSplash) kind = "SPLASH";
+      else if(hasInf) kind = "INFUSION";
+      else if(hasImb) kind = "IMBALANCE";
+     }
    if(kind == "") return;
    string sym = ChartSymbol(ch);
    if(StringLen(sym) < 3) sym = Symbol();
@@ -1037,13 +1047,13 @@ void AppendClusters(string &body)
   {
    int sent = 0;
    long ch = ChartFirst();
-   while(ch >= 0 && sent < 80)
+   while(ch >= 0 && sent < 120)
      {
       bool hasS = ChartHasInd(ch, "splash");
       bool hasI = ChartHasInd(ch, "infusion");
       bool hasM = ChartHasInd(ch, "imbalance");
       int total = (int)ObjectsTotal(ch, -1, -1);
-      for(int i = 0; i < total && sent < 80; i++)
+      for(int i = 0; i < total && sent < 120; i++)
         {
          string n = ObjectName(ch, i, -1, -1);
          if(StringLen(n) < 1) continue;
