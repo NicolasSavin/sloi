@@ -1359,10 +1359,10 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
             }
             if (!hover) {
               drawZones(ctx, w, h, chart, series, p.zones, p.overlays, p.snap, p.setup, p.order, p.candles.at(-1)?.time ?? 0, false, p.candles, p.pair, this.faceI, "hud");
-              drawTape(ctx, w, chart, series, p.candles, p.snap, p.overlays.flow, p.book);
               drawPathArrows(ctx, w, chart, series, p.snap, p.order, p.setup, p.candles.at(-1)?.time ?? 0);
             }
             if (hover) drawBricks(ctx, chart, series, p.candles);
+            drawTape(ctx, w, chart, series, p.candles, p.snap, p.overlays.flow, p.book);
           });
         },
       }),

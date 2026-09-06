@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.8.47",
+    d: "2026-09-06",
+    items: [
+      "Наведение: зоны и пузыри скрыты, шарики сплэш/вливание/IMB остаются",
+    ],
+  },
+  {
     v: "1.8.46",
     d: "2026-09-06",
     items: [
