@@ -32,7 +32,7 @@ import { cn, formatPct, formatPrice } from "@/lib/utils";
 
 const OVERLAY_LABELS: { key: keyof OverlayFlags; label: string }[] = [
   { key: "structure", label: "BOS / CHoCH" },
-  { key: "fvg", label: "Разрыв FVG" },
+  { key: "fvg", label: "FVG" },
   { key: "ob", label: "Ордерблок" },
   { key: "liquidity", label: "Ликвидность" },
   { key: "margin", label: "Маржа" },

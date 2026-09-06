@@ -426,10 +426,10 @@ function drawZones(
       (a, b) => Math.abs((a.top + a.bottom) / 2 - lastPx) - Math.abs((b.top + b.bottom) / 2 - lastPx),
     );
     const picked = [
-      ...(overlays.fvg ? nearFvg.slice(0, 8) : []),
       ...(overlays.ob
         ? liveOb.filter((z) => z.kind === "ob" || z.kind === "breaker" || z.kind === "mitigation").sort((a, b) => dist(a) - dist(b)).slice(0, 3)
         : []),
+      ...(overlays.fvg ? nearFvg.slice(0, 3) : []),
     ];
     for (const z of picked) {
       const x1 = ts.timeToCoordinate(z.startTime as UTCTimestamp) ?? 8;
@@ -453,8 +453,7 @@ function drawZones(
       const tone = imb ? "fvg" : broken ? "choch" : bull ? "ob" : "obBear";
       const near = !imb && dist(z) <= (atr || 1) * 0.9;
       fillVolume(left, top, zw, h, tone, near);
-      occupy(left, top, zw, h);
-      const inside = imb ? "Разрыв FVG" : broken ? "Брейкер блок" : z.kind === "mitigation" ? "Митигейшн" : "Ордерблок";
+      const inside = imb ? "FVG" : broken ? "Брейкер блок" : z.kind === "mitigation" ? "Митигейшн" : "Ордерблок";
       const note = broken ? "ордерблок пробит" : z.kind === "mitigation" ? "возврат в блок" : "";
       const pal = PALETTE[tone] ?? PALETTE.fvg!;
       if (zw >= 86 && h >= 20) {
