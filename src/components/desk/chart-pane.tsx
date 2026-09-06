@@ -1062,30 +1062,22 @@ function drawBricks(
     const bull = c.close >= c.open;
     const top = Math.min(yO, yC);
     const h = Math.max(2, Math.abs(yC - yO));
-    const depth = Math.min(5, bw * 0.32);
-    ctx.strokeStyle = bull ? "rgba(90,230,150,0.95)" : "rgba(240,100,100,0.95)";
-    ctx.lineWidth = 1.4;
+    const depth = Math.min(4, bw * 0.28);
+    ctx.strokeStyle = bull ? "rgba(90,230,150,0.9)" : "rgba(240,100,100,0.9)";
+    ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(x, yH);
+    ctx.lineTo(x, top);
+    ctx.moveTo(x, top + h);
     ctx.lineTo(x, yL);
     ctx.stroke();
-    ctx.fillStyle = "rgba(0,0,0,0.38)";
-    ctx.fillRect(x - bw / 2 + 2, top + 3, bw, h);
     ctx.beginPath();
     ctx.moveTo(x + bw / 2, top);
-    ctx.lineTo(x + bw / 2 + depth, top - depth);
-    ctx.lineTo(x + bw / 2 + depth, top + h - depth);
+    ctx.lineTo(x + bw / 2 + depth, top);
+    ctx.lineTo(x + bw / 2 + depth, top + h);
     ctx.lineTo(x + bw / 2, top + h);
     ctx.closePath();
     ctx.fillStyle = bull ? "#0a4a28" : "#6a1212";
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(x - bw / 2, top);
-    ctx.lineTo(x - bw / 2 + depth, top - depth);
-    ctx.lineTo(x + bw / 2 + depth, top - depth);
-    ctx.lineTo(x + bw / 2, top);
-    ctx.closePath();
-    ctx.fillStyle = bull ? "#9affc8" : "#ffc4c4";
     ctx.fill();
     const g = ctx.createLinearGradient(x - bw / 2, top, x + bw / 2, top + h);
     if (bull) {
@@ -1532,6 +1524,8 @@ export function ChartPane({
     series.applyOptions({
       upColor: "rgba(0,0,0,0)",
       downColor: "rgba(0,0,0,0)",
+      wickUpColor: "rgba(0,0,0,0)",
+      wickDownColor: "rgba(0,0,0,0)",
       borderVisible: false,
       wickVisible: false,
     });

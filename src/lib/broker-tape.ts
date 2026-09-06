@@ -449,6 +449,9 @@ export function mergeBrokerCandles<T extends { time: number; open: number; high:
   broker: { time: number; open: number; high: number; low: number; close: number }[],
 ): T[] {
   if (broker.length < 8) return web;
+  const webTimes = new Set(web.map((c) => c.time));
+  const hit = broker.filter((b) => webTimes.has(b.time)).length;
+  if (hit < 4) return web;
   const map = new Map<number, T>();
   for (const c of web) map.set(c.time, c);
   for (const b of broker) {
