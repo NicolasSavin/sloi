@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.70"
+#property version   "4.71"
 #property strict
-#property description "SLOI 4.70: OHLC H1 с терминала на сайт — свечи как в MT4."
+#property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -38,6 +38,7 @@ input bool    FixForeign      = false;
 input string  ForeignTag      = "WS";
 input bool    AlertsOn        = true;
 input bool    VirtualPendings = true; // виртуал: отложка, стоп и тейк. Сдвиг со стола.
+input bool    HostFeed        = true;  // true только у хозяина сайта: CD и H1 на общий стол
 input bool    UseClusterDelta = true; // iCustom CD по всем парам списка, тики
 input string  CdVolume        = "ClusterDelta_#Volumes";
 input string  CdDelta         = "ClusterDelta_#Delta";
@@ -86,6 +87,7 @@ double g_skew;
 bool   g_alerts;
 bool   g_virt;
 bool   g_cd;
+bool   g_host;
 bool   g_seeded = false;
 bool   g_ready = false;
 bool   g_min = false;
@@ -131,6 +133,7 @@ int OnInit()
    g_alerts = AlertsOn;
    g_virt   = VirtualPendings;
    g_cd     = UseClusterDelta;
+   g_host   = HostFeed;
    Wipe();
    ParseWatch();
    EventSetTimer(2);
@@ -138,7 +141,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.70: BAR H1 с терминала.");
+   Print("SLOI 4.71: ", g_host ? "хозяин — CD и бары на сайт" : "клиент — только сигналы, CD не нужен");
    return(INIT_SUCCEEDED);
   }
 
@@ -1003,7 +1006,7 @@ void AppendClusters(string &body)
       body += "CLUSTER " + Naked(Symbol()) + " " + kind + " " + DoubleToStr(px, Digits) + " " + sd + "\n";
       sent++;
      }
-   if(g_cd) AppendCdClusters(body, sent);
+   if(g_cd && g_host) AppendCdClusters(body, sent);
   }
 
 string g_cdDir = "";
@@ -1356,7 +1359,7 @@ void PushTape()
      }
    static datetime lastBars = 0;
    bool hist = (lastBars == 0 || TimeCurrent() - lastBars >= 300);
-   AppendBrokerBars(body, hist);
+   if(g_host) AppendBrokerBars(body, hist);
    if(hist) lastBars = TimeCurrent();
    PostTape(url, body);
    string extra = "";

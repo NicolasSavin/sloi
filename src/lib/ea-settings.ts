@@ -22,6 +22,7 @@ export interface EaSettings {
   minCover: number;
   alerts: boolean;
   deskKey: string;
+  hostFeed?: boolean;
 }
 
 export const DEFAULT_EA: EaSettings = {
@@ -51,5 +52,7 @@ export function patchEaSource(src: string, s: EaSettings) {
     .replace(/input int\s+MaxSpreadPoints\s+=\s+\d+/, `input int     MaxSpreadPoints = ${s.maxSpread}`)
     .replace(/input double\s+MinCover\s+=\s+[0-9.]+/, `input double  MinCover        = ${s.minCover}`)
     .replace(/input bool\s+AlertsOn\s+=\s+(true|false)/, `input bool    AlertsOn        = ${s.alerts ? "true" : "false"}`)
-    .replace(/input string\s+DeskKey\s+=\s+"[^"]*"/, `input string  DeskKey         = "${s.deskKey.replace(/"/g, "")}"`);
+    .replace(/input string\s+DeskKey\s+=\s+"[^"]*"/, `input string  DeskKey         = "${s.deskKey.replace(/"/g, "")}"`)
+    .replace(/input bool\s+HostFeed\s+=\s+(true|false)/, `input bool    HostFeed        = ${s.hostFeed ? "true" : "false"}`)
+    .replace(/input bool\s+UseClusterDelta\s+=\s+(true|false)/, `input bool    UseClusterDelta = ${s.hostFeed ? "true" : "false"}`);
 }

@@ -7,13 +7,14 @@ import { EA_FILE } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 
 export function SaveExpert({ settings, className }: { settings: EaSettings; className?: string }) {
-  const source = useMemo(() => patchEaSource(EA_SOURCE, settings), [settings]);
-  const dataUrl = useMemo(
-    () => `data:application/octet-stream;charset=utf-8,${encodeURIComponent(source)}`,
-    [source],
-  );
+  const follow = useMemo(() => patchEaSource(EA_SOURCE, { ...settings, hostFeed: false }), [settings]);
+  const host = useMemo(() => patchEaSource(EA_SOURCE, { ...settings, hostFeed: true }), [settings]);
+  const followUrl = useMemo(() => `data:application/octet-stream;charset=utf-8,${encodeURIComponent(follow)}`, [follow]);
+  const hostUrl = useMemo(() => `data:application/octet-stream;charset=utf-8,${encodeURIComponent(host)}`, [host]);
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [which, setWhich] = useState<"follow" | "host">("follow");
+  const source = which === "host" ? host : follow;
 
   const copyNow = async () => {
     try {
@@ -26,8 +27,10 @@ export function SaveExpert({ settings, className }: { settings: EaSettings; clas
     }
   };
 
-  const onSave = () => {
-    void copyNow();
+  const onSave = (w: "follow" | "host") => {
+    setWhich(w);
+    const text = w === "host" ? host : follow;
+    void navigator.clipboard.writeText(text).then(() => setCopied(true)).catch(() => setCopied(false));
     setOpen(true);
   };
 
@@ -35,37 +38,35 @@ export function SaveExpert({ settings, className }: { settings: EaSettings; clas
     <div className={cn("space-y-3", className)}>
       <div className="flex flex-wrap gap-2">
         <a
-          href={dataUrl}
-          download={EA_FILE}
+          href={followUrl}
+          download="SLOI_Follow.mq4"
           className="btn-metal inline-flex h-11 items-center gap-2 rounded-sm px-4 text-sm font-medium text-accent-fg"
-          onClick={onSave}
+          onClick={() => onSave("follow")}
         >
           <Download className="size-4" />
-          Скачать .mq4
+          Сов для клиентов
         </a>
         <a
-          href="/api/ea.mq4"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex h-11 items-center rounded-sm px-4 text-sm font-medium shadow-[var(--shadow-border)]"
-          onClick={onSave}
+          href={hostUrl}
+          download={EA_FILE}
+          className="inline-flex h-11 items-center gap-2 rounded-sm px-4 text-sm font-medium shadow-[var(--shadow-border)]"
+          onClick={() => onSave("host")}
         >
-          Открыть файл
+          Сов хозяина (CD)
         </a>
-        <Button type="button" variant="ghost" onClick={() => { void copyNow(); setOpen(true); }}>
+        <Button type="button" variant="ghost" onClick={() => { setWhich("follow"); void copyNow(); setOpen(true); }}>
           Копировать код
         </Button>
       </div>
       <p className="text-xs text-dim">
-        В превью браузер часто глушит загрузки. Нажмите «Скачать» — код копируется, ниже можно вставить в MetaEditor.
+        Клиенту ClusterDelta не нужен: сов только читает сигналы сайта и торгует у своего брокера. Хозяин шлёт CD и свечи на общий стол — счёт при этом не светится.
       </p>
 
       {open ? (
         <div className="rounded-xl border border-accent/40 bg-card p-4 shadow-[var(--shadow-volume)]">
           <p className="font-medium">{copied ? "Код уже в буфере" : "Выделите код и скопируйте"}</p>
           <p className="mt-1 text-sm text-muted">
-            MetaEditor → создать Expert Advisor → вставить всё → сохранить как SLOI_Desk.mq4 → F7. Потом перетащить
-            на график.
+            MetaEditor → вставить всё → сохранить как {which === "host" ? "SLOI_Desk.mq4" : "SLOI_Follow.mq4"} → F7.
           </p>
           <textarea
             readOnly
