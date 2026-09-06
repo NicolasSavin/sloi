@@ -37,8 +37,7 @@ function drawVolumeCandles(
   if (clear) ctx.clearRect(0, 0, width, height);
   const ts = chart.timeScale();
   const spacing = Math.max(3, (ts.options().barSpacing as number | undefined) ?? 8);
-  const bodyW = Math.max(2.8, spacing * 0.64);
-  const depth = Math.min(6, bodyW * 0.42);
+  const bodyW = Math.max(3, Math.min(11, spacing * 0.7));
   for (const c of candles) {
     const x = ts.timeToCoordinate(c.time as UTCTimestamp);
     if (x == null || x < -24 || x > width + 24) continue;
@@ -50,45 +49,27 @@ function drawVolumeCandles(
     const up = c.close >= c.open;
     const top = Math.min(yO, yC);
     const bot = Math.max(yO, yC);
-    const h = Math.max(1.8, bot - top);
+    const h = Math.max(1, bot - top);
     const left = x - bodyW / 2;
-    ctx.strokeStyle = up ? "rgba(180,255,220,1)" : "rgba(255,180,180,1)";
-    ctx.lineWidth = Math.max(1.4, spacing * 0.14);
+    ctx.strokeStyle = up ? "#4dff9a" : "#ff6b6b";
+    ctx.lineWidth = Math.max(1, Math.min(2, spacing * 0.12));
     ctx.beginPath();
     ctx.moveTo(x, yH);
     ctx.lineTo(x, yL);
     ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(left + bodyW, top);
-    ctx.lineTo(left + bodyW + depth, top - depth);
-    ctx.lineTo(left + bodyW + depth, bot - depth);
-    ctx.lineTo(left + bodyW, bot);
-    ctx.closePath();
-    ctx.fillStyle = up ? "rgba(12,70,40,0.95)" : "rgba(80,16,16,0.95)";
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(left, top);
-    ctx.lineTo(left + depth, top - depth);
-    ctx.lineTo(left + bodyW + depth, top - depth);
-    ctx.lineTo(left + bodyW, top);
-    ctx.closePath();
-    ctx.fillStyle = up ? "rgba(190,255,220,0.95)" : "rgba(255,190,190,0.92)";
-    ctx.fill();
-    const g = ctx.createLinearGradient(left, top, left + bodyW, bot);
+    const g = ctx.createLinearGradient(left, top, left, bot);
     if (up) {
-      g.addColorStop(0, "#f2fff8");
-      g.addColorStop(0.35, "#6affb0");
-      g.addColorStop(1, "#148a48");
+      g.addColorStop(0, "#8cffc4");
+      g.addColorStop(1, "#1d8a52");
     } else {
-      g.addColorStop(0, "#ffe0e0");
-      g.addColorStop(0.35, "#ff6a6a");
-      g.addColorStop(1, "#8a1818");
+      g.addColorStop(0, "#ff9a9a");
+      g.addColorStop(1, "#a11c1c");
     }
     ctx.fillStyle = g;
     ctx.fillRect(left, top, bodyW, h);
-    ctx.strokeStyle = up ? "rgba(240,255,246,0.85)" : "rgba(255,230,230,0.75)";
+    ctx.strokeStyle = up ? "rgba(210,255,230,0.7)" : "rgba(255,210,210,0.65)";
     ctx.lineWidth = 1;
-    ctx.strokeRect(left, top, bodyW, h);
+    ctx.strokeRect(left + 0.5, top + 0.5, bodyW - 1, Math.max(0, h - 1));
   }
 }
 
