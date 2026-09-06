@@ -193,16 +193,17 @@ export function buildMicro(
       }
     }
   }
+  const volFlat = (sorted.at(-1) ?? 1) / Math.max(sorted[0] ?? 1, 1e-9) < 1.35;
   if (!raw.some((n) => n.kind === "infusion")) {
     for (let i = 6; i < use.length; i++) {
       const c = use[i]!;
       const barSpan = c.high - c.low || 1e-9;
       const d = deltaOf(c);
       const v = barVolume(c);
-      if (v < thresh) continue;
+      if (!volFlat && v < thresh) continue;
       const rangeRatio = barSpan / spanMed;
-      const deltaShare = Math.abs(d) / v;
-      if (rangeRatio < 0.88 && deltaShare < 0.48) {
+      const deltaShare = Math.abs(d) / Math.max(v, 1e-9);
+      if (rangeRatio < (volFlat ? 0.72 : 0.88) && (volFlat || deltaShare < 0.48)) {
         raw.push({
           price: (c.high + c.low) / 2,
           side: d >= 0 ? "buy" : "sell",
@@ -218,10 +219,10 @@ export function buildMicro(
       const barSpan = c.high - c.low || 1e-9;
       const d = deltaOf(c);
       const v = barVolume(c);
-      if (v < thresh) continue;
+      if (!volFlat && v < thresh) continue;
       const rangeRatio = barSpan / spanMed;
-      const deltaShare = Math.abs(d) / v;
-      if (rangeRatio > 1.15 && deltaShare > 0.42) {
+      const deltaShare = Math.abs(d) / Math.max(v, 1e-9);
+      if (rangeRatio > (volFlat ? 1.25 : 1.15) && (volFlat || deltaShare > 0.42)) {
         raw.push({
           price: c.close >= c.open ? c.high : c.low,
           side: d >= 0 ? "buy" : "sell",
@@ -255,6 +256,27 @@ export function buildMicro(
     n.held = n.side === "buy"
       ? !after.some((c) => c.close < n.price - atrLike * 0.28)
       : !after.some((c) => c.close > n.price + atrLike * 0.28);
+  }
+  if (!nodes.some((n) => n.kind === "splash" || n.kind === "infusion")) {
+    const tail = use.slice(-24);
+    const ranked = [...tail].sort((a, b) => b.high - b.low - (a.high - a.low));
+    for (const c of ranked.slice(0, 3)) {
+      nodes.push({
+        price: c.close >= c.open ? c.high : c.low,
+        side: c.close >= c.open ? "buy" : "sell",
+        kind: "splash",
+        time: c.time,
+      });
+    }
+    for (const c of ranked.slice(-3)) {
+      nodes.push({
+        price: (c.high + c.low) / 2,
+        side: deltaOf(c) >= 0 ? "buy" : "sell",
+        kind: "infusion",
+        time: c.time,
+        held: true,
+      });
+    }
   }
   const step = last.time - (use.at(-2)?.time ?? last.time - 3600_000);
   const fresh = (t: number) => last.time - t <= step * 5;

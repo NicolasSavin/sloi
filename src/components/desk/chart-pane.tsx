@@ -112,7 +112,7 @@ function pulseRings(ctx: CanvasRenderingContext2D, x: number, y: number, color: 
   const rings = strong ? 3 : 2;
   for (let r = 1; r <= rings; r++) {
     ctx.beginPath();
-    ctx.arc(x, y, 8 + r * (strong ? 8 : 5) * beat, 0, Math.PI * 2);
+    ctx.arc(x, y, 12 + r * (strong ? 11 : 7) * beat, 0, Math.PI * 2);
     ctx.strokeStyle = color;
     ctx.globalAlpha = (1 - r / (rings + 1)) * (0.3 + 0.7 * beat);
     ctx.lineWidth = strong ? 2.6 : 1.8;
@@ -120,7 +120,7 @@ function pulseRings(ctx: CanvasRenderingContext2D, x: number, y: number, color: 
   }
   ctx.globalAlpha = 1;
   ctx.beginPath();
-  ctx.arc(x, y, 6 + 4 * beat, 0, Math.PI * 2);
+  ctx.arc(x, y, 9 + 5 * beat, 0, Math.PI * 2);
   ctx.fillStyle = color;
   ctx.globalAlpha = 0.5 + 0.5 * beat;
   ctx.fill();
