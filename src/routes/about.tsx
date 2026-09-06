@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.8.22",
+    d: "2026-09-06",
+    items: [
+      "Сплэш строго с ClusterDelta: имя/подсказка splash или круги только на графике, где висит #Splash (без #Infusion рядом). Чужие стрелки не считаем",
+    ],
+  },
+  {
     v: "1.8.21",
     d: "2026-09-06",
     items: [

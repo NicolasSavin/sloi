@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.77"
+#property version   "4.78"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -141,7 +141,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.77: круги Splash с графика CD (эллипс/стрелка), не только имя splash");
+   Print("SLOI 4.78: splash только с объектов CD Splash, без чужих стрелок");
    return(INIT_SUCCEEDED);
   }
 
@@ -971,12 +971,34 @@ void SeedFromFeed()
      }
   }
 
-void DumpCdObject(long ch, string n, string &body, int &sent)
+bool ChartHasInd(long ch, string needle)
+  {
+   string want = needle;
+   StringToLower(want);
+   for(int w = 0; w < 3; w++)
+     {
+      int n = ChartIndicatorsTotal(ch, w);
+      for(int i = 0; i < n; i++)
+        {
+         string ind = ChartIndicatorName(ch, w, i);
+         StringToLower(ind);
+         if(StringFind(ind, want) >= 0) return(true);
+        }
+     }
+   return(false);
+  }
+
+void DumpCdObject(long ch, string n, string &body, int &sent, bool hasSplash, bool hasInf)
   {
    if(sent >= 80) return;
    if(StringFind(n, "SLOI_") == 0) return;
    string low = n;
    StringToLower(low);
+   string txt = ObjectGetString(ch, n, OBJPROP_TEXT);
+   StringToLower(txt);
+   string tip = ObjectGetString(ch, n, OBJPROP_TOOLTIP);
+   StringToLower(tip);
+   string blob = low + " " + txt + " " + tip;
    int t = (int)ObjectGetInteger(ch, n, OBJPROP_TYPE);
    double px = ObjectGetDouble(ch, n, OBJPROP_PRICE1);
    datetime tm = (datetime)ObjectGetInteger(ch, n, OBJPROP_TIME1);
@@ -984,14 +1006,17 @@ void DumpCdObject(long ch, string n, string &body, int &sent)
       px = 0.5 * (ObjectGetDouble(ch, n, OBJPROP_PRICE1) + ObjectGetDouble(ch, n, OBJPROP_PRICE2));
    if(px <= 0) return;
    if(tm <= 0) tm = TimeCurrent();
+   bool namedSplash = StringFind(blob, "splash") >= 0 || StringFind(blob, "#spl") >= 0
+      || StringFind(blob, "сплэш") >= 0 || StringFind(blob, "сплеш") >= 0 || StringFind(blob, "btrade") >= 0;
+   bool namedInf = StringFind(blob, "infusion") >= 0 || StringFind(blob, "infuz") >= 0 || StringFind(blob, "влив") >= 0;
    string kind = "";
-   if(StringFind(low, "splash") >= 0 || StringFind(low, "spl") >= 0 || StringFind(low, "btrade") >= 0
-      || StringFind(low, "сплэш") >= 0 || StringFind(low, "сплеш") >= 0)
+   if(namedSplash && !namedInf) kind = "SPLASH";
+   else if(namedInf && !namedSplash) kind = "INFUSION";
+   else if(namedSplash && namedInf) kind = "SPLASH";
+   else if(hasSplash && !hasInf && (t == OBJ_ELLIPSE || t == OBJ_BITMAP || t == OBJ_BITMAP_LABEL))
       kind = "SPLASH";
-   else if(StringFind(low, "infusion") >= 0 || StringFind(low, "infuz") >= 0 || StringFind(low, "влив") >= 0)
+   else if(hasInf && !hasSplash && (t == OBJ_ELLIPSE || t == OBJ_BITMAP || t == OBJ_BITMAP_LABEL))
       kind = "INFUSION";
-   else if(t == OBJ_ELLIPSE || t == OBJ_ARROW || t == OBJ_BITMAP || t == OBJ_BITMAP_LABEL)
-      kind = "SPLASH";
    if(kind == "") return;
    string sym = ChartSymbol(ch);
    if(StringLen(sym) < 3) sym = Symbol();
@@ -1010,12 +1035,14 @@ void AppendClusters(string &body)
    long ch = ChartFirst();
    while(ch >= 0 && sent < 80)
      {
+      bool hasS = ChartHasInd(ch, "splash");
+      bool hasI = ChartHasInd(ch, "infusion");
       int total = (int)ObjectsTotal(ch, -1, -1);
       for(int i = 0; i < total && sent < 80; i++)
         {
          string n = ObjectName(ch, i, -1, -1);
          if(StringLen(n) < 1) continue;
-         DumpCdObject(ch, n, body, sent);
+         DumpCdObject(ch, n, body, sent, hasS, hasI);
         }
       ch = ChartNext(ch);
      }
