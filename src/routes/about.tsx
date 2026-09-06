@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.8.15",
+    d: "2026-09-06",
+    items: [
+      "ClusterDelta с советника хозяина (HOST 1) пишется в общую ленту. Гость видит сплэш/кумулятив/дивер без CD и без вашего счёта",
+    ],
+  },
+  {
     v: "1.8.14",
     d: "2026-09-06",
     items: [

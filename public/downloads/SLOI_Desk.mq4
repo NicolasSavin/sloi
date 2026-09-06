@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.71"
+#property version   "4.72"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -141,7 +141,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.71: ", g_host ? "хозяин — CD и бары на сайт" : "клиент — только сигналы, CD не нужен");
+   Print("SLOI 4.72: ", g_host ? "хозяин — CD на общий стол" : "клиент — только сигналы, CD не нужен");
    return(INIT_SUCCEEDED);
   }
 
@@ -1325,6 +1325,7 @@ void PushTape()
       else url = url + "/api/broker";
      }
    string body = "# SLOI broker\n";
+   if(g_host) body += "HOST 1\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();

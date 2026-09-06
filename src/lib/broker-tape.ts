@@ -353,25 +353,38 @@ export function liveClusters(id: string): VolumeNode[] {
 
 export function snapshotBroker(tenant = "legacy") {
   const now = Date.now();
+  const mergeRoom = (r: Room) => {
+    const askbid: Record<string, { ask: number; bid: number }> = {};
+    for (const [id, v] of r.askbid) if (now - v.at < 180_000) askbid[id] = { ask: v.ask, bid: v.bid };
+    const flow: Record<string, { volume: number; delta: number }> = {};
+    for (const [id, v] of r.flow) if (now - v.at < 180_000) flow[id] = { volume: v.volume, delta: v.delta };
+    const clusters: Record<string, VolumeNode[]> = {};
+    for (const [id, v] of r.clusters) if (now - v.at < 180_000) clusters[id] = v.nodes;
+    const bars: Record<string, CdBar[]> = {};
+    for (const [id, v] of r.cdBars) bars[id] = v;
+    const cum: Record<string, { time: number; value: number }[]> = {};
+    for (const [id, v] of r.cum) if (now - v.at < 180_000) cum[id] = v.path;
+    const ohlc: Record<string, { time: number; open: number; high: number; low: number; close: number }[]> = {};
+    for (const [id, v] of r.ohlc) if (now - v.at < 180_000) ohlc[id] = v.bars;
+    return { askbid, flow, clusters, bars, cum, ohlc };
+  };
+  const pub = mergeRoom(room("public"));
+  const own = mergeRoom(room(tenant));
+  const cd = {
+    askbid: { ...pub.askbid, ...own.askbid },
+    flow: { ...pub.flow, ...own.flow },
+    clusters: { ...pub.clusters, ...own.clusters },
+    bars: { ...pub.bars, ...own.bars },
+    cum: { ...pub.cum, ...own.cum },
+    ohlc: { ...pub.ohlc, ...own.ohlc },
+  };
   const r = room(tenant);
-  const askbid: Record<string, { ask: number; bid: number }> = {};
-  for (const [id, v] of r.askbid) if (now - v.at < 90_000) askbid[id] = { ask: v.ask, bid: v.bid };
-  const flow: Record<string, { volume: number; delta: number }> = {};
-  for (const [id, v] of r.flow) if (now - v.at < 90_000) flow[id] = { volume: v.volume, delta: v.delta };
-  const clusters: Record<string, VolumeNode[]> = {};
-  for (const [id, v] of r.clusters) if (now - v.at < 90_000) clusters[id] = v.nodes;
-  const bars: Record<string, CdBar[]> = {};
-  for (const [id, v] of r.cdBars) bars[id] = v;
-  const cum: Record<string, { time: number; value: number }[]> = {};
-  for (const [id, v] of r.cum) if (now - v.at < 180_000) cum[id] = v.path;
-  const ohlc: Record<string, { time: number; open: number; high: number; low: number; close: number }[]> = {};
-  for (const [id, v] of r.ohlc) if (now - v.at < 180_000) ohlc[id] = v.bars;
   return {
     ticks: [...r.ticks.values()].filter((t) => now - t.at < 90_000),
     books: [...r.books.values()].filter((b) => now - b.at < 90_000),
-    account: tenant === "legacy" ? null : brokerAccount(tenant),
-    tenant: tenant === "legacy" ? null : tenant,
-    cd: { askbid, flow, clusters, bars, cum, ohlc },
+    account: tenant === "legacy" || tenant === "public" ? null : brokerAccount(tenant),
+    tenant: tenant === "legacy" || tenant === "public" ? null : tenant,
+    cd,
   };
 }
 

@@ -546,6 +546,14 @@ export async function assembleDigestPublic() {
 
 async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }> {
   if (digestCache && Date.now() - digestCache.at < 45_000) return digestCache.data;
+  try {
+    const { ingestBrokerTape } = await import("@/lib/broker-tape");
+    const { loadTape, PUBLIC_TENANT } = await import("@/lib/desk-tenant");
+    const pub = await loadTape(PUBLIC_TENANT);
+    if (pub?.body) ingestBrokerTape(pub.body, PUBLIC_TENANT);
+  } catch {
+    /* no host tape yet */
+  }
   const { analyzeMarket } = await import("@/lib/smc/engine");
   const { buildDigest, toDigestMarket, pickLead, todayKey } = await import("@/lib/digest");
   const { buildSentiment } = await import("@/lib/sentiment");
@@ -761,10 +769,12 @@ export const fetchBroker = createServerFn({ method: "GET" })
   .validator((input: unknown) => z.object({ key: z.string().optional() }).parse(input ?? {}))
   .handler(async ({ data }) => {
     const { snapshotBroker, ingestBrokerTape, hydrateAccount } = await import("@/lib/broker-tape");
-    const { resolveDesk, loadTape } = await import("@/lib/desk-tenant");
+    const { resolveDesk, loadTape, PUBLIC_TENANT } = await import("@/lib/desk-tenant");
     const key = data.key ?? "";
     const desk = key ? await resolveDesk(key) : null;
     const tenant = desk && desk.id !== "legacy" ? desk.id : "legacy";
+    const pub = await loadTape(PUBLIC_TENANT);
+    if (pub?.body) ingestBrokerTape(pub.body, PUBLIC_TENANT);
     if (desk && desk.id !== "legacy") {
       const stored = await loadTape(desk.id);
       if (stored?.body) ingestBrokerTape(stored.body, desk.id);

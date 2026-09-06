@@ -3,6 +3,7 @@ import { getSql, dbSource, type Sql } from "@/lib/db";
 import type { BrokerAccount } from "@/lib/broker-tape";
 
 export const LEGACY_TENANT = "legacy";
+export const PUBLIC_TENANT = "public";
 
 type MemTenant = {
   id: string;
@@ -174,7 +175,7 @@ export async function saveTape(tenantId: string, body: string, account: BrokerAc
            body = excluded.body,
            account_json = excluded.account_json,
            updated_at = now()`,
-        [tenantId, body.slice(0, 24000), account ? JSON.stringify(account) : ""],
+        [tenantId, body.slice(0, tenantId === PUBLIC_TENANT ? 120000 : 48000), account ? JSON.stringify(account) : ""],
       );
       saved = true;
     } catch (e) {
@@ -218,6 +219,17 @@ export async function loadTape(tenantId: string): Promise<{ body: string; accoun
     if (t.id === tenantId) return { body: t.tape, account: t.account };
   }
   return null;
+}
+
+export function hostPublicBody(text: string) {
+  return text
+    .split(/\n/)
+    .filter((l) => /^(HOST|CLUSTER|CUMDELTA|CDBAR|PROFILE|ASKBID|VOLUME|DELTA|BOOK)\b/.test(l.trim()))
+    .join("\n");
+}
+
+export async function loadPublicTape() {
+  return loadTape(PUBLIC_TENANT);
 }
 
 export async function enqueueCommand(tenantId: string, kind: string, payload = "") {
