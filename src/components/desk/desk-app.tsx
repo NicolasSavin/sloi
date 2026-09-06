@@ -26,7 +26,7 @@ import { KIND_LABEL, SYMBOLS, TIMEFRAMES, getSymbol } from "@/lib/market/symbols
 import { readDeskKey } from "@/lib/desk-key";
 import { playSignal, unlockSound } from "@/lib/sound";
 import { analyzeMarket, compactForAi, type SmcSnapshot } from "@/lib/smc/engine";
-import { hydrateClientCd, liveOhlc, mergeBrokerCandles } from "@/lib/broker-tape";
+import { hydrateClientCd, ingestBrokerTape, liveOhlc, mergeBrokerCandles } from "@/lib/broker-tape";
 import { makeTvBrief } from "@/lib/tv-brief";
 import { cn, formatPct, formatPrice } from "@/lib/utils";
 
@@ -100,12 +100,18 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
   });
   const candles = useMemo(() => {
     hydrateClientCd(bookQ.data?.cd);
+    if (bookQ.data && "tape" in bookQ.data && typeof (bookQ.data as { tape?: string }).tape === "string") {
+      ingestBrokerTape((bookQ.data as { tape: string }).tape, "client");
+    }
     const web = market.data?.candles ?? [];
     return mergeBrokerCandles(web, liveOhlc(spec.id));
   }, [market.data?.candles, bookQ.data, spec.id]);
   const snap = useMemo<SmcSnapshot | null>(() => {
     if (!candles.length) return null;
     hydrateClientCd(bookQ.data?.cd);
+    if (bookQ.data && "tape" in bookQ.data && typeof (bookQ.data as { tape?: string }).tape === "string") {
+      ingestBrokerTape((bookQ.data as { tape: string }).tape, "client");
+    }
     return analyzeMarket(candles, market.data?.options ?? null, market.data?.trades, {
       swing: chochLen,
       chochClose,

@@ -24,9 +24,11 @@ export const Route = createFileRoute("/api/broker")({
         const pub = await loadTape(PUBLIC_TENANT);
         if (pub?.body) ingestBrokerTape(pub.body, PUBLIC_TENANT);
         const live = exportBrokerTape(tenant);
-        const out = storedBody
-          ? `# SLOI broker ${new Date().toISOString()} db=${dbSource}\n${storedBody.replace(/^#.*\n/, "")}`
-          : `${live.split("\n")[0]} db=${dbSource}\n${live.split("\n").slice(1).join("\n")}`;
+        const pubBody = pub?.body?.replace(/^#.*\n/, "") ?? "";
+        const core = storedBody
+          ? storedBody.replace(/^#.*\n/, "")
+          : live.split("\n").slice(1).join("\n");
+        const out = `# SLOI broker ${new Date().toISOString()} db=${dbSource}\n${pubBody}\n${core}\n`;
         return new Response(out, {
           headers: {
             "Content-Type": "text/plain; charset=utf-8",

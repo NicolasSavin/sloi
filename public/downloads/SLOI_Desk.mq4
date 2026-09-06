@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.85"
+#property version   "4.86"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -141,7 +141,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.85: CDSTAT в ленте — видно, молчит ли iCustom без чарта");
+   Print("SLOI 4.86: сначала iCustom по мажорам, потом объекты. CDSTAT в ленте");
    return(INIT_SUCCEEDED);
   }
 
@@ -1049,6 +1049,7 @@ void DumpCdObject(long ch, string n, string &body, int &sent, bool hasSplash, bo
 void AppendClusters(string &body)
   {
    int sent = 0;
+   if(g_cd && g_host) AppendCdClusters(body, sent);
    long ch = ChartFirst();
    while(ch >= 0 && sent < 400)
      {
@@ -1064,7 +1065,6 @@ void AppendClusters(string &body)
         }
       ch = ChartNext(ch);
      }
-   if(g_cd && g_host) AppendCdClusters(body, sent);
   }
 
 string g_cdDir = "";
@@ -1242,7 +1242,7 @@ void AppendNamed(string &body, string s, string ind, string kind, int &sent)
      }
   }
 
-void AppendCdClusters(string &body, int sent)
+void AppendCdClusters(string &body, int &sent)
   {
    for(int i = 0; i < g_n; i++)
      {

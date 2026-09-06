@@ -780,7 +780,8 @@ export const fetchBroker = createServerFn({ method: "GET" })
       if (stored?.body) ingestBrokerTape(stored.body, desk.id);
       else if (stored?.account) hydrateAccount(desk.id, stored.account);
     }
-    return snapshotBroker(tenant);
+    const snap = snapshotBroker(tenant);
+    return { ...snap, tape: (pub?.body ?? "").slice(0, 100000) };
   });
 
 let tvGuideCache: { at: number; data: Awaited<ReturnType<typeof import("@/lib/tv-live").resolveTvChannels>> } | null =

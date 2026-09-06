@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.8.57",
+    d: "2026-09-06",
+    items: [
+      "Лента CD на сайт: публичный tape в GET и в стол. Сов 4.86 сначала iCustom мажоров, потом объекты",
+    ],
+  },
+  {
     v: "1.8.56",
     d: "2026-09-06",
     items: [
