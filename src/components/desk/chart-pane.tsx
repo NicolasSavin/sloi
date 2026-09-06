@@ -1132,30 +1132,6 @@ function drawTape(
 ) {
   if (!on) return;
   const ts = chart.timeScale();
-  const lastN = candles.slice(-18);
-  const maxV = Math.max(...lastN.map((c) => c.volume), 1);
-  for (let i = 0; i < lastN.length; i++) {
-    const c = lastN[i]!;
-    const x = ts.timeToCoordinate(c.time as UTCTimestamp);
-    const yH = series.priceToCoordinate(c.high);
-    const yL = series.priceToCoordinate(c.low);
-    const yC = series.priceToCoordinate(c.close);
-    if (x == null || yH == null || yL == null || yC == null) continue;
-    const next = lastN[i + 1];
-    const x2 = next ? ts.timeToCoordinate(next.time as UTCTimestamp) : x + 10;
-    const w = Math.max(4, Math.min(14, ((x2 ?? x + 10) - x) * 0.55));
-    const span = c.high - c.low || 1;
-    const buyShare = Math.min(1, Math.max(0, (c.close - c.low) / span));
-    const thick = 3 + (c.volume / maxV) * 7;
-    ctx.fillStyle = "rgba(181,122,122,0.45)";
-    ctx.fillRect(x - thick / 2, Math.min(yC, yL), thick, Math.abs(yL - yC) || 2);
-    ctx.fillStyle = "rgba(111,158,134,0.45)";
-    ctx.fillRect(x - thick / 2, Math.min(yH, yC), thick, Math.abs(yC - yH) || 2);
-    if (buyShare > 0.7) {
-      ctx.strokeStyle = "rgba(111,158,134,0.9)";
-      ctx.strokeRect(x - w / 2, Math.min(yH, yL), w, Math.abs(yH - yL) || 4);
-    }
-  }
   const last = candles.at(-1);
   const beat = 0.5 + 0.5 * Math.sin(Date.now() / 200);
   if (snap?.micro.infusion && last) {
