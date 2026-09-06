@@ -488,33 +488,6 @@ function drawZones(
     }
   }
 
-  {
-    const infs = (snap?.micro.nodes.filter((n) => n.kind === "infusion") ?? []).slice(-3);
-    const nowX = ts.timeToCoordinate(lastTime as UTCTimestamp) ?? plotW - 24;
-    for (const n of infs) {
-      const y = series.priceToCoordinate(n.price);
-      if (y == null) continue;
-      const t = n.time > 1e12 ? Math.floor(n.time / 1000) : n.time;
-      const x1 = ts.timeToCoordinate(t as UTCTimestamp) ?? 8;
-      const left = Math.max(4, x1);
-      const zw = Math.max(72, nowX - left);
-      const h = 26;
-      fillVolume(left, y - h / 2, zw, h, "inf", true);
-      ctx.save();
-      ctx.font = "700 13px IBM Plex Sans, sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.strokeStyle = "rgba(8,6,4,0.55)";
-      ctx.lineWidth = 3;
-      ctx.strokeText("ВЛИВАНИЕ", left + zw / 2, y);
-      ctx.fillStyle = "#e8ff70";
-      ctx.fillText("ВЛИВАНИЕ", left + zw / 2, y);
-      ctx.restore();
-      ctx.textAlign = "left";
-      ctx.textBaseline = "alphabetic";
-    }
-  }
-
   if (overlays.structure !== false && snap) {
     const lastCh = [...snap.events].reverse().find((e) => e.kind === "CHoCH" && Math.abs(e.price - snap.lastClose) <= snap.atr * 1.4);
     if (lastCh) {
@@ -1162,20 +1135,8 @@ function drawTape(
   const beat = 0.5 + 0.5 * Math.sin(Date.now() / 200);
   if (snap?.micro.infusion && last) {
     const x = ts.timeToCoordinate(last.time as UTCTimestamp);
-    const yH = series.priceToCoordinate(last.high);
-    const yL = series.priceToCoordinate(last.low);
     const yC = series.priceToCoordinate(last.close);
-    if (x != null && yH != null && yL != null && yC != null) {
-      ctx.strokeStyle = `rgba(200,240,48,${0.45 + 0.55 * beat})`;
-      ctx.lineWidth = 2 + 2 * beat;
-      ctx.strokeRect(x - 10 - 4 * beat, Math.min(yH, yL) - 4, 20 + 8 * beat, Math.abs(yH - yL) + 8);
-      pulseRings(ctx, x, yC, "#c8f030", true);
-      ctx.font = "bold 13px IBM Plex Sans, sans-serif";
-      ctx.fillStyle = "#c8f030";
-      ctx.globalAlpha = 0.55 + 0.45 * beat;
-      ctx.fillText("ВЛИВАНИЕ", x - 36, Math.min(yH, yL) - 12);
-      ctx.globalAlpha = 1;
-    }
+    if (x != null && yC != null) pulseRings(ctx, x, yC, "#c8f030", true);
   }
   if (snap?.micro.splash && last) {
     const x = ts.timeToCoordinate(last.time as UTCTimestamp);
@@ -1205,22 +1166,6 @@ function drawTape(
     ctx.fillText(label, lx, ly);
   }
   const tp = snap?.localSetup.targets[0];
-  for (const n of snap?.micro.nodes.filter((x) => x.kind === "infusion").slice(-6) ?? []) {
-    const y = series.priceToCoordinate(n.price);
-    if (y == null) continue;
-    const isTp = tp != null && Math.abs(tp - n.price) < (snap?.atr ?? 0) * 0.3;
-    ctx.strokeStyle = isTp ? "rgba(212,184,140,0.95)" : "rgba(201,184,150,0.45)";
-    ctx.lineWidth = isTp ? 2 : 1;
-    ctx.setLineDash(isTp ? [] : [5, 4]);
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(width, y);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle = isTp ? "#f0e6d4" : "rgba(232,220,200,0.7)";
-    ctx.font = "bold 10px IBM Plex Mono, monospace";
-    ctx.fillText(isTp ? "TP · INFUSION" : "INFUSION", 8, y - 4);
-  }
   for (const n of snap?.micro.nodes.filter((x) => x.kind === "imbalance").slice(-4) ?? []) {
     const y = series.priceToCoordinate(n.price);
     if (y == null) continue;
