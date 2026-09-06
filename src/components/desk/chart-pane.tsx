@@ -305,9 +305,9 @@ function drawZones(
   occupy(plotW * 0.28, 4, plotW * 0.44, 40);
   occupy(Math.min(plotW * 0.38, 360), 44, plotW - Math.min(plotW * 0.38, 360) - 12, 40);
   const PALETTE: Record<string, { top: string; mid: string; stroke: string; b0: string; b1: string; t0: string; t1: string }> = {
-    fvg: { top: "rgba(255,186,40,0.16)", mid: "rgba(255,230,120,0.28)", stroke: "#ffe070", b0: "#fff3b0", b1: "#c48410", t0: "#fff6c8", t1: "#7a4a00" },
-    ob: { top: "rgba(20,170,90,0.16)", mid: "rgba(90,255,160,0.28)", stroke: "#7dffc0", b0: "#c8ffdc", b1: "#0e7a40", t0: "#e8fff0", t1: "#0a4a24" },
-    obBear: { top: "rgba(210,40,50,0.16)", mid: "rgba(255,110,110,0.28)", stroke: "#ff8888", b0: "#ffd0d0", b1: "#a01818", t0: "#ffe8e8", t1: "#6a0808" },
+    fvg: { top: "rgba(255,196,50,0.38)", mid: "rgba(255,230,110,0.58)", stroke: "#ffe070", b0: "#fff3b0", b1: "#c48410", t0: "#fff6c8", t1: "#7a4a00" },
+    ob: { top: "rgba(40,200,110,0.36)", mid: "rgba(90,255,160,0.55)", stroke: "#7dffc0", b0: "#c8ffdc", b1: "#0e7a40", t0: "#e8fff0", t1: "#0a4a24" },
+    obBear: { top: "rgba(230,50,60,0.36)", mid: "rgba(255,120,120,0.55)", stroke: "#ff8888", b0: "#ffd0d0", b1: "#a01818", t0: "#ffe8e8", t1: "#6a0808" },
     liq: { top: "rgba(170,220,40,0.14)", mid: "rgba(230,255,120,0.24)", stroke: "#d8ff50", b0: "#f0ffb0", b1: "#6a8a10", t0: "#f6ffd0", t1: "#3a5208" },
     sweep: { top: "rgba(255,160,20,0.22)", mid: "rgba(255,210,80,0.34)", stroke: "#ffc040", b0: "#ffe090", b1: "#b06000", t0: "#fff0c0", t1: "#6a3800" },
     choch: { top: "rgba(120,90,255,0.50)", mid: "rgba(190,170,255,0.74)", stroke: "#c8b4ff", b0: "#ece0ff", b1: "#4a30b0", t0: "#f6f0ff", t1: "#2a1878" },
@@ -324,30 +324,47 @@ function drawZones(
     if (!paintFill) return;
     const p = PALETTE[tone] ?? PALETTE.fvg!;
     const wave = 0.5 + 0.5 * Math.sin(Date.now() / 280);
-    const pulse = blink ? 0.55 + 0.28 * wave : 0.78 + 0.1 * wave;
+    const pulse = blink ? 0.72 + 0.28 * wave : 0.88;
+    const depth = Math.min(9, Math.max(5, h * 0.14));
     ctx.save();
     ctx.globalAlpha = pulse;
     ctx.shadowColor = p.stroke;
-    ctx.shadowBlur = blink ? 18 + 10 * wave : 10;
-    const g = ctx.createLinearGradient(x, y, x, y + h);
-    g.addColorStop(0, p.mid);
-    g.addColorStop(0.45, p.top);
-    g.addColorStop(1, p.mid);
+    ctx.shadowBlur = blink ? 22 + 12 * wave : 14;
+    ctx.beginPath();
+    ctx.moveTo(x + w, y);
+    ctx.lineTo(x + w + depth, y - depth);
+    ctx.lineTo(x + w + depth, y + h - depth);
+    ctx.lineTo(x + w, y + h);
+    ctx.closePath();
+    ctx.fillStyle = p.b1;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + depth, y - depth);
+    ctx.lineTo(x + w + depth, y - depth);
+    ctx.lineTo(x + w, y);
+    ctx.closePath();
+    ctx.fillStyle = p.b0;
+    ctx.fill();
+    const g = ctx.createLinearGradient(x, y, x + w, y + h);
+    g.addColorStop(0, p.b0);
+    g.addColorStop(0.35, p.mid);
+    g.addColorStop(1, p.top);
     ctx.fillStyle = g;
     ctx.fillRect(x, y, w, h);
     ctx.shadowBlur = 0;
     ctx.strokeStyle = p.stroke;
-    ctx.lineWidth = blink ? 2.6 : 2;
+    ctx.lineWidth = blink ? 3 : 2.4;
     ctx.strokeRect(x, y, w, h);
     ctx.restore();
-    ctx.strokeStyle = "rgba(255,255,255,0.55)";
-    ctx.lineWidth = 1.4;
+    ctx.strokeStyle = "rgba(255,255,255,0.7)";
+    ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(x + 2, y + h - 2);
     ctx.lineTo(x + 2, y + 2);
     ctx.lineTo(x + w - 2, y + 2);
     ctx.stroke();
-    ctx.strokeStyle = "rgba(0,0,0,0.45)";
+    ctx.strokeStyle = "rgba(0,0,0,0.5)";
     ctx.beginPath();
     ctx.moveTo(x + 2, y + h - 2);
     ctx.lineTo(x + w - 2, y + h - 2);
@@ -452,7 +469,7 @@ function drawZones(
       const y2 = series.priceToCoordinate(z.bottom);
       if (y1 == null || y2 == null) continue;
       const top = Math.min(y1, y2);
-      const h = Math.max(imb ? 6 : 14, Math.abs(y2 - y1));
+      const h = Math.max(imb ? 16 : 22, Math.abs(y2 - y1));
       const bull = z.side === "bull";
       const insidePx = lastPx <= z.top && lastPx >= z.bottom;
       const broken = z.kind === "breaker" && !insidePx;

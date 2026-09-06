@@ -323,7 +323,13 @@ export function buildMicro(
     footprint: { buy, sell, delta, source: ab || tape ? "tape" : cme ? "cme-delayed" : "proxy" },
     infusion,
     splash,
-    nodes: nodes.slice(-80),
+    nodes: (() => {
+      const stepH = step || 3600;
+      const recent = nodes.filter((n) => last.time - n.time <= stepH * 12);
+      const old = nodes.filter((n) => last.time - n.time > stepH * 12);
+      const thinned = old.filter((_, i) => i % 3 === 0).slice(-10);
+      return [...thinned, ...recent];
+    })(),
     cmeTicker,
     because,
     therefore,
