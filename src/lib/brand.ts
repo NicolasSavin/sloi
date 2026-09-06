@@ -5,5 +5,5 @@ export const SITE_URL = "https://sloi-kohl.vercel.app";
 export const EA_FILE = "SLOI_Desk.mq4";
 export const TAGLINE = "Слои рынка. Не тикер.";
 /** Bump when shipping user-visible changes. */
-export const VERSION = "1.8.19";
+export const VERSION = "1.8.20";
 export const VERSION_DATE = "2026-09-06";

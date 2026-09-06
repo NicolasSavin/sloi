@@ -1155,7 +1155,7 @@ function drawTape(
     const yC = series.priceToCoordinate(last.close);
     if (x != null && yC != null) pulseRings(ctx, x, yC, "#ffb020", true);
   }
-  for (const n of snap?.micro.nodes.filter((x) => x.kind === "splash" || x.kind === "infusion").slice(-8) ?? []) {
+  for (const n of snap?.micro.nodes.filter((x) => x.kind === "splash" || x.kind === "infusion").slice(-16) ?? []) {
     const t = n.time > 1e12 ? Math.floor(n.time / 1000) : n.time;
     let x = ts.timeToCoordinate(t as UTCTimestamp);
     const y = series.priceToCoordinate(n.price);

@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.75"
+#property version   "4.76"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -141,7 +141,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.75: #Infusion на мажорах/металлах; кроссы — эвристика");
+   Print("SLOI 4.76: splash с временем свечи, история с объектов CD");
    return(INIT_SUCCEEDED);
   }
 
@@ -975,7 +975,7 @@ void AppendClusters(string &body)
   {
    int total = ObjectsTotal();
    int sent = 0;
-   for(int i = 0; i < total && sent < 20; i++)
+   for(int i = 0; i < total && sent < 48; i++)
      {
       string n = ObjectName(i);
       if(StringLen(n) < 3) continue;
@@ -1005,7 +1005,10 @@ void AppendClusters(string &body)
       int red = (c & 0xFF);
       int green = ((c >> 8) & 0xFF);
       string sd = (red > green + 20) ? "SELL" : "BUY";
-      body += "CLUSTER " + Naked(Symbol()) + " " + kind + " " + DoubleToStr(px, Digits) + " " + sd + "\n";
+      datetime tm = (datetime)ObjectGet(n, OBJPROP_TIME1);
+      if(tm <= 0) tm = TimeCurrent();
+      body += "CLUSTER " + Naked(Symbol()) + " " + kind + " " + DoubleToStr(px, Digits) + " " + sd
+           + " " + IntegerToString((int)tm) + "\n";
       sent++;
      }
    if(g_cd && g_host) AppendCdClusters(body, sent);
@@ -1049,6 +1052,43 @@ bool CdFut(string s)
    return(false);
   }
 
+void AppendCdHist(string &body, string s, int &sent)
+  {
+   int tf = PERIOD_H1;
+   for(int i = 0; i < 16 && sent < 80; i++)
+     {
+      datetime t = iTime(s, tf, i);
+      if(t <= 0) continue;
+      double v = Icd(s, tf, CdVolume, 0, i);
+      double d = Icd(s, tf, CdDelta, 0, i);
+      if(v == EMPTY_VALUE || v < 0) v = 0;
+      if(d == EMPTY_VALUE) d = 0;
+      double sp = Icd(s, tf, CdSplash, 0, i);
+      if(sp == EMPTY_VALUE || sp == 0) sp = Icd(s, tf, CdSplash, 1, i);
+      double inf = Icd(s, tf, CdInfusion, 0, i);
+      if(inf == EMPTY_VALUE || inf == 0) inf = Icd(s, tf, CdInfusion, 1, i);
+      int spl = (sp != EMPTY_VALUE && sp != 0) ? 1 : 0;
+      int infg = (inf != EMPTY_VALUE && inf != 0) ? 1 : 0;
+      body += "CDBAR " + Naked(s) + " " + IntegerToString((int)t) + " "
+           + DoubleToStr(v, 0) + " " + DoubleToStr(d, 0) + " 0 0 "
+           + IntegerToString(spl) + " " + IntegerToString(infg) + " 0\n";
+      if(spl)
+        {
+         double px = LooksPx(sp, BidOf(s)) ? sp : iClose(s, tf, i);
+         body += "CLUSTER " + Naked(s) + " SPLASH " + DoubleToStr(px, DigitsOf(s)) + " "
+              + ((d < 0) ? "SELL" : "BUY") + " " + IntegerToString((int)t) + "\n";
+         sent++;
+        }
+      if(infg)
+        {
+         double px = LooksPx(inf, BidOf(s)) ? inf : iClose(s, tf, i);
+         body += "CLUSTER " + Naked(s) + " INFUSION " + DoubleToStr(px, DigitsOf(s)) + " "
+              + ((d < 0) ? "SELL" : "BUY") + " " + IntegerToString((int)t) + "\n";
+         sent++;
+        }
+     }
+  }
+
 void AppendCdOne(string &body, string s, int &sent)
   {
    if(CdFut(s))
@@ -1056,6 +1096,7 @@ void AppendCdOne(string &body, string s, int &sent)
       AppendNamed(body, s, CdInfusion, "INFUSION", sent);
       AppendNamed(body, s, CdSplash, "SPLASH", sent);
       AppendNamed(body, s, CdImbalance, "IMBALANCE", sent);
+      AppendCdHist(body, s, sent);
       return;
      }
    int tf = PERIOD_H1;
@@ -1088,7 +1129,8 @@ void AppendCdOne(string &body, string s, int &sent)
       else if(ratio < 0.28) kind = "INFUSION";
       if(kind == "") continue;
       string sd = (del[j] >= 0) ? "BUY" : "SELL";
-      body += "CLUSTER " + Naked(s) + " " + kind + " " + DoubleToStr(px, DigitsOf(s)) + " " + sd + "\n";
+      body += "CLUSTER " + Naked(s) + " " + kind + " " + DoubleToStr(px, DigitsOf(s)) + " " + sd
+           + " " + IntegerToString((int)iTime(s, tf, j + 1)) + "\n";
       sent++;
      }
   }
@@ -1106,7 +1148,10 @@ void AppendNamed(string &body, string s, string ind, string kind, int &sent)
       double px = LooksPx(x, bid) ? x : iClose(s, tf, i);
       if(px <= 0) continue;
       string sd = (iClose(s, tf, i) >= iOpen(s, tf, i)) ? "BUY" : "SELL";
-      body += "CLUSTER " + Naked(s) + " " + kind + " " + DoubleToStr(px, DigitsOf(s)) + " " + sd + "\n";
+      datetime tm = iTime(s, tf, i);
+      if(tm <= 0) tm = TimeCurrent();
+      body += "CLUSTER " + Naked(s) + " " + kind + " " + DoubleToStr(px, DigitsOf(s)) + " " + sd
+           + " " + IntegerToString((int)tm) + "\n";
       sent++;
      }
   }
@@ -1214,17 +1259,23 @@ void ScrapeChartCd(long ch, string s, string &body)
       string nm = ObjectName(ch, o2, -1, -1);
       string low = nm;
       StringToLower(low);
-      if(StringFind(low, "infusion") >= 0 || StringFind(low, "infuz") >= 0 || StringFind(low, "влив") >= 0) inf = true;
-      if(StringFind(low, "splash") >= 0) spl = true;
-      if(StringFind(low, "imbalance") >= 0) imb = true;
+      bool isInf = StringFind(low, "infusion") >= 0 || StringFind(low, "infuz") >= 0 || StringFind(low, "влив") >= 0;
+      bool isSpl = StringFind(low, "splash") >= 0 || StringFind(low, "btrade") >= 0;
+      bool isImb = StringFind(low, "imbalance") >= 0;
       if(StringFind(low, "cumdelta") >= 0 || StringFind(low, "cum_delta") >= 0) cum = true;
+      if(!isInf && !isSpl && !isImb) continue;
+      if(isInf) inf = true;
+      if(isSpl) spl = true;
+      if(isImb) imb = true;
+      double opx = ObjectGet(nm, OBJPROP_PRICE1);
+      datetime ot = (datetime)ObjectGet(nm, OBJPROP_TIME1);
+      if(opx <= 0) continue;
+      if(ot <= 0) ot = TimeCurrent();
+      string knd = isSpl ? "SPLASH" : (isImb ? "IMBALANCE" : "INFUSION");
+      string sd2 = (iClose(s, PERIOD_H1, iBarShift(s, PERIOD_H1, ot)) >= iOpen(s, PERIOD_H1, iBarShift(s, PERIOD_H1, ot))) ? "BUY" : "SELL";
+      body += "CLUSTER " + Naked(s) + " " + knd + " " + DoubleToStr(opx, DigitsOf(s)) + " " + sd2
+           + " " + IntegerToString((int)ot) + "\n";
      }
-   double px = MarketInfo(s, MODE_BID);
-   if(px <= 0) px = Bid;
-   if(spl) body += "CLUSTER " + Naked(s) + " SPLASH " + DoubleToStr(px, DigitsOf(s)) + " " + (dlt < 0 ? "SELL" : "BUY") + "\n";
-   if(inf) body += "CLUSTER " + Naked(s) + " INFUSION " + DoubleToStr(px, DigitsOf(s)) + " " + (dlt < 0 ? "SELL" : "BUY") + "\n";
-   if(imb) body += "CLUSTER " + Naked(s) + " IMBALANCE " + DoubleToStr(px, DigitsOf(s)) + " " + (dlt < 0 ? "SELL" : "BUY") + "\n";
-   if(cum && dlt != 0) body += "CUMDELTA " + Naked(s) + " " + DoubleToStr(dlt, 0) + "\n";
    datetime bt = iTime(ChartSymbol(ch), PERIOD_H1, 0);
    if(bt <= 0) bt = TimeCurrent();
    double inf0 = Icd(s, PERIOD_H1, CdInfusion, 0, 0);
