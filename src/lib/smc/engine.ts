@@ -442,14 +442,19 @@ function classifyBlock(
   candles: Candle[],
   ev: StructureEvent,
 ): Zone {
-  const top = origin === "bull" ? Math.max(c.open, c.close) : c.high;
-  const bottom = origin === "bull" ? c.low : Math.min(c.open, c.close);
+  const top = Math.max(c.open, c.close);
+  const bottom = Math.min(c.open, c.close);
+  const last = candles.at(-1)!;
   const after = candles.slice(ev.index + 1);
-  const breakAt = after.findIndex((x) => bodyBrokeOb(origin, x, top, bottom));
+  const atr = Math.max(1e-8, candles.slice(-24).reduce((s, x) => s + (x.high - x.low), 0) / 24);
+  const tooTall = top - bottom > atr * 2.2;
+  const insideNow = last.close <= top && last.close >= bottom;
+  const breakAt = tooTall || insideNow ? -1 : after.findIndex((x) => bodyBrokeOb(origin, x, top, bottom));
   if (breakAt >= 0) {
     const rest = after.slice(breakAt + 1);
+    const held = rest.length >= 2 && rest.slice(-2).every((x) => (origin === "bull" ? x.close < bottom : x.close > top));
     const reclaimed = rest.some((x) => (origin === "bull" ? x.close > bottom : x.close < top));
-    if (!reclaimed) {
+    if (held && !reclaimed && !insideNow) {
       const side: Side = origin === "bull" ? "bear" : "bull";
       return {
         id: `brk-${id}`,
@@ -469,7 +474,7 @@ function classifyBlock(
       : after.some((x) => x.high >= bottom && x.low <= top);
   return {
     id,
-    kind: tapped ? "mitigation" : "ob",
+    kind: tapped || insideNow ? "mitigation" : "ob",
     side: origin,
     top,
     bottom,

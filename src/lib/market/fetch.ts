@@ -294,6 +294,17 @@ function demoCandles(id: string, timeframe: Timeframe): Candle[] {
 }
 
 async function loadCandles(spec: ReturnType<typeof getSymbol>, timeframe: Timeframe) {
+  if (spec.kind !== "crypto" && spec.yahoo) {
+    const y = YAHOO[timeframe];
+    const spot = parseYahoo(
+      await getJson(
+        `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(spec.yahoo)}?interval=${y.interval}&range=${y.range}&includePrePost=false`,
+        4000,
+      ),
+      timeframe,
+    );
+    if (spot) return { candles: spot, source: "yahoo" as const };
+  }
   if (spec.binance) {
     const parsed = parseBinance(
       await getJson(`https://data-api.binance.vision/api/v3/klines?symbol=${spec.binance}&interval=${BINANCE_TF[timeframe]}&limit=360`, 4000),
@@ -318,11 +329,6 @@ async function loadCandles(spec: ReturnType<typeof getSymbol>, timeframe: Timefr
       ),
       timeframe,
     );
-    if (spec.kind === "fx" && spec.futuresYahoo) {
-      const fut = await loadCmeBars(spec.futuresYahoo, timeframe);
-      if (fut && spot) return { candles: shapeFromExchange(spot, fut), source: "cme-delayed" as const };
-      if (fut) return { candles: fut, source: "cme-delayed" as const };
-    }
     if (spot) return { candles: spot, source: "yahoo" as const };
   }
   return { candles: demoCandles(spec.id, timeframe), source: "demo" as const };
