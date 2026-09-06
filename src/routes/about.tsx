@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.8.33",
+    d: "2026-09-06",
+    items: [
+      "Imbalance CD — пульсирующий шарик, как сплэш/вливание, цвет синий",
+    ],
+  },
+  {
     v: "1.8.32",
     d: "2026-09-06",
     items: [

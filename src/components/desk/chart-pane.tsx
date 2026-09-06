@@ -1180,28 +1180,8 @@ function drawTape(
     if (x == null) continue;
     const splash = n.kind === "splash";
     const inf = n.kind === "infusion";
-    const imb = n.kind === "imbalance";
-    const col = splash ? "#ffb020" : inf ? "#c8f030" : "#ff5a7a";
-    if (imb) {
-      const beat = 0.5 + 0.5 * Math.sin(Date.now() / 200);
-      const s = 8 + 5 * beat;
-      ctx.beginPath();
-      ctx.moveTo(x, y - s);
-      ctx.lineTo(x + s, y);
-      ctx.lineTo(x, y + s);
-      ctx.lineTo(x - s, y);
-      ctx.closePath();
-      ctx.fillStyle = col;
-      ctx.globalAlpha = 0.55 + 0.45 * beat;
-      ctx.fill();
-      ctx.globalAlpha = 1;
-      ctx.strokeStyle = "#1a1208";
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      pulseRings(ctx, x, y, col, false);
-    } else {
-      pulseRings(ctx, x, y, col, splash || inf);
-    }
+    const col = splash ? "#ffb020" : inf ? "#c8f030" : "#4aa3ff";
+    pulseRings(ctx, x, y, col, true);
     ctx.font = "bold 12px IBM Plex Sans, sans-serif";
     ctx.strokeStyle = "rgba(8,6,4,0.7)";
     ctx.lineWidth = 3;
@@ -1209,7 +1189,7 @@ function drawTape(
     const lx = x + 12;
     const ly = y - 10;
     ctx.strokeText(label, lx, ly);
-    ctx.fillStyle = splash ? "#ffb020" : inf ? "#c8f030" : "#ff8a9a";
+    ctx.fillStyle = splash ? "#ffb020" : inf ? "#c8f030" : "#7ec0ff";
     ctx.fillText(label, lx, ly);
   }
   if (snap?.micro.splash && last) {
