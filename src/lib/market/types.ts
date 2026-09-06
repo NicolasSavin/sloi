@@ -66,7 +66,7 @@ export interface OptionConstruction {
 export interface MarketPayload {
   symbol: string;
   timeframe: Timeframe;
-  source: "binance" | "bybit" | "yahoo" | "demo";
+  source: "binance" | "bybit" | "yahoo" | "demo" | "cme-delayed";
   candles: Candle[];
   options: OptionsSnapshot | null;
   trades?: { price: number; qty: number; buy: boolean }[];

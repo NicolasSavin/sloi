@@ -58,6 +58,7 @@ function sourceLabel(source: string, staleSec?: number) {
   if (source === "binance") return `Binance · живая лента${age}`;
   if (source === "bybit") return `Bybit · живые свечи${age}`;
   if (source === "yahoo") return `Yahoo · реальные котировки${age}`;
+  if (source === "cme-delayed") return `CME · живые свечи фьючерса${age}`;
   return source;
 }
 

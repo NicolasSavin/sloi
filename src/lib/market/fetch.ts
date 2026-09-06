@@ -38,18 +38,52 @@ const CME_SEC: Record<Timeframe, number> = {
 
 let cmeCache = new Map<string, { at: number; rows: Candle[] | null }>();
 
-async function loadCmeBars(ticker: string, timeframe: Timeframe): Promise<Candle[] | null> {
-  const key = `${ticker}|${timeframe}`;
-  const hit = cmeCache.get(key);
-  if (hit && Date.now() - hit.at < 180_000) return hit.rows;
+function invertBars(rows: Candle[]): Candle[] {
+  return rows.map((c) => ({
+    ...c,
+    open: 1 / c.open,
+    close: 1 / c.close,
+    high: 1 / c.low,
+    low: 1 / c.high,
+  }));
+}
+
+function shapeFromExchange(spot: Candle[], fut: Candle[]): Candle[] {
+  const sLast = spot.at(-1)?.close ?? 0;
+  const fLast = fut.at(-1)?.close ?? 0;
+  if (sLast <= 0 || fLast <= 0) return spot;
+  const bars = fLast < 1 && sLast > 10 ? invertBars(fut) : fut;
+  const last = bars.at(-1)!.close;
+  if (last <= 0) return spot;
+  const k = sLast / last;
+  return bars.map((c) => ({
+    time: c.time,
+    open: c.open * k,
+    high: c.high * k,
+    low: c.low * k,
+    close: c.close * k,
+    volume: c.volume,
+    cmeVolume: c.volume,
+    cmeTicker: c.cmeTicker,
+  }));
+}
+
+async function loadYahooTicker(ticker: string, timeframe: Timeframe) {
   const y = YAHOO[timeframe];
-  const parsed = parseYahoo(
+  return parseYahoo(
     await getJson(
       `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=${y.interval}&range=${y.range}&includePrePost=false`,
       4000,
     ),
     timeframe,
   );
+}
+
+async function loadCmeBars(ticker: string, timeframe: Timeframe): Promise<Candle[] | null> {
+  const key = `${ticker}|${timeframe}`;
+  const hit = cmeCache.get(key);
+  if (hit && Date.now() - hit.at < 180_000) return hit.rows;
+  const parsed = await loadYahooTicker(ticker, timeframe);
   cmeCache.set(key, { at: Date.now(), rows: parsed });
   return parsed;
 }
@@ -277,14 +311,19 @@ async function loadCandles(spec: ReturnType<typeof getSymbol>, timeframe: Timefr
   }
   if (spec.yahoo) {
     const y = YAHOO[timeframe];
-    const parsed = parseYahoo(
+    const spot = parseYahoo(
       await getJson(
         `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(spec.yahoo)}?interval=${y.interval}&range=${y.range}&includePrePost=false`,
         4000,
       ),
       timeframe,
     );
-    if (parsed) return { candles: parsed, source: "yahoo" as const };
+    if (spec.kind === "fx" && spec.futuresYahoo) {
+      const fut = await loadCmeBars(spec.futuresYahoo, timeframe);
+      if (fut && spot) return { candles: shapeFromExchange(spot, fut), source: "cme-delayed" as const };
+      if (fut) return { candles: fut, source: "cme-delayed" as const };
+    }
+    if (spot) return { candles: spot, source: "yahoo" as const };
   }
   return { candles: demoCandles(spec.id, timeframe), source: "demo" as const };
 }
