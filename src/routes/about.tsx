@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.8.32",
+    d: "2026-09-06",
+    items: [
+      "FVG — зона-разрыв SMC. Imbalance с #Imbalance — точка (ромб IMB CD) с индюка, не зона. Сов 4.80",
+    ],
+  },
+  {
     v: "1.8.31",
     d: "2026-09-06",
     items: [

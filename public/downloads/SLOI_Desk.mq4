@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.79"
+#property version   "4.80"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -141,7 +141,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.79: splash с #Splash на всех; infusion с CD только мажоры");
+   Print("SLOI 4.80: Imbalance CD — точка с индюка, не FVG");
    return(INIT_SUCCEEDED);
   }
 
@@ -988,7 +988,7 @@ bool ChartHasInd(long ch, string needle)
    return(false);
   }
 
-void DumpCdObject(long ch, string n, string &body, int &sent, bool hasSplash, bool hasInf)
+void DumpCdObject(long ch, string n, string &body, int &sent, bool hasSplash, bool hasInf, bool hasImb)
   {
    if(sent >= 80) return;
    if(StringFind(n, "SLOI_") == 0) return;
@@ -1009,14 +1009,18 @@ void DumpCdObject(long ch, string n, string &body, int &sent, bool hasSplash, bo
    bool namedSplash = StringFind(blob, "splash") >= 0 || StringFind(blob, "#spl") >= 0
       || StringFind(blob, "сплэш") >= 0 || StringFind(blob, "сплеш") >= 0 || StringFind(blob, "btrade") >= 0;
    bool namedInf = StringFind(blob, "infusion") >= 0 || StringFind(blob, "infuz") >= 0 || StringFind(blob, "влив") >= 0;
+   bool namedImb = StringFind(blob, "imbalance") >= 0
+      || StringFind(blob, "дисбал") >= 0 || StringFind(blob, "#imb") >= 0;
+   bool isDot = t == OBJ_ELLIPSE || t == OBJ_ARROW || t == OBJ_ARROW_UP || t == OBJ_ARROW_DOWN
+      || t == OBJ_BITMAP || t == OBJ_BITMAP_LABEL;
    string kind = "";
-   if(namedSplash && !namedInf) kind = "SPLASH";
+   if(namedImb) kind = "IMBALANCE";
+   else if(namedSplash && !namedInf) kind = "SPLASH";
    else if(namedInf && !namedSplash) kind = "INFUSION";
    else if(namedSplash && namedInf) kind = "SPLASH";
-   else if(hasSplash && !hasInf && (t == OBJ_ELLIPSE || t == OBJ_BITMAP || t == OBJ_BITMAP_LABEL))
-      kind = "SPLASH";
-   else if(hasInf && !hasSplash && (t == OBJ_ELLIPSE || t == OBJ_BITMAP || t == OBJ_BITMAP_LABEL))
-      kind = "INFUSION";
+   else if(hasImb && !hasSplash && !hasInf && isDot) kind = "IMBALANCE";
+   else if(hasSplash && !hasInf && !hasImb && isDot) kind = "SPLASH";
+   else if(hasInf && !hasSplash && !hasImb && isDot) kind = "INFUSION";
    if(kind == "") return;
    string sym = ChartSymbol(ch);
    if(StringLen(sym) < 3) sym = Symbol();
@@ -1037,12 +1041,13 @@ void AppendClusters(string &body)
      {
       bool hasS = ChartHasInd(ch, "splash");
       bool hasI = ChartHasInd(ch, "infusion");
+      bool hasM = ChartHasInd(ch, "imbalance");
       int total = (int)ObjectsTotal(ch, -1, -1);
       for(int i = 0; i < total && sent < 80; i++)
         {
          string n = ObjectName(ch, i, -1, -1);
          if(StringLen(n) < 1) continue;
-         DumpCdObject(ch, n, body, sent, hasS, hasI);
+         DumpCdObject(ch, n, body, sent, hasS, hasI, hasM);
         }
       ch = ChartNext(ch);
      }
@@ -1102,11 +1107,14 @@ void AppendCdHist(string &body, string s, int &sent)
       if(sp == EMPTY_VALUE || sp == 0) sp = Icd(s, tf, CdSplash, 1, i);
       double inf = Icd(s, tf, CdInfusion, 0, i);
       if(inf == EMPTY_VALUE || inf == 0) inf = Icd(s, tf, CdInfusion, 1, i);
+      double imb = Icd(s, tf, CdImbalance, 0, i);
+      if(imb == EMPTY_VALUE || imb == 0) imb = Icd(s, tf, CdImbalance, 1, i);
       int spl = (sp != EMPTY_VALUE && sp != 0) ? 1 : 0;
       int infg = (inf != EMPTY_VALUE && inf != 0) ? 1 : 0;
+      int imbg = (imb != EMPTY_VALUE && imb != 0) ? 1 : 0;
       body += "CDBAR " + Naked(s) + " " + IntegerToString((int)t) + " "
            + DoubleToStr(v, 0) + " " + DoubleToStr(d, 0) + " 0 0 "
-           + IntegerToString(spl) + " " + IntegerToString(infg) + " 0\n";
+           + IntegerToString(spl) + " " + IntegerToString(infg) + " " + IntegerToString(imbg) + "\n";
       if(spl)
         {
          double px = LooksPx(sp, BidOf(s)) ? sp : iClose(s, tf, i);
@@ -1118,6 +1126,13 @@ void AppendCdHist(string &body, string s, int &sent)
         {
          double px = LooksPx(inf, BidOf(s)) ? inf : iClose(s, tf, i);
          body += "CLUSTER " + Naked(s) + " INFUSION " + DoubleToStr(px, DigitsOf(s)) + " "
+              + ((d < 0) ? "SELL" : "BUY") + " " + IntegerToString((int)t) + "\n";
+         sent++;
+        }
+      if(imbg)
+        {
+         double px = LooksPx(imb, BidOf(s)) ? imb : iClose(s, tf, i);
+         body += "CLUSTER " + Naked(s) + " IMBALANCE " + DoubleToStr(px, DigitsOf(s)) + " "
               + ((d < 0) ? "SELL" : "BUY") + " " + IntegerToString((int)t) + "\n";
          sent++;
         }

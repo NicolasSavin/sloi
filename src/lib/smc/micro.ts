@@ -161,7 +161,7 @@ export function buildMicro(
   // Крупный объём + широкий бар + сильная дельта = толчок (splash).
   const raw: VolumeNode[] = [];
   const native = CD_FUT.has(symbol);
-  const fromCd = live.length > 0 || cdBars.some((b) => b.splash || b.infusion);
+  const fromCd = live.length > 0 || cdBars.some((b) => b.splash || b.infusion || b.imbalance);
   if (fromCd) {
     raw.push(...live.map((n) => ({ ...n })));
     for (const b of cdBars) {
@@ -179,6 +179,14 @@ export function buildMicro(
           price: (c.high + c.low) / 2,
           side: b.delta >= 0 ? "buy" : "sell",
           kind: "infusion",
+          time: b.time,
+        });
+      }
+      if (b.imbalance && !raw.some((n) => n.kind === "imbalance" && Math.abs(n.time - b.time) < 60)) {
+        raw.push({
+          price: c.close,
+          side: b.delta >= 0 ? "buy" : "sell",
+          kind: "imbalance",
           time: b.time,
         });
       }
