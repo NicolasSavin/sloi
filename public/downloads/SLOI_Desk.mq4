@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.81"
+#property version   "4.82"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -141,7 +141,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.81: кружки Splash/IMB по цвету, даже если на графике и Infusion");
+   Print("SLOI 4.82: infusion жёлто-зелёный не путать со сплэшем");
    return(INIT_SUCCEEDED);
   }
 
@@ -1013,23 +1013,26 @@ void DumpCdObject(long ch, string n, string &body, int &sent, bool hasSplash, bo
       || StringFind(blob, "дисбал") >= 0 || StringFind(blob, "#imb") >= 0;
    bool isDot = t == OBJ_ELLIPSE || t == OBJ_ARROW || t == OBJ_ARROW_UP || t == OBJ_ARROW_DOWN
       || t == OBJ_BITMAP || t == OBJ_BITMAP_LABEL;
+   bool isLevel = t == OBJ_HLINE || t == OBJ_TREND || t == OBJ_RECTANGLE;
    string kind = "";
    if(namedImb) kind = "IMBALANCE";
    else if(namedSplash && !namedInf) kind = "SPLASH";
-   else if(namedInf && !namedSplash) kind = "INFUSION";
-   else if(namedSplash && namedInf) kind = "SPLASH";
-   else if(isDot)
+   else if(namedInf) kind = "INFUSION";
+   else if(isDot || isLevel)
      {
       color c0 = (color)ObjectGetInteger(ch, n, OBJPROP_COLOR);
       int r0 = (c0 & 0xFF);
       int g0 = ((c0 >> 8) & 0xFF);
       int b0 = ((c0 >> 16) & 0xFF);
-      if(hasInf && g0 >= r0 + 20 && g0 >= b0) kind = "INFUSION";
-      else if(hasSplash && (r0 >= 140 || (r0 + g0 > 220 && b0 < 90))) kind = "SPLASH";
-      else if(hasImb && (b0 >= 110 || r0 >= 170)) kind = "IMBALANCE";
-      else if(hasSplash) kind = "SPLASH";
-      else if(hasInf) kind = "INFUSION";
-      else if(hasImb) kind = "IMBALANCE";
+      bool lime = g0 >= 90 && g0 + 20 >= r0 && g0 >= b0 - 15 && r0 <= g0 + 45;
+      bool orange = r0 >= 130 && r0 > g0 + 20 && b0 < 110;
+      bool blue = b0 >= 120 && b0 >= r0 && b0 >= g0;
+      if(hasInf && lime) kind = "INFUSION";
+      else if(hasSplash && orange) kind = "SPLASH";
+      else if(hasImb && blue) kind = "IMBALANCE";
+      else if(namedInf) kind = "INFUSION";
+      else if(isDot && hasInf && lime) kind = "INFUSION";
+      else if(isDot && hasSplash && !lime) kind = "SPLASH";
      }
    if(kind == "") return;
    string sym = ChartSymbol(ch);
