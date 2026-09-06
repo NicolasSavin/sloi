@@ -407,7 +407,6 @@ function drawZones(
       ctx.lineWidth = 3;
       ctx.strokeText("VWAP", 10, y - 6);
       ctx.fillText("VWAP", 10, y - 6);
-      mark(lastTime, snap.micro.vwap, "VWAP", "entry");
     }
   }
 
@@ -550,14 +549,18 @@ function drawZones(
       const h = Math.max(16, Math.abs(yPad - y));
       const w = Math.max(110, hit ? xEnd - x0 : plotW - Math.max(0, x0) - 8);
       fillVolume(x0, top, w, h, hit ? "sweep" : "liq", !hit);
-      ctx.strokeStyle = hit ? "rgba(232, 160, 60, 0.75)" : "rgba(80, 120, 180, 0.7)";
-      ctx.setLineDash(hit ? [5, 4] : []);
-      ctx.beginPath();
-      ctx.moveTo(x0, y);
-      ctx.lineTo(x0 + w, y);
-      ctx.stroke();
+      ctx.save();
+      ctx.font = "700 12px IBM Plex Sans, sans-serif";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      const liqName = hit ? "Съём" : "Ликвидность";
+      ctx.strokeStyle = "rgba(8,6,4,0.7)";
+      ctx.lineWidth = 3;
+      ctx.strokeText(liqName, x0 + 8, top + h / 2);
+      ctx.fillStyle = hit ? "#ffe090" : "#e8ff90";
+      ctx.fillText(liqName, x0 + 8, top + h / 2);
+      ctx.restore();
       ctx.setLineDash([]);
-      mark(hit ? pool.sweptTime! : pool.time, pool.price, hit ? "Съём" : "Ликвидность", hit ? "sweep" : "liq");
     }
     const fuel = snap.sweepFuel;
     if (fuel) {

@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.8.39",
+    d: "2026-09-06",
+    items: [
+      "VWAP и ликвидность без второго пузыря: подпись на зоне/линии",
+    ],
+  },
+  {
     v: "1.8.38",
     d: "2026-09-06",
     items: [
