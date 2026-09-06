@@ -228,8 +228,31 @@ export function hostPublicBody(text: string) {
     .join("\n");
 }
 
-export async function loadPublicTape() {
-  return loadTape(PUBLIC_TENANT);
+export async function loadLatestTape(): Promise<{ body: string; account: BrokerAccount | null } | null> {
+  const sql = await trySql();
+  if (!sql) return null;
+  try {
+    await ensureSchema(sql);
+    const rows = await sql<{ body: string | null; account_json: string | null }>`
+      select body, account_json from desk_tapes
+      where body is not null and length(body) > 20
+      order by updated_at desc
+      limit 1
+    `;
+    const row = rows[0];
+    if (!row?.body) return null;
+    let account: BrokerAccount | null = null;
+    if (row.account_json) {
+      try {
+        account = JSON.parse(row.account_json) as BrokerAccount;
+      } catch {
+        account = null;
+      }
+    }
+    return { body: row.body, account };
+  } catch {
+    return null;
+  }
 }
 
 export async function enqueueCommand(tenantId: string, kind: string, payload = "") {

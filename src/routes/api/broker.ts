@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { exportBrokerTape, hydrateAccount, ingestBrokerTape } from "@/lib/broker-tape";
 import { dbSource } from "@/lib/db";
-import { LEGACY_TENANT, PUBLIC_TENANT, hostPublicBody, loadTape, resolveDesk, saveTape } from "@/lib/desk-tenant";
+import { LEGACY_TENANT, PUBLIC_TENANT, hostPublicBody, loadLatestTape, loadTape, resolveDesk, saveTape } from "@/lib/desk-tenant";
 
 function keyOf(request: Request) {
   const url = new URL(request.url);
@@ -22,9 +22,10 @@ export const Route = createFileRoute("/api/broker")({
           else if (stored?.account) hydrateAccount(desk.id, stored.account);
         }
         const pub = await loadTape(PUBLIC_TENANT);
-        if (pub?.body) ingestBrokerTape(pub.body, PUBLIC_TENANT);
+        const latest = pub?.body ? pub : await loadLatestTape();
+        if (latest?.body) ingestBrokerTape(latest.body, PUBLIC_TENANT);
         const live = exportBrokerTape(tenant);
-        const pubBody = pub?.body?.replace(/^#.*\n/, "") ?? "";
+        const pubBody = (latest?.body ?? pub?.body ?? "").replace(/^#.*\n/, "");
         const core = storedBody
           ? storedBody.replace(/^#.*\n/, "")
           : live.split("\n").slice(1).join("\n");

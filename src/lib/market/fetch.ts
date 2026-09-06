@@ -769,19 +769,20 @@ export const fetchBroker = createServerFn({ method: "GET" })
   .validator((input: unknown) => z.object({ key: z.string().optional() }).parse(input ?? {}))
   .handler(async ({ data }) => {
     const { snapshotBroker, ingestBrokerTape, hydrateAccount } = await import("@/lib/broker-tape");
-    const { resolveDesk, loadTape, PUBLIC_TENANT } = await import("@/lib/desk-tenant");
+    const { resolveDesk, loadTape, loadLatestTape, PUBLIC_TENANT } = await import("@/lib/desk-tenant");
     const key = data.key ?? "";
     const desk = key ? await resolveDesk(key) : null;
     const tenant = desk && desk.id !== "legacy" ? desk.id : "legacy";
     const pub = await loadTape(PUBLIC_TENANT);
-    if (pub?.body) ingestBrokerTape(pub.body, PUBLIC_TENANT);
+    const latest = pub?.body ? pub : await loadLatestTape();
+    if (latest?.body) ingestBrokerTape(latest.body, PUBLIC_TENANT);
     if (desk && desk.id !== "legacy") {
       const stored = await loadTape(desk.id);
       if (stored?.body) ingestBrokerTape(stored.body, desk.id);
       else if (stored?.account) hydrateAccount(desk.id, stored.account);
     }
     const snap = snapshotBroker(tenant);
-    return { ...snap, tape: (pub?.body ?? "").slice(0, 100000) };
+    return { ...snap, tape: (latest?.body ?? pub?.body ?? "").slice(0, 100000) };
   });
 
 let tvGuideCache: { at: number; data: Awaited<ReturnType<typeof import("@/lib/tv-live").resolveTvChannels>> } | null =
