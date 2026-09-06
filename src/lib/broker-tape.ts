@@ -463,24 +463,17 @@ export function mergeBrokerCandles<T extends { time: number; open: number; high:
   web: T[],
   broker: { time: number; open: number; high: number; low: number; close: number }[],
 ): T[] {
-  if (broker.length < 8) return web;
-  const webTimes = new Set(web.map((c) => c.time));
-  const hit = broker.filter((b) => webTimes.has(b.time)).length;
-  if (hit < 4) return web;
-  const map = new Map<number, T>();
-  for (const c of web) map.set(c.time, c);
-  for (const b of broker) {
-    const prev = map.get(b.time);
-    map.set(b.time, {
-      ...(prev ?? ({ volume: 1 } as T)),
-      time: b.time,
-      open: b.open,
-      high: b.high,
-      low: b.low,
-      close: b.close,
-    });
-  }
-  return [...map.values()].sort((a, b) => a.time - b.time);
+  if (broker.length < 8 || web.length < 3) return web;
+  const step = Math.abs(web[1]!.time - web[0]!.time) || 3600;
+  if (step < 2700 || step > 4500) return web;
+  const bySnap = new Map<number, (typeof broker)[0]>();
+  for (const b of broker) bySnap.set(Math.round(b.time / step) * step, b);
+  return web.map((c) => {
+    const t = Math.round(c.time / step) * step;
+    const b = bySnap.get(t) ?? broker.find((x) => Math.abs(x.time - c.time) < step * 0.51);
+    if (!b || b.high < b.low || b.high <= 0) return c;
+    return { ...c, open: b.open, high: b.high, low: b.low, close: b.close };
+  });
 }
 
 export function liveCumDelta(id: string): { time: number; value: number }[] {

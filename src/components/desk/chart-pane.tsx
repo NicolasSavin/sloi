@@ -1415,6 +1415,7 @@ export function ChartPane({
         wickDownColor: "#00000000",
         borderVisible: false,
         wickVisible: false,
+        visible: false,
       });
       const volume = chart.addSeries(lc.HistogramSeries, {
         priceFormat: { type: "volume" },
@@ -1532,6 +1533,7 @@ export function ChartPane({
       wickDownColor: "#00000000",
       borderVisible: false,
       wickVisible: false,
+      visible: false,
     });
     volume.setData(
       candles.map((c) => {
