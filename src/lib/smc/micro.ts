@@ -18,6 +18,7 @@ export interface VolumeNode {
   side: "buy" | "sell";
   kind: "infusion" | "splash" | "imbalance";
   time: number;
+  held?: boolean;
 }
 
 export interface MicroSnap {
@@ -37,7 +38,7 @@ export interface MicroSnap {
 export function nearestInfusionAhead(nodes: VolumeNode[], entry: number, dir: 1 | -1, atr: number) {
   const minAway = Math.max(atr * 0.8, Math.abs(entry) * 0.0004);
   const hits = nodes
-    .filter((n) => n.kind === "infusion")
+    .filter((n) => n.kind === "infusion" && n.held !== false)
     .filter((n) => (dir > 0 ? n.price > entry + minAway : n.price < entry - minAway))
     .sort((a, b) => (dir > 0 ? a.price - b.price : b.price - a.price));
   return hits[0] ?? null;
@@ -239,6 +240,17 @@ export function buildMicro(
       near.side = n.side;
     } else nodes.push({ ...n });
   }
+  for (const n of nodes) {
+    if (n.kind !== "infusion") continue;
+    const after = use.filter((c) => c.time > n.time).slice(0, 8);
+    if (!after.length) {
+      n.held = true;
+      continue;
+    }
+    n.held = n.side === "buy"
+      ? !after.some((c) => c.close < n.price - atrLike * 0.28)
+      : !after.some((c) => c.close > n.price + atrLike * 0.28);
+  }
   const step = last.time - (use.at(-2)?.time ?? last.time - 3600_000);
   const fresh = (t: number) => last.time - t <= step * 5;
 
@@ -248,11 +260,15 @@ export function buildMicro(
     infusion = {
       price: lastInf.price,
       side: lastInf.side,
-      because: fromCd && CD_FUT.has(symbol)
+      because: lastInf.held === false
+        ? "Вливание было, цена прошла сквозь — пауза, не разворот."
+        : fromCd && CD_FUT.has(symbol)
         ? `Вливание ClusterDelta (#Infusion) по фьючерсу.`
-        : `Вливание по эвристике (кросс / нет CME): объём выше порога, бар узкий, дельта слабая.`,
+        : `Вливание: объём выше порога, бар узкий, дельта слабая.`,
       therefore:
-        lastInf.side === "buy"
+        lastInf.held === false
+          ? "Не цель и не пол. Движение продолжилось. Ждём новое вливание по ходу."
+          : lastInf.side === "buy"
           ? "Остановка снизу. Цель шорта — сюда. Лонг от этой лужи, не сквозь неё."
           : "Остановка сверху. Цель лонга — сюда. Шорт от лужи, не в середину.",
     };

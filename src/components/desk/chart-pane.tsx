@@ -567,8 +567,9 @@ function drawZones(
     }
     const fuel = snap.sweepFuel;
     if (fuel) {
-      const label = fuel.grade === "strong" ? "Откат сильный" : fuel.grade === "mid" ? "Откат средний" : "Откат слабый";
-      mark(fuel.takeTime, fuel.takePrice, label, fuel.reverse === "up" ? "tp" : "stop");
+      mark(fuel.takeTime, fuel.takePrice, "Съём стопов", "sweep");
+      const grade = fuel.grade === "strong" ? "Откат сильный" : fuel.grade === "mid" ? "Откат средний" : "Откат слабый";
+      mark(lastTime, snap.lastClose, grade, fuel.reverse === "up" ? "tp" : "stop");
       if (fuel.target != null) mark(lastTime, fuel.target, "Куда вернут после съёма", "entry");
     }
   }
@@ -1216,17 +1217,6 @@ function drawTape(
   book: { bids: { price: number; volume: number }[]; asks: { price: number; volume: number }[] } | null,
 ) {
   const ts = chart.timeScale();
-  const last = candles.at(-1);
-  if (snap?.micro.infusion && last) {
-    const x = ts.timeToCoordinate(last.time as UTCTimestamp);
-    const yC = series.priceToCoordinate(last.close);
-    if (x != null && yC != null) pulseRings(ctx, x, yC, "#c8f030", true);
-  }
-  if (snap?.micro.splash && last) {
-    const x = ts.timeToCoordinate(last.time as UTCTimestamp);
-    const yC = series.priceToCoordinate(last.close);
-    if (x != null && yC != null) pulseRings(ctx, x, yC, "#ffb020", true);
-  }
   for (const n of snap?.micro.nodes.filter((x) => x.kind === "splash" || x.kind === "infusion" || x.kind === "imbalance").slice(-16) ?? []) {
     const t = n.time > 1e12 ? Math.floor(n.time / 1000) : n.time;
     let x = ts.timeToCoordinate(t as UTCTimestamp);
@@ -1239,16 +1229,17 @@ function drawTape(
     if (x == null) continue;
     const splash = n.kind === "splash";
     const inf = n.kind === "infusion";
-    const col = splash ? "#ffb020" : inf ? "#c8f030" : "#4aa3ff";
-    pulseRings(ctx, x, y, col, true);
+    const broken = inf && n.held === false;
+    const col = splash ? "#ffb020" : broken ? "#8aa040" : inf ? "#c8f030" : "#4aa3ff";
+    pulseRings(ctx, x, y, col, !broken);
     ctx.font = "bold 12px IBM Plex Sans, sans-serif";
     ctx.strokeStyle = "rgba(8,6,4,0.7)";
     ctx.lineWidth = 3;
-    const label = splash ? "СПЛЭШ" : inf ? "ВЛИВАНИЕ" : "IMB CD";
+    const label = splash ? "СПЛЭШ" : broken ? "ВЛИВ. ПРОБИТО" : inf ? "ВЛИВАНИЕ" : "IMB CD";
     const lx = x + 12;
     const ly = y - 10;
     ctx.strokeText(label, lx, ly);
-    ctx.fillStyle = splash ? "#ffb020" : inf ? "#c8f030" : "#7ec0ff";
+    ctx.fillStyle = splash ? "#ffb020" : broken ? "#c8d080" : inf ? "#c8f030" : "#7ec0ff";
     ctx.fillText(label, lx, ly);
   }
   if (on && book && (book.bids.length || book.asks.length)) {
