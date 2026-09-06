@@ -329,11 +329,10 @@ function drawZones(
     ctx.globalAlpha = pulse;
     ctx.shadowColor = p.stroke;
     ctx.shadowBlur = blink ? 18 + 10 * wave : 10;
-    const g = ctx.createLinearGradient(x, y, x + w, y + h);
-    g.addColorStop(0, p.b0);
-    g.addColorStop(0.35, p.mid);
-    g.addColorStop(0.7, p.top);
-    g.addColorStop(1, p.b1);
+    const g = ctx.createLinearGradient(x, y, x, y + h);
+    g.addColorStop(0, p.mid);
+    g.addColorStop(0.45, p.top);
+    g.addColorStop(1, p.mid);
     ctx.fillStyle = g;
     ctx.fillRect(x, y, w, h);
     ctx.shadowBlur = 0;
@@ -457,38 +456,32 @@ function drawZones(
       const broken = z.kind === "breaker" && !insidePx;
       const tone = imb ? "fvg" : broken ? "choch" : bull ? "ob" : "obBear";
       const near = !imb && Math.abs((z.top + z.bottom) / 2 - lastPx) <= (atr || 1) * 0.9;
-      fillVolume(left, top, zw, h, tone, near);
+      fillVolume(left, top, zw, h, tone, near || imb);
       const inside = imb ? "FVG" : broken ? "Брейкер блок" : z.kind === "mitigation" ? "Митигейшн" : "Ордерблок";
       const note = broken ? "ордерблок пробит" : z.kind === "mitigation" ? "возврат в блок" : "";
       const pal = PALETTE[tone] ?? PALETTE.fvg!;
-      if (zw >= 86 && h >= 20) {
-        ctx.save();
-        ctx.font = `700 ${Math.min(18, Math.max(11, h * 0.42))}px IBM Plex Sans, sans-serif`;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        const label = inside;
-        let size = Math.min(18, Math.max(11, h * 0.42));
+      ctx.save();
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      const label = inside;
+      let size = Math.min(16, Math.max(11, Math.min(h * 0.35, zw * 0.12)));
+      ctx.font = `700 ${size}px IBM Plex Sans, sans-serif`;
+      while (size > 9 && ctx.measureText(label).width > zw - 10) {
+        size -= 1;
         ctx.font = `700 ${size}px IBM Plex Sans, sans-serif`;
-        while (size > 10 && ctx.measureText(label).width > zw - 16) {
-          size -= 1;
-          ctx.font = `700 ${size}px IBM Plex Sans, sans-serif`;
-        }
-        if (ctx.measureText(label).width <= zw - 12) {
-          ctx.strokeStyle = "rgba(8,6,4,0.55)";
-          ctx.lineWidth = 3.5;
-          ctx.strokeText(label, left + zw / 2, top + h / 2);
-          const lg = ctx.createLinearGradient(left, top, left, top + h);
-          lg.addColorStop(0, pal.t0);
-          lg.addColorStop(1, pal.t1);
-          ctx.fillStyle = lg;
-          ctx.fillText(label, left + zw / 2, top + h / 2);
-        }
-        ctx.restore();
-        ctx.textAlign = "left";
-        ctx.textBaseline = "alphabetic";
       }
+      const lx = left + Math.min(zw / 2, 70);
+      const ly = top + Math.min(h / 2, 16);
+      ctx.strokeStyle = "rgba(8,6,4,0.75)";
+      ctx.lineWidth = 4;
+      ctx.strokeText(label, lx, ly);
+      ctx.fillStyle = pal.t0;
+      ctx.fillText(label, lx, ly);
+      ctx.restore();
+      ctx.textAlign = "left";
+      ctx.textBaseline = "alphabetic";
       if (note) mark(z.startTime, (z.top + z.bottom) / 2, note, tone);
-      else if (zw < 86 || h < 20) mark(z.startTime, (z.top + z.bottom) / 2, inside, tone);
+      else mark(z.startTime, (z.top + z.bottom) / 2, inside, tone);
     }
   }
 
