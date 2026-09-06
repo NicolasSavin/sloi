@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.86"
+#property version   "4.87"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -141,7 +141,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.86: сначала iCustom по мажорам, потом объекты. CDSTAT в ленте");
+   Print("SLOI 4.87: цена Splash только около Bid, не шкала подокна");
    return(INIT_SUCCEEDED);
   }
 
@@ -1037,6 +1037,9 @@ void DumpCdObject(long ch, string n, string &body, int &sent, bool hasSplash, bo
    if(kind == "") return;
    string sym = ChartSymbol(ch);
    if(StringLen(sym) < 3) sym = Symbol();
+   double bid = BidOf(sym);
+   if(!LooksPx(px, bid)) px = iClose(sym, PERIOD_H1, 0);
+   if(px <= 0) return;
    color c = (color)ObjectGetInteger(ch, n, OBJPROP_COLOR);
    int red = (c & 0xFF);
    int green = ((c >> 8) & 0xFF);

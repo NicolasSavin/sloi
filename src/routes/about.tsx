@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.8.59",
+    d: "2026-09-06",
+    items: [
+      "Шарики USDCAD не появятся, пока Splash не на этом чарте. Мусор 0.80 с подокна отброшен. Скрыты двойные фитили LWC",
+    ],
+  },
+  {
     v: "1.8.58",
     d: "2026-09-06",
     items: [

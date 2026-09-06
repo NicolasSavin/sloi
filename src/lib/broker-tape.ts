@@ -178,6 +178,8 @@ export function ingestBrokerTape(text: string, tenant = "legacy") {
       const side = p[4] === "SELL" || p[4] === "sell" ? "sell" : "buy";
       const ts = p.length >= 6 ? Number(p[5]) : 0;
       if (!id || !Number.isFinite(price) || price <= 0) continue;
+      const tick = r.ticks.get(id);
+      if (tick && tick.bid > 0 && Math.abs(price - tick.bid) / tick.bid > 0.08) continue;
       const list = batch.get(id) ?? [];
       const time = ts > 1_000_000_000 ? (ts > 1e12 ? Math.floor(ts / 1000) : ts) : Math.floor(at / 1000);
       list.push({ price, side, kind, time });

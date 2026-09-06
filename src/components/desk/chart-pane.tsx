@@ -1288,12 +1288,10 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
               const st = liveCdStat(p.pair);
               ctx.font = "600 12px IBM Plex Sans, sans-serif";
               ctx.fillStyle = "#e8c070";
-              const msg = !st
-                ? "CD тишина по " + p.pair + " — лента не пришла"
-                : st.volume <= 0 && !st.splash
-                  ? p.pair + ": iCustom пуст. Splash без чарта CD часто молчит — повесьте индюк на этот символ"
-                  : p.pair + ": объём CD есть, кружков Splash нет";
-              ctx.fillText(msg, 14, 28);
+              const msg = st?.onChart
+                ? p.pair + ": чарт есть, Splash пуст"
+                : "Splash на " + p.pair + " нет. Индюк сейчас на евро/золоте — повесьте на этот символ";
+              ctx.fillText(msg, 14, 64);
             }
           });
         },
@@ -1409,8 +1407,12 @@ export function ChartPane({
         },
       });
       const series = chart.addSeries(lc.CandlestickSeries, {
-        upColor: "rgba(0,0,0,0)",
-        downColor: "rgba(0,0,0,0)",
+        upColor: "#00000000",
+        downColor: "#00000000",
+        borderUpColor: "#00000000",
+        borderDownColor: "#00000000",
+        wickUpColor: "#00000000",
+        wickDownColor: "#00000000",
         borderVisible: false,
         wickVisible: false,
       });
@@ -1522,10 +1524,12 @@ export function ChartPane({
       })),
     );
     series.applyOptions({
-      upColor: "rgba(0,0,0,0)",
-      downColor: "rgba(0,0,0,0)",
-      wickUpColor: "rgba(0,0,0,0)",
-      wickDownColor: "rgba(0,0,0,0)",
+      upColor: "#00000000",
+      downColor: "#00000000",
+      borderUpColor: "#00000000",
+      borderDownColor: "#00000000",
+      wickUpColor: "#00000000",
+      wickDownColor: "#00000000",
       borderVisible: false,
       wickVisible: false,
     });
