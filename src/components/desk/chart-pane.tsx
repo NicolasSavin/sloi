@@ -15,7 +15,6 @@ import type { OverlayFlags } from "@/lib/desk-store";
 import { useDeskStore } from "@/lib/desk-store";
 import type { Advice } from "@/lib/advisor";
 import type { LocalSetup, SmcSnapshot, Zone } from "@/lib/smc/engine";
-import { zoneReach } from "@/lib/smc/engine";
 import { deltaOf } from "@/lib/smc/flow";
 import { cn } from "@/lib/utils";
 
@@ -324,31 +323,36 @@ function drawZones(
   const fillVolume = (x: number, y: number, w: number, h: number, tone: string, blink = false) => {
     if (!paintFill) return;
     const p = PALETTE[tone] ?? PALETTE.fvg!;
-    const pulse = blink ? 0.42 + 0.16 * (0.5 + 0.5 * Math.sin(Date.now() / 260)) : 0.72;
+    const wave = 0.5 + 0.5 * Math.sin(Date.now() / 280);
+    const pulse = blink ? 0.55 + 0.28 * wave : 0.78 + 0.1 * wave;
     ctx.save();
     ctx.globalAlpha = pulse;
-    const g = ctx.createLinearGradient(x, y, x, y + h);
-    g.addColorStop(0, p.top);
-    g.addColorStop(0.42, p.mid);
-    g.addColorStop(1, p.top);
+    ctx.shadowColor = p.stroke;
+    ctx.shadowBlur = blink ? 18 + 10 * wave : 10;
+    const g = ctx.createLinearGradient(x, y, x + w, y + h);
+    g.addColorStop(0, p.b0);
+    g.addColorStop(0.35, p.mid);
+    g.addColorStop(0.7, p.top);
+    g.addColorStop(1, p.b1);
     ctx.fillStyle = g;
     ctx.fillRect(x, y, w, h);
+    ctx.shadowBlur = 0;
     ctx.strokeStyle = p.stroke;
-    ctx.lineWidth = blink ? 2.2 : 1.6;
+    ctx.lineWidth = blink ? 2.6 : 2;
     ctx.strokeRect(x, y, w, h);
     ctx.restore();
-    ctx.strokeStyle = "rgba(255,255,255,0.38)";
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = "rgba(255,255,255,0.55)";
+    ctx.lineWidth = 1.4;
     ctx.beginPath();
-    ctx.moveTo(x + 1, y + h - 1);
-    ctx.lineTo(x + 1, y + 1);
-    ctx.lineTo(x + w - 1, y + 1);
+    ctx.moveTo(x + 2, y + h - 2);
+    ctx.lineTo(x + 2, y + 2);
+    ctx.lineTo(x + w - 2, y + 2);
     ctx.stroke();
-    ctx.strokeStyle = "rgba(0,0,0,0.35)";
+    ctx.strokeStyle = "rgba(0,0,0,0.45)";
     ctx.beginPath();
-    ctx.moveTo(x + 1, y + h - 1);
-    ctx.lineTo(x + w - 1, y + h - 1);
-    ctx.lineTo(x + w - 1, y + 1);
+    ctx.moveTo(x + 2, y + h - 2);
+    ctx.lineTo(x + w - 2, y + h - 2);
+    ctx.lineTo(x + w - 2, y + 2);
     ctx.stroke();
   };
   const mark = (time: number, price: number, text: string, tone: string) => {
@@ -411,8 +415,8 @@ function drawZones(
   if (overlays.fvg || overlays.ob) {
     const last = snap?.lastClose ?? 0;
     const atr = snap?.atr ?? 0;
-    const dist = (z: Zone) => zoneReach(z, last, atr) ?? Number.POSITIVE_INFINITY;
-    const liveOb = zones.filter((z) => z.kind !== "fvg" && zoneReach(z, last, atr) != null);
+    const dist = (z: Zone) => Math.abs((z.top + z.bottom) / 2 - last);
+    const liveOb = zones.filter((z) => z.kind === "ob" || z.kind === "breaker" || z.kind === "mitigation");
     const liveFvg = zones.filter((z) => z.kind === "fvg" && !z.mitigated);
     const lastPx = last || snap?.lastClose || 0;
     const visLo = ts.coordinateToTime(0);
@@ -428,7 +432,7 @@ function drawZones(
     );
     const picked = [
       ...(overlays.ob
-        ? liveOb.filter((z) => z.kind === "ob" || z.kind === "breaker" || z.kind === "mitigation").sort((a, b) => dist(a) - dist(b)).slice(0, 3)
+        ? [...liveOb].filter(inView).sort((a, b) => dist(a) - dist(b)).slice(0, 4)
         : []),
       ...(overlays.fvg ? nearFvg.slice(0, 3) : []),
     ];
@@ -452,7 +456,7 @@ function drawZones(
       const insidePx = lastPx <= z.top && lastPx >= z.bottom;
       const broken = z.kind === "breaker" && !insidePx;
       const tone = imb ? "fvg" : broken ? "choch" : bull ? "ob" : "obBear";
-      const near = !imb && dist(z) <= (atr || 1) * 0.9;
+      const near = !imb && Math.abs((z.top + z.bottom) / 2 - lastPx) <= (atr || 1) * 0.9;
       fillVolume(left, top, zw, h, tone, near);
       const inside = imb ? "FVG" : broken ? "Брейкер блок" : z.kind === "mitigation" ? "Митигейшн" : "Ордерблок";
       const note = broken ? "ордерблок пробит" : z.kind === "mitigation" ? "возврат в блок" : "";
@@ -530,7 +534,7 @@ function drawZones(
     const atr = snap.atr || 1;
     const last = snap.lastClose;
     const dLiq = (p: (typeof snap.liquidity)[number]) => Math.abs(last - p.price);
-    const near = snap.liquidity.filter((p) => dLiq(p) <= atr * 1.4);
+    const near = snap.liquidity.filter((p) => dLiq(p) <= atr * 3.2);
     const taken = (l: (typeof snap.liquidity)[number]) => l.sweptTime != null;
     const bsl = [...near].filter((l) => l.side === "buy" && !taken(l)).sort((a, b) => dLiq(a) - dLiq(b))[0];
     const ssl = [...near].filter((l) => l.side === "sell" && !taken(l)).sort((a, b) => dLiq(a) - dLiq(b))[0];
@@ -550,7 +554,6 @@ function drawZones(
       const h = Math.max(16, Math.abs(yPad - y));
       const w = Math.max(110, hit ? xEnd - x0 : plotW - Math.max(0, x0) - 8);
       fillVolume(x0, top, w, h, hit ? "sweep" : "liq", !hit);
-      occupy(x0, top, w, h);
       ctx.strokeStyle = hit ? "rgba(232, 160, 60, 0.75)" : "rgba(80, 120, 180, 0.7)";
       ctx.setLineDash(hit ? [5, 4] : []);
       ctx.beginPath();
@@ -680,7 +683,7 @@ function drawZones(
     busy.some(
       (b) => box.x < b.x + b.w + 8 && box.x + box.w + 8 > b.x && box.y < b.y + b.h + 8 && box.y + box.h + 8 > b.y,
     );
-  const shown = notes.slice(0, 8);
+  const shown = notes.slice(0, 12);
   const tick = Date.now();
   for (const n of shown) {
     const ax = ts.timeToCoordinate(n.time as UTCTimestamp);
@@ -692,11 +695,11 @@ function drawZones(
     const bw = Math.min(220, lineW + 22);
     const bh = lines.length > 1 ? 48 : 34;
     const candidates = [
-      { x: ax + 28, y: ay + 22 },
-      { x: ax + 28, y: ay - bh - 22 },
-      { x: ax - bw - 20, y: ay + 16 },
-      { x: ax - bw - 20, y: ay - bh - 16 },
-      { x: ax + 48, y: ay + 40 },
+      { x: ax + 90, y: ay - bh - 56 },
+      { x: ax + 90, y: ay + 52 },
+      { x: ax - bw - 90, y: ay - bh - 40 },
+      { x: ax - bw - 90, y: ay + 40 },
+      { x: ax + 120, y: ay - 10 },
     ];
     let placed: { x: number; y: number } | null = null;
     for (const c of candidates) {
@@ -710,17 +713,26 @@ function drawZones(
     const by = placed.y;
     occupy(bx, by, bw, bh);
     const pal = PALETTE[n.tone] ?? PALETTE.fvg!;
-    const cx = bx + bw / 2;
+    const jx = ax < bx ? bx : bx + bw;
+    const jy = by + bh / 2;
     ctx.beginPath();
     ctx.moveTo(ax, ay);
-    ctx.lineTo(cx - 8, by + (ay < by ? 0 : bh));
-    ctx.lineTo(cx + 8, by + (ay < by ? 0 : bh));
-    ctx.closePath();
-    ctx.fillStyle = pal.b0;
-    ctx.fill();
+    ctx.lineTo(jx, jy);
     ctx.strokeStyle = pal.stroke;
-    ctx.lineWidth = 1.2;
+    ctx.lineWidth = 2.6;
     ctx.stroke();
+    const ang = Math.atan2(jy - ay, jx - ax);
+    ctx.beginPath();
+    ctx.moveTo(jx, jy);
+    ctx.lineTo(jx - 14 * Math.cos(ang - 0.4), jy - 14 * Math.sin(ang - 0.4));
+    ctx.lineTo(jx - 14 * Math.cos(ang + 0.4), jy - 14 * Math.sin(ang + 0.4));
+    ctx.closePath();
+    ctx.fillStyle = pal.stroke;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(ax, ay, 3.2, 0, Math.PI * 2);
+    ctx.fillStyle = pal.stroke;
+    ctx.fill();
     const r = 8;
     ctx.beginPath();
     ctx.moveTo(bx + r, by);
@@ -1143,7 +1155,7 @@ function drawTape(
     const yC = series.priceToCoordinate(last.close);
     if (x != null && yC != null) pulseRings(ctx, x, yC, "#ffb020", true);
   }
-  for (const n of snap?.micro.nodes.filter((x) => x.kind === "splash" || x.kind === "infusion").slice(-16) ?? []) {
+  for (const n of snap?.micro.nodes.filter((x) => x.kind === "splash" || x.kind === "infusion" || x.kind === "imbalance").slice(-16) ?? []) {
     const t = n.time > 1e12 ? Math.floor(n.time / 1000) : n.time;
     let x = ts.timeToCoordinate(t as UTCTimestamp);
     const y = series.priceToCoordinate(n.price);
@@ -1154,18 +1166,19 @@ function drawTape(
     }
     if (x == null) continue;
     const splash = n.kind === "splash";
-    pulseRings(ctx, x, y, splash ? "#ffb020" : "#c8f030", splash);
+    const inf = n.kind === "infusion";
+    const col = splash ? "#ffb020" : inf ? "#c8f030" : "#ff6a6a";
+    pulseRings(ctx, x, y, col, splash || inf);
     ctx.font = "bold 12px IBM Plex Sans, sans-serif";
     ctx.strokeStyle = "rgba(8,6,4,0.7)";
     ctx.lineWidth = 3;
-    const label = splash ? "СПЛЭШ" : "ВЛИВАНИЕ";
+    const label = splash ? "СПЛЭШ" : inf ? "ВЛИВАНИЕ" : "CD IMB";
     const lx = x + 12;
     const ly = y - 10;
     ctx.strokeText(label, lx, ly);
-    ctx.fillStyle = splash ? "#ffb020" : "#c8f030";
+    ctx.fillStyle = splash ? "#ffb020" : inf ? "#c8f030" : "#ff8a8a";
     ctx.fillText(label, lx, ly);
   }
-  const tp = snap?.localSetup.targets[0];
   for (const n of snap?.micro.nodes.filter((x) => x.kind === "imbalance").slice(-4) ?? []) {
     const y = series.priceToCoordinate(n.price);
     if (y == null) continue;
