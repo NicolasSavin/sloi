@@ -454,7 +454,7 @@ function drawZones(
       const near = !imb && dist(z) <= (atr || 1) * 0.9;
       fillVolume(left, top, zw, h, tone, near);
       occupy(left, top, zw, h);
-      const inside = imb ? "Имбаланс" : broken ? "Брейкер блок" : z.kind === "mitigation" ? "Митигейшн" : "Ордерблок";
+      const inside = imb ? "Разрыв FVG" : broken ? "Брейкер блок" : z.kind === "mitigation" ? "Митигейшн" : "Ордерблок";
       const note = broken ? "ордерблок пробит" : z.kind === "mitigation" ? "возврат в блок" : "";
       const pal = PALETTE[tone] ?? PALETTE.fvg!;
       if (zw >= 86 && h >= 20) {
@@ -738,7 +738,7 @@ function drawZones(
       n.tone === "tp" ||
       n.tone === "stop" ||
       n.tone === "choch" ||
-      /ВЛИВАНИЕ|СПЛЭШ|Имбаланс|Лонг|Шорт|Брейкер/.test(n.text);
+      /ВЛИВАНИЕ|СПЛЭШ|Разрыв FVG|Имбаланс|Лонг|Шорт|Брейкер/.test(n.text);
     const beat = hot ? 0.82 + 0.18 * Math.sin(tick / 260) : 1;
     ctx.globalAlpha = beat;
     ctx.shadowColor = hot ? pal.stroke : "rgba(0,0,0,0.45)";
@@ -1206,7 +1206,7 @@ function drawTape(
     ctx.setLineDash([]);
     ctx.fillStyle = "rgba(240,200,140,0.85)";
     ctx.font = "bold 10px IBM Plex Mono, monospace";
-    ctx.fillText("ДИСБАЛАНС", 8, y - 4);
+    ctx.fillText("CD ASK/BID", 8, y - 4);
   }
   if (snap?.micro.splash && last) {
     const x = ts.timeToCoordinate(last.time as UTCTimestamp);
