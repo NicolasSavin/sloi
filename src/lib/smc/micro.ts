@@ -192,7 +192,7 @@ export function buildMicro(
       }
     }
   }
-  if (!native && !raw.some((n) => n.kind === "infusion")) {
+  if (!fromCd && !raw.some((n) => n.kind === "infusion")) {
     for (let i = 6; i < use.length; i++) {
       const c = use[i]!;
       const barSpan = c.high - c.low || 1e-9;
@@ -206,6 +206,25 @@ export function buildMicro(
           price: (c.high + c.low) / 2,
           side: d >= 0 ? "buy" : "sell",
           kind: "infusion",
+          time: c.time,
+        });
+      }
+    }
+  }
+  if (!fromCd && !raw.some((n) => n.kind === "splash")) {
+    for (let i = 6; i < use.length; i++) {
+      const c = use[i]!;
+      const barSpan = c.high - c.low || 1e-9;
+      const d = deltaOf(c);
+      const v = barVolume(c);
+      if (v < thresh) continue;
+      const rangeRatio = barSpan / spanMed;
+      const deltaShare = Math.abs(d) / v;
+      if (rangeRatio > 1.15 && deltaShare > 0.42) {
+        raw.push({
+          price: c.close >= c.open ? c.high : c.low,
+          side: d >= 0 ? "buy" : "sell",
+          kind: "splash",
           time: c.time,
         });
       }

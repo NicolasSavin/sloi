@@ -1212,10 +1212,8 @@ function drawTape(
   on: boolean,
   book: { bids: { price: number; volume: number }[]; asks: { price: number; volume: number }[] } | null,
 ) {
-  if (!on) return;
   const ts = chart.timeScale();
   const last = candles.at(-1);
-  const beat = 0.5 + 0.5 * Math.sin(Date.now() / 200);
   if (snap?.micro.infusion && last) {
     const x = ts.timeToCoordinate(last.time as UTCTimestamp);
     const yC = series.priceToCoordinate(last.close);
@@ -1250,18 +1248,7 @@ function drawTape(
     ctx.fillStyle = splash ? "#ffb020" : inf ? "#c8f030" : "#7ec0ff";
     ctx.fillText(label, lx, ly);
   }
-  if (snap?.micro.splash && last) {
-    const x = ts.timeToCoordinate(last.time as UTCTimestamp);
-    const y = series.priceToCoordinate(last.close);
-    if (x != null && y != null) {
-      ctx.fillStyle = snap.micro.splash.side === "buy" ? "rgba(111,158,134,0.25)" : "rgba(181,122,122,0.25)";
-      ctx.fillRect(x - 16, y - 40, 32, 80);
-      ctx.fillStyle = "#f0e6d4";
-      ctx.font = "bold 11px IBM Plex Mono, monospace";
-      ctx.fillText("SPLASH", x - 22, y - 44);
-    }
-  }
-  if (book && (book.bids.length || book.asks.length)) {
+  if (on && book && (book.bids.length || book.asks.length)) {
     const max = Math.max(...book.bids.map((l) => l.volume), ...book.asks.map((l) => l.volume), 1);
     const x0 = width - 70;
     for (const l of book.asks.slice(0, 8)) {
