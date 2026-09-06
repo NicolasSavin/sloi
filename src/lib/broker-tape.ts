@@ -176,7 +176,7 @@ export function ingestBrokerTape(text: string, tenant = "legacy") {
       const side = p[4] === "SELL" || p[4] === "sell" ? "sell" : "buy";
       if (!id || !Number.isFinite(price) || price <= 0) continue;
       const list = batch.get(id) ?? [];
-      list.push({ price, side, kind, time: at });
+      list.push({ price, side, kind, time: Math.floor(at / 1000) });
       batch.set(id, list);
       continue;
     }

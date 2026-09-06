@@ -1148,9 +1148,15 @@ function drawTape(
     if (x != null && yC != null) pulseRings(ctx, x, yC, "#ffb020", true);
   }
   for (const n of snap?.micro.nodes.filter((x) => x.kind === "splash" || x.kind === "infusion").slice(-8) ?? []) {
-    const x = ts.timeToCoordinate(n.time as UTCTimestamp);
+    const t = n.time > 1e12 ? Math.floor(n.time / 1000) : n.time;
+    let x = ts.timeToCoordinate(t as UTCTimestamp);
     const y = series.priceToCoordinate(n.price);
-    if (x == null || y == null) continue;
+    if (y == null) continue;
+    if (x == null) {
+      const near = candles.reduce((best, c) => (Math.abs(c.close - n.price) < Math.abs(best.close - n.price) ? c : best), candles[0]!);
+      x = ts.timeToCoordinate(near.time as UTCTimestamp);
+    }
+    if (x == null) continue;
     const splash = n.kind === "splash";
     pulseRings(ctx, x, y, splash ? "#ffb020" : "#c8f030", splash);
     ctx.font = "bold 12px IBM Plex Sans, sans-serif";

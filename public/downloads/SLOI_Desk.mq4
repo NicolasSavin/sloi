@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.72"
+#property version   "4.73"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -141,7 +141,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.72: ", g_host ? "хозяин — CD на общий стол" : "клиент — только сигналы, CD не нужен");
+   Print("SLOI 4.73: ", g_host ? "хозяин — CD на общий стол" : "клиент — сверка брокер/сайт");
    return(INIT_SUCCEEDED);
   }
 
@@ -999,6 +999,8 @@ void AppendClusters(string &body)
       if(StringFind(low, "splash") >= 0 || StringFind(low, "btrade") >= 0
          || StringFind(low, "bigtrade") >= 0 || StringFind(low, "big_trade") >= 0)
          kind = "SPLASH";
+      if(StringFind(low, "infusion") >= 0 || StringFind(low, "влив") >= 0)
+         kind = "INFUSION";
       color c = (color)ObjectGet(n, OBJPROP_COLOR);
       int red = (c & 0xFF);
       int green = ((c >> 8) & 0xFF);
@@ -1064,11 +1066,13 @@ void AppendCdOne(string &body, string s, int &sent)
      {
       double v = vol[j];
       double d = del[j];
-      if(v < avg * 1.7) continue;
+      if(v < avg * 1.55) continue;
       double px = iClose(s, tf, j + 1);
       if(px <= 0) continue;
+      double ratio = (v > 0 ? MathAbs(d) / v : 0);
       string kind = "INFUSION";
-      if(MathAbs(d) > 0.42 * v) kind = "SPLASH";
+      if(ratio > 0.50) kind = "SPLASH";
+      else if(ratio > 0.28) continue;
       string sd = (d >= 0) ? "BUY" : "SELL";
       body += "CLUSTER " + Naked(s) + " " + kind + " " + DoubleToStr(px, DigitsOf(s)) + " " + sd + "\n";
       sent++;
@@ -1080,28 +1084,17 @@ void AppendCdOne(string &body, string s, int &sent)
 
 void AppendNamed(string &body, string s, string ind, string kind, int &sent)
   {
-   if(StringLen(ind) < 3 || sent >= 28) return;
+   if(StringLen(ind) < 3 || sent >= 80) return;
    int tf = PERIOD_H1;
-   double acc = 0;
-   int n = 0;
-   double val[8];
-   ArrayInitialize(val, 0);
-   for(int i = 1; i <= 8; i++)
+   double bid = BidOf(s);
+   for(int i = 0; i < 10 && sent < 80; i++)
      {
       double x = Icd(s, tf, ind, 0, i);
-      if(x == EMPTY_VALUE || x <= 0 || x > 1.0e12) { val[i - 1] = 0; continue; }
-      val[i - 1] = x;
-      acc += x;
-      n++;
-     }
-   if(n < 3) return;
-   double avg = acc / n;
-   for(int j = 0; j < 6 && sent < 28; j++)
-     {
-      if(val[j] < avg * 1.5) continue;
-      double px = iClose(s, tf, j + 1);
+      if(x == EMPTY_VALUE || x == 0) x = Icd(s, tf, ind, 1, i);
+      if(x == EMPTY_VALUE || x == 0) continue;
+      double px = LooksPx(x, bid) ? x : iClose(s, tf, i);
       if(px <= 0) continue;
-      string sd = (iClose(s, tf, j + 1) >= iOpen(s, tf, j + 1)) ? "BUY" : "SELL";
+      string sd = (iClose(s, tf, i) >= iOpen(s, tf, i)) ? "BUY" : "SELL";
       body += "CLUSTER " + Naked(s) + " " + kind + " " + DoubleToStr(px, DigitsOf(s)) + " " + sd + "\n";
       sent++;
      }
@@ -1210,7 +1203,7 @@ void ScrapeChartCd(long ch, string s, string &body)
       string nm = ObjectName(ch, o2, -1, -1);
       string low = nm;
       StringToLower(low);
-      if(StringFind(low, "infusion") >= 0) inf = true;
+      if(StringFind(low, "infusion") >= 0 || StringFind(low, "infuz") >= 0 || StringFind(low, "влив") >= 0) inf = true;
       if(StringFind(low, "splash") >= 0) spl = true;
       if(StringFind(low, "imbalance") >= 0) imb = true;
       if(StringFind(low, "cumdelta") >= 0 || StringFind(low, "cum_delta") >= 0) cum = true;
@@ -1224,7 +1217,7 @@ void ScrapeChartCd(long ch, string s, string &body)
    datetime bt = iTime(ChartSymbol(ch), PERIOD_H1, 0);
    if(bt <= 0) bt = TimeCurrent();
    int sp = (vol > 200 && MathAbs(dlt) > vol * 0.12) ? 1 : 0;
-   int infg = (vol > 200 && MathAbs(dlt) <= vol * 0.08) ? 1 : 0;
+   int infg = (vol > 80 && MathAbs(dlt) <= vol * 0.22) ? 1 : 0;
    int im = (askV > 1 && bidV > 1 && (askV > bidV * 1.45 || bidV > askV * 1.45)) ? 1 : 0;
    body += "CDBAR " + Naked(s) + " " + IntegerToString(bt) + " "
         + DoubleToStr(vol, 0) + " " + DoubleToStr(dlt, 0) + " "
@@ -2093,7 +2086,7 @@ void DrawDesk()
 
    Rect("bg", x, y, w, h, C_BG);
    Lab("title", x + 14, y + 8, "SLOI DESK", C_GOLD, 12);
-   Lab("hint", x + 150, y + 12, g_feedNote+"  "+IntegerToString(g_n)+"/"+IntegerToString(MAXSYM)+" пар  >> график  — свернуть", C_DIM, 8);
+   Lab("hint", x + 150, y + 12, g_feedNote+"  "+(g_host?"хозяин CD":"сверка брокер/сайт")+"  "+IntegerToString(g_n)+" пар", C_DIM, 8);
 
    Btn("b_auto", x + 470, y + 8, 96, 22, g_auto ? "АВТО ВКЛ" : "АВТО ВЫКЛ", g_auto ? C_BUY : C_SEL);
    Btn("b_alrt", x + 572, y + 8, 96, 22, g_alerts ? "АЛЕРТ ВКЛ" : "АЛЕРТ ВЫКЛ", C_GOLD);
@@ -2146,7 +2139,7 @@ void DrawDesk()
    int hy = y + setH + 2;
    Lab("h1", hx,     hy, "СИМВОЛ",  C_DIM, 8);
    Lab("h2", hx+110, hy, "СПРЕД",   C_DIM, 8);
-   Lab("h3", hx+170, hy, "% YAHOO", C_DIM, 8);
+   Lab("h3", hx+170, hy, "САЙТ/БРОК", C_DIM, 8);
    Lab("h4", hx+250, hy, "ВХОД",    C_DIM, 8);
    Lab("h5", hx+350, hy, "СТОП",    C_DIM, 8);
    Lab("h6", hx+450, hy, "ЦЕЛЬ",    C_DIM, 8);
