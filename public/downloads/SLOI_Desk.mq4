@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.87"
+#property version   "4.88"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -141,7 +141,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.87: цена Splash только около Bid, не шкала подокна");
+   Print("SLOI 4.88: CDCHARTS какие окна видит сов; лимит кружков на каждый чарт");
    return(INIT_SUCCEEDED);
   }
 
@@ -1052,19 +1052,31 @@ void DumpCdObject(long ch, string n, string &body, int &sent, bool hasSplash, bo
 void AppendClusters(string &body)
   {
    int sent = 0;
-   if(g_cd && g_host) AppendCdClusters(body, sent);
+   string seen = "";
    long ch = ChartFirst();
+   while(ch >= 0)
+     {
+      string ns = Naked(ChartSymbol(ch));
+      if(StringLen(ns) > 2 && StringFind(seen, ns) < 0) seen = seen + ns + ",";
+      ch = ChartNext(ch);
+     }
+   if(StringLen(seen) > 2) body += "CDCHARTS " + seen + "\n";
+   if(g_cd && g_host) AppendCdClusters(body, sent);
+   ch = ChartFirst();
    while(ch >= 0 && sent < 400)
      {
       bool hasS = ChartHasInd(ch, "splash");
       bool hasI = ChartHasInd(ch, "infusion");
       bool hasM = ChartHasInd(ch, "imbalance");
       int total = (int)ObjectsTotal(ch, -1, -1);
-      for(int i = 0; i < total && sent < 400; i++)
+      int local = 0;
+      for(int i = 0; i < total && sent < 400 && local < 28; i++)
         {
          string n = ObjectName(ch, i, -1, -1);
          if(StringLen(n) < 1) continue;
+         int before = sent;
          DumpCdObject(ch, n, body, sent, hasS, hasI, hasM);
+         if(sent > before) local++;
         }
       ch = ChartNext(ch);
      }
@@ -1249,8 +1261,11 @@ void AppendCdClusters(string &body, int &sent)
   {
    for(int i = 0; i < g_n; i++)
      {
+      int before = sent;
       AppendCdCum(body, g_sym[i]);
       AppendCdOne(body, g_sym[i], sent);
+      if(sent > before + 16) sent = before + 16;
+      AppendCdStat(body, g_sym[i]);
       AppendCdProfile(body, g_sym[i]);
       AppendCdBook(body, g_sym[i]);
       AppendCdAskBid(body, g_sym[i]);

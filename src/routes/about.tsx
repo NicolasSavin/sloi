@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.8.61",
+    d: "2026-09-06",
+    items: [
+      "Сов 4.88: лимит кружков на каждый чарт, в ленте CDCHARTS — какие окна он реально видит",
+    ],
+  },
+  {
     v: "1.8.60",
     d: "2026-09-06",
     items: [

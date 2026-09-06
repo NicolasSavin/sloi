@@ -17,7 +17,7 @@ import type { Advice } from "@/lib/advisor";
 import type { LocalSetup, SmcSnapshot, Zone } from "@/lib/smc/engine";
 import { deltaOf } from "@/lib/smc/flow";
 import { CD_FUT } from "@/lib/smc/micro";
-import { liveCdStat } from "@/lib/broker-tape";
+import { liveCdCharts } from "@/lib/broker-tape";
 import { cn } from "@/lib/utils";
 
 function token(name: string, fallback: string) {
@@ -1285,12 +1285,12 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
             drawBricks(ctx, chart, series, p.candles);
             drawTape(ctx, w, chart, series, p.candles, p.snap, p.overlays.flow, p.book);
             if (p.snap && CD_FUT.has(p.pair) && !(p.snap.micro.nodes ?? []).some((n) => n.kind === "splash" || n.kind === "infusion" || n.kind === "imbalance")) {
-              const st = liveCdStat(p.pair);
+              const seen = liveCdCharts();
               ctx.font = "600 12px IBM Plex Sans, sans-serif";
               ctx.fillStyle = "#e8c070";
-              const msg = st?.onChart
-                ? p.pair + ": чарт есть, Splash пуст"
-                : "Splash на " + p.pair + " нет. Индюк сейчас на евро/золоте — повесьте на этот символ";
+              const msg = seen && seen.indexOf(p.pair) < 0
+                ? "Сов не видит чарт " + p.pair + ". Откройте его в том же MT4, где советник. Сейчас: " + seen.replace(/,$/, "")
+                : "Splash на " + p.pair + " в ленте пуст — индюк без кружков или не тот терминал";
               ctx.fillText(msg, 14, 64);
             }
           });
