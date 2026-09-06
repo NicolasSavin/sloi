@@ -713,13 +713,17 @@ function drawZones(
     const by = placed.y;
     occupy(bx, by, bw, bh);
     const pal = PALETTE[n.tone] ?? PALETTE.fvg!;
-    const jx = ax < bx ? bx : bx + bw;
-    const jy = by + bh / 2;
+    const cx = bx + bw / 2;
+    const cy = by + bh / 2;
+    const phase = (n.text.length * 41 + Math.round(n.price * 10)) % 628;
+    const zoom = 0.86 + 0.22 * (0.5 + 0.5 * Math.sin(tick / 380 + phase / 100));
+    const jx = ax < bx ? bx + (1 - zoom) * (cx - bx) : bx + bw - (1 - zoom) * (bx + bw - cx);
+    const jy = cy;
     ctx.beginPath();
     ctx.moveTo(ax, ay);
     ctx.lineTo(jx, jy);
     ctx.strokeStyle = pal.stroke;
-    ctx.lineWidth = 2.6;
+    ctx.lineWidth = 2.6 * zoom;
     ctx.stroke();
     const ang = Math.atan2(jy - ay, jx - ax);
     ctx.beginPath();
@@ -733,6 +737,10 @@ function drawZones(
     ctx.arc(ax, ay, 3.2, 0, Math.PI * 2);
     ctx.fillStyle = pal.stroke;
     ctx.fill();
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(zoom, zoom);
+    ctx.translate(-cx, -cy);
     const r = 8;
     ctx.beginPath();
     ctx.moveTo(bx + r, by);
@@ -753,9 +761,9 @@ function drawZones(
       /ВЛИВАНИЕ|СПЛЭШ|Разрыв FVG|Имбаланс|Лонг|Шорт|Брейкер/.test(n.text);
     const beat = hot ? 0.82 + 0.18 * Math.sin(tick / 260) : 1;
     ctx.globalAlpha = beat;
-    ctx.shadowColor = hot ? pal.stroke : "rgba(0,0,0,0.45)";
-    ctx.shadowBlur = hot ? 18 + 8 * Math.sin(tick / 260) : 14;
-    ctx.shadowOffsetY = 5;
+    ctx.shadowColor = pal.stroke;
+    ctx.shadowBlur = 12 + 22 * (zoom - 0.86);
+    ctx.shadowOffsetY = 4 + 10 * (zoom - 0.86);
     const g = ctx.createLinearGradient(bx, by, bx + bw, by + bh);
     g.addColorStop(0, pal.b0);
     g.addColorStop(0.45, pal.b1);
@@ -791,6 +799,7 @@ function drawZones(
       ctx.fillStyle = tg;
       ctx.fillText(line, tx, ty);
     });
+    ctx.restore();
   }
 
   const cd = snap?.cdTape;
