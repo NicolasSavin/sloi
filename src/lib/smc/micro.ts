@@ -102,7 +102,7 @@ export function nearestStall(entry: number, dir: 1 | -1, atr: number, nodes: Vol
   return { price, from: from as "infusion" | "hvn" };
 }
 
-const CD_FUT = new Set([
+export const CD_FUT = new Set([
   "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD", "NZDUSD",
   "XAUUSD", "XAGUSD", "XTIUSD", "XBRUSD", "XNGUSD",
   "BTCUSD", "ETHUSD",
@@ -190,6 +190,35 @@ export function buildMicro(
           kind: "imbalance",
           time: b.time,
         });
+      }
+    }
+  }
+  if (native && cdBars.length) {
+    const vols = cdBars.map((b) => b.volume).filter((v) => v > 0).sort((a, b) => a - b);
+    const med = vols[Math.floor(vols.length / 2)] || 0;
+    if (med > 0) {
+      for (const b of cdBars) {
+        if (b.volume < med * 1.45) continue;
+        const c = use.find((x) => Math.abs(x.time - b.time) < 3600) ?? last;
+        const share = Math.abs(b.delta) / Math.max(b.volume, 1);
+        const barSpan = c.high - c.low || 1e-9;
+        const rangeRatio = barSpan / spanMed;
+        if (!raw.some((n) => n.kind === "splash" && Math.abs(n.time - b.time) < 60) && share >= 0.38 && rangeRatio > 0.95) {
+          raw.push({
+            price: c.close >= c.open ? c.high : c.low,
+            side: b.delta >= 0 ? "buy" : "sell",
+            kind: "splash",
+            time: b.time,
+          });
+        }
+        if (!raw.some((n) => n.kind === "infusion" && Math.abs(n.time - b.time) < 60) && share < 0.38 && rangeRatio < 1.05) {
+          raw.push({
+            price: (c.high + c.low) / 2,
+            side: b.delta >= 0 ? "buy" : "sell",
+            kind: "infusion",
+            time: b.time,
+          });
+        }
       }
     }
   }
