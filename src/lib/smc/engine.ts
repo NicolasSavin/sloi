@@ -352,13 +352,12 @@ function fvgCovered(top: number, bottom: number, later: Candle[]): boolean {
   const size = hi - lo;
   if (size <= 0) return true;
   for (const x of later) {
-    const ov = Math.min(hi, x.high) - Math.max(lo, x.low);
-    if (ov <= 0) continue;
     const bodyLo = Math.min(x.open, x.close);
     const bodyHi = Math.max(x.open, x.close);
     const bodyOv = Math.min(hi, bodyHi) - Math.max(lo, bodyLo);
-    if (bodyOv > 0) return true;
-    if (ov >= size * 0.25) return true;
+    if (bodyOv > 0 && bodyOv >= size * 0.5) return true;
+    const wickOv = Math.min(hi, x.high) - Math.max(lo, x.low);
+    if (wickOv >= size * 0.7) return true;
   }
   return false;
 }
@@ -397,7 +396,7 @@ function detectFvgs(candles: Candle[]): Zone[] {
       });
     }
   }
-  return zones.filter((z) => !z.mitigated).slice(-12);
+  return zones.filter((z) => !z.mitigated).slice(-18);
 }
 
 function detectOrderBlocks(candles: Candle[], events: StructureEvent[]): Zone[] {

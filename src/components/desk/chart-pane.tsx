@@ -414,11 +414,19 @@ function drawZones(
     const liveOb = zones.filter((z) => z.kind !== "fvg" && zoneReach(z, last, atr) != null);
     const liveFvg = zones.filter((z) => z.kind === "fvg" && !z.mitigated);
     const lastPx = last || snap?.lastClose || 0;
-    const nearFvg = [...liveFvg].sort(
+    const visLo = ts.coordinateToTime(0);
+    const visHi = ts.coordinateToTime(plotW);
+    const inView = (z: Zone) => {
+      if (visLo == null || visHi == null) return true;
+      const a = Number(visLo);
+      const b = Number(visHi);
+      return z.endTime >= a && z.startTime <= b;
+    };
+    const nearFvg = [...liveFvg].filter(inView).sort(
       (a, b) => Math.abs((a.top + a.bottom) / 2 - lastPx) - Math.abs((b.top + b.bottom) / 2 - lastPx),
     );
     const picked = [
-      ...(overlays.fvg ? nearFvg.slice(0, 2) : []),
+      ...(overlays.fvg ? nearFvg.slice(0, 8) : []),
       ...(overlays.ob
         ? liveOb.filter((z) => z.kind === "ob" || z.kind === "breaker" || z.kind === "mitigation").sort((a, b) => dist(a) - dist(b)).slice(0, 3)
         : []),
