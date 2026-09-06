@@ -376,9 +376,10 @@ export function buildMicro(
     splash,
     nodes: (() => {
       const stepH = step || 3600;
-      const recent = nodes.filter((n) => last.time - n.time <= stepH * 12);
-      const old = nodes.filter((n) => last.time - n.time > stepH * 12);
-      const thinned = old.filter((_, i) => i % 3 === 0).slice(-10);
+      const keep = Math.max(stepH * 80, 5 * 86400);
+      const recent = nodes.filter((n) => last.time - n.time <= keep);
+      const old = nodes.filter((n) => last.time - n.time > keep);
+      const thinned = old.filter((_, i) => i % 4 === 0).slice(-8);
       return [...thinned, ...recent];
     })(),
     cmeTicker,

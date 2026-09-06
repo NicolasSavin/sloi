@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.8.60",
+    d: "2026-09-06",
+    items: [
+      "Кружки CD держатся 5 суток — в воскресенье видны пятничные Splash/Infusion по евро и золоту",
+    ],
+  },
+  {
     v: "1.8.59",
     d: "2026-09-06",
     items: [
