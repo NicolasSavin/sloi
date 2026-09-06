@@ -427,10 +427,13 @@ function drawZones(
       const x1 = ts.timeToCoordinate(z.startTime as UTCTimestamp) ?? 8;
       const left = Math.max(4, x1);
       const xEnd = ts.timeToCoordinate(z.endTime as UTCTimestamp);
+      const nowX = ts.timeToCoordinate(lastTime as UTCTimestamp) ?? plotW - 24;
       const imb = z.kind === "fvg";
-      const zw = imb
-        ? Math.max(36, Math.min(plotW - left - 24, (xEnd != null ? xEnd - left : 70) + 48))
-        : Math.max(80, plotW - left - 8);
+      const rawEnd = xEnd != null ? xEnd + (imb ? 48 : 28) : nowX;
+      const zw = Math.max(
+        imb ? 36 : 56,
+        Math.min(plotW - left - 16, Math.max(rawEnd, left + 56) - left),
+      );
       const y1 = series.priceToCoordinate(z.top);
       const y2 = series.priceToCoordinate(z.bottom);
       if (y1 == null || y2 == null) continue;
