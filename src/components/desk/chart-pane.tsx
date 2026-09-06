@@ -1288,6 +1288,7 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
     candles: Candle[];
     book: { bids: { price: number; volume: number }[]; asks: { price: number; volume: number }[] } | null;
     pair: string;
+    hover: boolean;
   } = {
     zones: [],
     overlays: {
@@ -1308,6 +1309,7 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
     candles: [],
     book: null,
     pair: "EURUSD",
+    hover: false,
   };
 
   private unsub: (() => void) | null = null;
@@ -1356,14 +1358,20 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
             const w = scope.mediaSize.width;
             const h = scope.mediaSize.height;
             ctx.clearRect(0, 0, w, h);
+            const hover = p.hover;
             if (z === "bottom") {
-              drawBricks(ctx, chart, series, p.candles);
+              if (!hover) drawBricks(ctx, chart, series, p.candles);
+              ctx.globalAlpha = hover ? 0.35 : 1;
               drawZones(ctx, w, h, chart, series, p.zones, p.overlays, p.snap, p.setup, p.order, p.candles.at(-1)?.time ?? 0, false, p.candles, p.pair, this.faceI, "fill");
+              ctx.globalAlpha = 1;
               return;
             }
+            ctx.globalAlpha = hover ? 0.28 : 1;
             drawZones(ctx, w, h, chart, series, p.zones, p.overlays, p.snap, p.setup, p.order, p.candles.at(-1)?.time ?? 0, false, p.candles, p.pair, this.faceI, "hud");
             drawTape(ctx, w, chart, series, p.candles, p.snap, p.overlays.flow, p.book);
             drawPathArrows(ctx, w, chart, series, p.snap, p.order, p.setup, p.candles.at(-1)?.time ?? 0);
+            ctx.globalAlpha = 1;
+            if (hover) drawBricks(ctx, chart, series, p.candles);
           });
         },
       }),
@@ -1408,6 +1416,7 @@ export function ChartPane({
   const pair = useDeskStore((s) => s.symbol);
   const pairRef = useRef(pair);
   const fittedKey = useRef("");
+  const hoverRef = useRef(false);
   const [ready, setReady] = useState(false);
   snapRef.current = snap;
   overlaysRef.current = overlays;
@@ -1530,6 +1539,7 @@ export function ChartPane({
             candles: candlesRef.current,
             book: bookRef.current,
             pair: pairRef.current,
+            hover: hoverRef.current,
           };
           prim.refresh();
         }
@@ -1538,6 +1548,12 @@ export function ChartPane({
           drawProfile(profileRef.current, s, snapRef.current, overlaysRef.current.profile);
         }
       };
+      chart.subscribeCrosshairMove((param) => {
+        const next = Boolean(param?.time && param.seriesData && param.seriesData.size > 0);
+        if (next === hoverRef.current) return;
+        hoverRef.current = next;
+        paint();
+      });
       chart.timeScale().subscribeVisibleLogicalRangeChange(paint);
       ro = new ResizeObserver(() => paint());
       ro.observe(hostRef.current);
@@ -1761,6 +1777,7 @@ export function ChartPane({
           candles,
           book,
           pair,
+          hover: hoverRef.current,
         };
         prim.refresh();
       }
