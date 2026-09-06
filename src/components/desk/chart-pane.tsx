@@ -1120,6 +1120,82 @@ function drawProfile(
   ctx.fillText("B", rect.width - 12, 12);
 }
 
+function drawBricks(
+  ctx: CanvasRenderingContext2D,
+  chart: IChartApi,
+  series: ISeriesApi<"Candlestick">,
+  candles: Candle[],
+) {
+  const ts = chart.timeScale();
+  for (let i = 0; i < candles.length; i++) {
+    const c = candles[i]!;
+    const x = ts.timeToCoordinate(c.time as UTCTimestamp);
+    if (x == null) continue;
+    const yO = series.priceToCoordinate(c.open);
+    const yC = series.priceToCoordinate(c.close);
+    const yH = series.priceToCoordinate(c.high);
+    const yL = series.priceToCoordinate(c.low);
+    if (yO == null || yC == null || yH == null || yL == null) continue;
+    const next = candles[i + 1];
+    const x2 = next ? ts.timeToCoordinate(next.time as UTCTimestamp) : x + 10;
+    const gap = Math.abs((x2 ?? x + 10) - x);
+    const bw = Math.max(5, Math.min(16, gap * 0.58));
+    const bull = c.close >= c.open;
+    const top = Math.min(yO, yC);
+    const h = Math.max(2, Math.abs(yC - yO));
+    const depth = Math.min(5, bw * 0.32);
+    ctx.strokeStyle = bull ? "rgba(90,230,150,0.95)" : "rgba(240,100,100,0.95)";
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(x, yH);
+    ctx.lineTo(x, yL);
+    ctx.stroke();
+    ctx.fillStyle = "rgba(0,0,0,0.38)";
+    ctx.fillRect(x - bw / 2 + 2, top + 3, bw, h);
+    ctx.beginPath();
+    ctx.moveTo(x + bw / 2, top);
+    ctx.lineTo(x + bw / 2 + depth, top - depth);
+    ctx.lineTo(x + bw / 2 + depth, top + h - depth);
+    ctx.lineTo(x + bw / 2, top + h);
+    ctx.closePath();
+    ctx.fillStyle = bull ? "#0a4a28" : "#6a1212";
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(x - bw / 2, top);
+    ctx.lineTo(x - bw / 2 + depth, top - depth);
+    ctx.lineTo(x + bw / 2 + depth, top - depth);
+    ctx.lineTo(x + bw / 2, top);
+    ctx.closePath();
+    ctx.fillStyle = bull ? "#9affc8" : "#ffc4c4";
+    ctx.fill();
+    const g = ctx.createLinearGradient(x - bw / 2, top, x + bw / 2, top + h);
+    if (bull) {
+      g.addColorStop(0, "#46f0a0");
+      g.addColorStop(0.4, "#1a9a55");
+      g.addColorStop(1, "#0c4a2c");
+    } else {
+      g.addColorStop(0, "#ff8a8a");
+      g.addColorStop(0.4, "#c43333");
+      g.addColorStop(1, "#6a1212");
+    }
+    ctx.fillStyle = g;
+    ctx.fillRect(x - bw / 2, top, bw, h);
+    ctx.strokeStyle = "rgba(255,255,255,0.4)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x - bw / 2 + 1, top + h - 1);
+    ctx.lineTo(x - bw / 2 + 1, top + 1);
+    ctx.lineTo(x + bw / 2 - 1, top + 1);
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(0,0,0,0.4)";
+    ctx.beginPath();
+    ctx.moveTo(x - bw / 2 + 1, top + h - 1);
+    ctx.lineTo(x + bw / 2 - 1, top + h - 1);
+    ctx.lineTo(x + bw / 2 - 1, top + 1);
+    ctx.stroke();
+  }
+}
+
 function drawTape(
   ctx: CanvasRenderingContext2D,
   width: number,
@@ -1285,6 +1361,7 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
             const h = scope.mediaSize.height;
             ctx.clearRect(0, 0, w, h);
             if (z === "bottom") {
+              drawBricks(ctx, chart, series, p.candles);
               drawZones(ctx, w, h, chart, series, p.zones, p.overlays, p.snap, p.setup, p.order, p.candles.at(-1)?.time ?? 0, false, p.candles, p.pair, this.faceI, "fill");
               return;
             }
@@ -1404,13 +1481,10 @@ export function ChartPane({
         },
       });
       const series = chart.addSeries(lc.CandlestickSeries, {
-        upColor: "#1e9a58",
-        downColor: "#c43333",
-        borderUpColor: "#6ee0a8",
-        borderDownColor: "#f08080",
-        wickUpColor: "#3dcc86",
-        wickDownColor: "#e45b5b",
-        borderVisible: true,
+        upColor: "rgba(0,0,0,0)",
+        downColor: "rgba(0,0,0,0)",
+        borderVisible: false,
+        wickVisible: false,
       });
       const volume = chart.addSeries(lc.HistogramSeries, {
         priceFormat: { type: "volume" },
