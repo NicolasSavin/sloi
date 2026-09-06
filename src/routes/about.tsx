@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.8.55",
+    d: "2026-09-06",
+    items: [
+      "Честно: кружки Splash без чарта CD часто пустые. Сов 4.85 шлёт CDSTAT. Сайт пишет, молчит iCustom или нет чарта",
+    ],
+  },
+  {
     v: "1.8.54",
     d: "2026-09-06",
     items: [

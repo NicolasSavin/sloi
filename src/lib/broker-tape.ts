@@ -69,6 +69,7 @@ type Room = {
   cdBars: Map<string, CdBar[]>;
   cum: Map<string, { at: number; path: { time: number; value: number }[] }>;
   ohlc: Map<string, { at: number; bars: { time: number; open: number; high: number; low: number; close: number }[] }>;
+  cdStat: Map<string, { at: number; volume: number; delta: number; splash: boolean; onChart: boolean }>;
 };
 
 const g = globalThis as typeof globalThis & { __sloiRooms__?: Map<string, Room> };
@@ -80,7 +81,7 @@ function room(tenant = "legacy"): Room {
   const map = rooms();
   let r = map.get(tenant);
   if (!r) {
-    r = { ticks: new Map(), books: new Map(), account: null, clusters: new Map(), profiles: new Map(), askbid: new Map(), flow: new Map(), cdBars: new Map(), cum: new Map(), ohlc: new Map() };
+    r = { ticks: new Map(), books: new Map(), account: null, clusters: new Map(), profiles: new Map(), askbid: new Map(), flow: new Map(), cdBars: new Map(), cum: new Map(), ohlc: new Map(), cdStat: new Map() };
     map.set(tenant, r);
   }
   if (!r.profiles) r.profiles = new Map();
@@ -90,6 +91,7 @@ function room(tenant = "legacy"): Room {
   if (!r.cdBars) r.cdBars = new Map();
   if (!r.cum) r.cum = new Map();
   if (!r.ohlc) r.ohlc = new Map();
+  if (!r.cdStat) r.cdStat = new Map();
   return r;
 }
 
@@ -272,6 +274,15 @@ export function ingestBrokerTape(text: string, tenant = "legacy") {
       }
       continue;
     }
+    if (p[0] === "CDSTAT" && p.length >= 5) {
+      const id = (p[1] ?? "").replace(/[^A-Za-z]/g, "").toUpperCase();
+      const volume = Number(p[2]);
+      const delta = Number(p[3]);
+      const splash = p[4] === "1";
+      const onChart = p[5] === "1";
+      if (id) r.cdStat.set(id, { at, volume: volume || 0, delta: delta || 0, splash, onChart });
+      continue;
+    }
     if (p.length < 3) continue;
     const id = p[0]!.replace(/[^A-Za-z]/g, "").toUpperCase();
     const bid = Number(p[1]);
@@ -343,6 +354,15 @@ export function liveProfile(id: string): { poc: number; vah: number; val: number
   return null;
 }
 
+export function liveCdStat(id: string): { volume: number; delta: number; splash: boolean; onChart: boolean } | null {
+  const now = Date.now();
+  for (const r of rooms().values()) {
+    const s = r.cdStat.get(id);
+    if (s && now - s.at < 180_000) return { volume: s.volume, delta: s.delta, splash: s.splash, onChart: s.onChart };
+  }
+  return null;
+}
+
 export function liveClusters(id: string): VolumeNode[] {
   const now = Date.now();
   const out: VolumeNode[] = [];
@@ -368,7 +388,9 @@ export function snapshotBroker(tenant = "legacy") {
     for (const [id, v] of r.cum) if (now - v.at < 180_000) cum[id] = v.path;
     const ohlc: Record<string, { time: number; open: number; high: number; low: number; close: number }[]> = {};
     for (const [id, v] of r.ohlc) if (now - v.at < 180_000) ohlc[id] = v.bars;
-    return { askbid, flow, clusters, bars, cum, ohlc };
+    const stat: Record<string, { volume: number; delta: number; splash: boolean; onChart: boolean }> = {};
+    for (const [id, v] of r.cdStat) if (now - v.at < 180_000) stat[id] = { volume: v.volume, delta: v.delta, splash: v.splash, onChart: v.onChart };
+    return { askbid, flow, clusters, bars, cum, ohlc, stat };
   };
   const pub = mergeRoom(room("public"));
   const own = mergeRoom(room(tenant));
@@ -379,6 +401,7 @@ export function snapshotBroker(tenant = "legacy") {
     bars: { ...pub.bars, ...own.bars },
     cum: { ...pub.cum, ...own.cum },
     ohlc: { ...pub.ohlc, ...own.ohlc },
+    stat: { ...pub.stat, ...own.stat },
   };
   const r = room(tenant);
   return {
@@ -390,7 +413,7 @@ export function snapshotBroker(tenant = "legacy") {
   };
 }
 
-export function hydrateClientCd(cd: { askbid?: Record<string, { ask: number; bid: number }>; flow?: Record<string, { volume: number; delta: number }>; clusters?: Record<string, VolumeNode[]>; bars?: Record<string, CdBar[]>; cum?: Record<string, { time: number; value: number }[]>; ohlc?: Record<string, { time: number; open: number; high: number; low: number; close: number }[]> } | null | undefined) {
+export function hydrateClientCd(cd: { askbid?: Record<string, { ask: number; bid: number }>; flow?: Record<string, { volume: number; delta: number }>; clusters?: Record<string, VolumeNode[]>; bars?: Record<string, CdBar[]>; cum?: Record<string, { time: number; value: number }[]>; ohlc?: Record<string, { time: number; open: number; high: number; low: number; close: number }[]>; stat?: Record<string, { volume: number; delta: number; splash: boolean; onChart: boolean }> } | null | undefined) {
   if (!cd) return;
   const r = room("client");
   const at = Date.now();
@@ -400,12 +423,14 @@ export function hydrateClientCd(cd: { askbid?: Record<string, { ask: number; bid
   r.cdBars = new Map();
   r.cum = new Map();
   r.ohlc = new Map();
+  r.cdStat = new Map();
   for (const [id, v] of Object.entries(cd.askbid ?? {})) r.askbid.set(id, { at, ask: v.ask, bid: v.bid });
   for (const [id, v] of Object.entries(cd.flow ?? {})) r.flow.set(id, { at, volume: v.volume, delta: v.delta });
   for (const [id, v] of Object.entries(cd.clusters ?? {})) r.clusters.set(id, { at, nodes: v });
   for (const [id, v] of Object.entries(cd.bars ?? {})) r.cdBars.set(id, v);
   for (const [id, v] of Object.entries(cd.cum ?? {})) r.cum.set(id, { at, path: v });
   for (const [id, v] of Object.entries(cd.ohlc ?? {})) r.ohlc.set(id, { at, bars: v });
+  for (const [id, v] of Object.entries(cd.stat ?? {})) r.cdStat.set(id, { at, ...v });
 }
 
 export function liveOhlc(id: string): { time: number; open: number; high: number; low: number; close: number }[] {

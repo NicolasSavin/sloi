@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.84"
+#property version   "4.85"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -141,7 +141,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.84: Splash/Infusion/IMB iCustom H1+M15+M5 по мажорам, в т.ч. USDCAD");
+   Print("SLOI 4.85: CDSTAT в ленте — видно, молчит ли iCustom без чарта");
    return(INIT_SUCCEEDED);
   }
 
@@ -1152,6 +1152,24 @@ void AppendCdHistTF(string &body, string s, int tf, int bars, int &sent)
      }
   }
 
+void AppendCdStat(string &body, string s)
+  {
+   double v = Icd(s, PERIOD_M15, CdVolume, 0, 1);
+   double d = Icd(s, PERIOD_M15, CdDelta, 0, 1);
+   double sp = Icd(s, PERIOD_M15, CdSplash, 0, 1);
+   if(sp == EMPTY_VALUE || sp == 0) sp = Icd(s, PERIOD_M15, CdSplash, 1, 1);
+   int onch = 0;
+   long ch = ChartFirst();
+   while(ch >= 0)
+     {
+      if(Naked(ChartSymbol(ch)) == Naked(s)) { onch = 1; break; }
+      ch = ChartNext(ch);
+     }
+   body += "CDSTAT " + Naked(s) + " " + DoubleToStr((v == EMPTY_VALUE || v < 0) ? 0 : v, 0) + " "
+        + DoubleToStr(d == EMPTY_VALUE ? 0 : d, 0) + " "
+        + ((sp != EMPTY_VALUE && sp != 0) ? "1" : "0") + " " + IntegerToString(onch) + "\n";
+  }
+
 void AppendCdHist(string &body, string s, int &sent)
   {
    AppendCdHistTF(body, s, PERIOD_H1, 36, sent);
@@ -1167,6 +1185,7 @@ void AppendCdOne(string &body, string s, int &sent)
      {
       AppendNamed(body, s, CdInfusion, "INFUSION", sent);
       AppendCdHist(body, s, sent);
+      AppendCdStat(body, s);
       return;
      }
    int tf = PERIOD_H1;

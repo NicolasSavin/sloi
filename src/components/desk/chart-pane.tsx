@@ -17,6 +17,7 @@ import type { Advice } from "@/lib/advisor";
 import type { LocalSetup, SmcSnapshot, Zone } from "@/lib/smc/engine";
 import { deltaOf } from "@/lib/smc/flow";
 import { CD_FUT } from "@/lib/smc/micro";
+import { liveCdStat } from "@/lib/broker-tape";
 import { cn } from "@/lib/utils";
 
 function token(name: string, fallback: string) {
@@ -1292,9 +1293,15 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
             drawBricks(ctx, chart, series, p.candles);
             drawTape(ctx, w, chart, series, p.candles, p.snap, p.overlays.flow, p.book);
             if (p.snap && CD_FUT.has(p.pair) && !(p.snap.micro.nodes ?? []).some((n) => n.kind === "splash" || n.kind === "infusion" || n.kind === "imbalance")) {
+              const st = liveCdStat(p.pair);
               ctx.font = "600 12px IBM Plex Sans, sans-serif";
               ctx.fillStyle = "#e8c070";
-              ctx.fillText("CD тишина по " + p.pair + " — индюк не прислал Splash/Infusion", 14, 28);
+              const msg = !st
+                ? "CD тишина по " + p.pair + " — лента не пришла"
+                : st.volume <= 0 && !st.splash
+                  ? p.pair + ": iCustom пуст. Splash без чарта CD часто молчит — повесьте индюк на этот символ"
+                  : p.pair + ": объём CD есть, кружков Splash нет";
+              ctx.fillText(msg, 14, 28);
             }
           });
         },
