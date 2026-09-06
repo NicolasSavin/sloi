@@ -372,28 +372,31 @@ function drawZones(
   };
 
   if (overlays.margin !== false && snap) {
-    const paint = (top: number, bottom: number, fill: string, stroke: string, label: string) => {
+    const paint = (top: number, bottom: number, label: string) => {
       const y1 = series.priceToCoordinate(top);
       const y2 = series.priceToCoordinate(bottom);
       if (y1 == null || y2 == null) return;
       const y = Math.min(y1, y2);
       const h = Math.max(4, Math.abs(y2 - y1));
       fillVolume(0, y, plotW, Math.max(16, h), "margin", label.includes("цена"));
-      if (label.includes("цена")) mark(lastTime, (top + bottom) / 2, "Маржа", "margin");
-      occupy(0, y, plotW * 0.45, h);
+      ctx.save();
+      ctx.font = "700 11px IBM Plex Sans, sans-serif";
+      ctx.fillStyle = "#f0d9a0";
+      ctx.strokeStyle = "rgba(8,6,4,0.65)";
+      ctx.lineWidth = 3;
+      const name = label.includes("верх") ? "Маржа толпы ↑" : "Маржа толпы ↓";
+      ctx.strokeText(name, 10, y + Math.min(14, h / 2 + 4));
+      ctx.fillText(name, 10, y + Math.min(14, h / 2 + 4));
+      ctx.restore();
     };
     paint(
       snap.margin.upper.top,
       snap.margin.upper.bottom,
-      "rgba(181,122,122,0.10)",
-      "rgba(201,184,150,0.45)",
       snap.margin.upper.active ? "маржа верх (цена здесь)" : "маржа верх",
     );
     paint(
       snap.margin.lower.top,
       snap.margin.lower.bottom,
-      "rgba(111,158,134,0.10)",
-      "rgba(201,184,150,0.45)",
       snap.margin.lower.active ? "маржа низ (цена здесь)" : "маржа низ",
     );
   }
