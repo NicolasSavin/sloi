@@ -26,7 +26,7 @@ import { KIND_LABEL, SYMBOLS, TIMEFRAMES, getSymbol } from "@/lib/market/symbols
 import { readDeskKey } from "@/lib/desk-key";
 import { playSignal, unlockSound } from "@/lib/sound";
 import { analyzeMarket, compactForAi, type SmcSnapshot } from "@/lib/smc/engine";
-import { hydrateClientCd } from "@/lib/broker-tape";
+import { hydrateClientCd, liveOhlc, mergeBrokerCandles } from "@/lib/broker-tape";
 import { makeTvBrief } from "@/lib/tv-brief";
 import { cn, formatPct, formatPrice } from "@/lib/utils";
 
@@ -59,6 +59,7 @@ function sourceLabel(source: string, staleSec?: number) {
   if (source === "bybit") return `Bybit · живые свечи${age}`;
   if (source === "yahoo") return `Yahoo · реальные котировки${age}`;
   if (source === "cme-delayed") return `CME · живые свечи фьючерса${age}`;
+  if (source === "broker") return `MT4 · ваш брокер${age}`;
   return source;
 }
 
@@ -97,10 +98,15 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
     refetchInterval: 20_000,
     staleTime: 8_000,
   });
-  const snap = useMemo<SmcSnapshot | null>(() => {
-    if (!market.data?.candles?.length) return null;
+  const candles = useMemo(() => {
     hydrateClientCd(bookQ.data?.cd);
-    return analyzeMarket(market.data.candles, market.data.options, market.data.trades, {
+    const web = market.data?.candles ?? [];
+    return mergeBrokerCandles(web, liveOhlc(spec.id));
+  }, [market.data?.candles, bookQ.data, spec.id]);
+  const snap = useMemo<SmcSnapshot | null>(() => {
+    if (!candles.length) return null;
+    hydrateClientCd(bookQ.data?.cd);
+    return analyzeMarket(candles, market.data?.options ?? null, market.data?.trades, {
       swing: chochLen,
       chochClose,
       symbol: spec.id,
@@ -110,7 +116,7 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
       oilChange: fund?.oilChange,
       halt: fund?.halt,
     });
-  }, [market.data, chochLen, chochClose, spec.id, spec.kind, fund, bookQ.data]);
+  }, [candles, market.data?.options, market.data?.trades, chochLen, chochClose, spec.id, spec.kind, fund, bookQ.data]);
   const [brief, setBrief] = useState<AiBrief | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
@@ -292,7 +298,7 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
               <BookBanner book={book} iceberg={snap?.flow.events.find((e) => e.kind === "absorption")?.therefore} />
               {snap?.clusters ? <ClusterBanner snap={snap} /> : null}
               <ChartStage className="mx-4 mt-2 h-[280px] overflow-hidden rounded-xl panel-volume lg:h-[420px]">
-                <ChartPane candles={market.data?.candles ?? []} snap={snap} overlays={overlays} book={book} order={order} setup={deskMarket?.setup ?? null} className="absolute inset-0 h-full" />
+                <ChartPane candles={candles} snap={snap} overlays={overlays} book={book} order={order} setup={deskMarket?.setup ?? null} className="absolute inset-0 h-full" />
                 <OrderHud order={order} setup={deskMarket?.setup ?? null} decimals={spec.decimals} loading={digestQ.isLoading} boxVector={deskMarket?.boxVector ?? snap?.boxVector} />
               </ChartStage>
               <div className="px-4 pt-3"><EtherCard ether={ether} /></div>

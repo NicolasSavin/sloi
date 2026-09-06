@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.69"
+#property version   "4.70"
 #property strict
-#property description "SLOI 4.69: ClusterDelta по всем мажорам, не только евро и золото."
+#property description "SLOI 4.70: OHLC H1 с терминала на сайт — свечи как в MT4."
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -138,7 +138,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.69: CD CumDelta/Splash по всему WatchList.");
+   Print("SLOI 4.70: BAR H1 с терминала.");
    return(INIT_SUCCEEDED);
   }
 
@@ -1275,6 +1275,29 @@ void AppendCdAskBid(string &body, string s)
    if(dlt != 0) body += "DELTA " + Naked(s) + " " + DoubleToStr(dlt, 0) + "\n";
   }
 
+void AppendBrokerBars(string &body, bool hist)
+  {
+   int tf = PERIOD_H1;
+   int from = hist ? 47 : 0;
+   for(int i = 0; i < g_n; i++)
+     {
+      string s = g_sym[i];
+      int d = DigitsOf(s);
+      for(int b = from; b >= 0; b--)
+        {
+         datetime t = iTime(s, tf, b);
+         double o = iOpen(s, tf, b);
+         double h = iHigh(s, tf, b);
+         double l = iLow(s, tf, b);
+         double c = iClose(s, tf, b);
+         if(t <= 0 || o <= 0 || h <= 0 || l <= 0 || c <= 0) continue;
+         body += "BAR " + Naked(s) + " " + IntegerToString((int)t) + " "
+              + DoubleToStr(o, d) + " " + DoubleToStr(h, d) + " "
+              + DoubleToStr(l, d) + " " + DoubleToStr(c, d) + "\n";
+        }
+     }
+  }
+
 void PostTape(string url, string body)
   {
    char data[];
@@ -1331,6 +1354,10 @@ void PushTape()
       if(bid <= 0 || ask <= 0) continue;
       body += Naked(s) + " " + DoubleToStr(bid, DigitsOf(s)) + " " + DoubleToStr(ask, DigitsOf(s)) + "\n";
      }
+   static datetime lastBars = 0;
+   bool hist = (lastBars == 0 || TimeCurrent() - lastBars >= 300);
+   AppendBrokerBars(body, hist);
+   if(hist) lastBars = TimeCurrent();
    PostTape(url, body);
    string extra = "";
    AppendClusters(extra);

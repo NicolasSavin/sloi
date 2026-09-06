@@ -68,6 +68,7 @@ type Room = {
   flow: Map<string, { at: number; volume: number; delta: number }>;
   cdBars: Map<string, CdBar[]>;
   cum: Map<string, { at: number; path: { time: number; value: number }[] }>;
+  ohlc: Map<string, { at: number; bars: { time: number; open: number; high: number; low: number; close: number }[] }>;
 };
 
 const g = globalThis as typeof globalThis & { __sloiRooms__?: Map<string, Room> };
@@ -79,7 +80,7 @@ function room(tenant = "legacy"): Room {
   const map = rooms();
   let r = map.get(tenant);
   if (!r) {
-    r = { ticks: new Map(), books: new Map(), account: null, clusters: new Map(), profiles: new Map(), askbid: new Map(), flow: new Map(), cdBars: new Map(), cum: new Map() };
+    r = { ticks: new Map(), books: new Map(), account: null, clusters: new Map(), profiles: new Map(), askbid: new Map(), flow: new Map(), cdBars: new Map(), cum: new Map(), ohlc: new Map() };
     map.set(tenant, r);
   }
   if (!r.profiles) r.profiles = new Map();
@@ -88,6 +89,7 @@ function room(tenant = "legacy"): Room {
   if (!r.flow) r.flow = new Map();
   if (!r.cdBars) r.cdBars = new Map();
   if (!r.cum) r.cum = new Map();
+  if (!r.ohlc) r.ohlc = new Map();
   return r;
 }
 
@@ -208,6 +210,25 @@ export function ingestBrokerTape(text: string, tenant = "legacy") {
       if (id && Number.isFinite(delta)) {
         const prev = r.flow.get(id);
         r.flow.set(id, { at, volume: prev?.volume ?? 0, delta });
+      }
+      continue;
+    }
+    if (p[0] === "BAR" && p.length >= 7) {
+      const id = (p[1] ?? "").replace(/[^A-Za-z]/g, "").toUpperCase();
+      const time = Number(p[2]);
+      const open = Number(p[3]);
+      const high = Number(p[4]);
+      const low = Number(p[5]);
+      const close = Number(p[6]);
+      if (id && time > 0 && open > 0 && high > 0 && low > 0 && close > 0) {
+        const prev = r.ohlc.get(id);
+        const bars = [...(prev?.bars ?? [])];
+        const i = bars.findIndex((b) => b.time === time);
+        const bar = { time, open, high, low, close };
+        if (i >= 0) bars[i] = bar;
+        else bars.push(bar);
+        bars.sort((a, b) => a.time - b.time);
+        r.ohlc.set(id, { at, bars: bars.slice(-64) });
       }
       continue;
     }
@@ -343,16 +364,18 @@ export function snapshotBroker(tenant = "legacy") {
   for (const [id, v] of r.cdBars) bars[id] = v;
   const cum: Record<string, { time: number; value: number }[]> = {};
   for (const [id, v] of r.cum) if (now - v.at < 180_000) cum[id] = v.path;
+  const ohlc: Record<string, { time: number; open: number; high: number; low: number; close: number }[]> = {};
+  for (const [id, v] of r.ohlc) if (now - v.at < 180_000) ohlc[id] = v.bars;
   return {
     ticks: [...r.ticks.values()].filter((t) => now - t.at < 90_000),
     books: [...r.books.values()].filter((b) => now - b.at < 90_000),
     account: tenant === "legacy" ? null : brokerAccount(tenant),
     tenant: tenant === "legacy" ? null : tenant,
-    cd: { askbid, flow, clusters, bars, cum },
+    cd: { askbid, flow, clusters, bars, cum, ohlc },
   };
 }
 
-export function hydrateClientCd(cd: { askbid?: Record<string, { ask: number; bid: number }>; flow?: Record<string, { volume: number; delta: number }>; clusters?: Record<string, VolumeNode[]>; bars?: Record<string, CdBar[]>; cum?: Record<string, { time: number; value: number }[]> } | null | undefined) {
+export function hydrateClientCd(cd: { askbid?: Record<string, { ask: number; bid: number }>; flow?: Record<string, { volume: number; delta: number }>; clusters?: Record<string, VolumeNode[]>; bars?: Record<string, CdBar[]>; cum?: Record<string, { time: number; value: number }[]>; ohlc?: Record<string, { time: number; open: number; high: number; low: number; close: number }[]> } | null | undefined) {
   if (!cd) return;
   const r = room("client");
   const at = Date.now();
@@ -361,11 +384,45 @@ export function hydrateClientCd(cd: { askbid?: Record<string, { ask: number; bid
   r.clusters = new Map();
   r.cdBars = new Map();
   r.cum = new Map();
+  r.ohlc = new Map();
   for (const [id, v] of Object.entries(cd.askbid ?? {})) r.askbid.set(id, { at, ask: v.ask, bid: v.bid });
   for (const [id, v] of Object.entries(cd.flow ?? {})) r.flow.set(id, { at, volume: v.volume, delta: v.delta });
   for (const [id, v] of Object.entries(cd.clusters ?? {})) r.clusters.set(id, { at, nodes: v });
   for (const [id, v] of Object.entries(cd.bars ?? {})) r.cdBars.set(id, v);
   for (const [id, v] of Object.entries(cd.cum ?? {})) r.cum.set(id, { at, path: v });
+  for (const [id, v] of Object.entries(cd.ohlc ?? {})) r.ohlc.set(id, { at, bars: v });
+}
+
+export function liveOhlc(id: string): { time: number; open: number; high: number; low: number; close: number }[] {
+  const map = new Map<number, { time: number; open: number; high: number; low: number; close: number }>();
+  const now = Date.now();
+  for (const r of rooms().values()) {
+    const v = r.ohlc.get(id);
+    if (!v || now - v.at > 180_000) continue;
+    for (const b of v.bars) map.set(b.time, b);
+  }
+  return [...map.values()].sort((a, b) => a.time - b.time);
+}
+
+export function mergeBrokerCandles<T extends { time: number; open: number; high: number; low: number; close: number; volume?: number }>(
+  web: T[],
+  broker: { time: number; open: number; high: number; low: number; close: number }[],
+): T[] {
+  if (broker.length < 8) return web;
+  const map = new Map<number, T>();
+  for (const c of web) map.set(c.time, c);
+  for (const b of broker) {
+    const prev = map.get(b.time);
+    map.set(b.time, {
+      ...(prev ?? ({ volume: 1 } as T)),
+      time: b.time,
+      open: b.open,
+      high: b.high,
+      low: b.low,
+      close: b.close,
+    });
+  }
+  return [...map.values()].sort((a, b) => a.time - b.time);
 }
 
 export function liveCumDelta(id: string): { time: number; value: number }[] {
