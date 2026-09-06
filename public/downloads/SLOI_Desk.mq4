@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.88"
+#property version   "4.89"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -141,7 +141,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.88: CDCHARTS какие окна видит сов; лимит кружков на каждый чарт");
+   Print("SLOI 4.89: CDCHARTS с числом объектов; любая точка на чарте Splash = кружок");
    return(INIT_SUCCEEDED);
   }
 
@@ -1031,8 +1031,9 @@ void DumpCdObject(long ch, string n, string &body, int &sent, bool hasSplash, bo
       else if(hasSplash && orange) kind = "SPLASH";
       else if(hasImb && blue) kind = "IMBALANCE";
       else if(namedInf) kind = "INFUSION";
+      else if(isDot && hasSplash) kind = "SPLASH";
       else if(isDot && hasInf && lime) kind = "INFUSION";
-      else if(isDot && hasSplash && !lime) kind = "SPLASH";
+      else if(isDot && hasImb && blue) kind = "IMBALANCE";
      }
    if(kind == "") return;
    string sym = ChartSymbol(ch);
@@ -1057,7 +1058,14 @@ void AppendClusters(string &body)
    while(ch >= 0)
      {
       string ns = Naked(ChartSymbol(ch));
-      if(StringLen(ns) > 2 && StringFind(seen, ns) < 0) seen = seen + ns + ",";
+      int wins = (int)ChartGetInteger(ch, CHART_WINDOWS_TOTAL);
+      int objs = 0;
+      for(int w = 0; w < MathMax(1, wins); w++) objs += ObjectsTotal(ch, w, -1);
+      string inds = "";
+      if(ChartHasInd(ch, "splash")) inds += "S";
+      if(ChartHasInd(ch, "infusion")) inds += "I";
+      if(ChartHasInd(ch, "imbalance")) inds += "M";
+      if(StringLen(ns) > 2) seen = seen + ns + ":" + inds + objs + ",";
       ch = ChartNext(ch);
      }
    if(StringLen(seen) > 2) body += "CDCHARTS " + seen + "\n";
@@ -1068,15 +1076,19 @@ void AppendClusters(string &body)
       bool hasS = ChartHasInd(ch, "splash");
       bool hasI = ChartHasInd(ch, "infusion");
       bool hasM = ChartHasInd(ch, "imbalance");
-      int total = (int)ObjectsTotal(ch, -1, -1);
+      int wins = (int)ChartGetInteger(ch, CHART_WINDOWS_TOTAL);
       int local = 0;
-      for(int i = 0; i < total && sent < 400 && local < 28; i++)
+      for(int w = 0; w < MathMax(1, wins) && sent < 400 && local < 28; w++)
         {
-         string n = ObjectName(ch, i, -1, -1);
-         if(StringLen(n) < 1) continue;
-         int before = sent;
-         DumpCdObject(ch, n, body, sent, hasS, hasI, hasM);
-         if(sent > before) local++;
+         int total = ObjectsTotal(ch, w, -1);
+         for(int i = 0; i < total && sent < 400 && local < 28; i++)
+           {
+            string n = ObjectName(ch, i, w, -1);
+            if(StringLen(n) < 1) continue;
+            int before = sent;
+            DumpCdObject(ch, n, body, sent, hasS, hasI, hasM);
+            if(sent > before) local++;
+           }
         }
       ch = ChartNext(ch);
      }
