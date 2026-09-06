@@ -160,6 +160,7 @@ export function buildMicro(
   // Крупный объём + узкий бар + слабая дельта = остановка (infusion / вливание).
   // Крупный объём + широкий бар + сильная дельта = толчок (splash).
   const raw: VolumeNode[] = [];
+  const native = CD_FUT.has(symbol);
   const fromCd = live.length > 0 || cdBars.some((b) => b.splash || b.infusion);
   if (fromCd) {
     raw.push(...live.map((n) => ({ ...n })));
@@ -183,34 +184,15 @@ export function buildMicro(
       }
     }
   }
-  const needHeuristic = !CD_FUT.has(symbol) || !raw.some((n) => n.kind === "infusion");
-  if (needHeuristic) {
+  if (!native && !raw.some((n) => n.kind === "infusion")) {
     for (let i = 6; i < use.length; i++) {
       const c = use[i]!;
-      const look = use.slice(Math.max(0, i - 14), i);
-      const swingH = Math.max(...look.map((x) => x.high));
-      const swingL = Math.min(...look.map((x) => x.low));
       const barSpan = c.high - c.low || 1e-9;
       const d = deltaOf(c);
       const v = barVolume(c);
       if (v < thresh) continue;
       const rangeRatio = barSpan / spanMed;
       const deltaShare = Math.abs(d) / v;
-      const upperWick = c.high - Math.max(c.open, c.close);
-      const lowerWick = Math.min(c.open, c.close) - c.low;
-      const tookHigh = c.high > swingH && upperWick >= barSpan * 0.32 && c.close < swingH;
-      const tookLow = c.low < swingL && lowerWick >= barSpan * 0.32 && c.close > swingL;
-      if (tookHigh || tookLow) {
-        if (!CD_FUT.has(symbol) || !raw.some((n) => n.kind === "splash")) {
-          raw.push({
-            price: tookHigh ? c.high : c.low,
-            side: tookHigh ? "sell" : "buy",
-            kind: "splash",
-            time: c.time,
-          });
-        }
-        continue;
-      }
       if (rangeRatio < 0.88 && deltaShare < 0.48) {
         raw.push({
           price: (c.high + c.low) / 2,

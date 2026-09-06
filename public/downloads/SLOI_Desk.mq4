@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.78"
+#property version   "4.79"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -141,7 +141,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.78: splash только с объектов CD Splash, без чужих стрелок");
+   Print("SLOI 4.79: splash с #Splash на всех; infusion с CD только мажоры");
    return(INIT_SUCCEEDED);
   }
 
@@ -1126,11 +1126,11 @@ void AppendCdHist(string &body, string s, int &sent)
 
 void AppendCdOne(string &body, string s, int &sent)
   {
+   AppendNamed(body, s, CdSplash, "SPLASH", sent);
+   AppendNamed(body, s, CdImbalance, "IMBALANCE", sent);
    if(CdFut(s))
      {
       AppendNamed(body, s, CdInfusion, "INFUSION", sent);
-      AppendNamed(body, s, CdSplash, "SPLASH", sent);
-      AppendNamed(body, s, CdImbalance, "IMBALANCE", sent);
       AppendCdHist(body, s, sent);
       return;
      }
@@ -1156,15 +1156,12 @@ void AppendCdOne(string &body, string s, int &sent)
    for(int j = 0; j < 8 && sent < 80; j++)
      {
       if(vol[j] < avg * 1.55) continue;
+      double ratio = vol[j] > 0 ? MathAbs(del[j]) / vol[j] : 0;
+      if(ratio >= 0.28) continue;
       double px = iClose(s, tf, j + 1);
       if(px <= 0) continue;
-      double ratio = vol[j] > 0 ? MathAbs(del[j]) / vol[j] : 0;
-      string kind = "";
-      if(ratio > 0.50) kind = "SPLASH";
-      else if(ratio < 0.28) kind = "INFUSION";
-      if(kind == "") continue;
       string sd = (del[j] >= 0) ? "BUY" : "SELL";
-      body += "CLUSTER " + Naked(s) + " " + kind + " " + DoubleToStr(px, DigitsOf(s)) + " " + sd
+      body += "CLUSTER " + Naked(s) + " INFUSION " + DoubleToStr(px, DigitsOf(s)) + " " + sd
            + " " + IntegerToString((int)iTime(s, tf, j + 1)) + "\n";
       sent++;
      }
