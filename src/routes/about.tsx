@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.8.26",
+    d: "2026-09-06",
+    items: [
+      "Вливание (#Infusion) — отдельная зелёная зона на графике, как FVG, не только тонкая линия",
+    ],
+  },
+  {
     v: "1.8.25",
     d: "2026-09-06",
     items: [

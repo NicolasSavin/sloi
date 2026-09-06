@@ -319,6 +319,7 @@ function drawZones(
     wait: { top: "rgba(160,160,180,0.32)", mid: "rgba(210,210,230,0.52)", stroke: "#c0c0d0", b0: "#f0f0f8", b1: "#505068", t0: "#ffffff", t1: "#303048" },
     margin: { top: "rgba(201,160,90,0.10)", mid: "rgba(240,210,140,0.18)", stroke: "#d4b070", b0: "#f8e8c0", b1: "#8a6020", t0: "#fff8e0", t1: "#5a3810" },
     pat: { top: "rgba(80,140,220,0.40)", mid: "rgba(150,190,255,0.64)", stroke: "#80b8ff", b0: "#d8e8ff", b1: "#2058a8", t0: "#f0f6ff", t1: "#103868" },
+    inf: { top: "rgba(180,230,40,0.20)", mid: "rgba(220,255,80,0.36)", stroke: "#d4ff40", b0: "#f0ffb0", b1: "#6a8a08", t0: "#f6ffd0", t1: "#3a5200" },
   };
   const fillVolume = (x: number, y: number, w: number, h: number, tone: string, blink = false) => {
     if (!paintFill) return;
@@ -484,6 +485,33 @@ function drawZones(
       }
       if (note) mark(z.startTime, (z.top + z.bottom) / 2, note, tone);
       else if (zw < 86 || h < 20) mark(z.startTime, (z.top + z.bottom) / 2, inside, tone);
+    }
+  }
+
+  {
+    const infs = (snap?.micro.nodes.filter((n) => n.kind === "infusion") ?? []).slice(-3);
+    const nowX = ts.timeToCoordinate(lastTime as UTCTimestamp) ?? plotW - 24;
+    for (const n of infs) {
+      const y = series.priceToCoordinate(n.price);
+      if (y == null) continue;
+      const t = n.time > 1e12 ? Math.floor(n.time / 1000) : n.time;
+      const x1 = ts.timeToCoordinate(t as UTCTimestamp) ?? 8;
+      const left = Math.max(4, x1);
+      const zw = Math.max(72, nowX - left);
+      const h = 26;
+      fillVolume(left, y - h / 2, zw, h, "inf", true);
+      ctx.save();
+      ctx.font = "700 13px IBM Plex Sans, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.strokeStyle = "rgba(8,6,4,0.55)";
+      ctx.lineWidth = 3;
+      ctx.strokeText("ВЛИВАНИЕ", left + zw / 2, y);
+      ctx.fillStyle = "#e8ff70";
+      ctx.fillText("ВЛИВАНИЕ", left + zw / 2, y);
+      ctx.restore();
+      ctx.textAlign = "left";
+      ctx.textBaseline = "alphabetic";
     }
   }
 
