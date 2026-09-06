@@ -1453,6 +1453,7 @@ export function ChartPane({
   const setupRef = useRef(setup);
   const pair = useDeskStore((s) => s.symbol);
   const pairRef = useRef(pair);
+  const fittedKey = useRef("");
   const [ready, setReady] = useState(false);
   snapRef.current = snap;
   overlaysRef.current = overlays;
@@ -1502,6 +1503,9 @@ export function ChartPane({
           borderColor: "rgba(255,255,255,0.08)",
           timeVisible: true,
           secondsVisible: false,
+          rightOffset: 8,
+          shiftVisibleRangeOnNewBar: true,
+          lockVisibleTimeRangeOnResize: true,
         },
         crosshair: {
           vertLine: {
@@ -1658,8 +1662,12 @@ export function ChartPane({
         }),
       );
     }
-    chartRef.current?.timeScale().fitContent();
-  }, [candles, ready, snap?.cdTape?.cum]);
+    const ts = chartRef.current?.timeScale();
+    if (fittedKey.current !== pair) {
+      ts?.fitContent();
+      fittedKey.current = pair;
+    }
+  }, [candles, ready, snap?.cdTape?.cum, pair]);
 
   useEffect(() => {
     const series = seriesRef.current;
