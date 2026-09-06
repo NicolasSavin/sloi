@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.8.53",
+    d: "2026-09-06",
+    items: [
+      "Мажоры (USDCAD…) — шарики только с ClusterDelta. Сов 4.84 читает Splash/Infusion/IMB на H1, M15 и M5",
+    ],
+  },
+  {
     v: "1.8.52",
     d: "2026-09-06",
     items: [

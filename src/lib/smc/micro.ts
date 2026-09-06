@@ -194,7 +194,7 @@ export function buildMicro(
     }
   }
   const volFlat = (sorted.at(-1) ?? 1) / Math.max(sorted[0] ?? 1, 1e-9) < 1.35;
-  if (!raw.some((n) => n.kind === "infusion")) {
+  if (!native && !raw.some((n) => n.kind === "infusion")) {
     for (let i = 6; i < use.length; i++) {
       const c = use[i]!;
       const barSpan = c.high - c.low || 1e-9;
@@ -213,7 +213,7 @@ export function buildMicro(
       }
     }
   }
-  if (!raw.some((n) => n.kind === "splash")) {
+  if (!native && !raw.some((n) => n.kind === "splash")) {
     for (let i = 6; i < use.length; i++) {
       const c = use[i]!;
       const barSpan = c.high - c.low || 1e-9;
@@ -257,7 +257,7 @@ export function buildMicro(
       ? !after.some((c) => c.close < n.price - atrLike * 0.28)
       : !after.some((c) => c.close > n.price + atrLike * 0.28);
   }
-  if (!nodes.some((n) => n.kind === "splash" || n.kind === "infusion")) {
+  if (!native && !nodes.some((n) => n.kind === "splash" || n.kind === "infusion")) {
     const tail = use.slice(-24);
     const ranked = [...tail].sort((a, b) => b.high - b.low - (a.high - a.low));
     for (const c of ranked.slice(0, 3)) {

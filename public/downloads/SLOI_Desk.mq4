@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.83"
+#property version   "4.84"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -141,7 +141,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.83: больше кружков Splash/Infusion/IMB с индюка");
+   Print("SLOI 4.84: Splash/Infusion/IMB iCustom H1+M15+M5 по мажорам, в т.ч. USDCAD");
    return(INIT_SUCCEEDED);
   }
 
@@ -1105,10 +1105,9 @@ bool CdFut(string s)
    return(false);
   }
 
-void AppendCdHist(string &body, string s, int &sent)
+void AppendCdHistTF(string &body, string s, int tf, int bars, int &sent)
   {
-   int tf = PERIOD_H1;
-   for(int i = 0; i < 48 && sent < 200; i++)
+   for(int i = 0; i < bars && sent < 280; i++)
      {
       datetime t = iTime(s, tf, i);
       if(t <= 0) continue;
@@ -1125,9 +1124,10 @@ void AppendCdHist(string &body, string s, int &sent)
       int spl = (sp != EMPTY_VALUE && sp != 0) ? 1 : 0;
       int infg = (inf != EMPTY_VALUE && inf != 0) ? 1 : 0;
       int imbg = (imb != EMPTY_VALUE && imb != 0) ? 1 : 0;
-      body += "CDBAR " + Naked(s) + " " + IntegerToString((int)t) + " "
-           + DoubleToStr(v, 0) + " " + DoubleToStr(d, 0) + " 0 0 "
-           + IntegerToString(spl) + " " + IntegerToString(infg) + " " + IntegerToString(imbg) + "\n";
+      if(tf == PERIOD_H1)
+         body += "CDBAR " + Naked(s) + " " + IntegerToString((int)t) + " "
+              + DoubleToStr(v, 0) + " " + DoubleToStr(d, 0) + " 0 0 "
+              + IntegerToString(spl) + " " + IntegerToString(infg) + " " + IntegerToString(imbg) + "\n";
       if(spl)
         {
          double px = LooksPx(sp, BidOf(s)) ? sp : iClose(s, tf, i);
@@ -1150,6 +1150,13 @@ void AppendCdHist(string &body, string s, int &sent)
          sent++;
         }
      }
+  }
+
+void AppendCdHist(string &body, string s, int &sent)
+  {
+   AppendCdHistTF(body, s, PERIOD_H1, 36, sent);
+   AppendCdHistTF(body, s, PERIOD_M15, 24, sent);
+   AppendCdHistTF(body, s, PERIOD_M5, 24, sent);
   }
 
 void AppendCdOne(string &body, string s, int &sent)
