@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.8.38",
+    d: "2026-09-06",
+    items: [
+      "Если на зоне уже читается FVG/блок — второй пузырь не рисуем",
+    ],
+  },
+  {
     v: "1.8.37",
     d: "2026-09-06",
     items: [

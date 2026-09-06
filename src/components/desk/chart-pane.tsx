@@ -480,8 +480,11 @@ function drawZones(
       ctx.restore();
       ctx.textAlign = "left";
       ctx.textBaseline = "alphabetic";
-      if (note) mark(z.startTime, (z.top + z.bottom) / 2, note, tone);
-      else mark(z.startTime, (z.top + z.bottom) / 2, inside, tone);
+      const readable = zw >= 52 && h >= 16;
+      if (!readable) {
+        if (note) mark(z.startTime, (z.top + z.bottom) / 2, note, tone);
+        else mark(z.startTime, (z.top + z.bottom) / 2, inside, tone);
+      }
     }
   }
 
