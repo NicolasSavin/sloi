@@ -1206,6 +1206,31 @@ function drawBricks(
   }
 }
 
+function cursorOnCandle(
+  chart: IChartApi,
+  series: ISeriesApi<"Candlestick">,
+  candles: Candle[],
+  point: { x: number; y: number } | undefined,
+  time: unknown,
+) {
+  if (!point || time == null) return false;
+  const ts = chart.timeScale();
+  for (let i = 0; i < candles.length; i++) {
+    const c = candles[i]!;
+    const x = ts.timeToCoordinate(c.time as UTCTimestamp);
+    const yH = series.priceToCoordinate(c.high);
+    const yL = series.priceToCoordinate(c.low);
+    if (x == null || yH == null || yL == null) continue;
+    const next = candles[i + 1];
+    const x2 = next ? ts.timeToCoordinate(next.time as UTCTimestamp) : x + 10;
+    const half = Math.max(4, Math.abs((x2 ?? x + 10) - x) * 0.4);
+    const top = Math.min(yH, yL) - 3;
+    const bot = Math.max(yH, yL) + 3;
+    if (Math.abs(point.x - x) <= half && point.y >= top && point.y <= bot) return true;
+  }
+  return false;
+}
+
 function drawTape(
   ctx: CanvasRenderingContext2D,
   width: number,
@@ -1540,7 +1565,12 @@ export function ChartPane({
         }
       };
       chart.subscribeCrosshairMove((param) => {
-        const next = param?.point != null && param.time != null;
+        const s = seriesRef.current;
+        const next = Boolean(
+          chart &&
+            s &&
+            cursorOnCandle(chart, s, candlesRef.current, param?.point, param?.time),
+        );
         if (next === hoverRef.current) return;
         hoverRef.current = next;
         paint();
