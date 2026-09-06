@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.73"
+#property version   "4.74"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -141,7 +141,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.73: ", g_host ? "хозяин — CD на общий стол" : "клиент — сверка брокер/сайт");
+   Print("SLOI 4.74: splash/infusion с #Splash и #Infusion. ", g_host ? "хозяин — CD на стол" : "клиент — сверка брокер/сайт");
    return(INIT_SUCCEEDED);
   }
 
@@ -1040,43 +1040,6 @@ double Icd(string s, int tf, string ind, int buf, int sh)
 
 void AppendCdOne(string &body, string s, int &sent)
   {
-   if(sent >= 80) return;
-   int tf = PERIOD_H1;
-   double vol[12];
-   double del[12];
-   ArrayInitialize(vol, 0);
-   ArrayInitialize(del, 0);
-   double sum = 0;
-   int ok = 0;
-   for(int i = 1; i <= 12; i++)
-     {
-      ResetLastError();
-      double v = Icd(s, tf, CdVolume, 0, i);
-      double d = Icd(s, tf, CdDelta, 0, i);
-      if(v == EMPTY_VALUE || v <= 0 || v > 1.0e12) { vol[i - 1] = 0; del[i - 1] = 0; continue; }
-      if(d == EMPTY_VALUE || MathAbs(d) > 1.0e12) d = 0;
-      vol[i - 1] = v;
-      del[i - 1] = d;
-      sum += v;
-      ok++;
-     }
-   if(ok < 4) return;
-   double avg = sum / ok;
-   for(int j = 0; j < 8 && sent < 80; j++)
-     {
-      double v = vol[j];
-      double d = del[j];
-      if(v < avg * 1.55) continue;
-      double px = iClose(s, tf, j + 1);
-      if(px <= 0) continue;
-      double ratio = (v > 0 ? MathAbs(d) / v : 0);
-      string kind = "INFUSION";
-      if(ratio > 0.50) kind = "SPLASH";
-      else if(ratio > 0.28) continue;
-      string sd = (d >= 0) ? "BUY" : "SELL";
-      body += "CLUSTER " + Naked(s) + " " + kind + " " + DoubleToStr(px, DigitsOf(s)) + " " + sd + "\n";
-      sent++;
-     }
    AppendNamed(body, s, CdInfusion, "INFUSION", sent);
    AppendNamed(body, s, CdSplash, "SPLASH", sent);
    AppendNamed(body, s, CdImbalance, "IMBALANCE", sent);
@@ -1216,8 +1179,14 @@ void ScrapeChartCd(long ch, string s, string &body)
    if(cum && dlt != 0) body += "CUMDELTA " + Naked(s) + " " + DoubleToStr(dlt, 0) + "\n";
    datetime bt = iTime(ChartSymbol(ch), PERIOD_H1, 0);
    if(bt <= 0) bt = TimeCurrent();
-   int sp = (vol > 200 && MathAbs(dlt) > vol * 0.12) ? 1 : 0;
-   int infg = (vol > 80 && MathAbs(dlt) <= vol * 0.22) ? 1 : 0;
+   double inf0 = Icd(s, PERIOD_H1, CdInfusion, 0, 0);
+   if(inf0 == EMPTY_VALUE || inf0 == 0) inf0 = Icd(s, PERIOD_H1, CdInfusion, 1, 0);
+   double spl0 = Icd(s, PERIOD_H1, CdSplash, 0, 0);
+   if(spl0 == EMPTY_VALUE || spl0 == 0) spl0 = Icd(s, PERIOD_H1, CdSplash, 1, 0);
+   if(inf0 != EMPTY_VALUE && inf0 != 0) inf = true;
+   if(spl0 != EMPTY_VALUE && spl0 != 0) spl = true;
+   int sp = spl ? 1 : 0;
+   int infg = inf ? 1 : 0;
    int im = (askV > 1 && bidV > 1 && (askV > bidV * 1.45 || bidV > askV * 1.45)) ? 1 : 0;
    body += "CDBAR " + Naked(s) + " " + IntegerToString(bt) + " "
         + DoubleToStr(vol, 0) + " " + DoubleToStr(dlt, 0) + " "

@@ -175,40 +175,6 @@ export function buildMicro(
         });
       }
     }
-  } else {
-  for (let i = 6; i < use.length; i++) {
-    const c = use[i]!;
-    const look = use.slice(Math.max(0, i - 14), i);
-    const swingH = Math.max(...look.map((x) => x.high));
-    const swingL = Math.min(...look.map((x) => x.low));
-    const barSpan = c.high - c.low || 1e-9;
-    const d = deltaOf(c);
-    const v = barVolume(c);
-    if (v < thresh) continue;
-    const rangeRatio = barSpan / spanMed;
-    const deltaShare = Math.abs(d) / v;
-    const upperWick = c.high - Math.max(c.open, c.close);
-    const lowerWick = Math.min(c.open, c.close) - c.low;
-    const tookHigh = c.high > swingH && upperWick >= barSpan * 0.32 && c.close < swingH;
-    const tookLow = c.low < swingL && lowerWick >= barSpan * 0.32 && c.close > swingL;
-    if (tookHigh || tookLow) {
-      raw.push({
-        price: tookHigh ? c.high : c.low,
-        side: tookHigh ? "sell" : "buy",
-        kind: "splash",
-        time: c.time,
-      });
-      continue;
-    }
-    if (rangeRatio < 0.88 && deltaShare < 0.48) {
-      raw.push({
-        price: (c.high + c.low) / 2,
-        side: d >= 0 ? "buy" : "sell",
-        kind: "infusion",
-        time: c.time,
-      });
-    }
-  }
   }
   const nodes: VolumeNode[] = [];
   for (const n of raw) {
