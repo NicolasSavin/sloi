@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.8.18",
+    d: "2026-09-06",
+    items: [
+      "Infusion ClusterDelta — только мажоры и металлы (6E, 6B, GC…). Кроссы EURJPY/EURGBP… — эвристика объём/дельта, у CD на них нет своего фьючерса",
+    ],
+  },
+  {
     v: "1.8.17",
     d: "2026-09-06",
     items: [

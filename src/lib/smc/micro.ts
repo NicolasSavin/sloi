@@ -101,11 +101,18 @@ export function nearestStall(entry: number, dir: 1 | -1, atr: number, nodes: Vol
   return { price, from: from as "infusion" | "hvn" };
 }
 
+const CD_FUT = new Set([
+  "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD", "NZDUSD",
+  "XAUUSD", "XAGUSD", "XTIUSD", "XBRUSD", "XNGUSD",
+  "BTCUSD", "ETHUSD",
+]);
+
 export function buildMicro(
   candles: Candle[],
   live: VolumeNode[] = [],
   ab: { ask: number; bid: number } | null = null,
   cdBars: CdBar[] = [],
+  symbol = "",
 ): MicroSnap {
   const use = candles.slice(-80);
   let pv = 0;
@@ -176,6 +183,44 @@ export function buildMicro(
       }
     }
   }
+  const needHeuristic = !CD_FUT.has(symbol) || !raw.some((n) => n.kind === "infusion");
+  if (needHeuristic) {
+    for (let i = 6; i < use.length; i++) {
+      const c = use[i]!;
+      const look = use.slice(Math.max(0, i - 14), i);
+      const swingH = Math.max(...look.map((x) => x.high));
+      const swingL = Math.min(...look.map((x) => x.low));
+      const barSpan = c.high - c.low || 1e-9;
+      const d = deltaOf(c);
+      const v = barVolume(c);
+      if (v < thresh) continue;
+      const rangeRatio = barSpan / spanMed;
+      const deltaShare = Math.abs(d) / v;
+      const upperWick = c.high - Math.max(c.open, c.close);
+      const lowerWick = Math.min(c.open, c.close) - c.low;
+      const tookHigh = c.high > swingH && upperWick >= barSpan * 0.32 && c.close < swingH;
+      const tookLow = c.low < swingL && lowerWick >= barSpan * 0.32 && c.close > swingL;
+      if (tookHigh || tookLow) {
+        if (!CD_FUT.has(symbol) || !raw.some((n) => n.kind === "splash")) {
+          raw.push({
+            price: tookHigh ? c.high : c.low,
+            side: tookHigh ? "sell" : "buy",
+            kind: "splash",
+            time: c.time,
+          });
+        }
+        continue;
+      }
+      if (rangeRatio < 0.88 && deltaShare < 0.48) {
+        raw.push({
+          price: (c.high + c.low) / 2,
+          side: d >= 0 ? "buy" : "sell",
+          kind: "infusion",
+          time: c.time,
+        });
+      }
+    }
+  }
   const nodes: VolumeNode[] = [];
   for (const n of raw) {
     const near = nodes.find((x) => x.kind === n.kind && Math.abs(x.price - n.price) < atrLike * 0.35);
@@ -194,9 +239,9 @@ export function buildMicro(
     infusion = {
       price: lastInf.price,
       side: lastInf.side,
-      because: fromCd
-        ? `Вливание ClusterDelta: узкий бар, слабая дельта — лимит впитал удар.`
-        : `Вливание (прокси свечей, CD нет): объём выше порога, бар узкий, дельта слабая.`,
+      because: fromCd && CD_FUT.has(symbol)
+        ? `Вливание ClusterDelta (#Infusion) по фьючерсу.`
+        : `Вливание по эвристике (кросс / нет CME): объём выше порога, бар узкий, дельта слабая.`,
       therefore:
         lastInf.side === "buy"
           ? "Остановка снизу. Цель шорта — сюда. Лонг от этой лужи, не сквозь неё."

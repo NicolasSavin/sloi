@@ -1180,6 +1180,7 @@ export function analyzeMarket(
     opts?.symbol ? liveClusters(opts.symbol) : [],
     opts?.symbol ? liveAskBid(opts.symbol) : null,
     opts?.symbol ? liveCdBars(opts.symbol) : [],
+    opts?.symbol ?? "",
   );
   const sweepFuel = buildSweepFuel(candles, liquidity, micro.nodes, atr, last.close);
   const auction = buildAuction(candles, opts?.kind);

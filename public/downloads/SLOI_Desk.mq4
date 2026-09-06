@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.74"
+#property version   "4.75"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -141,7 +141,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.74: splash/infusion с #Splash и #Infusion. ", g_host ? "хозяин — CD на стол" : "клиент — сверка брокер/сайт");
+   Print("SLOI 4.75: #Infusion на мажорах/металлах; кроссы — эвристика");
    return(INIT_SUCCEEDED);
   }
 
@@ -1038,11 +1038,59 @@ double Icd(string s, int tf, string ind, int buf, int sh)
    return(EMPTY_VALUE);
   }
 
+bool CdFut(string s)
+  {
+   string n = Naked(s);
+   if(n == "EURUSD" || n == "GBPUSD" || n == "USDJPY" || n == "USDCHF"
+      || n == "AUDUSD" || n == "USDCAD" || n == "NZDUSD") return(true);
+   if(n == "XAUUSD" || n == "XAGUSD") return(true);
+   if(n == "XTIUSD" || n == "XBRUSD" || n == "XNGUSD") return(true);
+   if(n == "BTCUSD" || n == "ETHUSD") return(true);
+   return(false);
+  }
+
 void AppendCdOne(string &body, string s, int &sent)
   {
-   AppendNamed(body, s, CdInfusion, "INFUSION", sent);
-   AppendNamed(body, s, CdSplash, "SPLASH", sent);
-   AppendNamed(body, s, CdImbalance, "IMBALANCE", sent);
+   if(CdFut(s))
+     {
+      AppendNamed(body, s, CdInfusion, "INFUSION", sent);
+      AppendNamed(body, s, CdSplash, "SPLASH", sent);
+      AppendNamed(body, s, CdImbalance, "IMBALANCE", sent);
+      return;
+     }
+   int tf = PERIOD_H1;
+   double sum = 0;
+   int ok = 0;
+   double vol[10];
+   double del[10];
+   ArrayInitialize(vol, 0);
+   ArrayInitialize(del, 0);
+   for(int i = 1; i <= 10; i++)
+     {
+      double v = Icd(s, tf, CdVolume, 0, i);
+      double d = Icd(s, tf, CdDelta, 0, i);
+      if(v == EMPTY_VALUE || v <= 0) { vol[i - 1] = 0; continue; }
+      vol[i - 1] = v;
+      del[i - 1] = (d == EMPTY_VALUE ? 0 : d);
+      sum += v;
+      ok++;
+     }
+   if(ok < 4) return;
+   double avg = sum / ok;
+   for(int j = 0; j < 8 && sent < 80; j++)
+     {
+      if(vol[j] < avg * 1.55) continue;
+      double px = iClose(s, tf, j + 1);
+      if(px <= 0) continue;
+      double ratio = vol[j] > 0 ? MathAbs(del[j]) / vol[j] : 0;
+      string kind = "";
+      if(ratio > 0.50) kind = "SPLASH";
+      else if(ratio < 0.28) kind = "INFUSION";
+      if(kind == "") continue;
+      string sd = (del[j] >= 0) ? "BUY" : "SELL";
+      body += "CLUSTER " + Naked(s) + " " + kind + " " + DoubleToStr(px, DigitsOf(s)) + " " + sd + "\n";
+      sent++;
+     }
   }
 
 void AppendNamed(string &body, string s, string ind, string kind, int &sent)
