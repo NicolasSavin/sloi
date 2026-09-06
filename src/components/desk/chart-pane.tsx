@@ -50,26 +50,26 @@ function drawVolumeCandles(
     const top = Math.min(yO, yC);
     const bot = Math.max(yO, yC);
     const h = Math.max(1, bot - top);
-    const left = x - bodyW / 2;
-    ctx.strokeStyle = up ? "#4dff9a" : "#ff6b6b";
-    ctx.lineWidth = Math.max(1, Math.min(2, spacing * 0.12));
-    ctx.beginPath();
-    ctx.moveTo(x, yH);
-    ctx.lineTo(x, yL);
-    ctx.stroke();
-    const g = ctx.createLinearGradient(left, top, left, bot);
-    if (up) {
-      g.addColorStop(0, "#8cffc4");
-      g.addColorStop(1, "#1d8a52");
-    } else {
-      g.addColorStop(0, "#ff9a9a");
-      g.addColorStop(1, "#a11c1c");
-    }
-    ctx.fillStyle = g;
-    ctx.fillRect(left, top, bodyW, h);
-    ctx.strokeStyle = up ? "rgba(210,255,230,0.7)" : "rgba(255,210,210,0.65)";
+    const left = Math.round(x - bodyW / 2) + 0.5;
+    const cx = Math.round(x) + 0.5;
+    ctx.strokeStyle = up ? "#3dcc86" : "#e45b5b";
     ctx.lineWidth = 1;
-    ctx.strokeRect(left + 0.5, top + 0.5, bodyW - 1, Math.max(0, h - 1));
+    if (yH < top - 0.5) {
+      ctx.beginPath();
+      ctx.moveTo(cx, yH);
+      ctx.lineTo(cx, top);
+      ctx.stroke();
+    }
+    if (yL > bot + 0.5) {
+      ctx.beginPath();
+      ctx.moveTo(cx, bot);
+      ctx.lineTo(cx, yL);
+      ctx.stroke();
+    }
+    ctx.fillStyle = up ? "#1e9a58" : "#c43333";
+    ctx.fillRect(left, top, Math.round(bodyW), h);
+    ctx.strokeStyle = up ? "#6ee0a8" : "#f08080";
+    ctx.strokeRect(left, top, Math.round(bodyW), Math.max(0, h));
   }
 }
 
@@ -704,8 +704,6 @@ function drawZones(
       mark(lastTime, snap.lastClose, t, t === "Лонг" ? "tp" : t === "Шорт" ? "stop" : "wait");
     }
   }
-
-  if (candles.length) drawVolumeCandles(ctx, width, height, chart, series, candles, false);
 
   ctx.font = "13px IBM Plex Sans, sans-serif";
   const hits = (box: { x: number; y: number; w: number; h: number }) =>
@@ -1345,15 +1343,7 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
             if (!chart || !series) return;
             const p = this.payload;
             target.useMediaCoordinateSpace((scope) => {
-              drawVolumeCandles(
-                scope.context,
-                scope.mediaSize.width,
-                scope.mediaSize.height,
-                chart,
-                series,
-                p.candles,
-                true,
-              );
+              scope.context.clearRect(0, 0, scope.mediaSize.width, scope.mediaSize.height);
               drawZones(
                 scope.context,
                 scope.mediaSize.width,
@@ -1370,6 +1360,15 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
                 p.candles,
                 p.pair,
                 this.faceI,
+              );
+              drawVolumeCandles(
+                scope.context,
+                scope.mediaSize.width,
+                scope.mediaSize.height,
+                chart,
+                series,
+                p.candles,
+                false,
               );
               drawTape(
                 scope.context,
