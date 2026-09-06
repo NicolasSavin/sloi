@@ -25,54 +25,6 @@ function token(name: string, fallback: string) {
   return v || fallback;
 }
 
-function drawVolumeCandles(
-  ctx: CanvasRenderingContext2D,
-  width: number,
-  height: number,
-  chart: IChartApi,
-  series: ISeriesApi<"Candlestick">,
-  candles: Candle[],
-  clear = false,
-) {
-  if (clear) ctx.clearRect(0, 0, width, height);
-  const ts = chart.timeScale();
-  const spacing = Math.max(3, (ts.options().barSpacing as number | undefined) ?? 8);
-  const bodyW = Math.max(3, Math.min(11, spacing * 0.7));
-  for (const c of candles) {
-    const x = ts.timeToCoordinate(c.time as UTCTimestamp);
-    if (x == null || x < -24 || x > width + 24) continue;
-    const yO = series.priceToCoordinate(c.open);
-    const yC = series.priceToCoordinate(c.close);
-    const yH = series.priceToCoordinate(c.high);
-    const yL = series.priceToCoordinate(c.low);
-    if (yO == null || yC == null || yH == null || yL == null) continue;
-    const up = c.close >= c.open;
-    const top = Math.min(yO, yC);
-    const bot = Math.max(yO, yC);
-    const h = Math.max(1, bot - top);
-    const left = Math.round(x - bodyW / 2) + 0.5;
-    const cx = Math.round(x) + 0.5;
-    ctx.strokeStyle = up ? "#3dcc86" : "#e45b5b";
-    ctx.lineWidth = 1;
-    if (yH < top - 0.5) {
-      ctx.beginPath();
-      ctx.moveTo(cx, yH);
-      ctx.lineTo(cx, top);
-      ctx.stroke();
-    }
-    if (yL > bot + 0.5) {
-      ctx.beginPath();
-      ctx.moveTo(cx, bot);
-      ctx.lineTo(cx, yL);
-      ctx.stroke();
-    }
-    ctx.fillStyle = up ? "#1e9a58" : "#c43333";
-    ctx.fillRect(left, top, Math.round(bodyW), h);
-    ctx.strokeStyle = up ? "#6ee0a8" : "#f08080";
-    ctx.strokeRect(left, top, Math.round(bodyW), Math.max(0, h));
-  }
-}
-
 function paintPathArrow(
   ctx: CanvasRenderingContext2D,
   x0: number,
@@ -340,9 +292,12 @@ function drawZones(
   candles: Candle[] = [],
   pair = "",
   faceI = 0,
+  layer: "fill" | "hud" | "all" = "all",
 ) {
   if (width < 16 || height < 16) return;
   if (wipe) ctx.clearRect(0, 0, width, height);
+  const paintFill = layer !== "hud";
+  const paintHud = layer !== "fill";
   const ts = chart.timeScale();
   const plotW = Math.max(40, width - 58);
   const notes: { time: number; price: number; text: string; tone: string }[] = [];
@@ -366,6 +321,7 @@ function drawZones(
     pat: { top: "rgba(80,140,220,0.40)", mid: "rgba(150,190,255,0.64)", stroke: "#80b8ff", b0: "#d8e8ff", b1: "#2058a8", t0: "#f0f6ff", t1: "#103868" },
   };
   const fillVolume = (x: number, y: number, w: number, h: number, tone: string, blink = false) => {
+    if (!paintFill) return;
     const p = PALETTE[tone] ?? PALETTE.fvg!;
     const pulse = blink ? 0.42 + 0.16 * (0.5 + 0.5 * Math.sin(Date.now() / 260)) : 0.72;
     ctx.save();
@@ -704,6 +660,8 @@ function drawZones(
       mark(lastTime, snap.lastClose, t, t === "Лонг" ? "tp" : t === "Шорт" ? "stop" : "wait");
     }
   }
+
+  if (!paintHud) return;
 
   ctx.font = "13px IBM Plex Sans, sans-serif";
   const hits = (box: { x: number; y: number; w: number; h: number }) =>
@@ -1329,72 +1287,37 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
     this._upd?.();
   }
   paneViews() {
-    return [
-      {
-        zOrder: () => "top" as const,
-        renderer: () => ({
-          draw: (target: {
-            useMediaCoordinateSpace: (
-              fn: (scope: { context: CanvasRenderingContext2D; mediaSize: { width: number; height: number } }) => void,
-            ) => void;
-          }) => {
-            const chart = this.chart;
-            const series = this.series;
-            if (!chart || !series) return;
-            const p = this.payload;
-            target.useMediaCoordinateSpace((scope) => {
-              scope.context.clearRect(0, 0, scope.mediaSize.width, scope.mediaSize.height);
-              drawZones(
-                scope.context,
-                scope.mediaSize.width,
-                scope.mediaSize.height,
-                chart,
-                series,
-                p.zones,
-                p.overlays,
-                p.snap,
-                p.setup,
-                p.order,
-                p.candles.at(-1)?.time ?? 0,
-                false,
-                p.candles,
-                p.pair,
-                this.faceI,
-              );
-              drawVolumeCandles(
-                scope.context,
-                scope.mediaSize.width,
-                scope.mediaSize.height,
-                chart,
-                series,
-                p.candles,
-                false,
-              );
-              drawTape(
-                scope.context,
-                scope.mediaSize.width,
-                chart,
-                series,
-                p.candles,
-                p.snap,
-                p.overlays.flow,
-                p.book,
-              );
-              drawPathArrows(
-                scope.context,
-                scope.mediaSize.width,
-                chart,
-                series,
-                p.snap,
-                p.order,
-                p.setup,
-                p.candles.at(-1)?.time ?? 0,
-              );
-            });
-          },
-        }),
-      },
-    ];
+    const drawFn = (
+      z: "bottom" | "top",
+    ) => ({
+      zOrder: () => z as "bottom" | "top",
+      renderer: () => ({
+        draw: (target: {
+          useMediaCoordinateSpace: (
+            fn: (scope: { context: CanvasRenderingContext2D; mediaSize: { width: number; height: number } }) => void,
+          ) => void;
+        }) => {
+          const chart = this.chart;
+          const series = this.series;
+          if (!chart || !series) return;
+          const p = this.payload;
+          target.useMediaCoordinateSpace((scope) => {
+            const ctx = scope.context;
+            const w = scope.mediaSize.width;
+            const h = scope.mediaSize.height;
+            ctx.clearRect(0, 0, w, h);
+            if (z === "bottom") {
+              drawZones(ctx, w, h, chart, series, p.zones, p.overlays, p.snap, p.setup, p.order, p.candles.at(-1)?.time ?? 0, false, p.candles, p.pair, this.faceI, "fill");
+              return;
+            }
+            drawZones(ctx, w, h, chart, series, p.zones, p.overlays, p.snap, p.setup, p.order, p.candles.at(-1)?.time ?? 0, false, p.candles, p.pair, this.faceI, "hud");
+            drawTape(ctx, w, chart, series, p.candles, p.snap, p.overlays.flow, p.book);
+            drawPathArrows(ctx, w, chart, series, p.snap, p.order, p.setup, p.candles.at(-1)?.time ?? 0);
+          });
+        },
+      }),
+    });
+    return [drawFn("bottom"), drawFn("top")];
   }
 }
 
@@ -1503,11 +1426,13 @@ export function ChartPane({
         },
       });
       const series = chart.addSeries(lc.CandlestickSeries, {
-        upColor: "rgba(0,0,0,0)",
-        downColor: "rgba(0,0,0,0)",
-        borderVisible: false,
-        wickUpColor: "rgba(0,0,0,0)",
-        wickDownColor: "rgba(0,0,0,0)",
+        upColor: "#1e9a58",
+        downColor: "#c43333",
+        borderUpColor: "#6ee0a8",
+        borderDownColor: "#f08080",
+        wickUpColor: "#3dcc86",
+        wickDownColor: "#e45b5b",
+        borderVisible: true,
       });
       const volume = chart.addSeries(lc.HistogramSeries, {
         priceFormat: { type: "volume" },
