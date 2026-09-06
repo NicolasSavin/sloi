@@ -29,7 +29,7 @@ export interface HomePayload {
 
 export function siteFlashes(): DeskFlash[] {
   return [
-    { id: "ver", kind: "site", text: `Новости сайта · SLOI ${VERSION}: слои на графике, архив сделок`, to: "/about", tone: "neutral" },
+    { id: "ver", kind: "site", text: `Новости сайта · SLOI ${VERSION}: ClusterDelta по мажорам, CumDelta-дивер, прямой график`, to: "/about", tone: "neutral" },
     { id: "ea", kind: "site", text: "Советник берёт приказы со стола, виртуальные отложки", to: "/advisor", tone: "neutral" },
     { id: "tv", kind: "site", text: "ТВ: русские обзоры без паузы YouTube", to: "/tv", tone: "neutral" },
     { id: "rate", kind: "site", text: "Рейтинг пар и видеообзоры аналитиков", to: "/rating", tone: "neutral" },
