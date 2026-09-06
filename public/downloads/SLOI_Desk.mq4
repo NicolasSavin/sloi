@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.76"
+#property version   "4.77"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -141,7 +141,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.76: splash с временем свечи, история с объектов CD");
+   Print("SLOI 4.77: круги Splash с графика CD (эллипс/стрелка), не только имя splash");
    return(INIT_SUCCEEDED);
   }
 
@@ -971,45 +971,53 @@ void SeedFromFeed()
      }
   }
 
+void DumpCdObject(long ch, string n, string &body, int &sent)
+  {
+   if(sent >= 80) return;
+   if(StringFind(n, "SLOI_") == 0) return;
+   string low = n;
+   StringToLower(low);
+   int t = (int)ObjectGetInteger(ch, n, OBJPROP_TYPE);
+   double px = ObjectGetDouble(ch, n, OBJPROP_PRICE1);
+   datetime tm = (datetime)ObjectGetInteger(ch, n, OBJPROP_TIME1);
+   if((t == OBJ_RECTANGLE || t == OBJ_TREND || t == OBJ_CHANNEL) && ObjectGetDouble(ch, n, OBJPROP_PRICE2) > 0)
+      px = 0.5 * (ObjectGetDouble(ch, n, OBJPROP_PRICE1) + ObjectGetDouble(ch, n, OBJPROP_PRICE2));
+   if(px <= 0) return;
+   if(tm <= 0) tm = TimeCurrent();
+   string kind = "";
+   if(StringFind(low, "splash") >= 0 || StringFind(low, "spl") >= 0 || StringFind(low, "btrade") >= 0
+      || StringFind(low, "сплэш") >= 0 || StringFind(low, "сплеш") >= 0)
+      kind = "SPLASH";
+   else if(StringFind(low, "infusion") >= 0 || StringFind(low, "infuz") >= 0 || StringFind(low, "влив") >= 0)
+      kind = "INFUSION";
+   else if(t == OBJ_ELLIPSE || t == OBJ_ARROW || t == OBJ_BITMAP || t == OBJ_BITMAP_LABEL)
+      kind = "SPLASH";
+   if(kind == "") return;
+   string sym = ChartSymbol(ch);
+   if(StringLen(sym) < 3) sym = Symbol();
+   color c = (color)ObjectGetInteger(ch, n, OBJPROP_COLOR);
+   int red = (c & 0xFF);
+   int green = ((c >> 8) & 0xFF);
+   string sd = (red > green + 20) ? "SELL" : "BUY";
+   body += "CLUSTER " + Naked(sym) + " " + kind + " " + DoubleToStr(px, DigitsOf(sym)) + " " + sd
+        + " " + IntegerToString((int)tm) + "\n";
+   sent++;
+  }
+
 void AppendClusters(string &body)
   {
-   int total = ObjectsTotal();
    int sent = 0;
-   for(int i = 0; i < total && sent < 48; i++)
+   long ch = ChartFirst();
+   while(ch >= 0 && sent < 80)
      {
-      string n = ObjectName(i);
-      if(StringLen(n) < 3) continue;
-      if(StringFind(n, "SLOI_") == 0) continue;
-      string low = n;
-      StringToLower(low);
-      bool named = StringFind(low, "cluster") >= 0 || StringFind(low, "infusion") >= 0
-         || StringFind(low, "splash") >= 0 || StringFind(low, "provolume") >= 0
-         || StringFind(low, "dpoc") >= 0 || StringFind(low, "btrade") >= 0
-         || StringFind(low, "bigtrade") >= 0 || StringFind(low, "big_trade") >= 0;
-      if(!named) continue;
-      int t = ObjectType(n);
-      double px = 0;
-      if(t == OBJ_HLINE || t == OBJ_ARROW || t == OBJ_TEXT)
-         px = ObjectGet(n, OBJPROP_PRICE1);
-      else if(t == OBJ_RECTANGLE || t == OBJ_TREND || t == OBJ_CHANNEL)
-         px = 0.5 * (ObjectGet(n, OBJPROP_PRICE1) + ObjectGet(n, OBJPROP_PRICE2));
-      else continue;
-      if(px <= 0) continue;
-      string kind = "INFUSION";
-      if(StringFind(low, "splash") >= 0 || StringFind(low, "btrade") >= 0
-         || StringFind(low, "bigtrade") >= 0 || StringFind(low, "big_trade") >= 0)
-         kind = "SPLASH";
-      if(StringFind(low, "infusion") >= 0 || StringFind(low, "влив") >= 0)
-         kind = "INFUSION";
-      color c = (color)ObjectGet(n, OBJPROP_COLOR);
-      int red = (c & 0xFF);
-      int green = ((c >> 8) & 0xFF);
-      string sd = (red > green + 20) ? "SELL" : "BUY";
-      datetime tm = (datetime)ObjectGet(n, OBJPROP_TIME1);
-      if(tm <= 0) tm = TimeCurrent();
-      body += "CLUSTER " + Naked(Symbol()) + " " + kind + " " + DoubleToStr(px, Digits) + " " + sd
-           + " " + IntegerToString((int)tm) + "\n";
-      sent++;
+      int total = (int)ObjectsTotal(ch, -1, -1);
+      for(int i = 0; i < total && sent < 80; i++)
+        {
+         string n = ObjectName(ch, i, -1, -1);
+         if(StringLen(n) < 1) continue;
+         DumpCdObject(ch, n, body, sent);
+        }
+      ch = ChartNext(ch);
      }
    if(g_cd && g_host) AppendCdClusters(body, sent);
   }
