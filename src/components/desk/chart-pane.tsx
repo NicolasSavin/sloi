@@ -1352,16 +1352,16 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
             const hover = p.hover;
             if (z === "bottom") {
               if (!hover) drawBricks(ctx, chart, series, p.candles);
-              ctx.globalAlpha = hover ? 0.35 : 1;
-              drawZones(ctx, w, h, chart, series, p.zones, p.overlays, p.snap, p.setup, p.order, p.candles.at(-1)?.time ?? 0, false, p.candles, p.pair, this.faceI, "fill");
-              ctx.globalAlpha = 1;
+              if (!hover) {
+                drawZones(ctx, w, h, chart, series, p.zones, p.overlays, p.snap, p.setup, p.order, p.candles.at(-1)?.time ?? 0, false, p.candles, p.pair, this.faceI, "fill");
+              }
               return;
             }
-            ctx.globalAlpha = hover ? 0.28 : 1;
-            drawZones(ctx, w, h, chart, series, p.zones, p.overlays, p.snap, p.setup, p.order, p.candles.at(-1)?.time ?? 0, false, p.candles, p.pair, this.faceI, "hud");
-            drawTape(ctx, w, chart, series, p.candles, p.snap, p.overlays.flow, p.book);
-            drawPathArrows(ctx, w, chart, series, p.snap, p.order, p.setup, p.candles.at(-1)?.time ?? 0);
-            ctx.globalAlpha = 1;
+            if (!hover) {
+              drawZones(ctx, w, h, chart, series, p.zones, p.overlays, p.snap, p.setup, p.order, p.candles.at(-1)?.time ?? 0, false, p.candles, p.pair, this.faceI, "hud");
+              drawTape(ctx, w, chart, series, p.candles, p.snap, p.overlays.flow, p.book);
+              drawPathArrows(ctx, w, chart, series, p.snap, p.order, p.setup, p.candles.at(-1)?.time ?? 0);
+            }
             if (hover) drawBricks(ctx, chart, series, p.candles);
           });
         },
@@ -1540,7 +1540,7 @@ export function ChartPane({
         }
       };
       chart.subscribeCrosshairMove((param) => {
-        const next = Boolean(param?.time && param.seriesData && param.seriesData.size > 0);
+        const next = param?.point != null && param.time != null;
         if (next === hoverRef.current) return;
         hoverRef.current = next;
         paint();
