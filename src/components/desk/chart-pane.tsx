@@ -1955,7 +1955,7 @@ export function ChartPane({
       <div className="pointer-events-none absolute bottom-1 left-1 z-20 flex flex-col items-center">
         <WalkingMascot kind={mascotKind} />
         <span className="-mt-3 font-mono text-[10px] text-[#e8c070]">
-          {mascotKind === "bull" ? "карта вверх" : "карта вниз"}
+          {mascotKind === "bull" ? "бык-трейдер" : "медведь-трейдер"}
         </span>
       </div>
     </div>
