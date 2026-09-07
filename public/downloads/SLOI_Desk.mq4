@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.97"
+#property version   "4.98"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -145,7 +145,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.97: ClusterDelta только с открытых чартов — без таймеров на кроссы");
+   Print("SLOI 4.98: открытый чарт — объекты CD; остальные мажоры — #Volumes+#Delta без лишних индюков");
    return(INIT_SUCCEEDED);
   }
 
@@ -1284,19 +1284,43 @@ void AppendNamed(string &body, string s, string ind, string kind, int &sent)
      }
   }
 
+bool CdLightSym(string s)
+  {
+   string n = Naked(s);
+   if(n == "GBPUSD" || n == "USDJPY" || n == "USDCHF") return(true);
+   if(n == "AUDUSD" || n == "USDCAD" || n == "NZDUSD") return(true);
+   if(n == "XAGUSD") return(true);
+   return(false);
+  }
+
+void AppendCdLight(string &body, string s)
+  {
+   if(!CdLightSym(s) || CdChartOpen(s)) return;
+   for(int i = 0; i < 24; i++)
+     {
+      datetime t = iTime(s, PERIOD_H1, i);
+      if(t <= 0) continue;
+      double v = Icd(s, PERIOD_H1, CdVolume, 0, i);
+      double d = Icd(s, PERIOD_H1, CdDelta, 0, i);
+      if(v == EMPTY_VALUE || v < 0) v = 0;
+      if(d == EMPTY_VALUE) d = 0;
+      if(v <= 0 && d == 0) continue;
+      double share = MathAbs(d) / MathMax(v, 1);
+      int spl = (v > 0 && share >= 0.42) ? 1 : 0;
+      int infg = (v > 0 && share < 0.28) ? 1 : 0;
+      int imbg = (share >= 0.55) ? 1 : 0;
+      body += "CDBAR " + Naked(s) + " " + IntegerToString((int)t) + " "
+           + DoubleToStr(v, 0) + " " + DoubleToStr(d, 0) + " 0 0 "
+           + IntegerToString(spl) + " " + IntegerToString(infg) + " " + IntegerToString(imbg) + "\n";
+     }
+  }
+
 void AppendCdClusters(string &body, int &sent)
   {
    for(int i = 0; i < g_n; i++)
      {
-      if(!CdChartOpen(g_sym[i])) continue;
-      int before = sent;
-      AppendCdCum(body, g_sym[i]);
-      AppendCdOne(body, g_sym[i], sent);
-      if(sent > before + 16) sent = before + 16;
-      AppendCdStat(body, g_sym[i]);
-      AppendCdProfile(body, g_sym[i]);
-      AppendCdBook(body, g_sym[i]);
-      AppendCdAskBid(body, g_sym[i]);
+      if(CdChartOpen(g_sym[i])) continue;
+      AppendCdLight(body, g_sym[i]);
      }
   }
 
@@ -1554,7 +1578,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 4.97\n";
+   body += "EA 4.98\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();

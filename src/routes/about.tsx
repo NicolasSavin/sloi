@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.8.98",
+    d: "2026-09-07",
+    items: [
+      "Сов 4.98: CD по всем мажорам без семи чартов. Открытые окна — сплэш/IMB с объектов. GBP/JPY/CHF/AUD/CAD/NZD/серебро — CME объём и дельта (#Volumes+#Delta), без лишних таймеров",
+    ],
+  },
+  {
     v: "1.8.97",
     d: "2026-09-07",
     items: [
