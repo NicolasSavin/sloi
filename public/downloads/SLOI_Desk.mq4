@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.00"
+#property version   "5.01"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -145,7 +145,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 5.00: IMB и вливание отдельно от сплэша. На чарте нужны #Imbalance и #Infusion");
+   Print("SLOI 5.01: IMB при наведении — цифры Ask:Bid с объекта");
    return(INIT_SUCCEEDED);
   }
 
@@ -1049,8 +1049,15 @@ void DumpCdObject(long ch, string n, string &body, int &sent, bool hasSplash, bo
    double bid = BidOf(sym);
    if(!LooksPx(px, bid)) return;
    string sd = (redish || (r0 > g0 + 20)) ? "SELL" : "BUY";
+   string extra = ObjectGetString(ch, n, OBJPROP_TEXT);
+   if(StringLen(extra) < 1) extra = ObjectGetString(ch, n, OBJPROP_TOOLTIP);
+   StringReplace(extra, " ", "");
+   StringReplace(extra, "\n", "");
+   if(StringLen(extra) > 18) extra = StringSubstr(extra, 0, 18);
    body += "CLUSTER " + Naked(sym) + " " + kind + " " + DoubleToStr(px, DigitsOf(sym)) + " " + sd
-        + " " + IntegerToString((int)tm) + "\n";
+        + " " + IntegerToString((int)tm);
+   if(StringLen(extra) > 0) body += " " + extra;
+   body += "\n";
    sent++;
   }
 
@@ -1574,7 +1581,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 5.00\n";
+   body += "EA 5.01\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();

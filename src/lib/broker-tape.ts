@@ -182,7 +182,23 @@ export function ingestBrokerTape(text: string, tenant = "legacy") {
       if (!id || !Number.isFinite(price) || price <= 0) continue;
       const list = batch.get(id) ?? [];
       const time = ts > 1_000_000_000 ? (ts > 1e12 ? Math.floor(ts / 1000) : ts) : Math.floor(at / 1000);
-      list.push({ price, side, kind, time });
+      const extra = p.slice(6).join(" ");
+      const node: VolumeNode = { price, side, kind, time };
+      const pair = extra.match(/(\d+(?:\.\d+)?)\s*[:xX/]\s*(\d+(?:\.\d+)?)/);
+      if (pair) {
+        node.ask = Number(pair[1]);
+        node.bid = Number(pair[2]);
+        const lo = Math.max(Math.min(node.ask, node.bid), 1);
+        node.ratio = Math.max(node.ask, node.bid) / lo;
+        node.note = `${pair[1]}:${pair[2]}`;
+      } else {
+        const vol = Number(extra.replace(",", "."));
+        if (Number.isFinite(vol) && vol > 0) {
+          node.volume = vol;
+          node.note = String(Math.round(vol));
+        } else if (extra.length > 0 && extra.length < 24) node.note = extra.slice(0, 24);
+      }
+      list.push(node);
       batch.set(id, list);
       continue;
     }

@@ -1314,6 +1314,7 @@ function drawTape(
   snap: SmcSnapshot | null,
   on: boolean,
   book: { bids: { price: number; volume: number }[]; asks: { price: number; volume: number }[] } | null,
+  hoverPt: { x: number; y: number } | null,
 ) {
   const ts = chart.timeScale();
   const used: { x: number; y: number }[] = [];
@@ -1344,8 +1345,9 @@ function drawTape(
     }
     used.push({ x: xx, y: yy });
     const broken = inf && n.held === false;
-    const col = splash ? "#ffb020" : broken ? "#8aa040" : inf ? "#c8f030" : "#5ad0ff";
-    pulseRings(ctx, xx, yy, col, !broken);
+    const hot = n.kind === "imbalance" && hoverPt != null && Math.hypot(hoverPt.x - xx, hoverPt.y - yy) < 26;
+    const col = hot ? "#ff7ad9" : splash ? "#ffb020" : broken ? "#8aa040" : inf ? "#c8f030" : "#5ad0ff";
+    pulseRings(ctx, xx, yy, col, !broken || hot);
     ctx.font = "bold 12px IBM Plex Sans, sans-serif";
     ctx.strokeStyle = "rgba(8,6,4,0.7)";
     ctx.lineWidth = 3;
@@ -1353,8 +1355,38 @@ function drawTape(
     const lx = xx + 12;
     const ly = yy - 10;
     ctx.strokeText(label, lx, ly);
-    ctx.fillStyle = splash ? "#ffb020" : broken ? "#c8d080" : inf ? "#c8f030" : "#8ee0ff";
+    ctx.fillStyle = splash ? "#ffb020" : broken ? "#c8d080" : inf ? "#c8f030" : hot ? "#ffb3ec" : "#8ee0ff";
     ctx.fillText(label, lx, ly);
+    if (hot) {
+      const beat = 0.55 + 0.45 * Math.sin(Date.now() / 140);
+      const pri = n.ratio != null ? Math.min(10, Math.max(1, Math.round(n.ratio))) : null;
+      const head = pri != null ? `приоритет ${pri}` : "IMB";
+      const sub =
+        n.note ??
+        (n.ask != null && n.bid != null
+          ? `${Math.round(n.ask)} : ${Math.round(n.bid)}`
+          : n.side === "sell"
+            ? "Bid > Ask"
+            : "Ask > Bid");
+      const ratioTxt = n.ratio != null ? `×${n.ratio.toFixed(1)}` : "";
+      const boxX = xx + 18;
+      const boxY = yy - 42;
+      ctx.fillStyle = "rgba(12,8,16,0.9)";
+      ctx.fillRect(boxX - 8, boxY - 22, 176, 58);
+      ctx.strokeStyle = "#ff7ad9";
+      ctx.lineWidth = 1.6;
+      ctx.strokeRect(boxX - 8, boxY - 22, 176, 58);
+      ctx.textAlign = "left";
+      ctx.font = `bold ${Math.round(20 + 8 * beat)}px IBM Plex Sans, sans-serif`;
+      ctx.fillStyle = "#ffb3ec";
+      ctx.fillText(ratioTxt || "IMB", boxX, boxY);
+      ctx.font = "bold 13px IBM Plex Mono, monospace";
+      ctx.fillStyle = "#e8f4ff";
+      ctx.fillText(sub, boxX, boxY + 22);
+      ctx.font = "11px IBM Plex Sans, sans-serif";
+      ctx.fillStyle = "#ff7ad9";
+      ctx.fillText(head, boxX, boxY + 38);
+    }
   }
   if (on && book && (book.bids.length || book.asks.length)) {
     const max = Math.max(...book.bids.map((l) => l.volume), ...book.asks.map((l) => l.volume), 1);
@@ -1393,6 +1425,7 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
     book: { bids: { price: number; volume: number }[]; asks: { price: number; volume: number }[] } | null;
     pair: string;
     hover: boolean;
+    hoverPt: { x: number; y: number } | null;
   } = {
     zones: [],
     overlays: {
@@ -1414,6 +1447,7 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
     book: null,
     pair: "EURUSD",
     hover: false,
+    hoverPt: null,
   };
 
   private unsub: (() => void) | null = null;
@@ -1467,7 +1501,7 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
               drawZones(ctx, w, h, chart, series, p.zones, p.overlays, p.snap, p.setup, p.order, p.candles.at(-1)?.time ?? 0, false, p.candles, p.pair, this.faceI, "hud");
               drawPathArrows(ctx, w, chart, series, p.snap, p.order, p.setup, p.candles.at(-1)?.time ?? 0);
             }
-            drawTape(ctx, w, chart, series, p.candles, p.snap, p.overlays.flow, p.book);
+            drawTape(ctx, w, chart, series, p.candles, p.snap, p.overlays.flow, p.book, p.hoverPt);
             if (p.snap && CD_FUT.has(p.pair) && !(p.snap.micro.nodes ?? []).some((n) => n.kind === "splash" || n.kind === "infusion" || n.kind === "imbalance")) {
               const seen = liveCdCharts();
               ctx.font = "600 12px IBM Plex Sans, sans-serif";
@@ -1524,6 +1558,7 @@ export function ChartPane({
   const fittedKey = useRef("");
   const fitRangeRef = useRef<{ min: number; max: number } | null>(null);
   const hoverRef = useRef(false);
+  const hoverPtRef = useRef<{ x: number; y: number } | null>(null);
   const [ready, setReady] = useState(false);
   snapRef.current = snap;
   overlaysRef.current = overlays;
@@ -1680,6 +1715,7 @@ export function ChartPane({
             book: bookRef.current,
             pair: pairRef.current,
             hover: hoverRef.current,
+            hoverPt: hoverPtRef.current,
           };
           prim.refresh();
         }
@@ -1690,13 +1726,18 @@ export function ChartPane({
       };
       chart.subscribeCrosshairMove((param) => {
         const s = seriesRef.current;
+        const pt = param?.point ? { x: param.point.x, y: param.point.y } : null;
         const next = Boolean(
           chart &&
             s &&
             cursorOnCandle(chart, s, candlesRef.current, param?.point, param?.time),
         );
-        if (next === hoverRef.current) return;
+        const px = pt ? Math.round(pt.x) : -1;
+        const py = pt ? Math.round(pt.y) : -1;
+        const prev = hoverPtRef.current;
+        if (next === hoverRef.current && prev && Math.round(prev.x) === px && Math.round(prev.y) === py) return;
         hoverRef.current = next;
+        hoverPtRef.current = pt;
         paint();
       });
       chart.timeScale().subscribeVisibleLogicalRangeChange(paint);
@@ -1940,6 +1981,7 @@ export function ChartPane({
           book,
           pair,
           hover: hoverRef.current,
+          hoverPt: hoverPtRef.current,
         };
         prim.refresh();
       }

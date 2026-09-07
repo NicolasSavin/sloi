@@ -19,6 +19,11 @@ export interface VolumeNode {
   kind: "infusion" | "splash" | "imbalance";
   time: number;
   held?: boolean;
+  ask?: number;
+  bid?: number;
+  volume?: number;
+  ratio?: number;
+  note?: string;
 }
 
 export interface MicroSnap {
@@ -189,6 +194,11 @@ export function buildMicro(
           side: b.delta >= 0 ? "buy" : "sell",
           kind: "imbalance",
           time: b.time,
+          ask: b.ask || undefined,
+          bid: b.bid || undefined,
+          volume: b.volume || undefined,
+          ratio: b.ask > 0 && b.bid > 0 ? Math.max(b.ask, b.bid) / Math.max(Math.min(b.ask, b.bid), 1) : undefined,
+          note: b.ask > 0 && b.bid > 0 ? `${Math.round(b.ask)}:${Math.round(b.bid)}` : undefined,
         });
       }
     }
@@ -273,6 +283,11 @@ export function buildMicro(
       near.price = (near.price + n.price) / 2;
       near.time = n.time;
       near.side = n.side;
+      if (n.ask != null) near.ask = n.ask;
+      if (n.bid != null) near.bid = n.bid;
+      if (n.ratio != null) near.ratio = n.ratio;
+      if (n.note) near.note = n.note;
+      if (n.volume != null) near.volume = n.volume;
     } else nodes.push({ ...n });
   }
   for (const n of nodes) {
