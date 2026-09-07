@@ -1247,12 +1247,30 @@ function drawProfile(
   ctx.fillText("B", rect.width - 12, 12);
 }
 
+function clipCandlesForView<T extends { open: number; high: number; low: number; close: number }>(cs: T[]): T[] {
+  if (cs.length < 3) return cs;
+  const closes = cs.map((c) => c.close).filter((x) => x > 0).sort((a, b) => a - b);
+  const midC = closes[Math.floor(closes.length / 2)] || 1;
+  const ranges = cs
+    .map((c) => c.high - c.low)
+    .filter((r) => r > 0 && r < midC * 0.04)
+    .sort((a, b) => a - b);
+  const medR = ranges[Math.floor(ranges.length / 2)] || Math.abs(midC) * 0.001;
+  const cap = Math.max(medR * 2.6, Math.abs(midC) * 0.0015);
+  return cs.map((c) => {
+    const top = Math.max(c.open, c.close);
+    const bot = Math.min(c.open, c.close);
+    return { ...c, high: Math.min(c.high, top + cap), low: Math.max(c.low, bot - cap) };
+  });
+}
+
 function drawBricks(
   ctx: CanvasRenderingContext2D,
   chart: IChartApi,
   series: ISeriesApi<"Candlestick">,
   candles: Candle[],
 ) {
+  candles = clipCandlesForView(candles);
   const ts = chart.timeScale();
   for (let i = 0; i < candles.length; i++) {
     const c = candles[i]!;
@@ -1566,7 +1584,6 @@ export function ChartPane({
       const s = seriesRef.current;
       s?.priceScale().applyOptions({ autoScale: true });
       chartRef.current?.timeScale().fitContent();
-      window.setTimeout(() => s?.priceScale().applyOptions({ autoScale: false }), 120);
     };
     window.addEventListener("sloi-fit", fit);
     return () => window.removeEventListener("sloi-fit", fit);
@@ -1639,26 +1656,22 @@ export function ChartPane({
         wickVisible: false,
         visible: false,
         autoscaleInfoProvider: () => {
-          const cs = candlesRef.current;
+          const cs = clipCandlesForView(candlesRef.current);
           const last = cs.at(-1)?.close;
           const fallback = last && last > 0 ? last : 1;
           if (!cs.length) {
-            return { priceRange: { minValue: fallback * 0.99, maxValue: fallback * 1.01 } };
+            return { priceRange: { minValue: fallback * 0.995, maxValue: fallback * 1.005 } };
           }
-          const spans = cs.map((c) => c.high - c.low).filter((x) => x > 0).sort((a, b) => a - b);
-          const med = spans[Math.floor(spans.length / 2)] || Math.abs(fallback) * 0.002 || 1;
           let lo = Infinity;
           let hi = -Infinity;
           for (const c of cs) {
-            const mid = (c.open + c.close) / 2;
-            const cap = med * 3.2;
-            hi = Math.max(hi, Math.min(c.high, mid + cap), c.open, c.close);
-            lo = Math.min(lo, Math.max(c.low, mid - cap), c.open, c.close);
+            hi = Math.max(hi, c.high, c.open, c.close);
+            lo = Math.min(lo, c.low, c.open, c.close);
           }
           if (!Number.isFinite(lo) || hi <= lo) {
-            return { priceRange: { minValue: fallback * 0.99, maxValue: fallback * 1.01 } };
+            return { priceRange: { minValue: fallback * 0.995, maxValue: fallback * 1.005 } };
           }
-          const pad = (hi - lo) * 0.08 || Math.abs(fallback) * 0.002;
+          const pad = (hi - lo) * 0.1 || Math.abs(fallback) * 0.002;
           return { priceRange: { minValue: lo - pad, maxValue: hi + pad } };
         },
       });
@@ -1758,10 +1771,11 @@ export function ChartPane({
     const cvd = cvdRef.current;
     const vwap = vwapRef.current;
     if (!ready || !series || !volume || !cvd || candles.length === 0) return;
+    const view = clipCandlesForView(candles);
     const bull = token("--color-bull", "#6f9e86");
     const bear = token("--color-bear", "#b57a7a");
     series.setData(
-      candles.map((c) => ({
+      view.map((c) => ({
         time: c.time as UTCTimestamp,
         open: c.open,
         high: c.high,
@@ -1781,7 +1795,7 @@ export function ChartPane({
       visible: false,
     });
     volume.setData(
-      candles.map((c) => {
+      view.map((c) => {
         const d = deltaOf(c);
         return {
           time: c.time as UTCTimestamp,
@@ -1809,7 +1823,7 @@ export function ChartPane({
       let pv = 0;
       let vv = 0;
       vwap.setData(
-        candles.map((c) => {
+        view.map((c) => {
           const tp = (c.high + c.low + c.close) / 3;
           const v = c.volume || 1;
           pv += tp * v;
@@ -1824,9 +1838,6 @@ export function ChartPane({
       series.priceScale().applyOptions({ autoScale: true });
       ts?.fitContent();
       fittedKey.current = key;
-      window.setTimeout(() => {
-        seriesRef.current?.priceScale().applyOptions({ autoScale: false });
-      }, 120);
     }
   }, [candles, ready, snap?.cdTape?.cum, pair]);
 
