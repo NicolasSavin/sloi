@@ -1318,19 +1318,24 @@ function drawTape(
   const ts = chart.timeScale();
   const used: { x: number; y: number }[] = [];
   const all = snap?.micro.nodes.filter((x) => x.kind === "splash" || x.kind === "infusion" || x.kind === "imbalance") ?? [];
+  const step = candles.length > 1 ? Math.abs(candles[1]!.time - candles[0]!.time) || 3600 : 3600;
   for (const n of all) {
     const tSec = n.time > 1e12 ? Math.floor(n.time / 1000) : n.time;
-    let x = ts.timeToCoordinate(tSec as UTCTimestamp);
-    let y = series.priceToCoordinate(n.price);
-    if (y == null) continue;
-    if (x == null) {
-      const near = candles.reduce(
-        (best, c) => (Math.abs(c.time - tSec) < Math.abs(best.time - tSec) ? c : best),
-        candles[0]!,
-      );
-      x = ts.timeToCoordinate(near.time as UTCTimestamp);
+    const bar =
+      candles.find((c) => tSec >= c.time && tSec < c.time + step) ??
+      candles.reduce((best, c) => (Math.abs(c.time - tSec) < Math.abs(best.time - tSec) ? c : best), candles[0]!);
+    if (!bar) continue;
+    const splash = n.kind === "splash";
+    const inf = n.kind === "infusion";
+    let px = n.price;
+    if (!(px >= bar.low && px <= bar.high)) {
+      if (splash) px = n.side === "sell" ? bar.low : bar.high;
+      else if (inf) px = (bar.high + bar.low) / 2;
+      else px = px > bar.high ? bar.high : px < bar.low ? bar.low : bar.close;
     }
-    if (x == null) continue;
+    const x = ts.timeToCoordinate(bar.time as UTCTimestamp);
+    const y = series.priceToCoordinate(px);
+    if (x == null || y == null) continue;
     let yy: number = y;
     const xx: number = x;
     for (let k = 0; k < 8; k++) {
@@ -1338,8 +1343,6 @@ function drawTape(
       yy += k % 2 ? 16 : -16;
     }
     used.push({ x: xx, y: yy });
-    const splash = n.kind === "splash";
-    const inf = n.kind === "infusion";
     const broken = inf && n.held === false;
     const col = splash ? "#ffb020" : broken ? "#8aa040" : inf ? "#c8f030" : "#5ad0ff";
     pulseRings(ctx, xx, yy, col, !broken);
