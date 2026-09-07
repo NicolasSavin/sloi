@@ -20,13 +20,8 @@ import { CD_FUT } from "@/lib/smc/micro";
 import { clipWicks, liveCdCharts } from "@/lib/broker-tape";
 import { cn } from "@/lib/utils";
 
-function mascotGif(kind: "bull" | "bear", pair: string) {
-  const bulls = ["1f911", "1f4b8", "1f680", "1f92a", "1f525", "1f389"];
-  const bears = ["1f43b", "1f4b8", "1f62c", "1f4a8", "1f47b", "1f912"];
-  let h = 7;
-  for (let i = 0; i < pair.length; i++) h = (h * 33 + pair.charCodeAt(i)) >>> 0;
-  const code = (kind === "bull" ? bulls : bears)[h % 6]!;
-  return `https://fonts.gstatic.com/s/e/notoemoji/latest/${code}/512.gif`;
+function mascotGif(kind: "bull" | "bear", _pair: string) {
+  return kind === "bull" ? "/mascot/bull.gif" : "/mascot/bear.gif";
 }
 
 function token(name: string, fallback: string) {
@@ -1969,18 +1964,22 @@ export function ChartPane({
         ref={profileRef}
         className="pointer-events-none absolute top-0 right-14 bottom-8 z-10 w-32"
       />
-      <div className="pointer-events-none absolute bottom-2 left-2 z-20 flex w-28 flex-col items-center">
+      <div className="pointer-events-none absolute bottom-2 left-2 z-20 flex w-36 flex-col items-center">
         {gifOk ? (
           <img
             src={mascotGif(mascotKind, pair)}
             alt=""
-            width={96}
-            height={96}
-            className="sloi-mascot-gif h-24 w-24 object-contain"
+            width={128}
+            height={128}
+            className="sloi-mascot-gif h-32 w-32 rounded-full object-cover ring-2 ring-[#e8c070]/50"
             onError={() => setGifOk(false)}
           />
         ) : (
-          <span className="sloi-mascot-gif text-7xl leading-none">{mascotKind === "bull" ? "🐂" : "🐻"}</span>
+          <img
+            src={mascotKind === "bull" ? "/mascot/bull.jpg" : "/mascot/bear.jpg"}
+            alt=""
+            className="sloi-mascot-gif h-32 w-32 rounded-full object-cover ring-2 ring-[#e8c070]/50"
+          />
         )}
         <span className="font-mono text-[10px] text-[#e8c070]">
           {mascotKind === "bull" ? "карта вверх" : "карта вниз"}

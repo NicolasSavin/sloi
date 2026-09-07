@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.8.90",
+    d: "2026-09-07",
+    items: [
+      "GIF слева внизу — живой реалистичный трейдер (лонг/шорт). График: Yahoo-свечи, last с MT4, без игл",
+    ],
+  },
+  {
     v: "1.8.89",
     d: "2026-09-07",
     items: [

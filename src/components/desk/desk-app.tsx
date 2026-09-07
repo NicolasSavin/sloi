@@ -106,28 +106,9 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
       ingestBrokerTape((bookQ.data as { tape: string }).tape, "client");
     }
     const web = market.data?.candles ?? [];
-    if (quoteSource === "yahoo") return clipWicks(web);
-    const broker = liveOhlc(spec.id);
-    if (broker.length >= 8) {
-      const br = broker.map((b) => ({
-        time: b.time,
-        open: b.open,
-        high: b.high,
-        low: b.low,
-        close: b.close,
-        volume: 0,
-      }));
-      const t0 = br[0]!.time;
-      const older = web.filter((c) => c.time < t0 - 900 && c.time > t0 - 90 * 3600);
-      const px = br.at(-1)!.close;
-      const sane = br.filter((b) => {
-        if (px <= 0) return true;
-        const span = Math.max(b.high - b.low, Math.abs(b.close - b.open));
-        return span < px * 0.02 && Math.abs(b.close - px) < px * 0.03;
-      });
-      const use = sane.length >= 8 ? sane : br;
-      let out = clipWicks([...older, ...use]);
-      const mid = brokerMid(spec.id, "client") ?? brokerMid(spec.id);
+    const mid = brokerMid(spec.id, "client") ?? brokerMid(spec.id);
+    if (quoteSource === "yahoo") {
+      let out = clipWicks(web);
       if (mid && out.length) {
         const last = { ...out[out.length - 1]! };
         last.close = mid;
@@ -137,7 +118,23 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
       }
       return out;
     }
-    return clipWicks(mergeBrokerCandles(web, broker));
+    const broker = liveOhlc(spec.id);
+    const px = web.at(-1)?.close ?? broker.at(-1)?.close ?? 0;
+    const sane = broker.filter((b) => {
+      if (px <= 0) return true;
+      const span = Math.max(b.high - b.low, Math.abs(b.close - b.open));
+      return span < px * 0.018 && Math.abs(b.close - px) < px * 0.02;
+    });
+    if (sane.length >= 16) return clipWicks(mergeBrokerCandles(web, sane));
+    let out = clipWicks(web);
+    if (mid && out.length) {
+      const last = { ...out[out.length - 1]! };
+      last.close = mid;
+      last.high = Math.max(last.high, mid);
+      last.low = Math.min(last.low, mid);
+      out = [...out.slice(0, -1), last];
+    }
+    return out;
   }, [market.data?.candles, bookQ.data, spec.id, quoteSource]);
   const snap = useMemo<SmcSnapshot | null>(() => {
     if (!candles.length) return null;
