@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.8.95",
+    d: "2026-09-07",
+    items: [
+      "IMB с ClusterDelta #Imbalance: синие/красные круги отдельно от сплэша. Сов 4.96",
+    ],
+  },
+  {
     v: "1.8.94",
     d: "2026-09-07",
     items: [

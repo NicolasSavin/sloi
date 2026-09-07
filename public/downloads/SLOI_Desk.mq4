@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.95"
+#property version   "4.96"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -145,7 +145,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.95: кружки Splash/Infusion/IMB с чарта (эллипсы), не только имя");
+   Print("SLOI 4.96: IMB отдельно — синие/красные круги #Imbalance, не как сплэш");
    return(INIT_SUCCEEDED);
   }
 
@@ -1031,15 +1031,16 @@ void DumpCdObject(long ch, string n, string &body, int &sent, bool hasSplash, bo
       int g0 = ((c0 >> 8) & 0xFF);
       int b0 = ((c0 >> 16) & 0xFF);
       bool lime = g0 >= 90 && g0 + 20 >= r0 && g0 >= b0 - 15 && r0 <= g0 + 45;
-      bool orange = r0 >= 130 && r0 > g0 + 20 && b0 < 110;
-      bool blue = b0 >= 120 && b0 >= r0 && b0 >= g0;
-      if(hasInf && lime) kind = "INFUSION";
-      else if(hasSplash && orange) kind = "SPLASH";
-      else if(hasImb && blue) kind = "IMBALANCE";
-      else if(namedInf) kind = "INFUSION";
-      else if(isDot && hasSplash) kind = "SPLASH";
+      bool gold = r0 >= 150 && g0 >= 90 && b0 < 110;
+      bool redish = r0 >= 150 && g0 < 90 && b0 < 110;
+      bool blue = b0 >= 110 && b0 >= g0 && b0 >= r0 - 20;
+      if(hasImb && (blue || redish)) kind = "IMBALANCE";
+      else if(hasInf && lime) kind = "INFUSION";
+      else if(hasSplash && gold) kind = "SPLASH";
+      else if(hasImb && (t == OBJ_RECTANGLE || t == OBJ_HLINE)) kind = "IMBALANCE";
+      else if(isDot && hasSplash && !hasImb) kind = "SPLASH";
+      else if(isDot && hasImb) kind = "IMBALANCE";
       else if(isDot && hasInf && lime) kind = "INFUSION";
-      else if(isDot && hasImb && blue) kind = "IMBALANCE";
      }
    if(kind == "") return;
    string sym = ChartSymbol(ch);
@@ -1084,10 +1085,10 @@ void AppendClusters(string &body)
       bool hasM = ChartHasInd(ch, "imbalance");
       int wins = (int)ChartGetInteger(ch, CHART_WINDOWS_TOTAL);
       int local = 0;
-      for(int w = 0; w < MathMax(1, wins) && sent < 400 && local < 28; w++)
+      for(int w = 0; w < MathMax(1, wins) && sent < 400 && local < 90; w++)
         {
          int total = ObjectsTotal(ch, w, -1);
-         for(int i = 0; i < total && sent < 400 && local < 28; i++)
+         for(int i = 0; i < total && sent < 400 && local < 90; i++)
            {
             string n = ObjectName(ch, i, w, -1);
             if(StringLen(n) < 1) continue;
@@ -1402,8 +1403,16 @@ void ScrapeChartCd(long ch, string s, string &body)
       string knd = "SPLASH";
       if(isInf) knd = "INFUSION";
       else if(isImb) knd = "IMBALANCE";
-      else if(typ == OBJ_ELLIPSE) knd = "SPLASH";
-      else if(typ == OBJ_RECTANGLE) knd = "INFUSION";
+      else if(typ == OBJ_RECTANGLE || typ == OBJ_HLINE) knd = "IMBALANCE";
+      else if(typ == OBJ_ELLIPSE)
+        {
+         color ac = (color)ObjectGetInteger(ch, nm, OBJPROP_COLOR);
+         int r = ac & 0xFF, g = (ac >> 8) & 0xFF, b = (ac >> 16) & 0xFF;
+         if(b > r + 20 && b > g) knd = "IMBALANCE";
+         else if(r >= 150 && g < 90) knd = "IMBALANCE";
+         else if(g > r + 20) knd = "INFUSION";
+         else knd = "SPLASH";
+        }
       else if(typ == OBJ_ARROW)
         {
          color ac = (color)ObjectGetInteger(ch, nm, OBJPROP_COLOR);
@@ -1536,7 +1545,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 4.95\n";
+   body += "EA 4.96\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();

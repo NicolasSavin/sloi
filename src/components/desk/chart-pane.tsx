@@ -1341,16 +1341,16 @@ function drawTape(
     const splash = n.kind === "splash";
     const inf = n.kind === "infusion";
     const broken = inf && n.held === false;
-    const col = splash ? "#ffb020" : broken ? "#8aa040" : inf ? "#c8f030" : "#4aa3ff";
+    const col = splash ? "#ffb020" : broken ? "#8aa040" : inf ? "#c8f030" : "#5ad0ff";
     pulseRings(ctx, xx, yy, col, !broken);
     ctx.font = "bold 12px IBM Plex Sans, sans-serif";
     ctx.strokeStyle = "rgba(8,6,4,0.7)";
     ctx.lineWidth = 3;
-    const label = splash ? "СПЛЭШ" : broken ? "ВЛИВ. ПРОБИТО" : inf ? "ВЛИВАНИЕ" : "IMB CD";
+    const label = splash ? "СПЛЭШ" : broken ? "ВЛИВ. ПРОБИТО" : inf ? "ВЛИВАНИЕ" : "IMB";
     const lx = xx + 12;
     const ly = yy - 10;
     ctx.strokeText(label, lx, ly);
-    ctx.fillStyle = splash ? "#ffb020" : broken ? "#c8d080" : inf ? "#c8f030" : "#7ec0ff";
+    ctx.fillStyle = splash ? "#ffb020" : broken ? "#c8d080" : inf ? "#c8f030" : "#8ee0ff";
     ctx.fillText(label, lx, ly);
   }
   if (on && book && (book.bids.length || book.asks.length)) {
