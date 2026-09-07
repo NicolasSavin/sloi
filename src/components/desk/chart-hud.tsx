@@ -99,7 +99,7 @@ export function ChartHud({ boxRef }: { boxRef: RefObject<HTMLDivElement | null> 
           )}
           title="Свечи как в вашем MT4 (час)"
         >
-          MT4{quoteSource === "broker" ? ` ${liveOhlc(symbol).length}` : ""}
+          MT4{quoteSource === "broker" ? (liveOhlc(symbol).length ? ` ${liveOhlc(symbol).length}` : " last") : ""}
         </button>
       </div>
       <div className="pointer-events-auto flex flex-wrap items-center gap-1">
