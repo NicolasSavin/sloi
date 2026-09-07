@@ -1524,11 +1524,6 @@ export function ChartPane({
         hi = mid + cap / 2;
       }
       const pad = (hi - lo) * 0.12;
-      const minValue = lo - pad;
-      const maxValue = hi + pad;
-      series.applyOptions({
-        autoscaleInfoProvider: () => ({ priceRange: { minValue, maxValue } }),
-      });
       series.priceScale().applyOptions({ autoScale: true, scaleMargins: { top: 0.12, bottom: 0.16 } });
       try {
         chart.timeScale().setVisibleRange({
@@ -1609,7 +1604,9 @@ export function ChartPane({
         wickDownColor: "#00000000",
         borderVisible: false,
         wickVisible: false,
-        visible: false,
+        visible: true,
+        lastValueVisible: true,
+        priceLineVisible: false,
         autoscaleInfoProvider: () => {
           const all = clipCandlesForView(candlesRef.current);
           const last = all.at(-1)?.close;
