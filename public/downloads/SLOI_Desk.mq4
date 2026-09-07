@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.98"
+#property version   "4.99"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -145,7 +145,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.98: открытый чарт — объекты CD; остальные мажоры — #Volumes+#Delta без лишних индюков");
+   Print("SLOI 4.99: без iCustom. CD только объекты с открытых чартов. Перезапустите MT4 целиком");
    return(INIT_SUCCEEDED);
   }
 
@@ -1317,11 +1317,9 @@ void AppendCdLight(string &body, string s)
 
 void AppendCdClusters(string &body, int &sent)
   {
-   for(int i = 0; i < g_n; i++)
-     {
-      if(CdChartOpen(g_sym[i])) continue;
-      AppendCdLight(body, g_sym[i]);
-     }
+   // 4.99: no iCustom. Hidden Volumes/Delta on majors ate millisecond timers
+   // while only 2 charts were open. Tape = objects on open charts only.
+   sent = sent;
   }
 
 bool LooksPx(double x, double bid)
@@ -1465,12 +1463,6 @@ void ScrapeChartCd(long ch, string s, string &body)
      }
    datetime bt = iTime(ChartSymbol(ch), PERIOD_H1, 0);
    if(bt <= 0) bt = TimeCurrent();
-   double inf0 = Icd(s, PERIOD_H1, CdInfusion, 0, 0);
-   if(inf0 == EMPTY_VALUE || inf0 == 0) inf0 = Icd(s, PERIOD_H1, CdInfusion, 1, 0);
-   double spl0 = Icd(s, PERIOD_H1, CdSplash, 0, 0);
-   if(spl0 == EMPTY_VALUE || spl0 == 0) spl0 = Icd(s, PERIOD_H1, CdSplash, 1, 0);
-   if(inf0 != EMPTY_VALUE && inf0 != 0) inf = true;
-   if(spl0 != EMPTY_VALUE && spl0 != 0) spl = true;
    int sp = spl ? 1 : 0;
    int infg = inf ? 1 : 0;
    int im = (askV > 1 && bidV > 1 && (askV > bidV * 1.45 || bidV > askV * 1.45)) ? 1 : 0;
@@ -1578,7 +1570,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 4.98\n";
+   body += "EA 4.99\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();
