@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.99"
+#property version   "5.00"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -145,7 +145,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.99: без iCustom. CD только объекты с открытых чартов. Перезапустите MT4 целиком");
+   Print("SLOI 5.00: IMB и вливание отдельно от сплэша. На чарте нужны #Imbalance и #Infusion");
    return(INIT_SUCCEEDED);
   }
 
@@ -994,7 +994,7 @@ bool ChartHasInd(long ch, string needle)
    return(false);
   }
 
-void DumpCdObject(long ch, string n, string &body, int &sent, bool hasSplash, bool hasInf, bool hasImb)
+void DumpCdObject(long ch, string n, string &body, int &sent, bool hasSplash, bool hasInf, bool hasImb, string want)
   {
    if(sent >= 400) return;
    if(StringFind(n, "SLOI_") == 0) return;
@@ -1014,44 +1014,41 @@ void DumpCdObject(long ch, string n, string &body, int &sent, bool hasSplash, bo
    if(tm <= 0) tm = TimeCurrent();
    bool namedSplash = StringFind(blob, "splash") >= 0 || StringFind(blob, "#spl") >= 0
       || StringFind(blob, "сплэш") >= 0 || StringFind(blob, "сплеш") >= 0 || StringFind(blob, "btrade") >= 0;
-   bool namedInf = StringFind(blob, "infusion") >= 0 || StringFind(blob, "infuz") >= 0 || StringFind(blob, "влив") >= 0;
+   bool namedInf = StringFind(blob, "infusion") >= 0 || StringFind(blob, "infuz") >= 0
+      || StringFind(blob, "влив") >= 0 || StringFind(blob, "inflow") >= 0;
    bool namedImb = StringFind(blob, "imbalance") >= 0
-      || StringFind(blob, "дисбал") >= 0 || StringFind(blob, "#imb") >= 0;
+      || StringFind(blob, "дисбал") >= 0 || StringFind(blob, "#imb") >= 0 || StringFind(blob, "imbal") >= 0;
    bool isDot = t == OBJ_ELLIPSE || t == OBJ_ARROW || t == OBJ_ARROW_UP || t == OBJ_ARROW_DOWN
       || t == OBJ_BITMAP || t == OBJ_BITMAP_LABEL;
    bool isLevel = t == OBJ_HLINE || t == OBJ_TREND || t == OBJ_RECTANGLE;
+   color c0 = (color)ObjectGetInteger(ch, n, OBJPROP_COLOR);
+   int r0 = (c0 & 0xFF);
+   int g0 = ((c0 >> 8) & 0xFF);
+   int b0 = ((c0 >> 16) & 0xFF);
+   bool lime = g0 >= 70 && g0 >= r0 - 25 && g0 >= b0 - 40;
+   bool gold = r0 >= 150 && g0 >= 90 && b0 < 110;
+   bool redish = r0 >= 150 && g0 < 90 && b0 < 120;
+   bool blue = b0 >= 90 && b0 >= g0 - 10 && b0 >= r0 - 20;
+   bool mag = r0 >= 120 && b0 >= 120 && g0 < 90;
    string kind = "";
    if(namedImb) kind = "IMBALANCE";
-   else if(namedSplash && !namedInf) kind = "SPLASH";
    else if(namedInf) kind = "INFUSION";
+   else if(namedSplash) kind = "SPLASH";
    else if(isDot || isLevel)
      {
-      color c0 = (color)ObjectGetInteger(ch, n, OBJPROP_COLOR);
-      int r0 = (c0 & 0xFF);
-      int g0 = ((c0 >> 8) & 0xFF);
-      int b0 = ((c0 >> 16) & 0xFF);
-      bool lime = g0 >= 90 && g0 + 20 >= r0 && g0 >= b0 - 15 && r0 <= g0 + 45;
-      bool gold = r0 >= 150 && g0 >= 90 && b0 < 110;
-      bool redish = r0 >= 150 && g0 < 90 && b0 < 110;
-      bool blue = b0 >= 110 && b0 >= g0 && b0 >= r0 - 20;
-      if(hasImb && (blue || redish)) kind = "IMBALANCE";
-      else if(hasInf && lime) kind = "INFUSION";
+      if(hasImb && (blue || redish || mag || t == OBJ_RECTANGLE)) kind = "IMBALANCE";
+      else if(hasInf && (lime || t == OBJ_HLINE)) kind = "INFUSION";
       else if(hasSplash && gold) kind = "SPLASH";
-      else if(hasImb && (t == OBJ_RECTANGLE || t == OBJ_HLINE)) kind = "IMBALANCE";
-      else if(isDot && hasSplash && !hasImb) kind = "SPLASH";
-      else if(isDot && hasImb) kind = "IMBALANCE";
-      else if(isDot && hasInf && lime) kind = "INFUSION";
+      else if(hasInf && isDot && lime) kind = "INFUSION";
+      else if(hasSplash && isDot && !lime && !blue && !redish) kind = "SPLASH";
      }
    if(kind == "") return;
+   if(StringLen(want) > 0 && kind != want) return;
    string sym = ChartSymbol(ch);
    if(StringLen(sym) < 3) sym = Symbol();
    double bid = BidOf(sym);
-   if(!LooksPx(px, bid)) px = iClose(sym, PERIOD_H1, 0);
-   if(px <= 0) return;
-   color c = (color)ObjectGetInteger(ch, n, OBJPROP_COLOR);
-   int red = (c & 0xFF);
-   int green = ((c >> 8) & 0xFF);
-   string sd = (red > green + 20) ? "SELL" : "BUY";
+   if(!LooksPx(px, bid)) return;
+   string sd = (redish || (r0 > g0 + 20)) ? "SELL" : "BUY";
    body += "CLUSTER " + Naked(sym) + " " + kind + " " + DoubleToStr(px, DigitsOf(sym)) + " " + sd
         + " " + IntegerToString((int)tm) + "\n";
    sent++;
@@ -1084,17 +1081,24 @@ void AppendClusters(string &body)
       bool hasI = ChartHasInd(ch, "infusion");
       bool hasM = ChartHasInd(ch, "imbalance");
       int wins = (int)ChartGetInteger(ch, CHART_WINDOWS_TOTAL);
-      int local = 0;
-      for(int w = 0; w < MathMax(1, wins) && sent < 400 && local < 90; w++)
+      string wants[3];
+      wants[0] = "IMBALANCE";
+      wants[1] = "INFUSION";
+      wants[2] = "SPLASH";
+      for(int p = 0; p < 3 && sent < 400; p++)
         {
-         int total = ObjectsTotal(ch, w, -1);
-         for(int i = 0; i < total && sent < 400 && local < 90; i++)
+         int cap = 0;
+         for(int w = 0; w < MathMax(1, wins) && sent < 400 && cap < 36; w++)
            {
-            string n = ObjectName(ch, i, w, -1);
-            if(StringLen(n) < 1) continue;
-            int before = sent;
-            DumpCdObject(ch, n, body, sent, hasS, hasI, hasM);
-            if(sent > before) local++;
+            int total = ObjectsTotal(ch, w, -1);
+            for(int i = 0; i < total && sent < 400 && cap < 36; i++)
+              {
+               string nm = ObjectName(ch, i, w, -1);
+               if(StringLen(nm) < 1) continue;
+               int before = sent;
+               DumpCdObject(ch, nm, body, sent, hasS, hasI, hasM, wants[p]);
+               if(sent > before) cap++;
+              }
            }
         }
       ch = ChartNext(ch);
@@ -1570,7 +1574,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 4.99\n";
+   body += "EA 5.00\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();
