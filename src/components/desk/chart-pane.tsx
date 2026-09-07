@@ -1289,23 +1289,28 @@ function drawZones(
   const kind: "bull" | "bear" =
     action === "short" || vec?.dir === "down" || snap?.bias === "bearish" ? "bear" : "bull";
   const lively = action === "long" || action === "short";
-  const slot = { x: 28, y: Math.max(96, height - 132) };
-  occupy(slot.x, slot.y - 12, 96, 96);
+  const slot = { x: 18, y: 92 };
+  occupy(slot.x, slot.y - 8, 130, 120);
   ctx.save();
-  ctx.translate(slot.x + 48, slot.y + 42);
-  ctx.scale(1.2, 1.2);
+  ctx.translate(slot.x + 62, slot.y + 58);
+  ctx.scale(1.55, 1.55);
   const beat = 0.5 + 0.5 * Math.sin(nowMs / 180);
   for (let r = 1; r <= 3; r++) {
     ctx.beginPath();
     ctx.arc(0, 8, 34 + r * 9 * beat, 0, Math.PI * 2);
-    ctx.strokeStyle = kind === "bull" ? "rgba(232,190,80,0.35)" : "rgba(200,90,70,0.32)";
+    ctx.strokeStyle = kind === "bull" ? "rgba(232,190,80,0.45)" : "rgba(200,90,70,0.4)";
     ctx.globalAlpha = (1 - r / 4) * beat;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2.2;
     ctx.stroke();
   }
   ctx.globalAlpha = 1;
   drawCreature(ctx, kind, lively, nowMs, pair, faceI);
   ctx.restore();
+  ctx.font = "700 11px IBM Plex Sans, sans-serif";
+  ctx.fillStyle = kind === "bull" ? "#e8c070" : "#e09080";
+  ctx.textAlign = "left";
+  ctx.fillText(kind === "bull" ? "карта вверх" : "карта вниз", slot.x + 8, slot.y + 118);
+  ctx.textAlign = "start";
 }
 
 function drawProfile(
