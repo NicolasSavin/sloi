@@ -64,8 +64,26 @@ export function applyHold(markets: DigestMarket[]): DigestMarket[] {
 
     if (live && entry != null && stop != null) {
       const action = m.advice.action as "long" | "short";
-      // Встречный живой приказ — принимаем (разворот), не «шум WAIT».
+      // Встречный живой приказ — не сразу: 25 мин держим сторону, иначе USDCAD хлопает.
       if (prev && prev.action !== action) {
+        if (now - prev.since < 25 * 60_000) {
+          return {
+            ...m,
+            advice: {
+              ...m.advice,
+              action: prev.action,
+              title: "Держим сторону",
+              therefore:
+                "Стол не разворачивает 25 минут: иначе сов открывает и сразу закрывает.",
+            },
+            setup: {
+              ...m.setup,
+              entry: prev.entry,
+              stop: prev.stop,
+              targets: prev.target ? [prev.target, ...m.setup.targets.slice(1)] : m.setup.targets,
+            },
+          };
+        }
         hold.set(m.spec.id, {
           action,
           entry,

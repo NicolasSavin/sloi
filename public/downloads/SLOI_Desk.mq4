@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.91"
+#property version   "4.92"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -33,7 +33,8 @@ input double  MaxSkewPct      = 0.12;
 input double  MinCover        = 1.0;
 input double  MinNetRR        = 0.8;
 input int     OneTradeOnly    = 1;
-input int     CoolMinutes     = 0;
+input int     CoolMinutes     = 40;
+input int     MinHoldMinutes  = 25;
 input bool    FixForeign      = false;
 input string  ForeignTag      = "WS";
 input bool    AlertsOn        = true;
@@ -90,7 +91,8 @@ bool   g_cd;
 bool   g_host;
 bool   g_seeded = false;
 bool   g_ready = false;
-bool   g_min = false;
+datetime g_lastClose[MAXSYM];
+int      g_holdMin;
 string g_feed = "";
 datetime g_feedAt = 0;
 string g_feedNote = "нет ленты";
@@ -134,6 +136,7 @@ int OnInit()
    g_virt   = VirtualPendings;
    g_cd     = UseClusterDelta;
    g_host   = HostFeed;
+   g_holdMin = MinHoldMinutes;
    Wipe();
    ParseWatch();
    EventSetTimer(2);
@@ -141,7 +144,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.91: 24 часа H1 в ленте всегда, HostFeed только для CD");
+   Print("SLOI 4.92: не разворот 25 мин, пауза 40 мин после закрытия");
    return(INIT_SUCCEEDED);
   }
 
@@ -621,6 +624,7 @@ void ParseWatch()
       g_lastKey[g_n] = "";
       g_prevV[g_n] = "";
       g_lastBar[g_n] = 0;
+      g_lastClose[g_n] = 0;
       g_n++;
      }
    if(g_n == 0)
@@ -776,6 +780,7 @@ void AlignVirt(int idx, int dir, double stop, double target)
       if(OrderType() != OP_BUY && OrderType() != OP_SELL) continue;
       if(OrderType() != tyWant)
         {
+         if(g_holdMin > 0 && TimeCurrent() - OrderOpenTime() < g_holdMin * 60) continue;
          CloseOne();
          continue;
         }
@@ -1700,7 +1705,7 @@ void MaybeTrade(int idx, int dir, double entry, double stop, double target, stri
       return;
      }
    if(CountMarket(s) > 0 && OneTradeOnly > 0) { g_lastKey[idx] = key; return; }
-   if(CoolMinutes > 0 && RecentLoss(s, CoolMinutes)) { g_lastKey[idx] = key; return; }
+   if(CoolMinutes > 0 && (RecentLoss(s, CoolMinutes) || RecentClose(s, CoolMinutes))) { g_lastKey[idx] = key; return; }
    RefreshRates();
    int digits = DigitsOf(s);
    int cmd = dir > 0 ? OP_BUY : OP_SELL;
@@ -1796,6 +1801,24 @@ int CountPending(string s)
       if(ty == OP_BUYLIMIT || ty == OP_SELLLIMIT || ty == OP_BUYSTOP || ty == OP_SELLSTOP) n++;
      }
    return(n);
+  }
+
+bool RecentClose(string s, int minutes)
+  {
+   int idx = IdxOf(s);
+   if(idx >= 0 && g_lastClose[idx] > 0 && TimeCurrent() - g_lastClose[idx] < minutes * 60) return(true);
+   datetime since = TimeCurrent() - minutes * 60;
+   int n = OrdersHistoryTotal();
+   int from = MathMax(0, n - 80);
+   for(int i = n - 1; i >= from; i--)
+     {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_HISTORY)) continue;
+      if(OrderMagicNumber() != Magic || OrderSymbol() != s) continue;
+      int ty = OrderType();
+      if(ty != OP_BUY && ty != OP_SELL) continue;
+      if(OrderCloseTime() >= since) return(true);
+     }
+   return(false);
   }
 
 bool RecentLoss(string s, int minutes)
@@ -2023,6 +2046,11 @@ void CloseOne()
    else if(type == OP_SELL) ok = OrderClose(ticket, lots, AskOf(s), SlippagePoints, C_BUY);
    else ok = OrderDelete(ticket);
    if(!ok) Print("SLOI close err ", GetLastError(), " #", ticket);
+   else
+     {
+      int ix = IdxOf(s);
+      if(ix >= 0) g_lastClose[ix] = TimeCurrent();
+     }
   }
 
 void SweepVirtPendings()
