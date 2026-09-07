@@ -123,7 +123,10 @@ export function ChartHud({ boxRef }: { boxRef: RefObject<HTMLDivElement | null> 
         {note ? <span className="max-w-[9rem] truncate font-mono text-[10px] text-dim">{note}</span> : null}
         <button
           type="button"
-          onClick={() => requestFit()}
+          onClick={() => {
+            requestFit();
+            window.dispatchEvent(new Event("sloi-fit"));
+          }}
           className="inline-flex h-8 items-center rounded-md bg-bg/80 px-2 font-mono text-[11px] text-muted backdrop-blur-sm hover:text-fg"
           title="Подогнать цену и время"
         >

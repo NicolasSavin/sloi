@@ -449,14 +449,15 @@ export function hydrateClientCd(cd: { askbid?: Record<string, { ask: number; bid
 }
 
 export function clipWicks<T extends { open: number; high: number; low: number; close: number }>(cs: T[]): T[] {
-  if (cs.length < 3) return cs;
+  if (cs.length < 1) return cs;
   const win = cs.slice(-80);
+  const px = Math.abs(win.at(-1)?.close ?? 1) || 1;
   const bodies = win
     .map((c) => Math.abs(c.close - c.open))
     .filter((x) => x > 0)
     .sort((a, b) => a - b);
-  const medB = bodies[Math.floor(bodies.length / 2)] || Math.abs(win.at(-1)?.close ?? 1) * 0.001;
-  const cap = Math.max(medB * 1.6, Math.abs(win.at(-1)?.close ?? 1) * 0.0005);
+  const medB = bodies.length >= 5 ? bodies[Math.floor(bodies.length / 2)]! : px * 0.001;
+  const cap = Math.min(Math.max(medB * 1.45, px * 0.00045), px * 0.006);
   return cs.map((c) => {
     const top = Math.max(c.open, c.close);
     const bot = Math.min(c.open, c.close);

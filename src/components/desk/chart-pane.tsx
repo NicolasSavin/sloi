@@ -20,6 +20,15 @@ import { CD_FUT } from "@/lib/smc/micro";
 import { clipWicks, liveCdCharts } from "@/lib/broker-tape";
 import { cn } from "@/lib/utils";
 
+function mascotGif(kind: "bull" | "bear", pair: string) {
+  const bulls = ["1f402", "1f911", "1f680", "1f4b0", "1f4c8", "1f60e"];
+  const bears = ["1f43b", "1f4b8", "1f4c9", "1f612", "1f62c", "1f47b"];
+  let h = 7;
+  for (let i = 0; i < pair.length; i++) h = (h * 33 + pair.charCodeAt(i)) >>> 0;
+  const code = (kind === "bull" ? bulls : bears)[h % 6]!;
+  return `https://fonts.gstatic.com/s/e/notoemoji/latest/${code}/512.gif`;
+}
+
 function token(name: string, fallback: string) {
   if (typeof window === "undefined") return fallback;
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -1125,39 +1134,6 @@ function drawZones(
   ctx.fillText(tape, tapeX + 10 + mx, ty2);
   ctx.fillText(tape, tapeX + 10 + mx + tapeW, ty2);
   ctx.restore();
-
-  const action = order?.action;
-  const kind: "bull" | "bear" =
-    action === "long" || vec?.dir === "up"
-      ? "bull"
-      : action === "short" || vec?.dir === "down"
-        ? "bear"
-        : snap?.bias === "bearish"
-          ? "bear"
-          : "bull";
-  const lively = true;
-  const slot = { x: 18, y: Math.max(90, height - 176) };
-  occupy(slot.x, slot.y - 10, 150, 160);
-  ctx.save();
-  ctx.translate(slot.x + 70, slot.y + 78);
-  ctx.scale(2.05, 2.05);
-  const beat = 0.5 + 0.5 * Math.sin(nowMs / 180);
-  for (let r = 1; r <= 3; r++) {
-    ctx.beginPath();
-    ctx.arc(0, 10, 36 + r * 10 * beat, 0, Math.PI * 2);
-    ctx.strokeStyle = kind === "bull" ? "rgba(232,190,80,0.4)" : "rgba(200,90,70,0.36)";
-    ctx.globalAlpha = (1 - r / 4) * beat;
-    ctx.lineWidth = 2.4;
-    ctx.stroke();
-  }
-  ctx.globalAlpha = 1;
-  drawCreature(ctx, kind, lively, nowMs, pair, faceI);
-  ctx.restore();
-  ctx.font = "700 12px IBM Plex Sans, sans-serif";
-  ctx.fillStyle = kind === "bull" ? "#e8c070" : "#e09080";
-  ctx.textAlign = "left";
-  ctx.fillText(kind === "bull" ? "карта вверх" : "карта вниз", slot.x + 10, slot.y + 158);
-  ctx.textAlign = "start";
 }
 
 function drawProfile(
@@ -1512,6 +1488,7 @@ export function ChartPane({
   const fittedKey = useRef("");
   const hoverRef = useRef(false);
   const [ready, setReady] = useState(false);
+  const [gifOk, setGifOk] = useState(true);
   snapRef.current = snap;
   overlaysRef.current = overlays;
   candlesRef.current = candles;
@@ -1540,6 +1517,12 @@ export function ChartPane({
         hi = Math.max(hi, c.high, c.open, c.close, c.low);
       }
       if (!(hi > lo) || !Number.isFinite(lo)) return;
+      const mid = last.at(-1)!.close;
+      const cap = Math.abs(mid) * 0.012;
+      if (hi - lo > cap) {
+        lo = mid - cap / 2;
+        hi = mid + cap / 2;
+      }
       const pad = (hi - lo) * 0.12;
       const minValue = lo - pad;
       const maxValue = hi + pad;
@@ -1969,6 +1952,13 @@ export function ChartPane({
     });
   }, [snap, overlays, ready, order, setup, pair]);
 
+  const mascotKind: "bull" | "bear" =
+    order?.action === "long" || snap?.boxVector?.dir === "up"
+      ? "bull"
+      : order?.action === "short" || snap?.boxVector?.dir === "down" || snap?.bias === "bearish"
+        ? "bear"
+        : "bull";
+
   return (
     <div className={cn("relative overflow-hidden bg-bg", className)}>
       <div ref={hostRef} className="absolute inset-0" />
@@ -1976,6 +1966,23 @@ export function ChartPane({
         ref={profileRef}
         className="pointer-events-none absolute top-0 right-14 bottom-8 z-10 w-32"
       />
+      <div className="pointer-events-none absolute bottom-2 left-2 z-20 flex w-28 flex-col items-center">
+        {gifOk ? (
+          <img
+            src={mascotGif(mascotKind, pair)}
+            alt=""
+            width={96}
+            height={96}
+            className="sloi-mascot-gif h-24 w-24 object-contain"
+            onError={() => setGifOk(false)}
+          />
+        ) : (
+          <span className="sloi-mascot-gif text-7xl leading-none">{mascotKind === "bull" ? "🐂" : "🐻"}</span>
+        )}
+        <span className="font-mono text-[10px] text-[#e8c070]">
+          {mascotKind === "bull" ? "карта вверх" : "карта вниз"}
+        </span>
+      </div>
     </div>
   );
 }

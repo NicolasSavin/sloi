@@ -82,7 +82,18 @@ export const useDeskStore = create<DeskState>()(
     }),
     {
       name: "sloi-desk-smc",
-      version: 12,
+      version: 13,
+      partialize: (s) => ({
+        symbol: s.symbol,
+        timeframe: s.timeframe,
+        overlays: s.overlays,
+        chochLen: s.chochLen,
+        chochClose: s.chochClose,
+        spreads: s.spreads,
+        quoteSource: s.quoteSource,
+        soundOn: s.soundOn,
+        voiceOn: s.voiceOn,
+      }),
       migrate: (persisted) => {
         const p = (persisted ?? {}) as Partial<DeskState>;
         const symbol = p.symbol && ALLOWED.has(p.symbol) ? p.symbol : "EURUSD";

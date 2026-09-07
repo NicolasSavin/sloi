@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.8.86",
+    d: "2026-09-07",
+    items: [
+      "Масштаб чинит persist. Смайл — живой GIF как в Telegram (Noto), не плоский рисунок. Фитили режутся от цены",
+    ],
+  },
+  {
     v: "1.8.85",
     d: "2026-09-07",
     items: [
