@@ -1205,7 +1205,7 @@ void AppendCdStat(string &body, string s)
 
 void AppendCdHist(string &body, string s, int &sent)
   {
-   AppendCdHistTF(body, s, PERIOD_H1, 36, sent);
+   AppendCdHistTF(body, s, PERIOD_H1, 48, sent);
    AppendCdHistTF(body, s, PERIOD_M15, 24, sent);
    AppendCdHistTF(body, s, PERIOD_M5, 24, sent);
   }

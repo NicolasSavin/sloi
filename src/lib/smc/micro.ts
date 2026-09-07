@@ -267,7 +267,7 @@ export function buildMicro(
       (x) =>
         x.kind === n.kind &&
         Math.abs(x.price - n.price) < atrLike * 0.08 &&
-        Math.abs(x.time - n.time) < 900,
+        Math.abs(x.time - n.time) < 180,
     );
     if (near) {
       near.price = (near.price + n.price) / 2;
@@ -377,17 +377,9 @@ export function buildMicro(
     nodes: (() => {
       const stepH = step || 3600;
       const day = 86400;
-      const recentCut = Math.max(stepH * 24, day);
-      const keep = Math.max(stepH * 80, 5 * day);
-      const recent = nodes.filter((n) => last.time - n.time <= recentCut);
-      const mid = nodes.filter((n) => last.time - n.time > recentCut && last.time - n.time <= keep);
-      const old = nodes.filter((n) => last.time - n.time > keep);
-      const take = (list: VolumeNode[], imbEvery: number, imbMax: number) => {
-        const imb = list.filter((n) => n.kind === "imbalance").filter((_, i) => i % imbEvery === 0).slice(-imbMax);
-        const rest = list.filter((n) => n.kind !== "imbalance");
-        return [...rest, ...imb];
-      };
-      return [...take(old, 8, 4), ...take(mid, 4, 6), ...take(recent, 2, 12)];
+      const keep = Math.max(stepH * 96, 7 * day);
+      const vis = nodes.filter((n) => last.time - n.time <= keep);
+      return vis.slice(-96);
     })(),
     cmeTicker,
     because,

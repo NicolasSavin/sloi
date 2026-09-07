@@ -180,8 +180,6 @@ export function ingestBrokerTape(text: string, tenant = "legacy") {
       const side = p[4] === "SELL" || p[4] === "sell" ? "sell" : "buy";
       const ts = p.length >= 6 ? Number(p[5]) : 0;
       if (!id || !Number.isFinite(price) || price <= 0) continue;
-      const tick = r.ticks.get(id);
-      if (tick && tick.bid > 0 && Math.abs(price - tick.bid) / tick.bid > 0.08) continue;
       const list = batch.get(id) ?? [];
       const time = ts > 1_000_000_000 ? (ts > 1e12 ? Math.floor(ts / 1000) : ts) : Math.floor(at / 1000);
       list.push({ price, side, kind, time });
@@ -274,7 +272,7 @@ export function ingestBrokerTape(text: string, tenant = "legacy") {
         if (i >= 0) list[i] = bar;
         else list.push(bar);
         list.sort((a, b) => a.time - b.time);
-        r.cdBars.set(id, list.slice(-48));
+        r.cdBars.set(id, list.slice(-80));
       }
       continue;
     }
@@ -304,7 +302,16 @@ export function ingestBrokerTape(text: string, tenant = "legacy") {
   } else if (pos.length && r.account && Date.now() - r.account.at < 120_000) {
     r.account = { ...r.account, at, positions: pos.slice(0, 24) };
   }
-  for (const [id, nodes] of batch) r.clusters.set(id, { at, nodes: nodes.slice(-80) });
+  for (const [id, nodes] of batch) {
+    const prev = r.clusters.get(id)?.nodes ?? [];
+    const map = new Map<string, (typeof nodes)[0]>();
+    for (const n of prev) map.set(`${n.kind}:${n.time}:${n.price.toFixed(3)}`, n);
+    for (const n of nodes) map.set(`${n.kind}:${n.time}:${n.price.toFixed(3)}`, n);
+    r.clusters.set(id, {
+      at,
+      nodes: [...map.values()].sort((a, b) => a.time - b.time).slice(-160),
+    });
+  }
   return r.account;
 }
 

@@ -1316,10 +1316,12 @@ function drawTape(
   book: { bids: { price: number; volume: number }[]; asks: { price: number; volume: number }[] } | null,
 ) {
   const ts = chart.timeScale();
-  for (const n of snap?.micro.nodes.filter((x) => x.kind === "splash" || x.kind === "infusion" || x.kind === "imbalance").slice(-64) ?? []) {
+  const used: { x: number; y: number }[] = [];
+  const all = snap?.micro.nodes.filter((x) => x.kind === "splash" || x.kind === "infusion" || x.kind === "imbalance") ?? [];
+  for (const n of all) {
     const tSec = n.time > 1e12 ? Math.floor(n.time / 1000) : n.time;
     let x = ts.timeToCoordinate(tSec as UTCTimestamp);
-    const y = series.priceToCoordinate(n.price);
+    let y = series.priceToCoordinate(n.price);
     if (y == null) continue;
     if (x == null) {
       const near = candles.reduce(
@@ -1329,17 +1331,24 @@ function drawTape(
       x = ts.timeToCoordinate(near.time as UTCTimestamp);
     }
     if (x == null) continue;
+    let yy: number = y;
+    const xx: number = x;
+    for (let k = 0; k < 8; k++) {
+      if (!used.some((u) => Math.hypot(u.x - xx, u.y - yy) < 18)) break;
+      yy += k % 2 ? 16 : -16;
+    }
+    used.push({ x: xx, y: yy });
     const splash = n.kind === "splash";
     const inf = n.kind === "infusion";
     const broken = inf && n.held === false;
     const col = splash ? "#ffb020" : broken ? "#8aa040" : inf ? "#c8f030" : "#4aa3ff";
-    pulseRings(ctx, x, y, col, !broken);
+    pulseRings(ctx, xx, yy, col, !broken);
     ctx.font = "bold 12px IBM Plex Sans, sans-serif";
     ctx.strokeStyle = "rgba(8,6,4,0.7)";
     ctx.lineWidth = 3;
     const label = splash ? "СПЛЭШ" : broken ? "ВЛИВ. ПРОБИТО" : inf ? "ВЛИВАНИЕ" : "IMB CD";
-    const lx = x + 12;
-    const ly = y - 10;
+    const lx = xx + 12;
+    const ly = yy - 10;
     ctx.strokeText(label, lx, ly);
     ctx.fillStyle = splash ? "#ffb020" : broken ? "#c8d080" : inf ? "#c8f030" : "#7ec0ff";
     ctx.fillText(label, lx, ly);
