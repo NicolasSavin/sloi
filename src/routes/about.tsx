@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.8.88",
+    d: "2026-09-07",
+    items: [
+      "Сборка Vercel: починен сломанный CSS (шкала, GIF, масштаб). 1.8.86–87 не выходили из‑за styles.css",
+    ],
+  },
+  {
     v: "1.8.87",
     d: "2026-09-07",
     items: [
