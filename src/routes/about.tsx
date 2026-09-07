@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.8.94",
+    d: "2026-09-07",
+    items: [
+      "Сов 4.95: кружки ClusterDelta Splash/Infusion/IMB читаются как объекты на чарте, не только по имени",
+    ],
+  },
+  {
     v: "1.8.93",
     d: "2026-09-07",
     items: [

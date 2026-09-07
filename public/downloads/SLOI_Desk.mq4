@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.94"
+#property version   "4.95"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -145,7 +145,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.94: 80 часов H1 по мажорам и золоту");
+   Print("SLOI 4.95: кружки Splash/Infusion/IMB с чарта (эллипсы), не только имя");
    return(INIT_SUCCEEDED);
   }
 
@@ -1376,27 +1376,50 @@ void ScrapeChartCd(long ch, string s, string &body)
    if(dlt != 0) body += "DELTA " + Naked(s) + " " + DoubleToStr(dlt, 0) + "\n";
    bool inf = false, spl = false, imb = false, cum = false;
    int total2 = (int)ObjectsTotal(ch, -1, -1);
-   for(int o2 = total2 - 1; o2 >= 0; o2--)
+   int sentCl = 0;
+   double bidNow = BidOf(s);
+   for(int o2 = total2 - 1; o2 >= 0 && sentCl < 90; o2--)
      {
       string nm = ObjectName(ch, o2, -1, -1);
+      if(StringLen(nm) < 1) continue;
+      if(StringFind(nm, "SLOI_") == 0) continue;
       string low = nm;
       StringToLower(low);
-      bool isInf = StringFind(low, "infusion") >= 0 || StringFind(low, "infuz") >= 0 || StringFind(low, "влив") >= 0;
-      bool isSpl = StringFind(low, "splash") >= 0 || StringFind(low, "btrade") >= 0;
-      bool isImb = StringFind(low, "imbalance") >= 0;
+      int typ = (int)ObjectGetInteger(ch, nm, OBJPROP_TYPE);
+      bool isInf = StringFind(low, "infusion") >= 0 || StringFind(low, "infuz") >= 0 || StringFind(low, "влив") >= 0 || StringFind(low, "#inf") >= 0;
+      bool isSpl = StringFind(low, "splash") >= 0 || StringFind(low, "btrade") >= 0 || StringFind(low, "сплэш") >= 0 || StringFind(low, "#spl") >= 0;
+      bool isImb = StringFind(low, "imbalance") >= 0 || StringFind(low, "imbal") >= 0 || StringFind(low, "#imb") >= 0;
       if(StringFind(low, "cumdelta") >= 0 || StringFind(low, "cum_delta") >= 0) cum = true;
-      if(!isInf && !isSpl && !isImb) continue;
-      if(isInf) inf = true;
-      if(isSpl) spl = true;
-      if(isImb) imb = true;
-      double opx = ObjectGet(nm, OBJPROP_PRICE1);
-      datetime ot = (datetime)ObjectGet(nm, OBJPROP_TIME1);
+      bool shape = (typ == OBJ_ELLIPSE || typ == OBJ_ARROW || typ == OBJ_TEXT);
+      if(!isInf && !isSpl && !isImb && !shape) continue;
+      double opx = ObjectGetDouble(ch, nm, OBJPROP_PRICE1);
+      datetime ot = (datetime)ObjectGetInteger(ch, nm, OBJPROP_TIME1);
+      if(opx <= 0) opx = ObjectGet(nm, OBJPROP_PRICE1);
+      if(ot <= 0) ot = (datetime)ObjectGet(nm, OBJPROP_TIME1);
       if(opx <= 0) continue;
+      if(bidNow > 0 && MathAbs(opx - bidNow) / bidNow > 0.25) continue;
       if(ot <= 0) ot = TimeCurrent();
-      string knd = isSpl ? "SPLASH" : (isImb ? "IMBALANCE" : "INFUSION");
+      string knd = "SPLASH";
+      if(isInf) knd = "INFUSION";
+      else if(isImb) knd = "IMBALANCE";
+      else if(typ == OBJ_ELLIPSE) knd = "SPLASH";
+      else if(typ == OBJ_RECTANGLE) knd = "INFUSION";
+      else if(typ == OBJ_ARROW)
+        {
+         color ac = (color)ObjectGetInteger(ch, nm, OBJPROP_COLOR);
+         int r = ac & 0xFF, g = (ac >> 8) & 0xFF, b = (ac >> 16) & 0xFF;
+         if(b > r + 30 && b > g) knd = "IMBALANCE";
+         else if(g > r + 20) knd = "INFUSION";
+         else knd = "SPLASH";
+        }
+      else if(!isSpl && !isInf && !isImb) continue;
+      if(knd == "SPLASH") spl = true;
+      if(knd == "INFUSION") inf = true;
+      if(knd == "IMBALANCE") imb = true;
       string sd2 = (iClose(s, PERIOD_H1, iBarShift(s, PERIOD_H1, ot)) >= iOpen(s, PERIOD_H1, iBarShift(s, PERIOD_H1, ot))) ? "BUY" : "SELL";
       body += "CLUSTER " + Naked(s) + " " + knd + " " + DoubleToStr(opx, DigitsOf(s)) + " " + sd2
            + " " + IntegerToString((int)ot) + "\n";
+      sentCl++;
      }
    datetime bt = iTime(ChartSymbol(ch), PERIOD_H1, 0);
    if(bt <= 0) bt = TimeCurrent();
@@ -1513,7 +1536,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 4.94\n";
+   body += "EA 4.95\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();
