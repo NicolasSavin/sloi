@@ -21,8 +21,8 @@ import { clipWicks, liveCdCharts } from "@/lib/broker-tape";
 import { cn } from "@/lib/utils";
 
 function mascotGif(kind: "bull" | "bear", pair: string) {
-  const bulls = ["1f402", "1f911", "1f680", "1f4b0", "1f4c8", "1f60e"];
-  const bears = ["1f43b", "1f4b8", "1f4c9", "1f612", "1f62c", "1f47b"];
+  const bulls = ["1f911", "1f4b8", "1f680", "1f92a", "1f525", "1f389"];
+  const bears = ["1f43b", "1f4b8", "1f62c", "1f4a8", "1f47b", "1f912"];
   let h = 7;
   for (let i = 0; i < pair.length; i++) h = (h * 33 + pair.charCodeAt(i)) >>> 0;
   const code = (kind === "bull" ? bulls : bears)[h % 6]!;
@@ -1619,17 +1619,21 @@ export function ChartPane({
             vr && Number.isFinite(vr.from) && Number.isFinite(vr.to)
               ? all.slice(Math.max(0, Math.floor(vr.from)), Math.min(all.length, Math.ceil(vr.to) + 1))
               : all;
-          const use = cs.length ? cs : all;
-          let lo = Infinity;
-          let hi = -Infinity;
-          for (const c of use) {
-            hi = Math.max(hi, c.high, c.open, c.close);
-            lo = Math.min(lo, c.low, c.open, c.close);
-          }
-          if (!Number.isFinite(lo) || hi <= lo) {
+          const use = (cs.length >= 8 ? cs : all).slice(-80);
+          const closes = use.map((c) => c.close).filter((x) => x > 0).sort((a, b) => a - b);
+          if (closes.length < 2) {
             return { priceRange: { minValue: fallback * 0.995, maxValue: fallback * 1.005 } };
           }
-          const pad = (hi - lo) * 0.14 || Math.abs(fallback) * 0.003;
+          const loC = closes[Math.floor(closes.length * 0.1)]!;
+          const hiC = closes[Math.floor(closes.length * 0.9)]!;
+          let lo = loC;
+          let hi = hiC;
+          const cap = Math.abs(fallback) * 0.012;
+          if (hi - lo > cap) {
+            lo = fallback - cap / 2;
+            hi = fallback + cap / 2;
+          }
+          const pad = Math.max((hi - lo) * 0.18, Math.abs(fallback) * 0.0015);
           return { priceRange: { minValue: lo - pad, maxValue: hi + pad } };
         },
       });
@@ -1794,7 +1798,9 @@ export function ChartPane({
     const key = `${pair}`;
     if (fittedKey.current !== key) {
       series.priceScale().applyOptions({ autoScale: true });
-      ts?.fitContent();
+      const n = view.length;
+      if (n >= 10) ts?.setVisibleLogicalRange({ from: Math.max(-0.5, n - 72), to: n + 2 });
+      else ts?.fitContent();
       fittedKey.current = key;
     }
   }, [candles, ready, snap?.cdTape?.cum, pair]);

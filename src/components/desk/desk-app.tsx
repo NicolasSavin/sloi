@@ -118,8 +118,15 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
         volume: 0,
       }));
       const t0 = br[0]!.time;
-      const older = web.filter((c) => c.time < t0 - 900);
-      let out = clipWicks([...older, ...br]);
+      const older = web.filter((c) => c.time < t0 - 900 && c.time > t0 - 90 * 3600);
+      const px = br.at(-1)!.close;
+      const sane = br.filter((b) => {
+        if (px <= 0) return true;
+        const span = Math.max(b.high - b.low, Math.abs(b.close - b.open));
+        return span < px * 0.02 && Math.abs(b.close - px) < px * 0.03;
+      });
+      const use = sane.length >= 8 ? sane : br;
+      let out = clipWicks([...older, ...use]);
       const mid = brokerMid(spec.id, "client") ?? brokerMid(spec.id);
       if (mid && out.length) {
         const last = { ...out[out.length - 1]! };
