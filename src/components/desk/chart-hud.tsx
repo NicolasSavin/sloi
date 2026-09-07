@@ -7,6 +7,7 @@ import type { Advice } from "@/lib/advisor";
 import type { LocalSetup } from "@/lib/smc/engine";
 import { cn, formatPrice } from "@/lib/utils";
 import { deskCommandFn } from "@/lib/desk-api";
+import { liveOhlc } from "@/lib/broker-tape";
 import { readDeskKey } from "@/lib/desk-key";
 
 export function ChartHud({ boxRef }: { boxRef: RefObject<HTMLDivElement | null> }) {
@@ -98,7 +99,7 @@ export function ChartHud({ boxRef }: { boxRef: RefObject<HTMLDivElement | null> 
           )}
           title="Свечи как в вашем MT4 (час)"
         >
-          MT4
+          MT4{quoteSource === "broker" ? ` ${liveOhlc(symbol).length}` : ""}
         </button>
       </div>
       <div className="pointer-events-auto flex flex-wrap items-center gap-1">

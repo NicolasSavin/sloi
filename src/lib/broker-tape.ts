@@ -400,7 +400,7 @@ export function snapshotBroker(tenant = "legacy") {
     const cum: Record<string, { time: number; value: number }[]> = {};
     for (const [id, v] of r.cum) if (now - v.at < 180_000) cum[id] = v.path;
     const ohlc: Record<string, { time: number; open: number; high: number; low: number; close: number }[]> = {};
-    for (const [id, v] of r.ohlc) if (now - v.at < 180_000) ohlc[id] = v.bars;
+    for (const [id, v] of r.ohlc) if (now - v.at < 900_000) ohlc[id] = v.bars;
     const stat: Record<string, { volume: number; delta: number; splash: boolean; onChart: boolean }> = {};
     for (const [id, v] of r.cdStat) if (now - v.at < 180_000) stat[id] = { volume: v.volume, delta: v.delta, splash: v.splash, onChart: v.onChart };
     return { askbid, flow, clusters, bars, cum, ohlc, stat, charts: r.cdCharts || "" };
@@ -453,7 +453,7 @@ export function liveOhlc(id: string): { time: number; open: number; high: number
   const now = Date.now();
   for (const r of rooms().values()) {
     const v = r.ohlc.get(id);
-    if (!v || now - v.at > 180_000) continue;
+    if (!v || now - v.at > 900_000) continue;
     for (const b of v.bars) map.set(b.time, b);
   }
   return [...map.values()].sort((a, b) => a.time - b.time);
@@ -463,7 +463,7 @@ export function mergeBrokerCandles<T extends { time: number; open: number; high:
   web: T[],
   broker: { time: number; open: number; high: number; low: number; close: number }[],
 ): T[] {
-  if (broker.length < 8 || web.length < 3) return web;
+  if (broker.length < 1 || web.length < 3) return web;
   const step = Math.abs(web[1]!.time - web[0]!.time) || 3600;
   if (step < 2700 || step > 4500) return web;
   const bySnap = new Map<number, (typeof broker)[0]>();

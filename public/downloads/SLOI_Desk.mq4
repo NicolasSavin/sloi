@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.89"
+#property version   "4.90"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -141,7 +141,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.89: CDCHARTS с числом объектов; любая точка на чарте Splash = кружок");
+   Print("SLOI 4.90: каждый цикл 24 часовых бара брокера в ленте");
    return(INIT_SUCCEEDED);
   }
 
@@ -1455,15 +1455,14 @@ void AppendCdAskBid(string &body, string s)
    if(dlt != 0) body += "DELTA " + Naked(s) + " " + DoubleToStr(dlt, 0) + "\n";
   }
 
-void AppendBrokerBars(string &body, bool hist)
+void AppendBrokerBars(string &body)
   {
    int tf = PERIOD_H1;
-   int from = hist ? 47 : 0;
    for(int i = 0; i < g_n; i++)
      {
       string s = g_sym[i];
       int d = DigitsOf(s);
-      for(int b = from; b >= 0; b--)
+      for(int b = 23; b >= 0; b--)
         {
          datetime t = iTime(s, tf, b);
          double o = iOpen(s, tf, b);
@@ -1535,10 +1534,7 @@ void PushTape()
       if(bid <= 0 || ask <= 0) continue;
       body += Naked(s) + " " + DoubleToStr(bid, DigitsOf(s)) + " " + DoubleToStr(ask, DigitsOf(s)) + "\n";
      }
-   static datetime lastBars = 0;
-   bool hist = (lastBars == 0 || TimeCurrent() - lastBars >= 300);
-   if(g_host) AppendBrokerBars(body, hist);
-   if(hist) lastBars = TimeCurrent();
+   if(g_host) AppendBrokerBars(body);
    PostTape(url, body);
    string extra = "";
    AppendClusters(extra);
