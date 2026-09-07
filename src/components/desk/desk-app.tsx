@@ -307,6 +307,11 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
               <ChartStage className="mx-4 mt-2 h-[280px] overflow-hidden rounded-xl panel-volume lg:h-[420px]">
                 <ChartPane candles={candles} snap={snap} overlays={overlays} book={book} order={order} setup={deskMarket?.setup ?? null} className="absolute inset-0 h-full" />
                 <OrderHud order={order} setup={deskMarket?.setup ?? null} decimals={spec.decimals} loading={digestQ.isLoading} boxVector={deskMarket?.boxVector ?? snap?.boxVector} />
+                <div className="pointer-events-none absolute inset-x-0 bottom-1 z-30 px-2">
+                  <div className="pointer-events-auto ml-auto max-w-xl">
+                    <ChartTradeBar symbol={spec.id} deskKey={deskKey} overlay />
+                  </div>
+                </div>
               </ChartStage>
               <div className="px-4 pt-3"><EtherCard ether={ether} /></div>
               <div className="px-4 pb-4 pt-3"><ChatDock /></div>

@@ -79,11 +79,13 @@ export function AccountBanner({
 export function ChartTradeBar({
   symbol,
   deskKey,
+  overlay,
 }: {
   symbol: string;
   deskKey: string;
+  overlay?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const cmd = async (kind: "BUY" | "SELL" | "CLOSE" | "CLOSE_PROFIT" | "CLOSE_ALL") => {
@@ -100,7 +102,7 @@ export function ChartTradeBar({
     setBusy(false);
   };
   return (
-    <div className="mx-4 mt-1 rounded-md border border-border/40 bg-elevated/40 px-3 py-1.5">
+    <div className={cn(overlay ? "rounded-md border border-border/70 bg-bg/80 px-2 py-1 backdrop-blur-sm" : "mx-4 mt-1 rounded-md border border-border/40 bg-elevated/40 px-3 py-1.5")}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
