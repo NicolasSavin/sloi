@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.8.70",
+    d: "2026-09-07",
+    items: [
+      "На графике явно Yahoo | MT4 и кнопки купить / продать / закрыть / прибыль / всё",
+    ],
+  },
+  {
     v: "1.8.69",
     d: "2026-09-07",
     items: [

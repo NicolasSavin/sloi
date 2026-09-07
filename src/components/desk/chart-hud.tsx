@@ -6,13 +6,29 @@ import { actionLabel } from "@/lib/advisor";
 import type { Advice } from "@/lib/advisor";
 import type { LocalSetup } from "@/lib/smc/engine";
 import { cn, formatPrice } from "@/lib/utils";
+import { deskCommandFn } from "@/lib/desk-api";
+import { readDeskKey } from "@/lib/desk-key";
 
 export function ChartHud({ boxRef }: { boxRef: RefObject<HTMLDivElement | null> }) {
   const timeframe = useDeskStore((s) => s.timeframe);
   const setTimeframe = useDeskStore((s) => s.setTimeframe);
   const quoteSource = useDeskStore((s) => s.quoteSource);
   const setQuoteSource = useDeskStore((s) => s.setQuoteSource);
+  const symbol = useDeskStore((s) => s.symbol);
   const [wide, setWide] = useState(false);
+  const [deskKey, setDeskKey] = useState("");
+  const [note, setNote] = useState("");
+  useEffect(() => { setDeskKey(readDeskKey()); }, []);
+  const cmd = async (kind: "BUY" | "SELL" | "CLOSE" | "CLOSE_PROFIT" | "CLOSE_ALL") => {
+    if (!deskKey) {
+      setNote("ключ в кабинете");
+      return;
+    }
+    const r = await deskCommandFn({
+      data: { key: deskKey, kind, symbol: kind === "CLOSE" || kind === "BUY" || kind === "SELL" ? symbol : undefined },
+    });
+    setNote(r.ok ? `${kind} → сов` : r.error ?? "ошибка");
+  };
 
   const sync = useCallback(() => {
     const el = boxRef.current;
@@ -47,7 +63,7 @@ export function ChartHud({ boxRef }: { boxRef: RefObject<HTMLDivElement | null> 
   }, [toggle]);
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-2 p-2">
+    <div className="pointer-events-none absolute inset-x-0 top-0 z-40 flex items-start justify-between gap-2 p-2">
       <div className="pointer-events-auto flex flex-wrap items-center gap-0.5 rounded-md bg-bg/80 p-1 backdrop-blur-sm">
         {TIMEFRAMES.map((tf) => (
           <button
@@ -62,19 +78,36 @@ export function ChartHud({ boxRef }: { boxRef: RefObject<HTMLDivElement | null> 
             {tf.label}
           </button>
         ))}
+        <span className="mx-1 h-5 w-px bg-border" />
         <button
           type="button"
-          onClick={() => setQuoteSource(quoteSource === "broker" ? "yahoo" : "broker")}
+          onClick={() => setQuoteSource("yahoo")}
+          className={cn(
+            "h-8 rounded-sm px-2 font-mono text-[11px]",
+            quoteSource === "yahoo" ? "bg-subtle text-fg" : "text-muted hover:text-fg",
+          )}
+        >
+          Yahoo
+        </button>
+        <button
+          type="button"
+          onClick={() => setQuoteSource("broker")}
           className={cn(
             "h-8 rounded-sm px-2 font-mono text-[11px]",
             quoteSource === "broker" ? "bg-subtle text-fg" : "text-muted hover:text-fg",
           )}
-          title="Откуда high/low свечей"
+          title="Свечи как в вашем MT4 (час)"
         >
-          {quoteSource === "broker" ? "MT4" : "Yahoo"}
+          MT4
         </button>
       </div>
-      <div className="pointer-events-auto flex items-center gap-1">
+      <div className="pointer-events-auto flex flex-wrap items-center gap-1">
+        <button type="button" onClick={() => void cmd("BUY")} className="h-8 rounded-md bg-bg/80 px-2 font-mono text-[11px] text-bull/90 backdrop-blur-sm ring-1 ring-bull/30 hover:bg-bull/10">купить</button>
+        <button type="button" onClick={() => void cmd("SELL")} className="h-8 rounded-md bg-bg/80 px-2 font-mono text-[11px] text-bear/90 backdrop-blur-sm ring-1 ring-bear/30 hover:bg-bear/10">продать</button>
+        <button type="button" onClick={() => void cmd("CLOSE")} className="h-8 rounded-md bg-bg/80 px-2 font-mono text-[11px] text-muted backdrop-blur-sm hover:text-fg">закрыть</button>
+        <button type="button" onClick={() => void cmd("CLOSE_PROFIT")} className="h-8 rounded-md bg-bg/80 px-2 font-mono text-[11px] text-muted backdrop-blur-sm hover:text-fg">+прибыль</button>
+        <button type="button" onClick={() => void cmd("CLOSE_ALL")} className="h-8 rounded-md bg-bg/80 px-2 font-mono text-[11px] text-muted backdrop-blur-sm hover:text-fg">всё</button>
+        {note ? <span className="max-w-[9rem] truncate font-mono text-[10px] text-dim">{note}</span> : null}
         <button
           type="button"
           onClick={() => window.dispatchEvent(new Event("sloi-fit"))}
