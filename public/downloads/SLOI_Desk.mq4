@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.96"
+#property version   "4.97"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -40,7 +40,7 @@ input string  ForeignTag      = "WS";
 input bool    AlertsOn        = true;
 input bool    VirtualPendings = true; // виртуал: отложка, стоп и тейк. Сдвиг со стола.
 input bool    HostFeed        = true;  // true только у хозяина сайта: CD и H1 на общий стол
-input bool    UseClusterDelta = true; // iCustom CD по всем парам списка, тики
+input bool    UseClusterDelta = true; // CD только с открытых чартов (не весь WatchList)
 input string  CdVolume        = "ClusterDelta_#Volumes";
 input string  CdDelta         = "ClusterDelta_#Delta";
 input string  CdInfusion      = "ClusterDelta_#Infusion";
@@ -145,7 +145,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.96: IMB отдельно — синие/красные круги #Imbalance, не как сплэш");
+   Print("SLOI 4.97: ClusterDelta только с открытых чартов — без таймеров на кроссы");
    return(INIT_SUCCEEDED);
   }
 
@@ -1204,20 +1204,28 @@ void AppendCdStat(string &body, string s)
         + ((sp != EMPTY_VALUE && sp != 0) ? "1" : "0") + " " + IntegerToString(onch) + "\n";
   }
 
+bool CdChartOpen(string s)
+  {
+   long ch = ChartFirst();
+   while(ch >= 0)
+     {
+      if(Naked(ChartSymbol(ch)) == Naked(s)) return(true);
+      ch = ChartNext(ch);
+     }
+   return(false);
+  }
+
 void AppendCdHist(string &body, string s, int &sent)
   {
+   if(!CdChartOpen(s)) return;
    AppendCdHistTF(body, s, PERIOD_H1, 48, sent);
-   AppendCdHistTF(body, s, PERIOD_M15, 24, sent);
-   AppendCdHistTF(body, s, PERIOD_M5, 24, sent);
   }
 
 void AppendCdOne(string &body, string s, int &sent)
   {
-   AppendNamed(body, s, CdSplash, "SPLASH", sent);
-   AppendNamed(body, s, CdImbalance, "IMBALANCE", sent);
+   if(!CdChartOpen(s)) return;
    if(CdFut(s))
      {
-      AppendNamed(body, s, CdInfusion, "INFUSION", sent);
       AppendCdHist(body, s, sent);
       AppendCdStat(body, s);
       return;
@@ -1280,6 +1288,7 @@ void AppendCdClusters(string &body, int &sent)
   {
    for(int i = 0; i < g_n; i++)
      {
+      if(!CdChartOpen(g_sym[i])) continue;
       int before = sent;
       AppendCdCum(body, g_sym[i]);
       AppendCdOne(body, g_sym[i], sent);
@@ -1545,7 +1554,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 4.96\n";
+   body += "EA 4.97\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();

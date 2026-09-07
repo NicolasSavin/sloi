@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.8.96",
+    d: "2026-09-07",
+    items: [
+      "Сов 4.97: ClusterDelta только с открытых чартов. Ошибка cannot set millisecond timer на кроссах уходит",
+    ],
+  },
+  {
     v: "1.8.95",
     d: "2026-09-07",
     items: [
