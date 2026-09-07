@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.8.80",
+    d: "2026-09-07",
+    items: [
+      "MT4 всегда пишет 0 / last / 24. Фитили Yahoo режутся по телу свечи, график не разъезжается по высоте",
+    ],
+  },
+  {
     v: "1.8.79",
     d: "2026-09-07",
     items: [

@@ -776,13 +776,15 @@ export const fetchBroker = createServerFn({ method: "GET" })
     const pub = await loadTape(PUBLIC_TENANT);
     const latest = pub?.body ? pub : await loadLatestTape();
     if (latest?.body) ingestBrokerTape(latest.body, PUBLIC_TENANT);
+    let storedBody = "";
     if (desk && desk.id !== "legacy") {
       const stored = await loadTape(desk.id);
-      if (stored?.body) ingestBrokerTape(stored.body, desk.id);
+      storedBody = stored?.body ?? "";
+      if (storedBody) ingestBrokerTape(storedBody, desk.id);
       else if (stored?.account) hydrateAccount(desk.id, stored.account);
     }
     const snap = snapshotBroker(tenant);
-    return { ...snap, tape: (latest?.body ?? pub?.body ?? "").slice(0, 100000) };
+    return { ...snap, tape: (storedBody || latest?.body || pub?.body || "").slice(0, 200000) };
   });
 
 let tvGuideCache: { at: number; data: Awaited<ReturnType<typeof import("@/lib/tv-live").resolveTvChannels>> } | null =

@@ -1359,14 +1359,13 @@ function drawProfile(
 
 function clipCandlesForView<T extends { open: number; high: number; low: number; close: number }>(cs: T[]): T[] {
   if (cs.length < 3) return cs;
-  const closes = cs.map((c) => c.close).filter((x) => x > 0).sort((a, b) => a - b);
-  const midC = closes[Math.floor(closes.length / 2)] || 1;
-  const ranges = cs
-    .map((c) => c.high - c.low)
-    .filter((r) => r > 0 && r < midC * 0.04)
+  const win = cs.slice(-70);
+  const bodies = win
+    .map((c) => Math.abs(c.close - c.open))
+    .filter((x) => x > 0)
     .sort((a, b) => a - b);
-  const medR = ranges[Math.floor(ranges.length / 2)] || Math.abs(midC) * 0.001;
-  const cap = Math.max(medR * 2.6, Math.abs(midC) * 0.0015);
+  const medB = bodies[Math.floor(bodies.length / 2)] || Math.abs(win.at(-1)?.close ?? 1) * 0.001;
+  const cap = Math.max(medB * 1.85, Math.abs(win.at(-1)?.close ?? 1) * 0.0006);
   return cs.map((c) => {
     const top = Math.max(c.open, c.close);
     const bot = Math.min(c.open, c.close);

@@ -7,7 +7,7 @@ import type { Advice } from "@/lib/advisor";
 import type { LocalSetup } from "@/lib/smc/engine";
 import { cn, formatPrice } from "@/lib/utils";
 import { deskCommandFn } from "@/lib/desk-api";
-import { liveOhlc } from "@/lib/broker-tape";
+import { brokerMid, liveOhlc } from "@/lib/broker-tape";
 import { readDeskKey } from "@/lib/desk-key";
 
 export function ChartHud({ boxRef }: { boxRef: RefObject<HTMLDivElement | null> }) {
@@ -19,6 +19,15 @@ export function ChartHud({ boxRef }: { boxRef: RefObject<HTMLDivElement | null> 
   const [wide, setWide] = useState(false);
   const [deskKey, setDeskKey] = useState("");
   const [note, setNote] = useState("");
+  const [nowTick, setNowTick] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => setNowTick((n) => n + 1), 4000);
+    return () => window.clearInterval(id);
+  }, []);
+  const mt4n = liveOhlc(symbol).length;
+  const mt4last = brokerMid(symbol, "client") ?? brokerMid(symbol);
+  const mt4tag = mt4n >= 2 ? ` ${mt4n}` : mt4last ? " last" : " 0";
+  void nowTick;
   useEffect(() => { setDeskKey(readDeskKey()); }, []);
   const cmd = async (kind: "BUY" | "SELL" | "CLOSE" | "CLOSE_PROFIT" | "CLOSE_ALL") => {
     if (!deskKey) {
@@ -99,9 +108,9 @@ export function ChartHud({ boxRef }: { boxRef: RefObject<HTMLDivElement | null> 
             "h-8 rounded-sm px-2 font-mono text-[11px]",
             quoteSource === "broker" ? "bg-subtle text-fg" : "text-muted hover:text-fg",
           )}
-          title="Свечи как в вашем MT4 (час)"
+          title={mt4n ? `${mt4n} часовых баров с терминала` : mt4last ? "есть last брокера, баров мало" : "бары с терминала не пришли — сов 4.92"}
         >
-          MT4{quoteSource === "broker" ? (liveOhlc(symbol).length ? ` ${liveOhlc(symbol).length}` : " last") : ""}
+          MT4{mt4tag}
         </button>
       </div>
       <div className="pointer-events-auto flex flex-wrap items-center gap-1">
