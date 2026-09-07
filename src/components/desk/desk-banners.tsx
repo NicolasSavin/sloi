@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { SmcSnapshot } from "@/lib/smc/engine";
 import type { BrokerAccount } from "@/lib/broker-tape";
 import { Badge } from "@/components/ui/badge";
@@ -5,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { BookOpen, Cpu } from "lucide-react";
 import { cn, formatPrice } from "@/lib/utils";
+import { deskCommandFn } from "@/lib/desk-api";
 
 export function AccountBanner({
   account,
@@ -70,6 +72,63 @@ export function AccountBanner({
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+export function ChartTradeBar({
+  symbol,
+  deskKey,
+}: {
+  symbol: string;
+  deskKey: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const cmd = async (kind: "BUY" | "SELL" | "CLOSE" | "CLOSE_PROFIT" | "CLOSE_ALL") => {
+    if (!deskKey) {
+      setNote("Сначала ключ в кабинете.");
+      return;
+    }
+    setBusy(true);
+    setNote("");
+    const r = await deskCommandFn({
+      data: { key: deskKey, kind, symbol: kind === "CLOSE" || kind === "BUY" || kind === "SELL" ? symbol : undefined },
+    });
+    setNote(r.ok ? `${kind} → сов ~20 сек` : r.error);
+    setBusy(false);
+  };
+  return (
+    <div className="mx-4 mt-1 rounded-md border border-border/40 bg-elevated/40 px-3 py-1.5">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between text-left text-[11px] text-dim"
+      >
+        <span>торговля {symbol}</span>
+        <span className="font-mono">{open ? "▾" : "▸"}</span>
+      </button>
+      {open ? (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 pb-1">
+          <button type="button" disabled={busy} onClick={() => void cmd("BUY")} className="rounded px-2 py-0.5 text-[11px] text-bull/80 ring-1 ring-bull/25 hover:bg-bull/10 disabled:opacity-40">
+            купить
+          </button>
+          <button type="button" disabled={busy} onClick={() => void cmd("SELL")} className="rounded px-2 py-0.5 text-[11px] text-bear/80 ring-1 ring-bear/25 hover:bg-bear/10 disabled:opacity-40">
+            продать
+          </button>
+          <button type="button" disabled={busy} onClick={() => void cmd("CLOSE")} className="rounded px-2 py-0.5 text-[11px] text-muted ring-1 ring-border hover:bg-fg/5 disabled:opacity-40">
+            закрыть
+          </button>
+          <button type="button" disabled={busy} onClick={() => void cmd("CLOSE_PROFIT")} className="rounded px-2 py-0.5 text-[11px] text-muted ring-1 ring-border hover:bg-fg/5 disabled:opacity-40">
+            закрыть прибыль
+          </button>
+          <button type="button" disabled={busy} onClick={() => void cmd("CLOSE_ALL")} className="rounded px-2 py-0.5 text-[11px] text-muted ring-1 ring-border hover:bg-fg/5 disabled:opacity-40">
+            закрыть всё
+          </button>
+          {note ? <span className="text-[10px] text-dim">{note}</span> : null}
+        </div>
+      ) : null}
     </div>
   );
 }

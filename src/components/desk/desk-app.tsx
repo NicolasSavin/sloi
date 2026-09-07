@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChartPane } from "@/components/desk/chart-pane";
 import { ChartStage, OrderHud } from "@/components/desk/chart-hud";
 import { ChatDock } from "@/components/desk/chat-dock";
-import { AccountBanner, AnalyzeBar, AuctionBanner, BookBanner, ClusterBanner, ChochBanner, ConfluenceList, FlowBanner, LevelsTable, MarginBanner, PatternBanner } from "@/components/desk/desk-banners";
+import { AccountBanner, AnalyzeBar, AuctionBanner, BookBanner, ChartTradeBar, ClusterBanner, ChochBanner, ConfluenceList, FlowBanner, LevelsTable, MarginBanner, PatternBanner } from "@/components/desk/desk-banners";
 import { EtherCard, StoryBody } from "@/components/desk/story-panel";
 import { AppNav } from "@/components/app-nav";
 import { analyzeWithGrok, type AiBrief } from "@/lib/ai/analyze";
@@ -296,6 +296,7 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
           ) : (
             <>
               <AccountBanner account={bookQ.data?.account} focus={spec.id} />
+              <ChartTradeBar symbol={spec.id} deskKey={deskKey} />
               {snap ? <ChochBanner snap={snap} len={chochLen} closeOnly={chochClose} /> : null}
               {snap ? <MarginBanner snap={snap} decimals={spec.decimals} /> : null}
               {snap?.wyckoff || snap?.patterns[0] ? <PatternBanner snap={snap} /> : null}
