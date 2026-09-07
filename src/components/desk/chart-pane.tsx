@@ -1287,7 +1287,13 @@ function drawZones(
 
   const action = order?.action;
   const kind: "bull" | "bear" =
-    action === "short" || vec?.dir === "down" || snap?.bias === "bearish" ? "bear" : "bull";
+    action === "long" || vec?.dir === "up"
+      ? "bull"
+      : action === "short" || vec?.dir === "down"
+        ? "bear"
+        : snap?.bias === "bearish"
+          ? "bear"
+          : "bull";
   const lively = action === "long" || action === "short";
   const slot = { x: 18, y: 92 };
   occupy(slot.x, slot.y - 8, 130, 120);

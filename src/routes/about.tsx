@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.8.78",
+    d: "2026-09-07",
+    items: [
+      "Маскот смотрит на вектор/приказ, не на локальный bias. Сплэш по всем парам — iCustom, чарт CD не обязателен",
+    ],
+  },
+  {
     v: "1.8.77",
     d: "2026-09-07",
     items: [
