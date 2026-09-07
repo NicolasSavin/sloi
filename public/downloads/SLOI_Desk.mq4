@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.92"
+#property version   "4.93"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -91,6 +91,7 @@ bool   g_cd;
 bool   g_host;
 bool   g_seeded = false;
 bool   g_ready = false;
+bool   g_min = false;
 datetime g_lastClose[MAXSYM];
 int      g_holdMin;
 string g_feed = "";
@@ -144,7 +145,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.92: не разворот 25 мин, пауза 40 мин после закрытия");
+   Print("SLOI 4.93: не разворот 25 мин, пауза 40 мин после закрытия");
    return(INIT_SUCCEEDED);
   }
 
@@ -1507,7 +1508,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 4.91\n";
+   body += "EA 4.93\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();

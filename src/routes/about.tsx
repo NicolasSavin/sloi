@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.8.81",
+    d: "2026-09-07",
+    items: [
+      "Сов 4.93 компилируется: вернул g_min (сворачивание панели)",
+    ],
+  },
+  {
     v: "1.8.80",
     d: "2026-09-07",
     items: [
