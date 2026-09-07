@@ -10,6 +10,8 @@ import { cn, formatPrice } from "@/lib/utils";
 export function ChartHud({ boxRef }: { boxRef: RefObject<HTMLDivElement | null> }) {
   const timeframe = useDeskStore((s) => s.timeframe);
   const setTimeframe = useDeskStore((s) => s.setTimeframe);
+  const quoteSource = useDeskStore((s) => s.quoteSource);
+  const setQuoteSource = useDeskStore((s) => s.setQuoteSource);
   const [wide, setWide] = useState(false);
 
   const sync = useCallback(() => {
@@ -60,17 +62,38 @@ export function ChartHud({ boxRef }: { boxRef: RefObject<HTMLDivElement | null> 
             {tf.label}
           </button>
         ))}
+        <button
+          type="button"
+          onClick={() => setQuoteSource(quoteSource === "broker" ? "yahoo" : "broker")}
+          className={cn(
+            "h-8 rounded-sm px-2 font-mono text-[11px]",
+            quoteSource === "broker" ? "bg-subtle text-fg" : "text-muted hover:text-fg",
+          )}
+          title="Откуда high/low свечей"
+        >
+          {quoteSource === "broker" ? "MT4" : "Yahoo"}
+        </button>
       </div>
-      <button
-        type="button"
-        onClick={() => void toggle()}
-        className="pointer-events-auto inline-flex h-8 items-center gap-1 rounded-md bg-bg/80 px-2 font-mono text-[11px] text-muted backdrop-blur-sm hover:text-fg"
-        aria-label={wide ? "Свернуть график" : "Полный экран F8"}
-        title="F8 — полный экран"
-      >
-        {wide ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
-        {wide ? "свернуть" : "F8 экран"}
-      </button>
+      <div className="pointer-events-auto flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new Event("sloi-fit"))}
+          className="inline-flex h-8 items-center rounded-md bg-bg/80 px-2 font-mono text-[11px] text-muted backdrop-blur-sm hover:text-fg"
+          title="Подогнать цену и время"
+        >
+          масштаб
+        </button>
+        <button
+          type="button"
+          onClick={() => void toggle()}
+          className="inline-flex h-8 items-center gap-1 rounded-md bg-bg/80 px-2 font-mono text-[11px] text-muted backdrop-blur-sm hover:text-fg"
+          aria-label={wide ? "Свернуть график" : "Полный экран F8"}
+          title="F8 — полный экран"
+        >
+          {wide ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
+          {wide ? "свернуть" : "F8 экран"}
+        </button>
+      </div>
     </div>
   );
 }

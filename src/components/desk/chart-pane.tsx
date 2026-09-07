@@ -1561,6 +1561,18 @@ export function ChartPane({
   setupRef.current = setup;
 
   useEffect(() => {
+    const fit = () => {
+      fittedKey.current = "";
+      const s = seriesRef.current;
+      s?.priceScale().applyOptions({ autoScale: true });
+      chartRef.current?.timeScale().fitContent();
+      window.setTimeout(() => s?.priceScale().applyOptions({ autoScale: false }), 120);
+    };
+    window.addEventListener("sloi-fit", fit);
+    return () => window.removeEventListener("sloi-fit", fit);
+  }, []);
+
+  useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
     let cancelled = false;
@@ -1589,7 +1601,8 @@ export function ChartPane({
         },
         rightPriceScale: {
           borderColor: "rgba(255,255,255,0.08)",
-          scaleMargins: { top: 0.08, bottom: 0.22 },
+          scaleMargins: { top: 0.1, bottom: 0.16 },
+          autoScale: true,
         },
         timeScale: {
           borderColor: "rgba(255,255,255,0.08)",
@@ -1597,7 +1610,8 @@ export function ChartPane({
           secondsVisible: false,
           rightOffset: 8,
           shiftVisibleRangeOnNewBar: true,
-          lockVisibleTimeRangeOnResize: true,
+          lockVisibleTimeRangeOnResize: false,
+          minBarSpacing: 6,
         },
         crosshair: {
           vertLine: {
@@ -1633,7 +1647,7 @@ export function ChartPane({
           let hi = -Infinity;
           for (const c of cs) {
             const mid = (c.open + c.close) / 2;
-            const cap = med * 4.5;
+            const cap = med * 3.2;
             hi = Math.max(hi, Math.min(c.high, mid + cap), c.open, c.close);
             lo = Math.min(lo, Math.max(c.low, mid - cap), c.open, c.close);
           }
@@ -1666,6 +1680,7 @@ export function ChartPane({
         lastValueVisible: true,
         priceLineVisible: false,
         title: "VWAP",
+        autoscaleInfoProvider: () => ({ priceRange: undefined }),
       });
       const markers = lc.createSeriesMarkers(series, []);
       chartRef.current = chart;
@@ -1799,9 +1814,14 @@ export function ChartPane({
       );
     }
     const ts = chartRef.current?.timeScale();
-    if (fittedKey.current !== pair) {
+    const key = `${pair}`;
+    if (fittedKey.current !== key) {
+      series.priceScale().applyOptions({ autoScale: true });
       ts?.fitContent();
-      fittedKey.current = pair;
+      fittedKey.current = key;
+      window.setTimeout(() => {
+        seriesRef.current?.priceScale().applyOptions({ autoScale: false });
+      }, 120);
     }
   }, [candles, ready, snap?.cdTape?.cum, pair]);
 

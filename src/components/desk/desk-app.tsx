@@ -79,6 +79,8 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
   const toggleOverlay = useDeskStore((s) => s.toggleOverlay);
   const setChochLen = useDeskStore((s) => s.setChochLen);
   const setChochClose = useDeskStore((s) => s.setChochClose);
+  const quoteSource = useDeskStore((s) => s.quoteSource);
+  const setQuoteSource = useDeskStore((s) => s.setQuoteSource);
   const [deskKey, setDeskKey] = useState("");
   useEffect(() => { setDeskKey(readDeskKey()); }, []);
   const spec = getSymbol(symbol);
@@ -104,8 +106,11 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
       ingestBrokerTape((bookQ.data as { tape: string }).tape, "client");
     }
     const web = market.data?.candles ?? [];
-    return mergeBrokerCandles(web, liveOhlc(spec.id));
-  }, [market.data?.candles, bookQ.data, spec.id]);
+    if (quoteSource === "yahoo") return web;
+    const broker = liveOhlc(spec.id);
+    if (broker.length < 8) return web;
+    return mergeBrokerCandles(web, broker);
+  }, [market.data?.candles, bookQ.data, spec.id, quoteSource]);
   const snap = useMemo<SmcSnapshot | null>(() => {
     if (!candles.length) return null;
     hydrateClientCd(bookQ.data?.cd);
@@ -246,10 +251,13 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
                 </button>
               ))}
             </div>
-            <label className="flex h-11 items-center justify-between gap-3 text-sm">
-              <span>Только закрытие</span>
-              <Switch checked={chochClose} onCheckedChange={setChochClose} aria-label="CHoCH только закрытием" />
+            <label className="mt-4 flex h-11 items-center justify-between gap-3 text-sm">
+              <span>Свечи с брокера</span>
+              <Switch checked={quoteSource === "broker"} onCheckedChange={(on) => setQuoteSource(on ? "broker" : "yahoo")} aria-label="Свечи с брокера" />
             </label>
+            <p className="mt-1 text-[11px] leading-relaxed text-muted">
+              {quoteSource === "broker" ? "High/low как в MT4 (час). Если лента пуста — Yahoo." : "Yahoo Finance. Фитили могут не совпасть с терминалом."}
+            </p>
           </div>
         </aside>
         <section className="flex min-w-0 flex-col">
