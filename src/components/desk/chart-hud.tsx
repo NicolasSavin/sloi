@@ -33,7 +33,9 @@ export function ChartHud({ boxRef }: { boxRef: RefObject<HTMLDivElement | null> 
 
   const sync = useCallback(() => {
     const el = boxRef.current;
-    setWide(Boolean(el && document.fullscreenElement === el));
+    const on = Boolean(el && document.fullscreenElement === el);
+    setWide(on);
+    window.setTimeout(() => window.dispatchEvent(new Event("sloi-fit")), 80);
   }, [boxRef]);
 
   const toggle = useCallback(async () => {

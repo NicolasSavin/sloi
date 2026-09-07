@@ -1368,9 +1368,13 @@ function drawBricks(
   chart: IChartApi,
   series: ISeriesApi<"Candlestick">,
   candles: Candle[],
+  height: number,
 ) {
   candles = clipCandlesForView(candles);
   const ts = chart.timeScale();
+  const yMin = 18;
+  const yMax = Math.max(40, height - 34);
+  const clampY = (y: number) => Math.max(yMin, Math.min(yMax, y));
   for (let i = 0; i < candles.length; i++) {
     const c = candles[i]!;
     const x = ts.timeToCoordinate(c.time as UTCTimestamp);
@@ -1380,21 +1384,25 @@ function drawBricks(
     const yH = series.priceToCoordinate(c.high);
     const yL = series.priceToCoordinate(c.low);
     if (yO == null || yC == null || yH == null || yL == null) continue;
+    const yo = clampY(yO);
+    const yc = clampY(yC);
+    const yh = clampY(yH);
+    const yl = clampY(yL);
     const next = candles[i + 1];
     const x2 = next ? ts.timeToCoordinate(next.time as UTCTimestamp) : x + 10;
     const gap = Math.abs((x2 ?? x + 10) - x);
     const bw = Math.max(5, Math.min(16, gap * 0.58));
     const bull = c.close >= c.open;
-    const top = Math.min(yO, yC);
-    const h = Math.max(2, Math.abs(yC - yO));
+    const top = Math.min(yo, yc);
+    const h = Math.max(2, Math.abs(yc - yo));
     const depth = Math.min(4, bw * 0.28);
     ctx.strokeStyle = bull ? "rgba(90,230,150,0.9)" : "rgba(240,100,100,0.9)";
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(x, yH);
+    ctx.moveTo(x, yh);
     ctx.lineTo(x, top);
     ctx.moveTo(x, top + h);
-    ctx.lineTo(x, yL);
+    ctx.lineTo(x, yl);
     ctx.stroke();
     ctx.beginPath();
     ctx.moveTo(x + bw / 2, top);
@@ -1607,7 +1615,7 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
               drawZones(ctx, w, h, chart, series, p.zones, p.overlays, p.snap, p.setup, p.order, p.candles.at(-1)?.time ?? 0, false, p.candles, p.pair, this.faceI, "hud");
               drawPathArrows(ctx, w, chart, series, p.snap, p.order, p.setup, p.candles.at(-1)?.time ?? 0);
             }
-            drawBricks(ctx, chart, series, p.candles);
+            drawBricks(ctx, chart, series, p.candles, h);
             drawTape(ctx, w, chart, series, p.candles, p.snap, p.overlays.flow, p.book);
             if (p.snap && CD_FUT.has(p.pair) && !(p.snap.micro.nodes ?? []).some((n) => n.kind === "splash" || n.kind === "infusion" || n.kind === "imbalance")) {
               const seen = liveCdCharts();
@@ -1717,7 +1725,7 @@ export function ChartPane({
         },
         rightPriceScale: {
           borderColor: "rgba(255,255,255,0.08)",
-          scaleMargins: { top: 0.1, bottom: 0.16 },
+          scaleMargins: { top: 0.12, bottom: 0.16 },
           autoScale: true,
         },
         timeScale: {
@@ -1755,22 +1763,28 @@ export function ChartPane({
         wickVisible: false,
         visible: false,
         autoscaleInfoProvider: () => {
-          const cs = clipCandlesForView(candlesRef.current);
-          const last = cs.at(-1)?.close;
+          const all = clipCandlesForView(candlesRef.current);
+          const last = all.at(-1)?.close;
           const fallback = last && last > 0 ? last : 1;
-          if (!cs.length) {
+          if (!all.length) {
             return { priceRange: { minValue: fallback * 0.995, maxValue: fallback * 1.005 } };
           }
+          const vr = chartRef.current?.timeScale().getVisibleLogicalRange();
+          const cs =
+            vr && Number.isFinite(vr.from) && Number.isFinite(vr.to)
+              ? all.slice(Math.max(0, Math.floor(vr.from)), Math.min(all.length, Math.ceil(vr.to) + 1))
+              : all;
+          const use = cs.length ? cs : all;
           let lo = Infinity;
           let hi = -Infinity;
-          for (const c of cs) {
+          for (const c of use) {
             hi = Math.max(hi, c.high, c.open, c.close);
             lo = Math.min(lo, c.low, c.open, c.close);
           }
           if (!Number.isFinite(lo) || hi <= lo) {
             return { priceRange: { minValue: fallback * 0.995, maxValue: fallback * 1.005 } };
           }
-          const pad = (hi - lo) * 0.1 || Math.abs(fallback) * 0.002;
+          const pad = (hi - lo) * 0.14 || Math.abs(fallback) * 0.003;
           return { priceRange: { minValue: lo - pad, maxValue: hi + pad } };
         },
       });
