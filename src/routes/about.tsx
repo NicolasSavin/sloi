@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.8.97",
+    d: "2026-09-07",
+    items: [
+      "Живой CD (сплэш/IMB) — только открытые чарты. Остальные мажоры: стол по структуре, объём по свечам. Скрытый iCustom на WatchList ломает таймеры MT4",
+    ],
+  },
+  {
     v: "1.8.96",
     d: "2026-09-07",
     items: [
