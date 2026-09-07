@@ -1507,6 +1507,7 @@ export function ChartPane({
   const orderRef = useRef(order);
   const setupRef = useRef(setup);
   const pair = useDeskStore((s) => s.symbol);
+  const fitGen = useDeskStore((s) => s.fitGen);
   const pairRef = useRef(pair);
   const fittedKey = useRef("");
   const hoverRef = useRef(false);
@@ -1525,15 +1526,40 @@ export function ChartPane({
   setupRef.current = setup;
 
   useEffect(() => {
-    const fit = () => {
+    const applyFit = () => {
+      const chart = chartRef.current;
+      const series = seriesRef.current;
+      const cs = clipWicks(candlesRef.current);
+      if (!chart || !series || cs.length < 2) return;
       fittedKey.current = "";
-      const s = seriesRef.current;
-      s?.priceScale().applyOptions({ autoScale: true });
-      chartRef.current?.timeScale().fitContent();
+      const last = cs.slice(-Math.min(90, cs.length));
+      let lo = Infinity;
+      let hi = -Infinity;
+      for (const c of last) {
+        lo = Math.min(lo, c.low, c.open, c.close, c.high);
+        hi = Math.max(hi, c.high, c.open, c.close, c.low);
+      }
+      if (!(hi > lo) || !Number.isFinite(lo)) return;
+      const pad = (hi - lo) * 0.12;
+      const minValue = lo - pad;
+      const maxValue = hi + pad;
+      series.applyOptions({
+        autoscaleInfoProvider: () => ({ priceRange: { minValue, maxValue } }),
+      });
+      series.priceScale().applyOptions({ autoScale: true, scaleMargins: { top: 0.12, bottom: 0.16 } });
+      try {
+        chart.timeScale().setVisibleRange({
+          from: last[0]!.time as UTCTimestamp,
+          to: last.at(-1)!.time as UTCTimestamp,
+        });
+      } catch {
+        chart.timeScale().fitContent();
+      }
     };
-    window.addEventListener("sloi-fit", fit);
-    return () => window.removeEventListener("sloi-fit", fit);
-  }, []);
+    window.addEventListener("sloi-fit", applyFit);
+    applyFit();
+    return () => window.removeEventListener("sloi-fit", applyFit);
+  }, [fitGen, ready]);
 
   useEffect(() => {
     const host = hostRef.current;

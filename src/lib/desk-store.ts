@@ -26,6 +26,8 @@ interface DeskState {
   chochLen: 2 | 3 | 4;
   chochClose: boolean;
   spreads: Record<string, number>;
+  quoteSource: "broker" | "yahoo";
+  fitGen: number;
   setSymbol: (id: string) => void;
   setTimeframe: (tf: Timeframe) => void;
   setAutoAnalyze: (on: boolean) => void;
@@ -35,6 +37,8 @@ interface DeskState {
   setChochLen: (n: 2 | 3 | 4) => void;
   setChochClose: (on: boolean) => void;
   setSpread: (id: string, spread: number) => void;
+  setQuoteSource: (src: "broker" | "yahoo") => void;
+  requestFit: () => void;
 }
 
 const ALLOWED = new Set(SYMBOLS.map((s) => s.id));
@@ -62,6 +66,8 @@ export const useDeskStore = create<DeskState>()(
       chochLen: 3,
       chochClose: true,
       spreads: Object.fromEntries(SYMBOLS.map((s) => [s.id, s.spread])),
+      quoteSource: "broker",
+      fitGen: 0,
       setSymbol: (id) => set({ symbol: id }),
       setTimeframe: (tf) => set({ timeframe: tf }),
       setAutoAnalyze: (on) => set({ autoAnalyze: on }),
@@ -71,10 +77,12 @@ export const useDeskStore = create<DeskState>()(
       setChochLen: (n) => set({ chochLen: n }),
       setChochClose: (on) => set({ chochClose: on }),
       setSpread: (id, spread) => set((s) => ({ spreads: { ...s.spreads, [id]: spread } })),
+      setQuoteSource: (src) => set({ quoteSource: src }),
+      requestFit: () => set((s) => ({ fitGen: s.fitGen + 1 })),
     }),
     {
       name: "sloi-desk-smc",
-      version: 11,
+      version: 12,
       migrate: (persisted) => {
         const p = (persisted ?? {}) as Partial<DeskState>;
         const symbol = p.symbol && ALLOWED.has(p.symbol) ? p.symbol : "EURUSD";
@@ -89,6 +97,7 @@ export const useDeskStore = create<DeskState>()(
           voiceOn: p.voiceOn ?? true,
           chochLen: len,
           chochClose: p.chochClose ?? true,
+          quoteSource: p.quoteSource === "yahoo" ? "yahoo" : "broker",
           overlays: {
             fvg: true,
             ob: true,
