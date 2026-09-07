@@ -132,14 +132,28 @@ function pulseRings(ctx: CanvasRenderingContext2D, x: number, y: number, color: 
   ctx.stroke();
 }
 
-const BULL_CAST = ["bull", "lion", "hero", "duck", "banker", "rocket", "dragon", "eagle", "robot", "prince"] as const;
-const BEAR_CAST = ["bear", "wolf", "shark", "duck", "banker", "devil", "bat", "vamp", "cat", "chart"] as const;
-
-function pickCast(kind: "bull" | "bear", pair: string, seed: number) {
-  const pool = kind === "bull" ? BULL_CAST : BEAR_CAST;
-  let h = seed + (kind === "bull" ? 17 : 91);
-  for (let i = 0; i < pair.length; i++) h = (h * 33 + pair.charCodeAt(i)) >>> 0;
-  return pool[h % pool.length]!;
+function drawBill(ctx: CanvasRenderingContext2D, x: number, y: number, rot: number, flip: number) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rot);
+  ctx.scale(1, 0.55 + 0.45 * Math.cos(flip));
+  const g = ctx.createLinearGradient(-10, -6, 10, 6);
+  g.addColorStop(0, "#1a6a3a");
+  g.addColorStop(0.45, "#3cb86a");
+  g.addColorStop(1, "#0e3a22");
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.roundRect(-10, -6, 20, 12, 2);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,240,180,0.45)";
+  ctx.lineWidth = 0.8;
+  ctx.stroke();
+  ctx.fillStyle = "#f4e08a";
+  ctx.font = "bold 8px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("$", 0, 0.5);
+  ctx.restore();
 }
 
 function drawCreature(
@@ -147,230 +161,143 @@ function drawCreature(
   kind: "bull" | "bear",
   lively: boolean,
   now: number,
-  who: string,
+  _who: string,
 ) {
   const t = now / 1000;
-  const run = t * (lively ? 10 : 5);
+  const up = kind === "bull";
+  const bounce = Math.sin(t * (lively ? 5 : 2.6)) * (lively ? 3 : 1.5);
   ctx.save();
+  ctx.translate(0, bounce);
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
-  const gold = kind === "bull" ? "#e8be50" : "#c85a46";
-  const body = kind === "bull" ? "#c48420" : "#6a3a32";
-  const light = kind === "bull" ? "#ffe08a" : "#e8a090";
-  ctx.shadowColor = kind === "bull" ? "rgba(232,190,80,0.45)" : "rgba(200,90,70,0.4)";
-  ctx.shadowBlur = 12;
+  ctx.shadowColor = up ? "rgba(232,190,80,0.4)" : "rgba(180,70,60,0.35)";
+  ctx.shadowBlur = 16;
 
-  const leg = (x: number, phase: number) => {
-    const a = Math.sin(run + phase) * 0.55;
-    ctx.beginPath();
-    ctx.moveTo(x, 10);
-    ctx.quadraticCurveTo(x + Math.sin(a) * 8, 22, x + Math.sin(a) * 14, 28);
-    ctx.strokeStyle = body;
-    ctx.lineWidth = 5;
-    ctx.stroke();
-  };
+  ctx.fillStyle = "rgba(0,0,0,0.35)";
+  ctx.beginPath();
+  ctx.ellipse(2, 36, 22, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 8;
 
-  if (who === "shark") {
-    const fin = Math.sin(t * 4) * 10;
-    ctx.fillStyle = "#4a6a88";
-    ctx.beginPath();
-    ctx.ellipse(0, 6, 28, 12, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(24, 6);
-    ctx.lineTo(38, 2);
-    ctx.lineTo(24, 12);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(-4, -6);
-    ctx.lineTo(2 + fin * 0.2, -22);
-    ctx.lineTo(10, -4);
-    ctx.fillStyle = "#6a8aaa";
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(-26, 6);
-    ctx.lineTo(-40, 6 + fin);
-    ctx.lineTo(-26, 14);
-    ctx.fillStyle = "#3a5570";
-    ctx.fill();
-    ctx.fillStyle = "#fff";
-    ctx.beginPath();
-    ctx.arc(16, 2, 3, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#111";
-    ctx.beginPath();
-    ctx.arc(17, 2, 1.4, 0, Math.PI * 2);
-    ctx.fill();
-  } else if (who === "duck") {
-    const wing = Math.sin(t * 6) * 14;
-    const coin = (Math.sin(t * 3) + 1) * 14;
-    ctx.fillStyle = "#f0c030";
-    ctx.beginPath();
-    ctx.ellipse(0, 8, 16, 12, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(14, -2, 9, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#e07020";
-    ctx.beginPath();
-    ctx.ellipse(24, 0, 8, 4, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.save();
-    ctx.translate(-4, 2);
-    ctx.rotate(wing * 0.04);
-    ctx.fillStyle = "#e0a020";
-    ctx.beginPath();
-    ctx.ellipse(-8, 0, 12, 5, -0.4, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-    ctx.fillStyle = "#111";
-    ctx.beginPath();
-    ctx.arc(16, -4, 1.6, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = gold;
-    ctx.beginPath();
-    ctx.arc(8, -18 - coin, 5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "#8a6010";
-    ctx.lineWidth = 1;
-    ctx.stroke();
-    ctx.fillStyle = "#8a6010";
-    ctx.font = "bold 7px sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText("$", 8, -16 - coin);
-  } else if (who === "rocket") {
-    const flame = 8 + Math.sin(t * 14) * 6;
-    ctx.translate(0, Math.sin(t * 5) * 4);
-    ctx.fillStyle = "#d0d8e0";
-    ctx.beginPath();
-    ctx.moveTo(0, -26);
-    ctx.lineTo(12, 8);
-    ctx.lineTo(-12, 8);
-    ctx.closePath();
-    ctx.fill();
-    ctx.fillStyle = "#c43333";
-    ctx.beginPath();
-    ctx.moveTo(-12, 4);
-    ctx.lineTo(-20, 16);
-    ctx.lineTo(-6, 8);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(12, 4);
-    ctx.lineTo(20, 16);
-    ctx.lineTo(6, 8);
-    ctx.fill();
-    ctx.fillStyle = "#ffb020";
-    ctx.beginPath();
-    ctx.moveTo(-6, 10);
-    ctx.lineTo(0, 10 + flame);
-    ctx.lineTo(6, 10);
-    ctx.fill();
-  } else if (who === "dragon") {
-    const wing = Math.sin(t * 5) * 16;
-    ctx.fillStyle = "#2a8a4a";
-    ctx.beginPath();
-    ctx.ellipse(-2, 6, 20, 11, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(16, -4, 10, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(-4, 0);
-    ctx.lineTo(-8, -18 + wing * 0.3);
-    ctx.lineTo(14, -2);
-    ctx.fillStyle = "#3cb86a";
-    ctx.fill();
-    ctx.fillStyle = gold;
-    ctx.beginPath();
-    ctx.moveTo(22, -8);
-    ctx.lineTo(30, -14);
-    ctx.lineTo(22, -2);
-    ctx.fill();
-    ctx.fillStyle = "#111";
-    ctx.beginPath();
-    ctx.arc(18, -6, 1.8, 0, Math.PI * 2);
-    ctx.fill();
-    leg(-8, 0);
-    leg(6, 1.6);
-  } else if (who === "bear" || who === "wolf" || who === "cat" || who === "vamp") {
-    const paw = Math.sin(t * 5) * 18;
-    ctx.fillStyle = who === "cat" ? "#c4a070" : "#5a3a28";
-    ctx.beginPath();
-    ctx.ellipse(0, 8, 16, 13, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(0, -8, 12, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(-10, -16);
-    ctx.lineTo(-6, -26);
-    ctx.lineTo(-2, -16);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(10, -16);
-    ctx.lineTo(6, -26);
-    ctx.lineTo(2, -16);
-    ctx.fill();
-    ctx.save();
-    ctx.translate(16, 4);
-    ctx.rotate(paw * 0.05);
-    ctx.fillStyle = light;
-    ctx.beginPath();
-    ctx.ellipse(8, 0, 10, 5, 0.2, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-    ctx.fillStyle = "#111";
-    ctx.beginPath();
-    ctx.arc(-4, -10, 1.6, 0, Math.PI * 2);
-    ctx.arc(4, -10, 1.6, 0, Math.PI * 2);
-    ctx.fill();
-  } else if (who === "banker" || who === "prince" || who === "hero" || who === "robot") {
-    const nod = Math.sin(t * 3) * 3;
-    ctx.translate(0, nod);
-    ctx.fillStyle = who === "robot" ? "#8aa0b0" : "#e8c8a0";
-    ctx.beginPath();
-    ctx.arc(0, -8, 11, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = who === "prince" ? gold : "#2a3a6a";
-    ctx.fillRect(-12, 2, 24, 20);
-    ctx.fillStyle = gold;
-    ctx.beginPath();
-    ctx.moveTo(-10, -18);
-    ctx.lineTo(0, -28);
-    ctx.lineTo(10, -18);
-    ctx.fill();
-    const toss = (Math.sin(t * 4) + 1) * 10;
-    ctx.beginPath();
-    ctx.arc(18, -6 - toss, 4, 0, Math.PI * 2);
-    ctx.fill();
-  } else {
-    const hop = Math.sin(run) * 3;
-    ctx.translate(0, hop);
-    ctx.fillStyle = body;
-    ctx.beginPath();
-    ctx.ellipse(0, 4, 18, 14, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(16, -8, 11, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = light;
-    ctx.beginPath();
-    ctx.moveTo(10, -16);
-    ctx.lineTo(14, -28);
-    ctx.lineTo(20, -14);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(18, -16);
-    ctx.lineTo(26, -26);
-    ctx.lineTo(28, -12);
-    ctx.fill();
-    ctx.fillStyle = "#111";
-    ctx.beginPath();
-    ctx.arc(18, -10, 1.8, 0, Math.PI * 2);
-    ctx.fill();
-    leg(-8, 0);
-    leg(4, 3.1);
+  const coat = ctx.createLinearGradient(-18, 0, 22, 28);
+  coat.addColorStop(0, "#6a1c28");
+  coat.addColorStop(0.35, "#c43a48");
+  coat.addColorStop(0.7, "#8a2230");
+  coat.addColorStop(1, "#3a1018");
+  ctx.fillStyle = coat;
+  ctx.beginPath();
+  ctx.moveTo(-16, 4);
+  ctx.quadraticCurveTo(-22, 18, -14, 32);
+  ctx.lineTo(16, 32);
+  ctx.quadraticCurveTo(24, 16, 18, 4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = "rgba(255,210,160,0.12)";
+  ctx.beginPath();
+  ctx.moveTo(-8, 6);
+  ctx.lineTo(4, 6);
+  ctx.lineTo(2, 28);
+  ctx.lineTo(-10, 28);
+  ctx.fill();
+
+  const skin = ctx.createRadialGradient(-4, -18, 2, 0, -14, 16);
+  skin.addColorStop(0, "#ffe2b0");
+  skin.addColorStop(0.55, "#e8b070");
+  skin.addColorStop(1, "#9a6030");
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.ellipse(0, -14, 13, 14, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "rgba(255,255,255,0.28)";
+  ctx.beginPath();
+  ctx.ellipse(-4, -20, 5, 3, -0.4, 0, Math.PI * 2);
+  ctx.fill();
+
+  const hat = ctx.createLinearGradient(-14, -44, 14, -22);
+  hat.addColorStop(0, "#2a1a0c");
+  hat.addColorStop(0.4, "#6a4a22");
+  hat.addColorStop(1, "#1a1008");
+  ctx.fillStyle = hat;
+  ctx.beginPath();
+  ctx.ellipse(0, -26, 16, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillRect(-9, -42, 18, 16);
+  ctx.fillStyle = "#e8c050";
+  ctx.fillRect(-9, -30, 18, 3);
+  ctx.fillStyle = "rgba(255,240,180,0.25)";
+  ctx.fillRect(-7, -41, 5, 10);
+
+  ctx.strokeStyle = "#1a1208";
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.ellipse(-5, -16, 4.2, 3.2, 0, 0, Math.PI * 2);
+  ctx.ellipse(5, -16, 4.2, 3.2, 0, 0, Math.PI * 2);
+  ctx.moveTo(-1, -16);
+  ctx.lineTo(1, -16);
+  ctx.stroke();
+  ctx.fillStyle = "#1a1208";
+  ctx.beginPath();
+  ctx.arc(-4.5, -16, 1.3, 0, Math.PI * 2);
+  ctx.arc(5.5, -16, 1.3, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = "#c48430";
+  ctx.lineWidth = 2.4;
+  ctx.beginPath();
+  ctx.arc(0, -8, 5, 0.2, Math.PI - 0.2);
+  ctx.stroke();
+
+  const arm = up ? -1.15 + Math.sin(t * 6) * 0.12 : 1.05 + Math.sin(t * 6) * 0.12;
+  ctx.save();
+  ctx.translate(14, 6);
+  ctx.rotate(arm);
+  const sleeve = ctx.createLinearGradient(0, 0, 0, 22);
+  sleeve.addColorStop(0, "#d05058");
+  sleeve.addColorStop(1, "#5a1820");
+  ctx.strokeStyle = sleeve;
+  ctx.lineWidth = 7;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(0, 20);
+  ctx.stroke();
+  ctx.fillStyle = "#f0c890";
+  ctx.beginPath();
+  ctx.arc(0, 24, 5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = up ? "#7dff9a" : "#ff6a6a";
+  ctx.fillStyle = up ? "#7dff9a" : "#ff6a6a";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(0, 22);
+  ctx.lineTo(0, up ? -8 : 40);
+  ctx.lineTo(up ? -5 : -5, up ? 0 : 32);
+  ctx.moveTo(0, up ? -8 : 40);
+  ctx.lineTo(up ? 5 : 5, up ? 0 : 32);
+  ctx.stroke();
+  ctx.restore();
+
+  for (let i = 0; i < 5; i++) {
+    const ph = t * (2.2 + i * 0.15) + i * 1.3;
+    const fly = ((ph % 4) / 4);
+    const dir = up ? -1 : 1;
+    const x = -28 - i * 5 + Math.sin(ph * 2) * 8;
+    const y = (up ? -10 : 8) + dir * fly * 36 + Math.cos(ph * 3) * 4;
+    drawBill(ctx, x, y, ph * 1.4, ph * 3);
   }
+
+  const bag = ctx.createRadialGradient(-16, 22, 2, -14, 24, 14);
+  bag.addColorStop(0, "#ffe080");
+  bag.addColorStop(0.5, "#c9a030");
+  bag.addColorStop(1, "#6a4a10");
+  ctx.fillStyle = bag;
+  ctx.beginPath();
+  ctx.ellipse(-16, 26, 11, 9, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#8a6010";
+  ctx.font = "bold 9px sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("$", -16, 29);
+
   ctx.restore();
 }
 
@@ -1193,7 +1120,8 @@ function drawZones(
   const slot = { x: 28, y: Math.max(96, height - 132) };
   occupy(slot.x, slot.y - 12, 96, 96);
   ctx.save();
-  ctx.translate(slot.x + 44, slot.y + 48);
+  ctx.translate(slot.x + 48, slot.y + 42);
+  ctx.scale(1.2, 1.2);
   const beat = 0.5 + 0.5 * Math.sin(nowMs / 180);
   for (let r = 1; r <= 3; r++) {
     ctx.beginPath();
@@ -1204,8 +1132,7 @@ function drawZones(
     ctx.stroke();
   }
   ctx.globalAlpha = 1;
-  const glyph = pickCast(kind, pair, faceI);
-  drawCreature(ctx, kind, lively, nowMs, glyph);
+  drawCreature(ctx, kind, lively, nowMs, "");
   ctx.restore();
 }
 
