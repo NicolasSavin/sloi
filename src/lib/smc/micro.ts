@@ -376,11 +376,18 @@ export function buildMicro(
     splash,
     nodes: (() => {
       const stepH = step || 3600;
-      const keep = Math.max(stepH * 80, 5 * 86400);
-      const recent = nodes.filter((n) => last.time - n.time <= keep);
+      const day = 86400;
+      const recentCut = Math.max(stepH * 24, day);
+      const keep = Math.max(stepH * 80, 5 * day);
+      const recent = nodes.filter((n) => last.time - n.time <= recentCut);
+      const mid = nodes.filter((n) => last.time - n.time > recentCut && last.time - n.time <= keep);
       const old = nodes.filter((n) => last.time - n.time > keep);
-      const thinned = old.filter((_, i) => i % 4 === 0).slice(-8);
-      return [...thinned, ...recent];
+      const take = (list: VolumeNode[], imbEvery: number, imbMax: number) => {
+        const imb = list.filter((n) => n.kind === "imbalance").filter((_, i) => i % imbEvery === 0).slice(-imbMax);
+        const rest = list.filter((n) => n.kind !== "imbalance");
+        return [...rest, ...imb];
+      };
+      return [...take(old, 8, 4), ...take(mid, 4, 6), ...take(recent, 2, 12)];
     })(),
     cmeTicker,
     because,

@@ -1416,6 +1416,23 @@ export function ChartPane({
         borderVisible: false,
         wickVisible: false,
         visible: false,
+        autoscaleInfoProvider: () => {
+          const cs = candlesRef.current;
+          if (!cs.length) return null;
+          const spans = cs.map((c) => c.high - c.low).filter((x) => x > 0).sort((a, b) => a - b);
+          const med = spans[Math.floor(spans.length / 2)] || 1;
+          let lo = Infinity;
+          let hi = -Infinity;
+          for (const c of cs) {
+            const mid = (c.open + c.close) / 2;
+            const cap = med * 4.5;
+            hi = Math.max(hi, Math.min(c.high, mid + cap), c.open, c.close);
+            lo = Math.min(lo, Math.max(c.low, mid - cap), c.open, c.close);
+          }
+          if (!Number.isFinite(lo) || hi <= lo) return null;
+          const pad = (hi - lo) * 0.08;
+          return { priceRange: { minValue: lo - pad, maxValue: hi + pad } };
+        },
       });
       const volume = chart.addSeries(lc.HistogramSeries, {
         priceFormat: { type: "volume" },
