@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.93"
+#property version   "4.94"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -145,7 +145,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.93: не разворот 25 мин, пауза 40 мин после закрытия");
+   Print("SLOI 4.94: 80 часов H1 по мажорам и золоту");
    return(INIT_SUCCEEDED);
   }
 
@@ -1468,7 +1468,12 @@ void AppendBrokerBars(string &body)
      {
       string s = g_sym[i];
       int d = DigitsOf(s);
-      for(int b = 23; b >= 0; b--)
+      int depth = 23;
+      string nkd = Naked(s);
+      if(nkd == "EURUSD" || nkd == "GBPUSD" || nkd == "USDJPY" || nkd == "USDCHF"
+         || nkd == "AUDUSD" || nkd == "USDCAD" || nkd == "NZDUSD" || nkd == "XAUUSD")
+         depth = 79;
+      for(int b = depth; b >= 0; b--)
         {
          datetime t = iTime(s, tf, b);
          double o = iOpen(s, tf, b);
@@ -1508,7 +1513,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 4.93\n";
+   body += "EA 4.94\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();

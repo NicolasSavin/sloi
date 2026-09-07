@@ -17,7 +17,7 @@ import type { Advice } from "@/lib/advisor";
 import type { LocalSetup, SmcSnapshot, Zone } from "@/lib/smc/engine";
 import { deltaOf } from "@/lib/smc/flow";
 import { CD_FUT } from "@/lib/smc/micro";
-import { liveCdCharts } from "@/lib/broker-tape";
+import { clipWicks, liveCdCharts } from "@/lib/broker-tape";
 import { cn } from "@/lib/utils";
 
 function token(name: string, fallback: string) {
@@ -1358,19 +1358,7 @@ function drawProfile(
 }
 
 function clipCandlesForView<T extends { open: number; high: number; low: number; close: number }>(cs: T[]): T[] {
-  if (cs.length < 3) return cs;
-  const win = cs.slice(-70);
-  const bodies = win
-    .map((c) => Math.abs(c.close - c.open))
-    .filter((x) => x > 0)
-    .sort((a, b) => a - b);
-  const medB = bodies[Math.floor(bodies.length / 2)] || Math.abs(win.at(-1)?.close ?? 1) * 0.001;
-  const cap = Math.max(medB * 1.85, Math.abs(win.at(-1)?.close ?? 1) * 0.0006);
-  return cs.map((c) => {
-    const top = Math.max(c.open, c.close);
-    const bot = Math.min(c.open, c.close);
-    return { ...c, high: Math.min(c.high, top + cap), low: Math.max(c.low, bot - cap) };
-  });
+  return clipWicks(cs);
 }
 
 function drawBricks(

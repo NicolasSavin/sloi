@@ -448,6 +448,22 @@ export function hydrateClientCd(cd: { askbid?: Record<string, { ask: number; bid
   for (const [id, v] of Object.entries(cd.stat ?? {})) r.cdStat.set(id, { at, ...v });
 }
 
+export function clipWicks<T extends { open: number; high: number; low: number; close: number }>(cs: T[]): T[] {
+  if (cs.length < 3) return cs;
+  const win = cs.slice(-80);
+  const bodies = win
+    .map((c) => Math.abs(c.close - c.open))
+    .filter((x) => x > 0)
+    .sort((a, b) => a - b);
+  const medB = bodies[Math.floor(bodies.length / 2)] || Math.abs(win.at(-1)?.close ?? 1) * 0.001;
+  const cap = Math.max(medB * 1.6, Math.abs(win.at(-1)?.close ?? 1) * 0.0005);
+  return cs.map((c) => {
+    const top = Math.max(c.open, c.close);
+    const bot = Math.min(c.open, c.close);
+    return { ...c, high: Math.min(c.high, top + cap), low: Math.max(c.low, bot - cap) };
+  });
+}
+
 export function liveOhlc(id: string): { time: number; open: number; high: number; low: number; close: number }[] {
   const map = new Map<number, { time: number; open: number; high: number; low: number; close: number }>();
   const now = Date.now();

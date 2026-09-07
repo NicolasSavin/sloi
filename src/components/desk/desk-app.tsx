@@ -26,7 +26,7 @@ import { KIND_LABEL, SYMBOLS, TIMEFRAMES, getSymbol } from "@/lib/market/symbols
 import { readDeskKey } from "@/lib/desk-key";
 import { playSignal, unlockSound } from "@/lib/sound";
 import { analyzeMarket, compactForAi, type SmcSnapshot } from "@/lib/smc/engine";
-import { hydrateClientCd, ingestBrokerTape, liveOhlc, mergeBrokerCandles, brokerMid } from "@/lib/broker-tape";
+import { hydrateClientCd, ingestBrokerTape, liveOhlc, mergeBrokerCandles, brokerMid, clipWicks } from "@/lib/broker-tape";
 import { makeTvBrief } from "@/lib/tv-brief";
 import { cn, formatPct, formatPrice } from "@/lib/utils";
 
@@ -106,10 +106,10 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
       ingestBrokerTape((bookQ.data as { tape: string }).tape, "client");
     }
     const web = market.data?.candles ?? [];
-    if (quoteSource === "yahoo") return web;
+    if (quoteSource === "yahoo") return clipWicks(web);
     const broker = liveOhlc(spec.id);
     if (broker.length >= 8) {
-      let out = broker.map((b) => ({
+      const br = broker.map((b) => ({
         time: b.time,
         open: b.open,
         high: b.high,
@@ -117,6 +117,9 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
         close: b.close,
         volume: 0,
       }));
+      const t0 = br[0]!.time;
+      const older = web.filter((c) => c.time < t0 - 900);
+      let out = clipWicks([...older, ...br]);
       const mid = brokerMid(spec.id, "client") ?? brokerMid(spec.id);
       if (mid && out.length) {
         const last = { ...out[out.length - 1]! };
@@ -127,16 +130,7 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
       }
       return out;
     }
-    const mixed = mergeBrokerCandles(web, broker);
-    const mid = brokerMid(spec.id, "client") ?? brokerMid(spec.id);
-    if (mid && mixed.length) {
-      const last = { ...mixed[mixed.length - 1]! };
-      last.close = mid;
-      last.high = Math.max(last.high, mid);
-      last.low = Math.min(last.low, mid);
-      return [...mixed.slice(0, -1), last];
-    }
-    return mixed;
+    return clipWicks(mergeBrokerCandles(web, broker));
   }, [market.data?.candles, bookQ.data, spec.id, quoteSource]);
   const snap = useMemo<SmcSnapshot | null>(() => {
     if (!candles.length) return null;
