@@ -1166,6 +1166,18 @@ function drawProfile(
   ctx.fillText("B", rect.width - 12, 12);
 }
 
+function lockPriceScale(series: ISeriesApi<"Candlestick">, close: number) {
+  const px = Math.abs(close) || 1;
+  const span = px * 0.007;
+  series.applyOptions({
+    visible: true,
+    autoscaleInfoProvider: () => ({
+      priceRange: { minValue: close - span, maxValue: close + span },
+    }),
+  });
+  series.priceScale().applyOptions({ autoScale: true, scaleMargins: { top: 0.12, bottom: 0.18 } });
+}
+
 function clipForDraw<T extends { open: number; high: number; low: number; close: number }>(cs: T[]): T[] {
   const w = clipWicks(cs);
   if (w.length < 2) return w;
@@ -1443,7 +1455,6 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
               drawZones(ctx, w, h, chart, series, p.zones, p.overlays, p.snap, p.setup, p.order, p.candles.at(-1)?.time ?? 0, false, p.candles, p.pair, this.faceI, "hud");
               drawPathArrows(ctx, w, chart, series, p.snap, p.order, p.setup, p.candles.at(-1)?.time ?? 0);
             }
-            drawBricks(ctx, chart, series, p.candles, h);
             drawTape(ctx, w, chart, series, p.candles, p.snap, p.overlays.flow, p.book);
             if (p.snap && CD_FUT.has(p.pair) && !(p.snap.micro.nodes ?? []).some((n) => n.kind === "splash" || n.kind === "infusion" || n.kind === "imbalance")) {
               const seen = liveCdCharts();
@@ -1523,17 +1534,7 @@ export function ChartPane({
       if (!chart || !series || cs.length < 2) return;
       const last = cs.slice(-Math.min(80, cs.length));
       const mid = last.at(-1)!.close;
-      const span = Math.max(Math.abs(mid) * 0.006, 1e-8);
-      fitRangeRef.current = { min: mid - span, max: mid + span };
-      series.applyOptions({
-        autoscaleInfoProvider: () => {
-          const r = fitRangeRef.current;
-          const px = candlesRef.current.at(-1)?.close ?? 1;
-          if (r) return { priceRange: { minValue: r.min, maxValue: r.max } };
-          return { priceRange: { minValue: px * 0.995, maxValue: px * 1.005 } };
-        },
-      });
-      series.priceScale().applyOptions({ autoScale: true, scaleMargins: { top: 0.14, bottom: 0.18 } });
+      lockPriceScale(series, mid);
       try {
         chart.timeScale().setVisibleLogicalRange({
           from: Math.max(-0.4, cs.length - 70),
@@ -1606,29 +1607,17 @@ export function ChartPane({
         },
       });
       const series = chart.addSeries(lc.CandlestickSeries, {
-        upColor: "#00000000",
-        downColor: "#00000000",
-        borderUpColor: "#00000000",
-        borderDownColor: "#00000000",
-        wickUpColor: "#00000000",
-        wickDownColor: "#00000000",
-        borderVisible: false,
-        wickVisible: false,
+        upColor: bull,
+        downColor: bear,
+        borderUpColor: bull,
+        borderDownColor: bear,
+        wickUpColor: bull,
+        wickDownColor: bear,
+        borderVisible: true,
+        wickVisible: true,
         visible: true,
         lastValueVisible: true,
         priceLineVisible: false,
-        autoscaleInfoProvider: () => {
-          const r = fitRangeRef.current;
-          const all = clipForDraw(candlesRef.current);
-          const last = all.at(-1)?.close;
-          const fallback = last && last > 0 ? last : 1;
-          if (r) return { priceRange: { minValue: r.min, maxValue: r.max } };
-          if (!all.length) {
-            return { priceRange: { minValue: fallback * 0.995, maxValue: fallback * 1.005 } };
-          }
-          const span = Math.abs(fallback) * 0.006;
-          return { priceRange: { minValue: fallback - span, maxValue: fallback + span } };
-        },
       });
       const volume = chart.addSeries(lc.HistogramSeries, {
         priceFormat: { type: "volume" },
@@ -1739,16 +1728,17 @@ export function ChartPane({
       })),
     );
     series.applyOptions({
-      upColor: "#00000000",
-      downColor: "#00000000",
-      borderUpColor: "#00000000",
-      borderDownColor: "#00000000",
-      wickUpColor: "#00000000",
-      wickDownColor: "#00000000",
-      borderVisible: false,
-      wickVisible: false,
-      visible: false,
+      upColor: bull,
+      downColor: bear,
+      borderUpColor: bull,
+      borderDownColor: bear,
+      wickUpColor: bull,
+      wickDownColor: bear,
+      borderVisible: true,
+      wickVisible: true,
+      visible: true,
     });
+    lockPriceScale(series, view.at(-1)!.close);
     volume.setData(
       view.map((c) => {
         const d = deltaOf(c);

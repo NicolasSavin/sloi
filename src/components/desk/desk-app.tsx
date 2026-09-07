@@ -26,7 +26,7 @@ import { KIND_LABEL, SYMBOLS, TIMEFRAMES, getSymbol } from "@/lib/market/symbols
 import { readDeskKey } from "@/lib/desk-key";
 import { playSignal, unlockSound } from "@/lib/sound";
 import { analyzeMarket, compactForAi, type SmcSnapshot } from "@/lib/smc/engine";
-import { hydrateClientCd, ingestBrokerTape, liveOhlc, mergeBrokerCandles, brokerMid, clipWicks } from "@/lib/broker-tape";
+import { hydrateClientCd, ingestBrokerTape, brokerMid, clipWicks } from "@/lib/broker-tape";
 import { makeTvBrief } from "@/lib/tv-brief";
 import { cn, formatPct, formatPrice } from "@/lib/utils";
 
@@ -107,25 +107,6 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
     }
     const web = market.data?.candles ?? [];
     const mid = brokerMid(spec.id, "client") ?? brokerMid(spec.id);
-    if (quoteSource === "yahoo") {
-      let out = clipWicks(web);
-      if (mid && out.length) {
-        const last = { ...out[out.length - 1]! };
-        last.close = mid;
-        last.high = Math.max(last.high, mid);
-        last.low = Math.min(last.low, mid);
-        out = [...out.slice(0, -1), last];
-      }
-      return out;
-    }
-    const broker = liveOhlc(spec.id);
-    const px = web.at(-1)?.close ?? broker.at(-1)?.close ?? 0;
-    const sane = broker.filter((b) => {
-      if (px <= 0) return true;
-      const span = Math.max(b.high - b.low, Math.abs(b.close - b.open));
-      return span < px * 0.018 && Math.abs(b.close - px) < px * 0.02;
-    });
-    if (sane.length >= 16) return clipWicks(mergeBrokerCandles(web, sane));
     let out = clipWicks(web);
     if (mid && out.length) {
       const last = { ...out[out.length - 1]! };
@@ -135,7 +116,7 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
       out = [...out.slice(0, -1), last];
     }
     return out;
-  }, [market.data?.candles, bookQ.data, spec.id, quoteSource]);
+  }, [market.data?.candles, bookQ.data, spec.id]);
   const snap = useMemo<SmcSnapshot | null>(() => {
     if (!candles.length) return null;
     hydrateClientCd(bookQ.data?.cd);
