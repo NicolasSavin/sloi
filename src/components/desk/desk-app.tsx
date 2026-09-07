@@ -108,16 +108,35 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
     const web = market.data?.candles ?? [];
     if (quoteSource === "yahoo") return web;
     const broker = liveOhlc(spec.id);
-    let out = broker.length ? mergeBrokerCandles(web, broker) : web.slice();
+    if (broker.length >= 8) {
+      let out = broker.map((b) => ({
+        time: b.time,
+        open: b.open,
+        high: b.high,
+        low: b.low,
+        close: b.close,
+        volume: 0,
+      }));
+      const mid = brokerMid(spec.id, "client") ?? brokerMid(spec.id);
+      if (mid && out.length) {
+        const last = { ...out[out.length - 1]! };
+        last.close = mid;
+        last.high = Math.max(last.high, mid);
+        last.low = Math.min(last.low, mid);
+        out = [...out.slice(0, -1), last];
+      }
+      return out;
+    }
+    const mixed = mergeBrokerCandles(web, broker);
     const mid = brokerMid(spec.id, "client") ?? brokerMid(spec.id);
-    if (mid && out.length) {
-      const last = { ...out[out.length - 1]! };
+    if (mid && mixed.length) {
+      const last = { ...mixed[mixed.length - 1]! };
       last.close = mid;
       last.high = Math.max(last.high, mid);
       last.low = Math.min(last.low, mid);
-      out = [...out.slice(0, -1), last];
+      return [...mixed.slice(0, -1), last];
     }
-    return out;
+    return mixed;
   }, [market.data?.candles, bookQ.data, spec.id, quoteSource]);
   const snap = useMemo<SmcSnapshot | null>(() => {
     if (!candles.length) return null;
