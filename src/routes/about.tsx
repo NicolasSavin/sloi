@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.8.77",
+    d: "2026-09-07",
+    items: [
+      "Сов 4.91 всегда шлёт 24 часа H1, даже если HostFeed выключен. Иначе MT4 на графике молчит",
+    ],
+  },
+  {
     v: "1.8.76",
     d: "2026-09-07",
     items: [

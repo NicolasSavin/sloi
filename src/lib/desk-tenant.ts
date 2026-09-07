@@ -224,7 +224,7 @@ export async function loadTape(tenantId: string): Promise<{ body: string; accoun
 export function hostPublicBody(text: string) {
   return text
     .split(/\n/)
-    .filter((l) => /^(HOST|CLUSTER|CUMDELTA|CDBAR|CDSTAT|CDCHARTS|PROFILE|ASKBID|VOLUME|DELTA|BOOK|BAR)\b/.test(l.trim()))
+    .filter((l) => /^(HOST|EA|CLUSTER|CUMDELTA|CDBAR|CDSTAT|CDCHARTS|PROFILE|ASKBID|VOLUME|DELTA|BOOK|BAR)\b/.test(l.trim()))
     .join("\n");
 }
 

@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.90"
+#property version   "4.91"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -141,7 +141,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 4.90: каждый цикл 24 часовых бара брокера в ленте");
+   Print("SLOI 4.91: 24 часа H1 в ленте всегда, HostFeed только для CD");
    return(INIT_SUCCEEDED);
   }
 
@@ -1502,6 +1502,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
+   body += "EA 4.91\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();
@@ -1534,7 +1535,7 @@ void PushTape()
       if(bid <= 0 || ask <= 0) continue;
       body += Naked(s) + " " + DoubleToStr(bid, DigitsOf(s)) + " " + DoubleToStr(ask, DigitsOf(s)) + "\n";
      }
-   if(g_host) AppendBrokerBars(body);
+   AppendBrokerBars(body);
    PostTape(url, body);
    string extra = "";
    AppendClusters(extra);
