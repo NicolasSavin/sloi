@@ -18,11 +18,8 @@ import type { LocalSetup, SmcSnapshot, Zone } from "@/lib/smc/engine";
 import { deltaOf } from "@/lib/smc/flow";
 import { CD_FUT } from "@/lib/smc/micro";
 import { clipWicks, liveCdCharts } from "@/lib/broker-tape";
+import { WalkingMascot } from "@/components/desk/walking-mascot";
 import { cn } from "@/lib/utils";
-
-function mascotGif(kind: "bull" | "bear", _pair: string) {
-  return kind === "bull" ? "/mascot/bull.gif" : "/mascot/bear.gif";
-}
 
 function token(name: string, fallback: string) {
   if (typeof window === "undefined") return fallback;
@@ -1169,8 +1166,29 @@ function drawProfile(
   ctx.fillText("B", rect.width - 12, 12);
 }
 
+function clipForDraw<T extends { open: number; high: number; low: number; close: number }>(cs: T[]): T[] {
+  const w = clipWicks(cs);
+  if (w.length < 2) return w;
+  const px = Math.abs(w.at(-1)!.close) || 1;
+  const bodies = w
+    .slice(-60)
+    .map((c) => Math.abs(c.close - c.open))
+    .filter((x) => x > 0)
+    .sort((a, b) => a - b);
+  const med = bodies[Math.floor(bodies.length / 2)] || px * 0.0008;
+  const cap = Math.min(Math.max(med * 2.2, px * 0.0006), px * 0.0038);
+  return w.map((c) => {
+    let o = c.open;
+    const cl = c.close;
+    if (Math.abs(cl - o) > cap) o = cl - Math.sign(cl - o || 1) * cap;
+    const top = Math.max(o, cl);
+    const bot = Math.min(o, cl);
+    return { ...c, open: o, close: cl, high: Math.min(c.high, top + cap * 0.7), low: Math.max(c.low, bot - cap * 0.7) };
+  });
+}
+
 function clipCandlesForView<T extends { open: number; high: number; low: number; close: number }>(cs: T[]): T[] {
-  return clipWicks(cs);
+  return clipForDraw(cs);
 }
 
 function drawBricks(
@@ -1481,9 +1499,9 @@ export function ChartPane({
   const fitGen = useDeskStore((s) => s.fitGen);
   const pairRef = useRef(pair);
   const fittedKey = useRef("");
+  const fitRangeRef = useRef<{ min: number; max: number } | null>(null);
   const hoverRef = useRef(false);
   const [ready, setReady] = useState(false);
-  const [gifOk, setGifOk] = useState(true);
   snapRef.current = snap;
   overlaysRef.current = overlays;
   candlesRef.current = candles;
@@ -1501,33 +1519,30 @@ export function ChartPane({
     const applyFit = () => {
       const chart = chartRef.current;
       const series = seriesRef.current;
-      const cs = clipWicks(candlesRef.current);
+      const cs = clipForDraw(candlesRef.current);
       if (!chart || !series || cs.length < 2) return;
-      fittedKey.current = "";
-      const last = cs.slice(-Math.min(90, cs.length));
-      let lo = Infinity;
-      let hi = -Infinity;
-      for (const c of last) {
-        lo = Math.min(lo, c.low, c.open, c.close, c.high);
-        hi = Math.max(hi, c.high, c.open, c.close, c.low);
-      }
-      if (!(hi > lo) || !Number.isFinite(lo)) return;
+      const last = cs.slice(-Math.min(80, cs.length));
       const mid = last.at(-1)!.close;
-      const cap = Math.abs(mid) * 0.012;
-      if (hi - lo > cap) {
-        lo = mid - cap / 2;
-        hi = mid + cap / 2;
-      }
-      const pad = (hi - lo) * 0.12;
-      series.priceScale().applyOptions({ autoScale: true, scaleMargins: { top: 0.12, bottom: 0.16 } });
+      const span = Math.max(Math.abs(mid) * 0.006, 1e-8);
+      fitRangeRef.current = { min: mid - span, max: mid + span };
+      series.applyOptions({
+        autoscaleInfoProvider: () => {
+          const r = fitRangeRef.current;
+          const px = candlesRef.current.at(-1)?.close ?? 1;
+          if (r) return { priceRange: { minValue: r.min, maxValue: r.max } };
+          return { priceRange: { minValue: px * 0.995, maxValue: px * 1.005 } };
+        },
+      });
+      series.priceScale().applyOptions({ autoScale: true, scaleMargins: { top: 0.14, bottom: 0.18 } });
       try {
-        chart.timeScale().setVisibleRange({
-          from: last[0]!.time as UTCTimestamp,
-          to: last.at(-1)!.time as UTCTimestamp,
+        chart.timeScale().setVisibleLogicalRange({
+          from: Math.max(-0.4, cs.length - 70),
+          to: cs.length + 2,
         });
       } catch {
         chart.timeScale().fitContent();
       }
+      primitiveRef.current?.refresh();
     };
     window.addEventListener("sloi-fit", applyFit);
     applyFit();
@@ -1603,33 +1618,16 @@ export function ChartPane({
         lastValueVisible: true,
         priceLineVisible: false,
         autoscaleInfoProvider: () => {
-          const all = clipCandlesForView(candlesRef.current);
+          const r = fitRangeRef.current;
+          const all = clipForDraw(candlesRef.current);
           const last = all.at(-1)?.close;
           const fallback = last && last > 0 ? last : 1;
+          if (r) return { priceRange: { minValue: r.min, maxValue: r.max } };
           if (!all.length) {
             return { priceRange: { minValue: fallback * 0.995, maxValue: fallback * 1.005 } };
           }
-          const vr = chartRef.current?.timeScale().getVisibleLogicalRange();
-          const cs =
-            vr && Number.isFinite(vr.from) && Number.isFinite(vr.to)
-              ? all.slice(Math.max(0, Math.floor(vr.from)), Math.min(all.length, Math.ceil(vr.to) + 1))
-              : all;
-          const use = (cs.length >= 8 ? cs : all).slice(-80);
-          const closes = use.map((c) => c.close).filter((x) => x > 0).sort((a, b) => a - b);
-          if (closes.length < 2) {
-            return { priceRange: { minValue: fallback * 0.995, maxValue: fallback * 1.005 } };
-          }
-          const loC = closes[Math.floor(closes.length * 0.1)]!;
-          const hiC = closes[Math.floor(closes.length * 0.9)]!;
-          let lo = loC;
-          let hi = hiC;
-          const cap = Math.abs(fallback) * 0.012;
-          if (hi - lo > cap) {
-            lo = fallback - cap / 2;
-            hi = fallback + cap / 2;
-          }
-          const pad = Math.max((hi - lo) * 0.18, Math.abs(fallback) * 0.0015);
-          return { priceRange: { minValue: lo - pad, maxValue: hi + pad } };
+          const span = Math.abs(fallback) * 0.006;
+          return { priceRange: { minValue: fallback - span, maxValue: fallback + span } };
         },
       });
       const volume = chart.addSeries(lc.HistogramSeries, {
@@ -1964,24 +1962,9 @@ export function ChartPane({
         ref={profileRef}
         className="pointer-events-none absolute top-0 right-14 bottom-8 z-10 w-32"
       />
-      <div className="pointer-events-none absolute bottom-2 left-2 z-20 flex w-36 flex-col items-center">
-        {gifOk ? (
-          <img
-            src={mascotGif(mascotKind, pair)}
-            alt=""
-            width={128}
-            height={128}
-            className="sloi-mascot-gif h-32 w-32 rounded-full object-cover ring-2 ring-[#e8c070]/50"
-            onError={() => setGifOk(false)}
-          />
-        ) : (
-          <img
-            src={mascotKind === "bull" ? "/mascot/bull.jpg" : "/mascot/bear.jpg"}
-            alt=""
-            className="sloi-mascot-gif h-32 w-32 rounded-full object-cover ring-2 ring-[#e8c070]/50"
-          />
-        )}
-        <span className="font-mono text-[10px] text-[#e8c070]">
+      <div className="pointer-events-none absolute bottom-1 left-1 z-20 flex flex-col items-center">
+        <WalkingMascot kind={mascotKind} />
+        <span className="-mt-3 font-mono text-[10px] text-[#e8c070]">
           {mascotKind === "bull" ? "карта вверх" : "карта вниз"}
         </span>
       </div>

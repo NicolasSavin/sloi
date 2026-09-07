@@ -124,7 +124,7 @@ export function ChartHud({ boxRef }: { boxRef: RefObject<HTMLDivElement | null> 
         <button
           type="button"
           onClick={() => {
-            requestFit();
+            useDeskStore.getState().requestFit();
             window.dispatchEvent(new Event("sloi-fit"));
           }}
           className="inline-flex h-8 items-center rounded-md bg-bg/80 px-2 font-mono text-[11px] text-muted backdrop-blur-sm hover:text-fg"
