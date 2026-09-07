@@ -1640,9 +1640,13 @@ export function ChartPane({
         visible: false,
         autoscaleInfoProvider: () => {
           const cs = candlesRef.current;
-          if (!cs.length) return null;
+          const last = cs.at(-1)?.close;
+          const fallback = last && last > 0 ? last : 1;
+          if (!cs.length) {
+            return { priceRange: { minValue: fallback * 0.99, maxValue: fallback * 1.01 } };
+          }
           const spans = cs.map((c) => c.high - c.low).filter((x) => x > 0).sort((a, b) => a - b);
-          const med = spans[Math.floor(spans.length / 2)] || 1;
+          const med = spans[Math.floor(spans.length / 2)] || Math.abs(fallback) * 0.002 || 1;
           let lo = Infinity;
           let hi = -Infinity;
           for (const c of cs) {
@@ -1651,8 +1655,10 @@ export function ChartPane({
             hi = Math.max(hi, Math.min(c.high, mid + cap), c.open, c.close);
             lo = Math.min(lo, Math.max(c.low, mid - cap), c.open, c.close);
           }
-          if (!Number.isFinite(lo) || hi <= lo) return null;
-          const pad = (hi - lo) * 0.08;
+          if (!Number.isFinite(lo) || hi <= lo) {
+            return { priceRange: { minValue: fallback * 0.99, maxValue: fallback * 1.01 } };
+          }
+          const pad = (hi - lo) * 0.08 || Math.abs(fallback) * 0.002;
           return { priceRange: { minValue: lo - pad, maxValue: hi + pad } };
         },
       });
@@ -1680,7 +1686,6 @@ export function ChartPane({
         lastValueVisible: true,
         priceLineVisible: false,
         title: "VWAP",
-        autoscaleInfoProvider: () => ({ priceRange: undefined }),
       });
       const markers = lc.createSeriesMarkers(series, []);
       chartRef.current = chart;

@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.8.68",
+    d: "2026-09-07",
+    items: [
+      "Починен белый экран Графика: шкала цены больше не падает на minValue",
+    ],
+  },
+  {
     v: "1.8.67",
     d: "2026-09-07",
     items: [
