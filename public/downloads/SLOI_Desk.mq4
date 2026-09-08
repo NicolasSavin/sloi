@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.02"
+#property version   "5.03"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -145,7 +145,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 5.02: доп. терминал — HostFeed=true, Авто ВЫКЛ, 2-3 чарта CD, тот же ключ");
+   Print("SLOI 5.03: кружки по цвету — жёлтый сплэш, зелёный вливание, синий IMB, без имени индюка");
    return(INIT_SUCCEEDED);
   }
 
@@ -1034,13 +1034,17 @@ void DumpCdObject(long ch, string n, string &body, int &sent, bool hasSplash, bo
    if(namedImb) kind = "IMBALANCE";
    else if(namedInf) kind = "INFUSION";
    else if(namedSplash) kind = "SPLASH";
-   else if(isDot || isLevel)
+   else if(isDot)
+     {
+      if(blue || redish || mag) kind = "IMBALANCE";
+      else if(lime) kind = "INFUSION";
+      else if(gold) kind = "SPLASH";
+     }
+   else if(isLevel)
      {
       if(hasImb && (blue || redish || mag || t == OBJ_RECTANGLE)) kind = "IMBALANCE";
-      else if(hasInf && (lime || t == OBJ_HLINE)) kind = "INFUSION";
+      else if(hasInf && lime) kind = "INFUSION";
       else if(hasSplash && gold) kind = "SPLASH";
-      else if(hasInf && isDot && lime) kind = "INFUSION";
-      else if(hasSplash && isDot && !lime && !blue && !redish) kind = "SPLASH";
      }
    if(kind == "") return;
    if(StringLen(want) > 0 && kind != want) return;
@@ -1581,7 +1585,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 5.02\n";
+   body += "EA 5.03\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();
