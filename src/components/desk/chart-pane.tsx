@@ -16,7 +16,7 @@ import { useDeskStore } from "@/lib/desk-store";
 import type { Advice } from "@/lib/advisor";
 import type { LocalSetup, SmcSnapshot, Zone } from "@/lib/smc/engine";
 import { deltaOf } from "@/lib/smc/flow";
-import { CD_FUT } from "@/lib/smc/micro";
+import { CD_FUT, type VolumeNode } from "@/lib/smc/micro";
 import { clipWicks, liveCdCharts } from "@/lib/broker-tape";
 import { WalkingMascot } from "@/components/desk/walking-mascot";
 import { cn } from "@/lib/utils";
@@ -1305,6 +1305,63 @@ function cursorOnCandle(
   return false;
 }
 
+function tapeHoverRead(
+  n: VolumeNode,
+  last: Candle | undefined,
+): { title: string; dir: string; pct: number; why: string; accent: string } {
+  const close = last?.close ?? n.price;
+  if (n.kind === "imbalance") {
+    const long = n.side === "buy";
+    const pri = n.ratio != null ? Math.min(10, Math.max(1, Math.round(n.ratio))) : null;
+    const pct = pri != null ? Math.min(76, 42 + pri * 3) : 52;
+    return {
+      title: n.ratio != null ? `IMB ×${n.ratio.toFixed(1)}` : "IMB",
+      dir: long ? "перекос в ЛОНГ" : "перекос в ШОРТ",
+      pct,
+      why: n.note ?? (long ? "Ask > Bid" : "Bid > Ask"),
+      accent: "#ff7ad9",
+    };
+  }
+  if (n.kind === "infusion") {
+    if (n.held === false) {
+      const up = close > n.price;
+      return {
+        title: "ВЛИВАНИЕ ПРОБИТО",
+        dir: up ? "продолжение ВВЕРХ" : "продолжение ВНИЗ",
+        pct: 60,
+        why: "Лужа не удержала — ход сквозь, не разворот",
+        accent: "#c8d080",
+      };
+    }
+    const long = n.side === "buy";
+    return {
+      title: "ВЛИВАНИЕ",
+      dir: long ? "отскок / ЛОНГ" : "отскок / ШОРТ",
+      pct: 68,
+      why: long ? "Остановка снизу. Лонг от лужи, не сквозь" : "Остановка сверху. Шорт от лужи, не сквозь",
+      accent: "#c8f030",
+    };
+  }
+  const up = n.side === "buy";
+  const stillOut = up ? close >= n.price : close <= n.price;
+  if (stillOut) {
+    return {
+      title: "СПЛЭШ",
+      dir: up ? "вынос ВВЕРХ" : "вынос ВНИЗ",
+      pct: 46,
+      why: "Толчок ещё снаружи. Продолжение слабое — чаще ждут возврат",
+      accent: "#ffb020",
+    };
+  }
+  return {
+    title: "СПЛЭШ",
+    dir: up ? "стопы сверху → скорее ШОРТ" : "стопы снизу → скорее ЛОНГ",
+    pct: 64,
+    why: "Вынос отработал. Импульс против снятых стопов вероятнее",
+    accent: "#ffb020",
+  };
+}
+
 function drawTape(
   ctx: CanvasRenderingContext2D,
   width: number,
@@ -1345,8 +1402,9 @@ function drawTape(
     }
     used.push({ x: xx, y: yy });
     const broken = inf && n.held === false;
-    const hot = n.kind === "imbalance" && hoverPt != null && Math.hypot(hoverPt.x - xx, hoverPt.y - yy) < 26;
-    const col = hot ? "#ff7ad9" : splash ? "#ffb020" : broken ? "#8aa040" : inf ? "#c8f030" : "#5ad0ff";
+    const hot = hoverPt != null && Math.hypot(hoverPt.x - xx, hoverPt.y - yy) < 26;
+    const read = hot ? tapeHoverRead(n, candles.at(-1)) : null;
+    const col = read?.accent ?? (splash ? "#ffb020" : broken ? "#8aa040" : inf ? "#c8f030" : "#5ad0ff");
     pulseRings(ctx, xx, yy, col, !broken || hot);
     ctx.font = "bold 12px IBM Plex Sans, sans-serif";
     ctx.strokeStyle = "rgba(8,6,4,0.7)";
@@ -1355,37 +1413,27 @@ function drawTape(
     const lx = xx + 12;
     const ly = yy - 10;
     ctx.strokeText(label, lx, ly);
-    ctx.fillStyle = splash ? "#ffb020" : broken ? "#c8d080" : inf ? "#c8f030" : hot ? "#ffb3ec" : "#8ee0ff";
+    ctx.fillStyle = read?.accent ?? (splash ? "#ffb020" : broken ? "#c8d080" : inf ? "#c8f030" : "#8ee0ff");
     ctx.fillText(label, lx, ly);
-    if (hot) {
+    if (read) {
       const beat = 0.55 + 0.45 * Math.sin(Date.now() / 140);
-      const pri = n.ratio != null ? Math.min(10, Math.max(1, Math.round(n.ratio))) : null;
-      const head = pri != null ? `приоритет ${pri}` : "IMB";
-      const sub =
-        n.note ??
-        (n.ask != null && n.bid != null
-          ? `${Math.round(n.ask)} : ${Math.round(n.bid)}`
-          : n.side === "sell"
-            ? "Bid > Ask"
-            : "Ask > Bid");
-      const ratioTxt = n.ratio != null ? `×${n.ratio.toFixed(1)}` : "";
       const boxX = xx + 18;
-      const boxY = yy - 42;
-      ctx.fillStyle = "rgba(12,8,16,0.9)";
-      ctx.fillRect(boxX - 8, boxY - 22, 176, 58);
-      ctx.strokeStyle = "#ff7ad9";
+      const boxY = yy - 48;
+      ctx.fillStyle = "rgba(12,8,16,0.92)";
+      ctx.fillRect(boxX - 8, boxY - 22, 248, 78);
+      ctx.strokeStyle = read.accent;
       ctx.lineWidth = 1.6;
-      ctx.strokeRect(boxX - 8, boxY - 22, 176, 58);
+      ctx.strokeRect(boxX - 8, boxY - 22, 248, 78);
       ctx.textAlign = "left";
-      ctx.font = `bold ${Math.round(20 + 8 * beat)}px IBM Plex Sans, sans-serif`;
-      ctx.fillStyle = "#ffb3ec";
-      ctx.fillText(ratioTxt || "IMB", boxX, boxY);
-      ctx.font = "bold 13px IBM Plex Mono, monospace";
+      ctx.font = `bold ${Math.round(16 + 5 * beat)}px IBM Plex Sans, sans-serif`;
+      ctx.fillStyle = read.accent;
+      ctx.fillText(read.title, boxX, boxY);
+      ctx.font = "bold 14px IBM Plex Sans, sans-serif";
       ctx.fillStyle = "#e8f4ff";
-      ctx.fillText(sub, boxX, boxY + 22);
+      ctx.fillText(`${read.dir}  ·  ${read.pct}%`, boxX, boxY + 22);
       ctx.font = "11px IBM Plex Sans, sans-serif";
-      ctx.fillStyle = "#ff7ad9";
-      ctx.fillText(head, boxX, boxY + 38);
+      ctx.fillStyle = "rgba(232,220,200,0.88)";
+      ctx.fillText(read.why, boxX, boxY + 42);
     }
   }
   if (on && book && (book.bids.length || book.asks.length)) {
