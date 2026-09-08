@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.06"
+#property version   "5.07"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -145,7 +145,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 5.06 готов");
+   Print("SLOI 5.07: кружки CD — цена с фьючерса сажается на свечу пары");
    return(INIT_SUCCEEDED);
   }
 
@@ -1029,7 +1029,7 @@ void DumpCdObject(long ch, string n, string &body, int &sent, bool hasSplash, bo
    int g0 = ((c0 >> 8) & 0xFF);
    int b0 = ((c0 >> 16) & 0xFF);
    bool lime = g0 >= 70 && g0 >= r0 - 25 && g0 >= b0 - 40;
-   bool gold = r0 >= 150 && g0 >= 90 && b0 < 110;
+   bool gold = (r0 >= 100 && g0 >= 40 && r0 > b0 + 15 && b0 < 130);
    bool redish = r0 >= 150 && g0 < 90 && b0 < 120;
    bool blue = b0 >= 90 && b0 >= g0 - 10 && b0 >= r0 - 20;
    bool mag = r0 >= 120 && b0 >= 120 && g0 < 90;
@@ -1054,8 +1054,18 @@ void DumpCdObject(long ch, string n, string &body, int &sent, bool hasSplash, bo
    string sym = ChartSymbol(ch);
    if(StringLen(sym) < 3) sym = Symbol();
    double bid = BidOf(sym);
-   if(!LooksPx(px, bid)) return;
    string sd = (redish || (r0 > g0 + 20)) ? "SELL" : "BUY";
+   if(!LooksPx(px, bid))
+     {
+      int sh = iBarShift(sym, PERIOD_H1, tm);
+      if(sh < 0) sh = 0;
+      double hi = iHigh(sym, PERIOD_H1, sh);
+      double lo = iLow(sym, PERIOD_H1, sh);
+      if(kind == "SPLASH") px = (sd == "SELL") ? lo : hi;
+      else if(kind == "INFUSION") px = 0.5 * (hi + lo);
+      else px = iClose(sym, PERIOD_H1, sh);
+     }
+   if(px <= 0) return;
    string extra = ObjectGetString(ch, n, OBJPROP_TEXT);
    if(StringLen(extra) < 1) extra = ObjectGetString(ch, n, OBJPROP_TOOLTIP);
    StringReplace(extra, " ", "");
@@ -1586,7 +1596,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 5.06\n";
+   body += "EA 5.07\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();
