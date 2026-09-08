@@ -16,7 +16,7 @@ import { useDeskStore } from "@/lib/desk-store";
 import type { Advice } from "@/lib/advisor";
 import type { LocalSetup, SmcSnapshot, Zone } from "@/lib/smc/engine";
 import { deltaOf } from "@/lib/smc/flow";
-import { CD_FUT, type VolumeNode } from "@/lib/smc/micro";
+import { CD_FUT, nodeForecast, type VolumeNode } from "@/lib/smc/micro";
 import { clipWicks, liveCdCharts } from "@/lib/broker-tape";
 import { WalkingMascot } from "@/components/desk/walking-mascot";
 import { cn } from "@/lib/utils";
@@ -1076,7 +1076,15 @@ function drawZones(
                   ? "сняли ликвидность"
                   : "крупняк в диапазоне";
   const vec = snap?.boxVector;
-  const near = vec && vec.dir === "up" ? "в ближайшее время вверх" : vec && vec.dir === "down" ? "в ближайшее время вниз" : "ближайший ход боком";
+  const path = snap?.micro.circlePath;
+  const near =
+    path && path.dir !== "flat"
+      ? `по кружкам ${path.dir === "up" ? "вверх" : "вниз"} ${path.pct}%`
+      : vec && vec.dir === "up"
+        ? "в ближайшее время вверх"
+        : vec && vec.dir === "down"
+          ? "в ближайшее время вниз"
+          : "ближайший ход боком";
   let tape = `Ждать · ${near} · ${smart} · входа нет`;
   if (order?.action === "long") tape = `Покупать · ${near} · ${smart}`;
   else if (order?.action === "short") tape = `Продавать · ${near} · ${smart}`;
@@ -1310,54 +1318,30 @@ function tapeHoverRead(
   last: Candle | undefined,
 ): { title: string; dir: string; pct: number; why: string; accent: string } {
   const close = last?.close ?? n.price;
+  const f = nodeForecast(n, close);
   if (n.kind === "imbalance") {
-    const long = n.side === "buy";
-    const pri = n.ratio != null ? Math.min(10, Math.max(1, Math.round(n.ratio))) : null;
-    const pct = pri != null ? Math.min(76, 42 + pri * 3) : 52;
     return {
       title: n.ratio != null ? `IMB ×${n.ratio.toFixed(1)}` : "IMB",
-      dir: long ? "перекос в ЛОНГ" : "перекос в ШОРТ",
-      pct,
-      why: n.note ?? (long ? "Ask > Bid" : "Bid > Ask"),
+      dir: f.dir > 0 ? "перекос в ЛОНГ" : "перекос в ШОРТ",
+      pct: f.pct,
+      why: n.note ?? (f.dir > 0 ? "Ask > Bid" : "Bid > Ask"),
       accent: "#ff7ad9",
     };
   }
   if (n.kind === "infusion") {
-    if (n.held === false) {
-      const up = close > n.price;
-      return {
-        title: "ВЛИВАНИЕ ПРОБИТО",
-        dir: up ? "продолжение ВВЕРХ" : "продолжение ВНИЗ",
-        pct: 60,
-        why: "Лужа не удержала — ход сквозь, не разворот",
-        accent: "#c8d080",
-      };
-    }
-    const long = n.side === "buy";
     return {
-      title: "ВЛИВАНИЕ",
-      dir: long ? "отскок / ЛОНГ" : "отскок / ШОРТ",
-      pct: 68,
-      why: long ? "Остановка снизу. Лонг от лужи, не сквозь" : "Остановка сверху. Шорт от лужи, не сквозь",
-      accent: "#c8f030",
-    };
-  }
-  const up = n.side === "buy";
-  const stillOut = up ? close >= n.price : close <= n.price;
-  if (stillOut) {
-    return {
-      title: "СПЛЭШ",
-      dir: up ? "вынос ВВЕРХ" : "вынос ВНИЗ",
-      pct: 46,
-      why: "Толчок ещё снаружи. Продолжение слабое — чаще ждут возврат",
-      accent: "#ffb020",
+      title: n.held === false ? "ВЛИВАНИЕ ПРОБИТО" : "ВЛИВАНИЕ",
+      dir: f.dir > 0 ? (n.held === false ? "продолжение ВВЕРХ" : "отскок / ЛОНГ") : n.held === false ? "продолжение ВНИЗ" : "отскок / ШОРТ",
+      pct: f.pct,
+      why: f.label,
+      accent: n.held === false ? "#c8d080" : "#c8f030",
     };
   }
   return {
     title: "СПЛЭШ",
-    dir: up ? "стопы сверху → скорее ШОРТ" : "стопы снизу → скорее ЛОНГ",
-    pct: 64,
-    why: "Вынос отработал. Импульс против снятых стопов вероятнее",
+    dir: f.dir > 0 ? "скорее ЛОНГ" : "скорее ШОРТ",
+    pct: f.pct,
+    why: f.label,
     accent: "#ffb020",
   };
 }

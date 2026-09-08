@@ -37,8 +37,91 @@ export interface MicroSnap {
   splash: VolumeMark | null;
   nodes: VolumeNode[];
   cmeTicker: string | null;
+  circlePath: CirclePath;
   because: string;
   therefore: string;
+}
+
+export interface CirclePath {
+  dir: "up" | "down" | "flat";
+  pct: number;
+  because: string;
+  therefore: string;
+}
+
+export function nodeForecast(
+  n: VolumeNode,
+  close: number,
+): { dir: 1 | -1; w: number; label: string; pct: number } {
+  if (n.kind === "imbalance") {
+    const pri = n.ratio != null ? Math.min(10, Math.max(1, n.ratio)) : 3;
+    const pct = Math.min(76, 42 + pri * 3);
+    return {
+      dir: n.side === "buy" ? 1 : -1,
+      w: 0.9 + pri * 0.08,
+      label: n.ratio != null ? `IMB ×${n.ratio.toFixed(1)}` : "IMB",
+      pct,
+    };
+  }
+  if (n.kind === "infusion") {
+    if (n.held === false) {
+      const up = close > n.price;
+      return { dir: up ? 1 : -1, w: 0.75, label: "вливание пробито", pct: 60 };
+    }
+    return {
+      dir: n.side === "buy" ? 1 : -1,
+      w: 1.05,
+      label: n.side === "buy" ? "лужа снизу" : "лужа сверху",
+      pct: 68,
+    };
+  }
+  const up = n.side === "buy";
+  const stillOut = up ? close >= n.price : close <= n.price;
+  if (stillOut) {
+    return { dir: up ? 1 : -1, w: 0.35, label: "сплэш ещё снаружи", pct: 46 };
+  }
+  return {
+    dir: up ? -1 : 1,
+    w: 0.95,
+    label: up ? "стопы сверху → вниз" : "стопы снизу → вверх",
+    pct: 64,
+  };
+}
+
+export function buildCirclePath(nodes: VolumeNode[], close: number, now: number): CirclePath {
+  const tape = nodes
+    .filter((n) => n.tape && now - n.time < 60 * 60 * 18)
+    .sort((a, b) => a.time - b.time)
+    .slice(-10);
+  if (!tape.length) {
+    return {
+      dir: "flat",
+      pct: 50,
+      because: "Живых кружков CD нет — считать нечего.",
+      therefore: "Направление только от диспетчера, не от шариков.",
+    };
+  }
+  let up = 0;
+  let down = 0;
+  const bits: string[] = [];
+  tape.forEach((n, i) => {
+    const rec = 0.55 + 0.45 * ((i + 1) / tape.length);
+    const f = nodeForecast(n, close);
+    const vote = f.w * rec * (f.pct / 100);
+    if (f.dir > 0) up += vote;
+    else down += vote;
+    if (i >= tape.length - 4) bits.push(`${f.label} ${f.pct}%`);
+  });
+  const sum = up + down;
+  const lean = sum > 0 ? (up - down) / sum : 0;
+  const dir: CirclePath["dir"] = lean > 0.08 ? "up" : lean < -0.08 ? "down" : "flat";
+  const pct = Math.round(Math.min(76, 50 + Math.abs(lean) * 32));
+  const because = `По ${tape.length} кружкам CD: ${bits.slice(-3).join(", ")}.`;
+  const therefore =
+    dir === "flat"
+      ? `Перевес слабый (${pct}%). Крупняк не выбрал сторону — ждать приказ, не шарики.`
+      : `Скорее ${dir === "up" ? "ВВЕРХ" : "ВНИЗ"} · ${pct}%. Это оценка по ленте, не приказ. Сделка — только если диспетчер туда же.`;
+  return { dir, pct, because, therefore };
 }
 
 export function nearestInfusionAhead(nodes: VolumeNode[], entry: number, dir: 1 | -1, atr: number) {
@@ -404,6 +487,7 @@ export function buildMicro(
       return vis.slice(-96);
     })(),
     cmeTicker,
+    circlePath: buildCirclePath(nodes, last.close, last.time),
     because,
     therefore,
   };

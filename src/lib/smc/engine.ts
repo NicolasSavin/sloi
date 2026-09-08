@@ -1495,16 +1495,35 @@ export function analyzeMarket(
     note: `${ivNews.because} ${ivNews.therefore}`,
   });
 
+  confluence.push({
+    id: "circles",
+    layer: "Кружки CD",
+    status:
+      micro.circlePath.dir === "flat"
+        ? "neutral"
+        : micro.circlePath.dir === "up"
+          ? "for"
+          : "against",
+    note: `${micro.circlePath.because} ${micro.circlePath.therefore}`,
+  });
   const forCount = confluence.filter((c) => c.status === "for").length;
   const againstCount = confluence.filter((c) => c.status === "against").length;
+  const circleTilt =
+    micro.circlePath.dir === "flat"
+      ? 0
+      : (micro.circlePath.dir === "up" ? 1 : -1) * Math.round((micro.circlePath.pct - 50) * 0.28);
   const score = Math.min(
     100,
-    Math.round(
-      (100 * (forCount + 0.45 * (confluence.length - forCount - againstCount))) /
-        Math.max(confluence.length, 1),
-    ) +
-      (flow.cvdDiv?.where === "edge" ? flow.cvdDiv.boost : 0) +
-      (marginAligned ? 8 : 0),
+    Math.max(
+      8,
+      Math.round(
+        (100 * (forCount + 0.45 * (confluence.length - forCount - againstCount))) /
+          Math.max(confluence.length, 1),
+      ) +
+        (flow.cvdDiv?.where === "edge" ? flow.cvdDiv.boost : 0) +
+        (marginAligned ? 8 : 0) +
+        circleTilt,
+    ),
   );
 
   const localSetup = buildSetup(
@@ -1554,6 +1573,12 @@ export function analyzeMarket(
     because: `Кружки CD: ${tapeRead.because}.`,
     therefore: tapeRead.therefore,
   });
+  if (micro.circlePath.dir !== "flat" || micro.circlePath.pct !== 50) {
+    story.chain.unshift({
+      because: micro.circlePath.because,
+      therefore: micro.circlePath.therefore,
+    });
+  }
 
   if (cdTape.live) {
     story.chain.unshift({
