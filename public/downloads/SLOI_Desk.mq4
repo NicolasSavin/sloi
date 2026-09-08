@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.03"
+#property version   "5.04"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -145,7 +145,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 5.03: кружки по цвету — жёлтый сплэш, зелёный вливание, синий IMB, без имени индюка");
+   Print("SLOI 5.04: сплэш/IMB с буфера индюка на ОТКРЫТОМ чарте. Сайт рисует ту пару, чей чарт открыт");
    return(INIT_SUCCEEDED);
   }
 
@@ -1010,16 +1010,19 @@ void DumpCdObject(long ch, string n, string &body, int &sent, bool hasSplash, bo
    datetime tm = (datetime)ObjectGetInteger(ch, n, OBJPROP_TIME1);
    if((t == OBJ_RECTANGLE || t == OBJ_TREND || t == OBJ_CHANNEL) && ObjectGetDouble(ch, n, OBJPROP_PRICE2) > 0)
       px = 0.5 * (ObjectGetDouble(ch, n, OBJPROP_PRICE1) + ObjectGetDouble(ch, n, OBJPROP_PRICE2));
+   if(px <= 0) px = ObjectGetDouble(ch, n, OBJPROP_PRICE2);
    if(px <= 0) return;
    if(tm <= 0) tm = TimeCurrent();
    bool namedSplash = StringFind(blob, "splash") >= 0 || StringFind(blob, "#spl") >= 0
-      || StringFind(blob, "сплэш") >= 0 || StringFind(blob, "сплеш") >= 0 || StringFind(blob, "btrade") >= 0;
+      || StringFind(blob, "сплэш") >= 0 || StringFind(blob, "сплеш") >= 0 || StringFind(blob, "btrade") >= 0
+      || StringFind(blob, "ticks number") >= 0 || StringFind(blob, "market splash") >= 0;
    bool namedInf = StringFind(blob, "infusion") >= 0 || StringFind(blob, "infuz") >= 0
       || StringFind(blob, "влив") >= 0 || StringFind(blob, "inflow") >= 0;
    bool namedImb = StringFind(blob, "imbalance") >= 0
       || StringFind(blob, "дисбал") >= 0 || StringFind(blob, "#imb") >= 0 || StringFind(blob, "imbal") >= 0;
    bool isDot = t == OBJ_ELLIPSE || t == OBJ_ARROW || t == OBJ_ARROW_UP || t == OBJ_ARROW_DOWN
-      || t == OBJ_BITMAP || t == OBJ_BITMAP_LABEL;
+      || t == OBJ_BITMAP || t == OBJ_BITMAP_LABEL || t == OBJ_TEXT || t == OBJ_LABEL
+      || t == OBJ_TRIANGLE || t == OBJ_ARROWED_LINE;
    bool isLevel = t == OBJ_HLINE || t == OBJ_TREND || t == OBJ_RECTANGLE;
    color c0 = (color)ObjectGetInteger(ch, n, OBJPROP_COLOR);
    int r0 = (c0 & 0xFF);
@@ -1332,9 +1335,15 @@ void AppendCdLight(string &body, string s)
 
 void AppendCdClusters(string &body, int &sent)
   {
-   // 4.99: no iCustom. Hidden Volumes/Delta on majors ate millisecond timers
-   // while only 2 charts were open. Tape = objects on open charts only.
-   sent = sent;
+   for(int i = 0; i < g_n; i++)
+     {
+      if(!CdChartOpen(g_sym[i])) continue;
+      int before = sent;
+      AppendNamed(body, g_sym[i], CdSplash, "SPLASH", sent);
+      AppendNamed(body, g_sym[i], CdInfusion, "INFUSION", sent);
+      AppendNamed(body, g_sym[i], CdImbalance, "IMBALANCE", sent);
+      if(sent > before + 48) sent = before + 48;
+     }
   }
 
 bool LooksPx(double x, double bid)
@@ -1585,7 +1594,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 5.03\n";
+   body += "EA 5.04\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();
