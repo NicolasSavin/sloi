@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.9.7",
+    d: "2026-09-08",
+    items: [
+      "Сов 5.05: iCustom убран — он плодил второй #Splash и Error in ObjectCreate. Нужен полный перезапуск MT4",
+    ],
+  },
+  {
     v: "1.9.6",
     d: "2026-09-08",
     items: [

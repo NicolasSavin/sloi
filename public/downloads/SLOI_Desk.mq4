@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.04"
+#property version   "5.05"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -145,7 +145,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 5.04: сплэш/IMB с буфера индюка на ОТКРЫТОМ чарте. Сайт рисует ту пару, чей чарт открыт");
+   Print("SLOI 5.05: без iCustom. Error ObjectCreate у Splash — второй индюк. Перезапустите MT4");
    return(INIT_SUCCEEDED);
   }
 
@@ -1335,15 +1335,7 @@ void AppendCdLight(string &body, string s)
 
 void AppendCdClusters(string &body, int &sent)
   {
-   for(int i = 0; i < g_n; i++)
-     {
-      if(!CdChartOpen(g_sym[i])) continue;
-      int before = sent;
-      AppendNamed(body, g_sym[i], CdSplash, "SPLASH", sent);
-      AppendNamed(body, g_sym[i], CdInfusion, "INFUSION", sent);
-      AppendNamed(body, g_sym[i], CdImbalance, "IMBALANCE", sent);
-      if(sent > before + 48) sent = before + 48;
-     }
+   sent = sent;
   }
 
 bool LooksPx(double x, double bid)
@@ -1594,7 +1586,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 5.04\n";
+   body += "EA 5.05\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();
