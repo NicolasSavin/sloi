@@ -293,7 +293,10 @@ export function ingestBrokerTape(text: string, tenant = "legacy") {
       continue;
     }
     if (p[0] === "CDCHARTS" && p.length >= 2) {
-      r.cdCharts = p.slice(1).join(",");
+      const add = p.slice(1).join(",");
+      const old = (r.cdCharts || "").split(",").map((s) => s.trim()).filter(Boolean);
+      const next = add.split(",").map((s) => s.trim()).filter(Boolean);
+      r.cdCharts = [...new Set([...old, ...next])].join(",");
       continue;
     }
     if (p[0] === "CDSTAT" && p.length >= 5) {
@@ -313,7 +316,10 @@ export function ingestBrokerTape(text: string, tenant = "legacy") {
     r.ticks.set(id, { id, bid, ask, at });
   }
   if (nextAcc) {
-    nextAcc.positions = pos.slice(0, 24);
+    if (pos.length) nextAcc.positions = pos.slice(0, 24);
+    else if (r.account && r.account.login === nextAcc.login && Date.now() - r.account.at < 120_000)
+      nextAcc.positions = r.account.positions;
+    else nextAcc.positions = [];
     r.account = nextAcc;
   } else if (pos.length && r.account && Date.now() - r.account.at < 120_000) {
     r.account = { ...r.account, at, positions: pos.slice(0, 24) };

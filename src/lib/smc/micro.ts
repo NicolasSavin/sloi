@@ -401,3 +401,64 @@ export function buildMicro(
     therefore,
   };
 }
+
+export function tapeVsSide(
+  micro: MicroSnap,
+  action: "long" | "short" | "wait" | "skip",
+): { because: string; therefore: string; confirm: number; against: number } {
+  const yes: string[] = [];
+  const no: string[] = [];
+  const infNode = [...micro.nodes].reverse().find((n) => n.kind === "infusion");
+  if (infNode) {
+    if (infNode.held === false) {
+      const bit = "вливание пробито — ход сквозь, не разворот";
+      if (action === "wait" || action === "skip") yes.push(bit);
+      else no.push(bit);
+    } else if (infNode.side === "buy") {
+      (action === "long" ? yes : no).push("вливание снизу (лужа покупок)");
+    } else {
+      (action === "short" ? yes : no).push("вливание сверху (лужа продаж)");
+    }
+  }
+  const spl = [...micro.nodes].reverse().find((n) => n.kind === "splash") ?? micro.splash;
+  if (spl) {
+    if (spl.side === "buy") {
+      (action === "short" ? yes : action === "long" ? no : yes).push("сплэш сверху — сняли стопы лонгистов");
+    } else {
+      (action === "long" ? yes : action === "short" ? no : yes).push("сплэш снизу — сняли стопы шортистов");
+    }
+  }
+  const imb = [...micro.nodes].reverse().find((n) => n.kind === "imbalance");
+  if (imb) {
+    if (imb.side === "buy") (action === "long" ? yes : no).push("IMB Ask>Bid");
+    else (action === "short" ? yes : no).push("IMB Bid>Ask");
+  }
+  if (!yes.length && !no.length) {
+    return {
+      because: "живых кружков CD на этой паре нет или они старые",
+      therefore: "Карта без ленты. Приказ только от диспетчера.",
+      confirm: 0,
+      against: 0,
+    };
+  }
+  const because = [
+    yes.length ? `подтверждают: ${yes.join("; ")}` : "",
+    no.length ? `против: ${no.join("; ")}` : "",
+  ]
+    .filter(Boolean)
+    .join(". ");
+  let therefore: string;
+  if (action === "wait" || action === "skip") {
+    therefore =
+      yes.length >= no.length
+        ? "Кружки описывают карту, входа нет — диспетчер ждёт. Не открывать только по шарикам."
+        : "Кружки спорят. Тем более ждём приказ, не шарики.";
+  } else if (yes.length && !no.length) {
+    therefore = `Лента CD совпадает с приказом ${action === "long" ? "лонг" : "шорт"}. Это усиление, не замена диспетчера.`;
+  } else if (no.length && !yes.length) {
+    therefore = "Кружки против приказа. Сделка всё равно по диспетчеру, кружки — предупреждение.";
+  } else {
+    therefore = `Смесь: ${yes.length} за приказ, ${no.length} против. Вес у приказа, кружки — комментарий.`;
+  }
+  return { because, therefore, confirm: yes.length, against: no.length };
+}

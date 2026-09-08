@@ -4,6 +4,7 @@ import { buildConstruction } from "@/lib/options";
 import type { FundWind, FundamentalSnap } from "@/lib/fundamentals";
 import type { SentimentSnap } from "@/lib/sentiment";
 import type { LocalSetup, LiquidityPool, MarketStory, SmcSnapshot, StructureEvent, Zone } from "@/lib/smc/engine";
+import { tapeVsSide } from "@/lib/smc/micro";
 import { formatPrice } from "@/lib/utils";
 
 export interface DigestMarket {
@@ -500,6 +501,12 @@ export function writeArticle(
   const body = [
     fund.halt.active ? fund.halt.line : "",
     `${name}. ${lead.advice.title}. ${lead.advice.therefore}`,
+    leadSnap?.micro
+      ? (() => {
+          const t = tapeVsSide(leadSnap.micro, lead.advice.action);
+          return `Кружки: ${t.because}. ${t.therefore}`;
+        })()
+      : "",
     lead.story.doing,
     lead.story.waiting,
     leadSnap?.wyckoff ? `${leadSnap.wyckoff.name}. ${leadSnap.wyckoff.therefore}` : "",

@@ -2,7 +2,7 @@ import type { Candle, MarketKind, OptionsSnapshot } from "@/lib/market/types";
 import { detectPatterns, detectWyckoff, type PatternHit, type WyckoffRead } from "@/lib/smc/patterns";
 import { buildFlow, locateEdgeDiv, type FlowSnap } from "@/lib/smc/flow";
 import { clustersFromCandles, clustersFromTrades, type ClusterMap } from "@/lib/smc/clusters";
-import { barVolume, buildMicro, buildSweepFuel, nearestStall, type MicroSnap, type SweepFuel } from "@/lib/smc/micro";
+import { barVolume, buildMicro, buildSweepFuel, nearestStall, tapeVsSide, type MicroSnap, type SweepFuel } from "@/lib/smc/micro";
 import { buildAuction, type AuctionSnap } from "@/lib/smc/auction";
 import { buildCoilBreak, type CoilBreak } from "@/lib/smc/coil";
 import { buildCorr, type CorrSnap } from "@/lib/corr";
@@ -1542,6 +1542,18 @@ export function analyzeMarket(
     micro,
     sweepFuel,
   );
+
+  const setupSide: "long" | "short" | "wait" =
+    localSetup.entry != null && localSetup.targets[0] != null
+      ? localSetup.targets[0] > localSetup.entry
+        ? "long"
+        : "short"
+      : "wait";
+  const tapeRead = tapeVsSide(micro, setupSide);
+  story.chain.unshift({
+    because: `Кружки CD: ${tapeRead.because}.`,
+    therefore: tapeRead.therefore,
+  });
 
   if (cdTape.live) {
     story.chain.unshift({

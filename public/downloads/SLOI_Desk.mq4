@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.01"
+#property version   "5.02"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -14,7 +14,7 @@ input string  DeskKey         = "";
 input string  WatchList       = "EURUSD,GBPUSD,USDJPY,USDCHF,AUDUSD,USDCAD,NZDUSD,EURGBP,EURJPY,GBPJPY,AUDJPY,CADJPY,NZDJPY,EURCHF,EURAUD,GBPAUD,XAUUSD,XAGUSD,XTIUSD,XBRUSD,XNGUSD,ETHUSD,LTCUSD,BCHUSD,BTCUSD,XRPUSD,TONUSD";
 input string  BrokerSuffix    = ".cs";
 input int     WorkTF          = 60;
-input bool    AutoTrade       = true;
+input bool    AutoTrade       = true; // на доп. терминале с CD — false, торгует только первый
 input double  Lots            = 0.03;
 input double  LotGold         = 0.01;
 input double  LotSilver       = 0.01;
@@ -39,7 +39,7 @@ input bool    FixForeign      = false;
 input string  ForeignTag      = "WS";
 input bool    AlertsOn        = true;
 input bool    VirtualPendings = true; // виртуал: отложка, стоп и тейк. Сдвиг со стола.
-input bool    HostFeed        = true;  // true только у хозяина сайта: CD и H1 на общий стол
+input bool    HostFeed        = true;  // true на каждом терминале с CD-чартами, один ключ сайта
 input bool    UseClusterDelta = true; // CD только с открытых чартов (не весь WatchList)
 input string  CdVolume        = "ClusterDelta_#Volumes";
 input string  CdDelta         = "ClusterDelta_#Delta";
@@ -145,7 +145,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 5.01: IMB при наведении — цифры Ask:Bid с объекта");
+   Print("SLOI 5.02: доп. терминал — HostFeed=true, Авто ВЫКЛ, 2-3 чарта CD, тот же ключ");
    return(INIT_SUCCEEDED);
   }
 
@@ -1581,7 +1581,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 5.01\n";
+   body += "EA 5.02\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();
