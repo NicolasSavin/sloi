@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.08"
+#property version   "5.09"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -149,9 +149,9 @@ int OnInit()
    if(!g_leader)
      {
       g_auto = false;
-      Print("SLOI 5.08 дубль: авто ВЫКЛ. Сов уже на другом чарте. Этот только лента CD");
+      Print("SLOI 5.09 дубль: авто ВЫКЛ. Сов уже на другом чарте. Этот только лента CD");
      }
-   else Print("SLOI 5.08 лидер торговли, чарт ", ChartSymbol(0));
+   else Print("SLOI 5.09 лидер торговли, чарт ", ChartSymbol(0));
    DrawDesk();
    return(INIT_SUCCEEDED);
   }
@@ -173,6 +173,7 @@ void TakeLead()
 
 void OnDeinit(const int reason)
   {
+   g_ready = false;
    EventKillTimer();
    if(g_leader)
      {
@@ -934,7 +935,7 @@ void PullFeed()
       g_feedNote = "вставьте адрес ленты";
       return;
      }
-   int res = WebRequest("GET", url, hdr, 25000, data, result, rh);
+   int res = WebRequest("GET", url, hdr, 5000, data, result, rh);
    if(res == -1)
      {
       int err = GetLastError();
@@ -1618,7 +1619,7 @@ void PostTape(string url, string body)
    if(n > 0) ArrayResize(data, n - 1);
    string hdr = "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)\r\nContent-Type: text/plain\r\n";
    ResetLastError();
-   int res = WebRequest("POST", url, hdr, 8000, data, result, rh);
+   int res = WebRequest("POST", url, hdr, 4000, data, result, rh);
    if(res == -1) Print("SLOI tape POST fail ", GetLastError(), " ", url);
    else if(res != 200) Print("SLOI tape HTTP ", res, " ", url);
   }
@@ -1634,7 +1635,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 5.08\n";
+   body += "EA 5.09\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();
@@ -2388,6 +2389,7 @@ color VClr(string v)
 
 void DrawDesk()
   {
+   if(!g_ready) return;
    int x = PanelX;
    int y = PanelY;
    PullFeed();
