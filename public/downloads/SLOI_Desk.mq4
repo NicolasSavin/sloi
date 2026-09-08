@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.10"
+#property version   "5.11"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -149,9 +149,9 @@ int OnInit()
    if(!g_leader)
      {
       g_auto = false;
-      Print("SLOI 5.10 дубль: авто ВЫКЛ. Сов уже на другом чарте. Этот только лента CD");
+      Print("SLOI 5.11 дубль: авто ВЫКЛ. Сов на этом чарте только для кружков CD");
      }
-   else Print("SLOI 5.10 лидер торговли, чарт ", ChartSymbol(0));
+   else Print("SLOI 5.11 лидер торговли, чарт ", ChartSymbol(0));
    DrawDesk();
    return(INIT_SUCCEEDED);
   }
@@ -1049,6 +1049,8 @@ void DumpCdObject(long ch, string n, string &body, int &sent, bool hasSplash, bo
    datetime tm = (datetime)ObjectGetInteger(ch, n, OBJPROP_TIME1);
    if((t == OBJ_RECTANGLE || t == OBJ_TREND || t == OBJ_CHANNEL) && ObjectGetDouble(ch, n, OBJPROP_PRICE2) > 0)
       px = 0.5 * (ObjectGetDouble(ch, n, OBJPROP_PRICE1) + ObjectGetDouble(ch, n, OBJPROP_PRICE2));
+   if(px <= 0 && ch == ChartID()) px = ObjectGet(n, OBJPROP_PRICE1);
+   if(tm <= 0 && ch == ChartID()) tm = (datetime)ObjectGet(n, OBJPROP_TIME1);
    if(px <= 0) px = ObjectGetDouble(ch, n, OBJPROP_PRICE2);
    if(px <= 0) return;
    if(tm <= 0) tm = TimeCurrent();
@@ -1154,12 +1156,35 @@ void AppendClusters(string &body)
      }
    if(StringLen(seen) > 2) body += "CDCHARTS " + seen + "\n";
    if(g_cd && g_host) AppendCdClusters(body, sent);
+   long self = ChartID();
+   int here = ObjectsTotal();
+   bool hasS = ChartHasInd(self, "splash");
+   bool hasI = ChartHasInd(self, "infusion");
+   bool hasM = ChartHasInd(self, "imbalance");
+   string wantA[3];
+   wantA[0] = "IMBALANCE";
+   wantA[1] = "INFUSION";
+   wantA[2] = "SPLASH";
+   for(int p = 0; p < 3 && sent < 400; p++)
+     {
+      int cap = 0;
+      for(int i = 0; i < here && sent < 400 && cap < 48; i++)
+        {
+         string nm = ObjectName(i);
+         if(StringLen(nm) < 1) continue;
+         int before = sent;
+         DumpCdObject(self, nm, body, sent, hasS, hasI, hasM, wantA[p]);
+         if(sent > before) cap++;
+        }
+     }
+   Print("SLOI CD ", Naked(Symbol()), " объектов ", here, " ушло ", sent);
    ch = ChartFirst();
    while(ch >= 0 && sent < 400)
      {
-      bool hasS = ChartHasInd(ch, "splash");
-      bool hasI = ChartHasInd(ch, "infusion");
-      bool hasM = ChartHasInd(ch, "imbalance");
+      if(ch == self) { ch = ChartNext(ch); continue; }
+      hasS = ChartHasInd(ch, "splash");
+      hasI = ChartHasInd(ch, "infusion");
+      hasM = ChartHasInd(ch, "imbalance");
       int wins = (int)ChartGetInteger(ch, CHART_WINDOWS_TOTAL);
       ScrapeWant(ch, wins, hasS, hasI, hasM, "IMBALANCE", body, sent);
       ScrapeWant(ch, wins, hasS, hasI, hasM, "INFUSION", body, sent);
@@ -1635,7 +1660,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 5.10\n";
+   body += "EA 5.11\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();
