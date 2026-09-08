@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.9.8",
+    d: "2026-09-08",
+    items: [
+      "Сов 5.06: компиляция без OBJ_ARROWED_LINE (из‑за него MetaEditor мог не собрать .ex4)",
+    ],
+  },
+  {
     v: "1.9.7",
     d: "2026-09-08",
     items: [

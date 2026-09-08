@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.05"
+#property version   "5.06"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -145,7 +145,7 @@ int OnInit()
    g_ready = true;
    g_seeded = false;
    DrawDesk();
-   Print("SLOI 5.05: без iCustom. Error ObjectCreate у Splash — второй индюк. Перезапустите MT4");
+   Print("SLOI 5.06 готов");
    return(INIT_SUCCEEDED);
   }
 
@@ -1022,7 +1022,7 @@ void DumpCdObject(long ch, string n, string &body, int &sent, bool hasSplash, bo
       || StringFind(blob, "дисбал") >= 0 || StringFind(blob, "#imb") >= 0 || StringFind(blob, "imbal") >= 0;
    bool isDot = t == OBJ_ELLIPSE || t == OBJ_ARROW || t == OBJ_ARROW_UP || t == OBJ_ARROW_DOWN
       || t == OBJ_BITMAP || t == OBJ_BITMAP_LABEL || t == OBJ_TEXT || t == OBJ_LABEL
-      || t == OBJ_TRIANGLE || t == OBJ_ARROWED_LINE;
+      || t == OBJ_TRIANGLE;
    bool isLevel = t == OBJ_HLINE || t == OBJ_TREND || t == OBJ_RECTANGLE;
    color c0 = (color)ObjectGetInteger(ch, n, OBJPROP_COLOR);
    int r0 = (c0 & 0xFF);
@@ -1068,6 +1068,23 @@ void DumpCdObject(long ch, string n, string &body, int &sent, bool hasSplash, bo
    sent++;
   }
 
+void ScrapeWant(long ch, int wins, bool hasS, bool hasI, bool hasM, string want, string &body, int &sent)
+  {
+   int cap = 0;
+   for(int w = 0; w < MathMax(1, wins) && sent < 400 && cap < 36; w++)
+     {
+      int total = ObjectsTotal(ch, w, -1);
+      for(int i = 0; i < total && sent < 400 && cap < 36; i++)
+        {
+         string nm = ObjectName(ch, i, w, -1);
+         if(StringLen(nm) < 1) continue;
+         int before = sent;
+         DumpCdObject(ch, nm, body, sent, hasS, hasI, hasM, want);
+         if(sent > before) cap++;
+        }
+     }
+  }
+
 void AppendClusters(string &body)
   {
    int sent = 0;
@@ -1095,26 +1112,9 @@ void AppendClusters(string &body)
       bool hasI = ChartHasInd(ch, "infusion");
       bool hasM = ChartHasInd(ch, "imbalance");
       int wins = (int)ChartGetInteger(ch, CHART_WINDOWS_TOTAL);
-      string wants[3];
-      wants[0] = "IMBALANCE";
-      wants[1] = "INFUSION";
-      wants[2] = "SPLASH";
-      for(int p = 0; p < 3 && sent < 400; p++)
-        {
-         int cap = 0;
-         for(int w = 0; w < MathMax(1, wins) && sent < 400 && cap < 36; w++)
-           {
-            int total = ObjectsTotal(ch, w, -1);
-            for(int i = 0; i < total && sent < 400 && cap < 36; i++)
-              {
-               string nm = ObjectName(ch, i, w, -1);
-               if(StringLen(nm) < 1) continue;
-               int before = sent;
-               DumpCdObject(ch, nm, body, sent, hasS, hasI, hasM, wants[p]);
-               if(sent > before) cap++;
-              }
-           }
-        }
+      ScrapeWant(ch, wins, hasS, hasI, hasM, "IMBALANCE", body, sent);
+      ScrapeWant(ch, wins, hasS, hasI, hasM, "INFUSION", body, sent);
+      ScrapeWant(ch, wins, hasS, hasI, hasM, "SPLASH", body, sent);
       ch = ChartNext(ch);
      }
   }
@@ -1586,7 +1586,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 5.05\n";
+   body += "EA 5.06\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();
