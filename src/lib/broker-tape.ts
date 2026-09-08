@@ -183,7 +183,7 @@ export function ingestBrokerTape(text: string, tenant = "legacy") {
       const list = batch.get(id) ?? [];
       const time = ts > 1_000_000_000 ? (ts > 1e12 ? Math.floor(ts / 1000) : ts) : Math.floor(at / 1000);
       const extra = p.slice(6).join(" ");
-      const node: VolumeNode = { price, side, kind, time };
+      const node: VolumeNode = { price, side, kind, time, tape: true };
       const pair = extra.match(/(\d+(?:\.\d+)?)\s*[:xX/]\s*(\d+(?:\.\d+)?)/);
       if (pair) {
         node.ask = Number(pair[1]);

@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.9.10",
+    d: "2026-09-08",
+    items: [
+      "Кружки на графике только из ClusterDelta. Без открытого чарта с CD шариков нет — не путать с «влив. пробито» по свечам",
+    ],
+  },
+  {
     v: "1.9.9",
     d: "2026-09-08",
     items: [

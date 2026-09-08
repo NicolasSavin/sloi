@@ -24,6 +24,7 @@ export interface VolumeNode {
   volume?: number;
   ratio?: number;
   note?: string;
+  tape?: boolean;
 }
 
 export interface MicroSnap {
@@ -169,7 +170,7 @@ export function buildMicro(
   const native = CD_FUT.has(symbol);
   const fromCd = live.length > 0 || cdBars.some((b) => b.splash || b.infusion || b.imbalance);
   if (fromCd) {
-    raw.push(...live.map((n) => ({ ...n })));
+    raw.push(...live.map((n) => ({ ...n, tape: true })));
     for (const b of cdBars) {
       const c = use.find((x) => Math.abs(x.time - b.time) < 3600) ?? last;
       if (b.splash && !raw.some((n) => n.kind === "splash" && Math.abs(n.time - b.time) < 60)) {
@@ -178,6 +179,7 @@ export function buildMicro(
           side: c.close >= c.open ? "buy" : "sell",
           kind: "splash",
           time: b.time,
+          tape: true,
         });
       }
       if (b.infusion && !raw.some((n) => n.kind === "infusion" && Math.abs(n.time - b.time) < 60)) {
@@ -186,6 +188,7 @@ export function buildMicro(
           side: b.delta >= 0 ? "buy" : "sell",
           kind: "infusion",
           time: b.time,
+          tape: true,
         });
       }
       if (b.imbalance && !raw.some((n) => n.kind === "imbalance" && Math.abs(n.time - b.time) < 60)) {
@@ -199,6 +202,7 @@ export function buildMicro(
           volume: b.volume || undefined,
           ratio: b.ask > 0 && b.bid > 0 ? Math.max(b.ask, b.bid) / Math.max(Math.min(b.ask, b.bid), 1) : undefined,
           note: b.ask > 0 && b.bid > 0 ? `${Math.round(b.ask)}:${Math.round(b.bid)}` : undefined,
+          tape: true,
         });
       }
     }
@@ -219,6 +223,7 @@ export function buildMicro(
             side: b.delta >= 0 ? "buy" : "sell",
             kind: "splash",
             time: b.time,
+            tape: true,
           });
         }
         if (!raw.some((n) => n.kind === "infusion" && Math.abs(n.time - b.time) < 60) && share < 0.38 && rangeRatio < 1.05) {
@@ -227,6 +232,7 @@ export function buildMicro(
             side: b.delta >= 0 ? "buy" : "sell",
             kind: "infusion",
             time: b.time,
+            tape: true,
           });
         }
       }
@@ -288,6 +294,7 @@ export function buildMicro(
       if (n.ratio != null) near.ratio = n.ratio;
       if (n.note) near.note = n.note;
       if (n.volume != null) near.volume = n.volume;
+      if (n.tape) near.tape = true;
     } else nodes.push({ ...n });
   }
   for (const n of nodes) {

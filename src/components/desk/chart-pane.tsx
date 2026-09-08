@@ -1375,7 +1375,7 @@ function drawTape(
 ) {
   const ts = chart.timeScale();
   const used: { x: number; y: number }[] = [];
-  const all = snap?.micro.nodes.filter((x) => x.kind === "splash" || x.kind === "infusion" || x.kind === "imbalance") ?? [];
+  const all = snap?.micro.nodes.filter((x) => x.tape && (x.kind === "splash" || x.kind === "infusion" || x.kind === "imbalance")) ?? [];
   const step = candles.length > 1 ? Math.abs(candles[1]!.time - candles[0]!.time) || 3600 : 3600;
   for (const n of all) {
     const tSec = n.time > 1e12 ? Math.floor(n.time / 1000) : n.time;
