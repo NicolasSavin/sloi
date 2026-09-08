@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.07"
+#property version   "5.08"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -89,6 +89,7 @@ bool   g_alerts;
 bool   g_virt;
 bool   g_cd;
 bool   g_host;
+bool   g_leader = false;
 bool   g_seeded = false;
 bool   g_ready = false;
 bool   g_min = false;
@@ -144,20 +145,52 @@ int OnInit()
    ChartSetInteger(0, CHART_FOREGROUND, false);
    g_ready = true;
    g_seeded = false;
+   TakeLead();
+   if(!g_leader)
+     {
+      g_auto = false;
+      Print("SLOI 5.08 дубль: авто ВЫКЛ. Сов уже на другом чарте. Этот только лента CD");
+     }
+   else Print("SLOI 5.08 лидер торговли, чарт ", ChartSymbol(0));
    DrawDesk();
-   Print("SLOI 5.07: кружки CD — цена с фьючерса сажается на свечу пары");
    return(INIT_SUCCEEDED);
+  }
+
+void TakeLead()
+  {
+   datetime now = TimeCurrent();
+   double me = (double)ChartID();
+   if(!GlobalVariableCheck("SLOI_LEAD_T") || now - (datetime)GlobalVariableGet("SLOI_LEAD_T") > 12)
+     {
+      GlobalVariableSet("SLOI_LEAD_T", now);
+      GlobalVariableSet("SLOI_LEAD_CH", me);
+      g_leader = true;
+      return;
+     }
+   g_leader = (GlobalVariableGet("SLOI_LEAD_CH") == me);
+   if(g_leader) GlobalVariableSet("SLOI_LEAD_T", now);
   }
 
 void OnDeinit(const int reason)
   {
    EventKillTimer();
+   if(g_leader)
+     {
+      GlobalVariableDel("SLOI_LEAD_T");
+      GlobalVariableDel("SLOI_LEAD_CH");
+     }
    Wipe();
    Comment("");
   }
 
 void OnTick()   { if(g_ready) DrawDesk(); }
-void OnTimer()  { if(g_ready) DrawDesk(); }
+void OnTimer()
+  {
+   if(!g_ready) return;
+   TakeLead();
+   if(!g_leader) g_auto = false;
+   DrawDesk();
+  }
 
 void OnChartEvent(const int id, const long &lparam, const double &dparam, const string &sparam)
   {
@@ -173,6 +206,11 @@ void OnChartEvent(const int id, const long &lparam, const double &dparam, const 
      }
    if(sparam == P+"b_auto")
      {
+      if(!g_leader)
+        {
+         Print("SLOI авто только на одном чарте. Снимите сов с фунта/йены, оставьте индюки CD");
+         return;
+        }
       g_auto = !g_auto;
       DrawDesk();
       return;
@@ -1596,7 +1634,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 5.07\n";
+   body += "EA 5.08\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();
