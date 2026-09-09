@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.12"
+#property version   "5.13"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -97,6 +97,7 @@ datetime g_lastClose[MAXSYM];
 int      g_holdMin;
 string g_feed = "";
 datetime g_feedAt = 0;
+datetime g_tapeAt = 0;
 string g_feedNote = "нет ленты";
 
 color C_BG   = C'16,14,12';
@@ -149,9 +150,9 @@ int OnInit()
    if(!g_leader)
      {
       g_auto = false;
-      Print("SLOI 5.12 дубль: авто ВЫКЛ. Сов на этом чарте только для кружков CD");
+      Print("SLOI 5.13 дубль: авто ВЫКЛ. Сов на этом чарте только для кружков CD");
      }
-   else Print("SLOI 5.12 лидер торговли, чарт ", ChartSymbol(0));
+   else Print("SLOI 5.13 лидер торговли, чарт ", ChartSymbol(0));
    DrawDesk();
    return(INIT_SUCCEEDED);
   }
@@ -945,7 +946,7 @@ void PullFeed()
         {
          g_feedNote = StringLen(g_feed) > 8 ? "таймаут, держим ленту" : "таймаут Vercel, повтор";
          g_feedAt = TimeCurrent() - 12;
-         if(StringLen(g_feed) > 8) { PushTape(); return; }
+         if(StringLen(g_feed) > 8) return;
         }
       else g_feedNote = "сеть "+IntegerToString(err);
       Print("SLOI WebRequest fail ", err, " url=", g_url);
@@ -963,7 +964,6 @@ void PullFeed()
    if(StringLen(g_key) > 6) g_feedNote = g_feedNote + " ключ";
    SeedFromFeed();
    ApplySiteCommands();
-   PushTape();
   }
 
 string FeedUrl()
@@ -1665,7 +1665,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 5.12\n";
+   body += "EA 5.13\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();
@@ -2423,6 +2423,11 @@ void DrawDesk()
    int x = PanelX;
    int y = PanelY;
    PullFeed();
+   if(TimeCurrent() - g_tapeAt >= 15)
+     {
+      g_tapeAt = TimeCurrent();
+      PushTape();
+     }
    SweepVirtPendings();
    if(g_min)
      {

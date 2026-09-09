@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.9.17",
+    d: "2026-09-09",
+    items: [
+      "Сов 5.13: кружки CD уходят на сайт даже если лента приказов в таймауте",
+    ],
+  },
+  {
     v: "1.9.16",
     d: "2026-09-09",
     items: [
