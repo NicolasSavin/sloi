@@ -42,13 +42,16 @@ export const Route = createFileRoute("/api/broker")({
         const text = await request.text();
         const desk = await resolveDesk(keyOf(request));
         const tenant = desk?.id ?? LEGACY_TENANT;
+        const stored = tenant !== LEGACY_TENANT ? await loadTape(tenant) : null;
+        if (stored?.body) ingestBrokerTape(stored.body, tenant);
         const account = ingestBrokerTape(text, tenant);
+        const compact = exportBrokerTape(tenant);
         if (/\bHOST\s+1\b/.test(text)) {
-          const pub = hostPublicBody(text);
+          const pub = hostPublicBody(compact);
           ingestBrokerTape(pub, PUBLIC_TENANT);
           void saveTape(PUBLIC_TENANT, pub, null);
         }
-        const rec = await saveTape(tenant, text, account);
+        const rec = await saveTape(tenant, compact, account);
         return new Response(`ok saved=${rec.saved ? 1 : 0} db=${rec.db}${rec.err ? ` err=${rec.err}` : ""}\n`, {
           headers: {
             "Content-Type": "text/plain; charset=utf-8",

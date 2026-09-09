@@ -569,6 +569,15 @@ export function exportBrokerTape(tenant = "legacy"): string {
     const bits = b.asks.map((l) => `S ${l.price} ${l.volume}`).concat(b.bids.map((l) => `B ${l.price} ${l.volume}`));
     lines.push(`BOOK ${b.id} ${bits.join(" ")}`);
   }
+  for (const [id, pack] of r.clusters) {
+    if (now - pack.at > 180_000) continue;
+    for (const n of pack.nodes) {
+      const kind = n.kind === "imbalance" ? "IMBALANCE" : n.kind === "infusion" ? "INFUSION" : "SPLASH";
+      const sd = n.side === "sell" ? "SELL" : "BUY";
+      const t = n.time > 1e12 ? Math.floor(n.time / 1000) : n.time;
+      lines.push(`CLUSTER ${id} ${kind} ${n.price} ${sd} ${t}${n.note ? ` ${n.note}` : ""}`);
+    }
+  }
   for (const [id, list] of r.cdBars) {
     for (const b of list) {
       lines.push(`CDBAR ${id} ${b.time} ${b.volume} ${b.delta} ${b.ask} ${b.bid} ${b.splash ? 1 : 0} ${b.infusion ? 1 : 0} ${b.imbalance ? 1 : 0}`);

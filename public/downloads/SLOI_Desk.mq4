@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.14"
+#property version   "5.15"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -150,9 +150,9 @@ int OnInit()
    if(!g_leader)
      {
       g_auto = false;
-      Print("SLOI 5.14 дубль: авто ВЫКЛ. Сов на этом чарте только для кружков CD");
+      Print("SLOI 5.15 дубль: авто ВЫКЛ. Сов на этом чарте только для кружков CD");
      }
-   else Print("SLOI 5.14 лидер торговли, чарт ", ChartSymbol(0));
+   else Print("SLOI 5.15 лидер торговли, чарт ", ChartSymbol(0));
    DrawDesk();
    return(INIT_SUCCEEDED);
   }
@@ -1663,7 +1663,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 5.14\n";
+   body += "EA 5.15\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();
@@ -1700,8 +1700,6 @@ void PushTape()
    AppendClusters(extra);
    if(StringLen(extra) > 8) PostTape(url, body + extra);
    else PostTape(url, body);
-   AppendBrokerBars(body);
-   PostTape(url, body);
   }
 
 void ReadSite(string naked, int &dir, double &entry, double &stop, double &target, double &siteLast, string &verdict, string &why, double &skewCap, int &lim)
