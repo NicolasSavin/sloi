@@ -1,6 +1,46 @@
+import { liveClusters } from "@/lib/broker-tape";
+import { buildCirclePath, type CirclePath } from "@/lib/smc/micro";
+
 export interface CorrSnap {
   status: "for" | "against" | "neutral";
   note: string;
+}
+
+const CROSS_LEGS: Record<string, { a: string; b: string; sa: 1 | -1; sb: 1 | -1 }> = {
+  EURJPY: { a: "EURUSD", b: "USDJPY", sa: 1, sb: 1 },
+  GBPJPY: { a: "GBPUSD", b: "USDJPY", sa: 1, sb: 1 },
+  AUDJPY: { a: "AUDUSD", b: "USDJPY", sa: 1, sb: 1 },
+  NZDJPY: { a: "NZDUSD", b: "USDJPY", sa: 1, sb: 1 },
+  CADJPY: { a: "USDCAD", b: "USDJPY", sa: -1, sb: 1 },
+  EURGBP: { a: "EURUSD", b: "GBPUSD", sa: 1, sb: -1 },
+  EURAUD: { a: "EURUSD", b: "AUDUSD", sa: 1, sb: -1 },
+  GBPAUD: { a: "GBPUSD", b: "AUDUSD", sa: 1, sb: -1 },
+  EURCHF: { a: "EURUSD", b: "USDCHF", sa: 1, sb: -1 },
+};
+
+function lean(p: CirclePath): number {
+  if (p.dir === "up") return p.pct - 50;
+  if (p.dir === "down") return 50 - p.pct;
+  return 0;
+}
+
+export function inheritCircle(id: string, close: number, nowSec: number): CirclePath | null {
+  const spec = CROSS_LEGS[id];
+  if (!spec) return null;
+  const na = liveClusters(spec.a);
+  const nb = liveClusters(spec.b);
+  if (!na.length && !nb.length) return null;
+  const pa = buildCirclePath(na, close, nowSec);
+  const pb = buildCirclePath(nb, close, nowSec);
+  const mixed = spec.sa * lean(pa) + spec.sb * lean(pb);
+  const dir: CirclePath["dir"] = mixed > 3 ? "up" : mixed < -3 ? "down" : "flat";
+  const pct = Math.round(Math.min(72, 50 + Math.abs(mixed) * 0.55));
+  const because = `Кросс ${id} ← ${spec.a} ${pa.dir === "flat" ? "бок" : pa.dir === "up" ? "↑" : "↓"}${pa.pct}% и ${spec.b} ${pb.dir === "flat" ? "бок" : pb.dir === "up" ? "↑" : "↓"}${pb.pct}%. CD на мажорах, не на этом чарте.`;
+  const therefore =
+    dir === "flat"
+      ? "Ноги спорят или пустые. Кросс без своей ленты — ждать диспетчера."
+      : `По корреляции скорее ${dir === "up" ? "ВВЕРХ" : "ВНИЗ"} · ${pct}%. Шариков на кроссе нет — это вывод с ${spec.a}/${spec.b}.`;
+  return { dir, pct, because, therefore, via: "cross" };
 }
 
 export function buildCorr(

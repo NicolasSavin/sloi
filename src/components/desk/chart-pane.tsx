@@ -1077,14 +1077,20 @@ function drawZones(
                   : "крупняк в диапазоне";
   const vec = snap?.boxVector;
   const path = snap?.micro.circlePath;
+  const src =
+    path?.via === "tape"
+      ? "лента CD"
+      : path?.via === "cross"
+        ? "кросс от мажоров"
+        : "кружков нет с терминала";
   const near =
     path && path.dir !== "flat"
-      ? `по кружкам ${path.dir === "up" ? "вверх" : "вниз"} ${path.pct}%`
+      ? `по кружкам ${path.dir === "up" ? "вверх" : "вниз"} ${path.pct}% · ${src}`
       : vec && vec.dir === "up"
-        ? "в ближайшее время вверх"
+        ? `в ближайшее время вверх · ${src}`
         : vec && vec.dir === "down"
-          ? "в ближайшее время вниз"
-          : "ближайший ход боком";
+          ? `в ближайшее время вниз · ${src}`
+          : `ближайший ход боком · ${src}`;
   let tape = `Ждать · ${near} · ${smart} · входа нет`;
   if (order?.action === "long") tape = `Покупать · ${near} · ${smart}`;
   else if (order?.action === "short") tape = `Продавать · ${near} · ${smart}`;

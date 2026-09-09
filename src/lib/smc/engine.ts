@@ -5,7 +5,7 @@ import { clustersFromCandles, clustersFromTrades, type ClusterMap } from "@/lib/
 import { barVolume, buildMicro, buildSweepFuel, nearestStall, tapeVsSide, type MicroSnap, type SweepFuel } from "@/lib/smc/micro";
 import { buildAuction, type AuctionSnap } from "@/lib/smc/auction";
 import { buildCoilBreak, type CoilBreak } from "@/lib/smc/coil";
-import { buildCorr, type CorrSnap } from "@/lib/corr";
+import { buildCorr, inheritCircle, type CorrSnap } from "@/lib/corr";
 import { buildIvNews, type IvNewsSnap } from "@/lib/iv-news";
 import { brokerBook, liveAskBid, liveCdBars, liveCdFlow, liveClusters, liveCumDelta, liveProfile } from "@/lib/broker-tape";
 import type { NewsHalt } from "@/lib/calendar";
@@ -1181,6 +1181,10 @@ export function analyzeMarket(
     opts?.symbol ? liveCdBars(opts.symbol) : [],
     opts?.symbol ?? "",
   );
+  if (micro.circlePath.via === "none" && opts?.symbol) {
+    const inh = inheritCircle(opts.symbol, last.close, last.time);
+    if (inh) micro.circlePath = inh;
+  }
   const sweepFuel = buildSweepFuel(candles, liquidity, micro.nodes, atr, last.close);
   const auction = buildAuction(candles, opts?.kind);
   const coil = buildCoilBreak(candles, atr, swings);

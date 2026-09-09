@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.9.18",
+    d: "2026-09-09",
+    items: [
+      "Кроссы (EURJPY, GBPJPY, EURGBP…) берут сторону с мажоров по корреляции. На графике строка: лента CD / кросс / кружков нет",
+    ],
+  },
+  {
     v: "1.9.17",
     d: "2026-09-09",
     items: [

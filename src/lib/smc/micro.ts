@@ -47,6 +47,7 @@ export interface CirclePath {
   pct: number;
   because: string;
   therefore: string;
+  via: "tape" | "cross" | "none";
 }
 
 export function nodeForecast(
@@ -99,6 +100,7 @@ export function buildCirclePath(nodes: VolumeNode[], close: number, now: number)
       pct: 50,
       because: "Живых кружков CD нет — считать нечего.",
       therefore: "Направление только от диспетчера, не от шариков.",
+      via: "none",
     };
   }
   let up = 0;
@@ -121,7 +123,7 @@ export function buildCirclePath(nodes: VolumeNode[], close: number, now: number)
     dir === "flat"
       ? `Перевес слабый (${pct}%). Крупняк не выбрал сторону — ждать приказ, не шарики.`
       : `Скорее ${dir === "up" ? "ВВЕРХ" : "ВНИЗ"} · ${pct}%. Это оценка по ленте, не приказ. Сделка — только если диспетчер туда же.`;
-  return { dir, pct, because, therefore };
+  return { dir, pct, because, therefore, via: "tape" };
 }
 
 export function nearestInfusionAhead(nodes: VolumeNode[], entry: number, dir: 1 | -1, atr: number) {
