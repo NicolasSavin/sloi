@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.13"
+#property version   "5.14"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -150,9 +150,9 @@ int OnInit()
    if(!g_leader)
      {
       g_auto = false;
-      Print("SLOI 5.13 дубль: авто ВЫКЛ. Сов на этом чарте только для кружков CD");
+      Print("SLOI 5.14 дубль: авто ВЫКЛ. Сов на этом чарте только для кружков CD");
      }
-   else Print("SLOI 5.13 лидер торговли, чарт ", ChartSymbol(0));
+   else Print("SLOI 5.14 лидер торговли, чарт ", ChartSymbol(0));
    DrawDesk();
    return(INIT_SUCCEEDED);
   }
@@ -1620,11 +1620,9 @@ void AppendBrokerBars(string &body)
      {
       string s = g_sym[i];
       int d = DigitsOf(s);
-      int depth = 23;
+      int depth = 4;
       string nkd = Naked(s);
-      if(nkd == "EURUSD" || nkd == "GBPUSD" || nkd == "USDJPY" || nkd == "USDCHF"
-         || nkd == "AUDUSD" || nkd == "USDCAD" || nkd == "NZDUSD" || nkd == "XAUUSD")
-         depth = 79;
+      if(nkd == Naked(Symbol())) depth = 16;
       for(int b = depth; b >= 0; b--)
         {
          datetime t = iTime(s, tf, b);
@@ -1649,7 +1647,7 @@ void PostTape(string url, string body)
    if(n > 0) ArrayResize(data, n - 1);
    string hdr = "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)\r\nContent-Type: text/plain\r\n";
    ResetLastError();
-   int res = WebRequest("POST", url, hdr, 8000, data, result, rh);
+   int res = WebRequest("POST", url, hdr, 16000, data, result, rh);
    if(res == -1) Print("SLOI tape POST fail ", GetLastError(), " ", url);
    else if(res != 200) Print("SLOI tape HTTP ", res, " ", url);
   }
@@ -1665,7 +1663,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 5.13\n";
+   body += "EA 5.14\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();
@@ -1698,11 +1696,12 @@ void PushTape()
       if(bid <= 0 || ask <= 0) continue;
       body += Naked(s) + " " + DoubleToStr(bid, DigitsOf(s)) + " " + DoubleToStr(ask, DigitsOf(s)) + "\n";
      }
-   AppendBrokerBars(body);
-   PostTape(url, body);
    string extra = "";
    AppendClusters(extra);
    if(StringLen(extra) > 8) PostTape(url, body + extra);
+   else PostTape(url, body);
+   AppendBrokerBars(body);
+   PostTape(url, body);
   }
 
 void ReadSite(string naked, int &dir, double &entry, double &stop, double &target, double &siteLast, string &verdict, string &why, double &skewCap, int &lim)
