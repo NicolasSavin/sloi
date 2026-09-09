@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.11"
+#property version   "5.12"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -149,9 +149,9 @@ int OnInit()
    if(!g_leader)
      {
       g_auto = false;
-      Print("SLOI 5.11 дубль: авто ВЫКЛ. Сов на этом чарте только для кружков CD");
+      Print("SLOI 5.12 дубль: авто ВЫКЛ. Сов на этом чарте только для кружков CD");
      }
-   else Print("SLOI 5.11 лидер торговли, чарт ", ChartSymbol(0));
+   else Print("SLOI 5.12 лидер торговли, чарт ", ChartSymbol(0));
    DrawDesk();
    return(INIT_SUCCEEDED);
   }
@@ -935,16 +935,21 @@ void PullFeed()
       g_feedNote = "вставьте адрес ленты";
       return;
      }
-   int res = WebRequest("GET", url, hdr, 18000, data, result, rh);
+   int res = WebRequest("GET", url, hdr, 25000, data, result, rh);
    if(res == -1)
      {
       int err = GetLastError();
       if(err == 4060) g_feedNote = "этот адрес в WebRequest";
       else if(err == 5200) g_feedNote = "домена нет";
-      else if(err == 5203) g_feedNote = "таймаут Vercel, повтор";
+      else if(err == 5203)
+        {
+         g_feedNote = StringLen(g_feed) > 8 ? "таймаут, держим ленту" : "таймаут Vercel, повтор";
+         g_feedAt = TimeCurrent() - 12;
+         if(StringLen(g_feed) > 8) { PushTape(); return; }
+        }
       else g_feedNote = "сеть "+IntegerToString(err);
       Print("SLOI WebRequest fail ", err, " url=", g_url);
-      g_feed = "";
+      if(StringLen(g_feed) < 8) g_feed = "";
       return;
      }
    if(res != 200)
@@ -1660,7 +1665,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 5.11\n";
+   body += "EA 5.12\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();

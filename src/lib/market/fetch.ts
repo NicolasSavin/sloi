@@ -485,6 +485,7 @@ async function loadCalendarEvents() {
 }
 
 let digestCache: { at: number; data: { digest: DailyDigest; source: string } } | null = null;
+let feedCache: { at: number; text: string } | null = null;
 
 export const fetchDigest = createServerFn({ method: "GET" }).handler(async () => {
   try {
@@ -545,7 +546,7 @@ export async function assembleDigestPublic() {
 }
 
 async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }> {
-  if (digestCache && Date.now() - digestCache.at < 45_000) return digestCache.data;
+  if (digestCache && Date.now() - digestCache.at < 120_000) return digestCache.data;
   try {
     const { ingestBrokerTape } = await import("@/lib/broker-tape");
     const { loadTape, PUBLIC_TENANT } = await import("@/lib/desk-tenant");
@@ -715,16 +716,43 @@ async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }
     /* archive optional */
   }
   digestCache = { at: Date.now(), data: packed };
+  try {
+    const text = await formatSignalFeed(packed.digest);
+    feedCache = { at: Date.now(), text };
+  } catch {
+    /* feed later */
+  }
   return packed;
 }
 
 export async function renderSignalFeed(_tenant?: string) {
-  const { digest } = await assembleDigest();
+  if (feedCache && Date.now() - feedCache.at < 90_000) return feedCache.text;
+  if (digestCache && Date.now() - digestCache.at < 180_000) {
+    const text = await formatSignalFeed(digestCache.data.digest);
+    feedCache = { at: Date.now(), text };
+    return text;
+  }
+  const built = await Promise.race([
+    assembleDigest()
+      .then((d) => formatSignalFeed(d.digest))
+      .catch(() => ""),
+    new Promise<string>((r) => setTimeout(() => r(""), 9000)),
+  ]);
+  if (built) {
+    feedCache = { at: Date.now(), text: built };
+    return built;
+  }
+  if (feedCache) return feedCache.text;
+  if (digestCache) return formatSignalFeed(digestCache.data.digest);
+  return `# SLOI v2 H1\n# warming\n`;
+}
+
+async function formatSignalFeed(digest: DailyDigest) {
   const { brokerSkewPct } = await import("@/lib/broker-tape");
   const { skewLimit, fillMode, sessionAllows } = await import("@/lib/execution");
   const { sessionNow } = await import("@/lib/sessions");
-  const session = sessionNow();
   const { isHeld } = await import("@/lib/signal-hold");
+  const session = sessionNow();
   const lines = [`# SLOI v2 H1`, `# ${new Date().toISOString()}`, `# last=Yahoo  SKEW=макс%  MODE=LIMIT|MARKET  TF=60`];
   for (const m of digest.markets) {
     let side = m.advice.action === "long" ? "BUY" : m.advice.action === "short" ? "SELL" : "WAIT";
