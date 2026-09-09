@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.15"
+#property version   "5.16"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -150,9 +150,9 @@ int OnInit()
    if(!g_leader)
      {
       g_auto = false;
-      Print("SLOI 5.15 дубль: авто ВЫКЛ. Сов на этом чарте только для кружков CD");
+      Print("SLOI 5.16 дубль на ЭТОМ терминале: авто ВЫКЛ, кружки всё равно уходят");
      }
-   else Print("SLOI 5.15 лидер торговли, чарт ", ChartSymbol(0));
+   else Print("SLOI 5.16 лидер этого терминала, чарт ", ChartSymbol(0));
    DrawDesk();
    return(INIT_SUCCEEDED);
   }
@@ -1650,6 +1650,7 @@ void PostTape(string url, string body)
    int res = WebRequest("POST", url, hdr, 16000, data, result, rh);
    if(res == -1) Print("SLOI tape POST fail ", GetLastError(), " ", url);
    else if(res != 200) Print("SLOI tape HTTP ", res, " ", url);
+   else Print("SLOI tape ok ", CharArrayToString(result, 0, 80, CP_UTF8), " байт ", StringLen(body));
   }
 
 void PushTape()
@@ -1663,7 +1664,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 5.15\n";
+   body += "EA 5.16\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();
