@@ -1365,15 +1365,26 @@ function drawTape(
 ) {
   const ts = chart.timeScale();
   const used: { x: number; y: number }[] = [];
-  const all = snap?.micro.nodes.filter((x) => {
+  const all = (snap?.micro.nodes.filter((x) => {
     if (!x.tape) return false;
     if (x.kind === "infusion") return overlays.tapeInf !== false;
     if (x.kind === "splash") return overlays.tapeSplash !== false;
     if (x.kind === "imbalance") return overlays.tapeImb !== false;
     return false;
-  }) ?? [];
+  }) ?? [])
+    .slice()
+    .sort((a, b) => {
+      const rank = (k: string) => (k === "splash" ? 0 : k === "infusion" ? 1 : 2);
+      return rank(a.kind) - rank(b.kind);
+    });
+  let imbN = 0;
+  const draw = all.filter((n) => {
+    if (n.kind !== "imbalance") return true;
+    imbN++;
+    return imbN <= 8;
+  });
   const step = candles.length > 1 ? Math.abs(candles[1]!.time - candles[0]!.time) || 3600 : 3600;
-  for (const n of all) {
+  for (const n of draw) {
     const tSec = n.time > 1e12 ? Math.floor(n.time / 1000) : n.time;
     const bar =
       candles.find((c) => tSec >= c.time && tSec < c.time + step) ??

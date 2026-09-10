@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.16"
+#property version   "5.17"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -152,7 +152,7 @@ int OnInit()
       g_auto = false;
       Print("SLOI 5.16 дубль на ЭТОМ терминале: авто ВЫКЛ, кружки всё равно уходят");
      }
-   else Print("SLOI 5.16 лидер этого терминала, чарт ", ChartSymbol(0));
+   else Print("SLOI 5.17 лидер этого терминала, чарт ", ChartSymbol(0));
    DrawDesk();
    return(INIT_SUCCEEDED);
   }
@@ -978,6 +978,33 @@ string FeedUrl()
 void AddSym(string s)
   {
    if(StringLen(s) < 3) return;
+   string nkd = Naked(s);
+   if(nkd == "XTIUSD")
+     {
+      string oil[];
+      ArrayResize(oil, 8);
+      oil[0] = "XTIUSD" + g_suffix; oil[1] = "USOIL" + g_suffix;
+      oil[2] = "WTI" + g_suffix; oil[3] = "XTIUSD";
+      oil[4] = "USOIL"; oil[5] = "WTI"; oil[6] = "USOIL.cs"; oil[7] = s;
+      for(int k = 0; k < 8; k++)
+        {
+         SymbolSelect(oil[k], true);
+         if(BidOf(oil[k]) > 0 || AskOf(oil[k]) > 0) { s = oil[k]; break; }
+        }
+     }
+   if(nkd == "XBRUSD")
+     {
+      string br[];
+      ArrayResize(br, 6);
+      br[0] = "XBRUSD" + g_suffix; br[1] = "UKOIL" + g_suffix;
+      br[2] = "BRENT" + g_suffix; br[3] = "XBRUSD"; br[4] = "UKOIL"; br[5] = s;
+      for(int k = 0; k < 6; k++)
+        {
+         SymbolSelect(br[k], true);
+         if(BidOf(br[k]) > 0 || AskOf(br[k]) > 0) { s = br[k]; break; }
+        }
+     }
+   if(StringLen(s) < 3) return;
    for(int i = 0; i < g_n; i++)
       if(g_sym[i] == s || Naked(g_sym[i]) == Naked(s)) return;
    if(g_n >= MAXSYM) return;
@@ -1664,7 +1691,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 5.16\n";
+   body += "EA 5.17\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();
@@ -2258,10 +2285,15 @@ void CloseMine(bool all)
 bool IsForeign()
   {
    if(OrderMagicNumber() == Magic) return(false);
+   if(OrderMagicNumber() == 0)
+     {
+      string c0 = OrderComment();
+      if(StringFind(c0, "WS") < 0 && StringFind(c0, "world") < 0 && StringFind(c0, "World") < 0)
+         return(false);
+     }
    string c = OrderComment();
-   if(StringLen(ForeignTag) <= 0) return(true);
-   if(StringFind(c, ForeignTag) >= 0) return(true);
    if(StringFind(c, "WS") >= 0) return(true);
+   if(StringLen(ForeignTag) > 0 && StringFind(c, ForeignTag) >= 0) return(true);
    if(StringFind(c, "world") >= 0 || StringFind(c, "World") >= 0) return(true);
    return(false);
   }
@@ -2278,16 +2310,8 @@ void AlignForeign(string s, int dir, double stop, double target)
       int ty = OrderType();
       bool buy = (ty == OP_BUY || ty == OP_BUYLIMIT || ty == OP_BUYSTOP);
       bool sel = (ty == OP_SELL || ty == OP_SELLLIMIT || ty == OP_SELLSTOP);
-      if(dir == 0)
-        {
-         CloseOne();
-         continue;
-        }
-      if((dir > 0 && sel) || (dir < 0 && buy))
-        {
-         CloseOne();
-         continue;
-        }
+      if(dir == 0) continue;
+      if((dir > 0 && sel) || (dir < 0 && buy)) continue;
       if(ty != OP_BUY && ty != OP_SELL) continue;
       double sl = (stop > 0 ? NormalizeDouble(stop, digits) : OrderStopLoss());
       double tp = (target > 0 ? NormalizeDouble(target, digits) : OrderTakeProfit());

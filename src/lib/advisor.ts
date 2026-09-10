@@ -51,7 +51,10 @@ export function advise(snap: Pick<SmcSnapshot, "bias" | "localSetup" | "margin" 
   const covers = roundTrip > 0 ? grossReward / roundTrip : null;
   const netRr = netRisk > 0 ? netReward / netRisk : null;
 
-  if (netReward <= 0 || (covers != null && covers < 2) || (netRr != null && netRr < 1.45)) {
+  const energy = spec.kind === "energy";
+  const minCover = energy ? 1.25 : 2;
+  const minRr = energy ? 1.15 : 1.45;
+  if (netReward <= 0 || (covers != null && covers < minCover) || (netRr != null && netRr < minRr)) {
     return {
       action: "skip",
       title: "Пропуск: спред съедает ход",
