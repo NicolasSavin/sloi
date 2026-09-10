@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.9.23",
+    d: "2026-09-10",
+    items: [
+      "F1 пузыри, F2 вливание, F3 сплэш, F4 IMB. Вес IMB в разборе снижен. Идеи открываются на ru.tradingview.com",
+    ],
+  },
+  {
     v: "1.9.22",
     d: "2026-09-10",
     items: [

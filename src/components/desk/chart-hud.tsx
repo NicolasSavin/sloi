@@ -16,7 +16,7 @@ export function ChartHud({ boxRef }: { boxRef: RefObject<HTMLDivElement | null> 
   const quoteSource = useDeskStore((s) => s.quoteSource);
   const setQuoteSource = useDeskStore((s) => s.setQuoteSource);
   const toggleOverlay = useDeskStore((s) => s.toggleOverlay);
-  const callouts = useDeskStore((s) => s.overlays.callouts !== false);
+  const overlays = useDeskStore((s) => s.overlays);
   const requestFit = useDeskStore((s) => s.requestFit);
   const symbol = useDeskStore((s) => s.symbol);
   const [wide, setWide] = useState(false);
@@ -70,6 +70,27 @@ export function ChartHud({ boxRef }: { boxRef: RefObject<HTMLDivElement | null> 
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (e.key === "F1") {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleOverlay("callouts");
+        return;
+      }
+      if (e.key === "F2") {
+        e.preventDefault();
+        toggleOverlay("tapeInf");
+        return;
+      }
+      if (e.key === "F3") {
+        e.preventDefault();
+        toggleOverlay("tapeSplash");
+        return;
+      }
+      if (e.key === "F4") {
+        e.preventDefault();
+        toggleOverlay("tapeImb");
+        return;
+      }
       if (e.key === "F8") {
         e.preventDefault();
         e.stopPropagation();
@@ -132,17 +153,27 @@ export function ChartHud({ boxRef }: { boxRef: RefObject<HTMLDivElement | null> 
         <button type="button" onClick={() => void cmd("CLOSE_PROFIT")} className="h-8 rounded-md bg-bg/80 px-2 font-mono text-[11px] text-muted backdrop-blur-sm hover:text-fg">+прибыль</button>
         <button type="button" onClick={() => void cmd("CLOSE_ALL")} className="h-8 rounded-md bg-bg/80 px-2 font-mono text-[11px] text-muted backdrop-blur-sm hover:text-fg">всё</button>
         {note ? <span className="max-w-[9rem] truncate font-mono text-[10px] text-dim">{note}</span> : null}
-        <button
-          type="button"
-          onClick={() => toggleOverlay("callouts")}
-          className={cn(
-            "inline-flex h-8 items-center rounded-md bg-bg/80 px-2 font-mono text-[11px] backdrop-blur-sm",
-            callouts ? "text-muted hover:text-fg" : "text-gold",
-          )}
-          title="F9 — скрыть стрелки и пузыри"
-        >
-          {callouts ? "F9 скрыть" : "F9 подписи"}
-        </button>
+        {(
+          [
+            ["callouts", "F1", "пузыри"],
+            ["tapeInf", "F2", "вливание"],
+            ["tapeSplash", "F3", "сплэш"],
+            ["tapeImb", "F4", "IMB"],
+          ] as const
+        ).map(([key, fk, label]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => toggleOverlay(key)}
+            className={cn(
+              "inline-flex h-8 items-center rounded-md bg-bg/80 px-1.5 font-mono text-[10px] backdrop-blur-sm",
+              overlays[key] !== false ? "text-muted hover:text-fg" : "text-gold",
+            )}
+            title={`${fk} — ${label}`}
+          >
+            {fk}
+          </button>
+        ))}
         <button
           type="button"
           onClick={() => {

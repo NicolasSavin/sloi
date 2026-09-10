@@ -15,6 +15,9 @@ export interface OverlayFlags {
   flow: boolean;
   structure: boolean;
   callouts: boolean;
+  tapeInf: boolean;
+  tapeSplash: boolean;
+  tapeImb: boolean;
 }
 
 interface DeskState {
@@ -64,6 +67,9 @@ export const useDeskStore = create<DeskState>()(
         flow: true,
         structure: true,
         callouts: true,
+        tapeInf: true,
+        tapeSplash: true,
+        tapeImb: true,
       },
       chochLen: 3,
       chochClose: true,
@@ -84,7 +90,7 @@ export const useDeskStore = create<DeskState>()(
     }),
     {
       name: "sloi-desk-smc",
-      version: 14,
+      version: 15,
       partialize: (s) => ({
         symbol: s.symbol,
         timeframe: s.timeframe,
@@ -123,6 +129,9 @@ export const useDeskStore = create<DeskState>()(
             flow: p.overlays?.flow ?? true,
             structure: true,
             callouts: p.overlays?.callouts ?? true,
+            tapeInf: p.overlays?.tapeInf ?? true,
+            tapeSplash: p.overlays?.tapeSplash ?? true,
+            tapeImb: p.overlays?.tapeImb ?? true,
           },
         } as DeskState;
       },

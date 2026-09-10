@@ -42,13 +42,17 @@ export function tvSymbol(id: string) {
 
 export function tvChartUrl(id: string, interval = "60") {
   const s = encodeURIComponent(tvSymbol(id));
-  return `https://www.tradingview.com/chart/?symbol=${s}&interval=${interval}`;
+  return `https://ru.tradingview.com/chart/?symbol=${s}&interval=${interval}`;
+}
+
+export function tvIdeaUrl(id: string, interval = "60") {
+  return tvChartUrl(id, interval);
 }
 
 export function tvWidgetSrc(id: string, interval = "60") {
   const s = encodeURIComponent(tvSymbol(id));
   const host = encodeURIComponent(typeof window !== "undefined" ? window.location.host : "sloi-kohl.vercel.app");
-  return `https://www.tradingview.com/widgetembed/?symbol=${s}&interval=${interval}&hidesidetoolbar=0&symboledit=1&saveimage=1&toolbarbg=0f0e0c&studies=[]&theme=dark&style=1&timezone=Etc%2FUTC&withdateranges=1&hideideas=0&locale=ru&utm_source=${host}`;
+  return `https://ru.tradingview.com/widgetembed/?symbol=${s}&interval=${interval}&hidesidetoolbar=0&symboledit=1&saveimage=1&toolbarbg=0f0e0c&studies=[]&theme=dark&style=1&timezone=Etc%2FUTC&withdateranges=1&hideideas=0&locale=ru&utm_source=${host}`;
 }
 
 function n(v: number | null | undefined, d: number) {

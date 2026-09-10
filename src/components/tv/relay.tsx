@@ -40,7 +40,7 @@ export function TvRelay({ initialId }: { initialId?: string }) {
     await copyText("Идея", pack.paste);
     const url = tvChartUrl(m.spec.id, "60");
     window.open(url, "_blank", "noopener,noreferrer");
-    toast.message(`${tvSymbol(m.spec.id)} · H1. Камера → Share idea → ${pack.tvSide}. Ctrl+V в описание.`);
+    toast.message(`ru.tradingview.com · ${tvSymbol(m.spec.id)} H1. Камера → Share idea → ${pack.tvSide}. Ctrl+V.`);
   }
 
   return (
@@ -50,8 +50,8 @@ export function TvRelay({ initialId }: { initialId?: string }) {
         <p className="font-mono text-xs tracking-[0.22em] text-accent">TRADINGVIEW</p>
         <h1 className="mt-3 text-4xl font-medium tracking-tight sm:text-5xl">Идея на график TV</h1>
         <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted">
-          Одна кнопка: текст в буфер и график TradingView. Дальше камера → Share idea → вставить. Бесплатно. Pine в каталог
-          не публикуем.
+          Одна кнопка: текст в буфер и график на <span className="text-fg">ru.tradingview.com</span>. Дальше камера → Share
+          idea → вставить. Бесплатный аккаунт. Pine в каталог не публикуем.
         </p>
 
         <div className="mt-8 flex flex-wrap gap-2">

@@ -1359,13 +1359,19 @@ function drawTape(
   series: ISeriesApi<"Candlestick">,
   candles: Candle[],
   snap: SmcSnapshot | null,
-  on: boolean,
+  overlays: OverlayFlags,
   book: { bids: { price: number; volume: number }[]; asks: { price: number; volume: number }[] } | null,
   hoverPt: { x: number; y: number } | null,
 ) {
   const ts = chart.timeScale();
   const used: { x: number; y: number }[] = [];
-  const all = snap?.micro.nodes.filter((x) => x.tape && (x.kind === "splash" || x.kind === "infusion" || x.kind === "imbalance")) ?? [];
+  const all = snap?.micro.nodes.filter((x) => {
+    if (!x.tape) return false;
+    if (x.kind === "infusion") return overlays.tapeInf !== false;
+    if (x.kind === "splash") return overlays.tapeSplash !== false;
+    if (x.kind === "imbalance") return overlays.tapeImb !== false;
+    return false;
+  }) ?? [];
   const step = candles.length > 1 ? Math.abs(candles[1]!.time - candles[0]!.time) || 3600 : 3600;
   for (const n of all) {
     const tSec = n.time > 1e12 ? Math.floor(n.time / 1000) : n.time;
@@ -1426,7 +1432,7 @@ function drawTape(
       ctx.fillText(read.why, boxX, boxY + 42);
     }
   }
-  if (on && book && (book.bids.length || book.asks.length)) {
+  if (overlays.flow !== false && book && (book.bids.length || book.asks.length)) {
     const max = Math.max(...book.bids.map((l) => l.volume), ...book.asks.map((l) => l.volume), 1);
     const x0 = width - 70;
     for (const l of book.asks.slice(0, 8)) {
@@ -1478,6 +1484,9 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
       flow: true,
       structure: true,
       callouts: true,
+      tapeInf: true,
+      tapeSplash: true,
+      tapeImb: true,
     },
     snap: null,
     setup: null,
@@ -1541,7 +1550,7 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
               if (p.overlays.callouts !== false)
                 drawPathArrows(ctx, w, chart, series, p.snap, p.order, p.setup, p.candles.at(-1)?.time ?? 0);
             }
-            drawTape(ctx, w, chart, series, p.candles, p.snap, p.overlays.flow, p.book, p.hoverPt);
+            drawTape(ctx, w, chart, series, p.candles, p.snap, p.overlays, p.book, p.hoverPt);
             if (p.snap && CD_FUT.has(p.pair) && !(p.snap.micro.nodes ?? []).some((n) => n.kind === "splash" || n.kind === "infusion" || n.kind === "imbalance")) {
               const seen = liveCdCharts();
               ctx.font = "600 12px IBM Plex Sans, sans-serif";
