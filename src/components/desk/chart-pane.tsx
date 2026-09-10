@@ -736,7 +736,7 @@ function drawZones(
     }
   }
 
-  if (!paintHud) return;
+  if (!paintHud || overlays.callouts === false) return;
 
   ctx.font = "13px IBM Plex Sans, sans-serif";
   const hits = (box: { x: number; y: number; w: number; h: number }) =>
@@ -1477,6 +1477,7 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
       patterns: true,
       flow: true,
       structure: true,
+      callouts: true,
     },
     snap: null,
     setup: null,
@@ -1537,7 +1538,8 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
             }
             if (!hover) {
               drawZones(ctx, w, h, chart, series, p.zones, p.overlays, p.snap, p.setup, p.order, p.candles.at(-1)?.time ?? 0, false, p.candles, p.pair, this.faceI, "hud");
-              drawPathArrows(ctx, w, chart, series, p.snap, p.order, p.setup, p.candles.at(-1)?.time ?? 0);
+              if (p.overlays.callouts !== false)
+                drawPathArrows(ctx, w, chart, series, p.snap, p.order, p.setup, p.candles.at(-1)?.time ?? 0);
             }
             drawTape(ctx, w, chart, series, p.candles, p.snap, p.overlays.flow, p.book, p.hoverPt);
             if (p.snap && CD_FUT.has(p.pair) && !(p.snap.micro.nodes ?? []).some((n) => n.kind === "splash" || n.kind === "infusion" || n.kind === "imbalance")) {
@@ -1664,16 +1666,16 @@ export function ChartPane({
         },
         rightPriceScale: {
           borderColor: "rgba(255,255,255,0.08)",
-          scaleMargins: { top: 0.12, bottom: 0.16 },
+          scaleMargins: { top: 0.05, bottom: 0.07 },
           autoScale: true,
         },
         timeScale: {
           borderColor: "rgba(255,255,255,0.08)",
           timeVisible: true,
           secondsVisible: false,
-          rightOffset: 8,
-          shiftVisibleRangeOnNewBar: true,
-          lockVisibleTimeRangeOnResize: false,
+          rightOffset: 6,
+          shiftVisibleRangeOnNewBar: false,
+          lockVisibleTimeRangeOnResize: true,
           minBarSpacing: 6,
         },
         crosshair: {

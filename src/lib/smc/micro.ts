@@ -55,11 +55,11 @@ export function nodeForecast(
   close: number,
 ): { dir: 1 | -1; w: number; label: string; pct: number } {
   if (n.kind === "imbalance") {
-    const pri = n.ratio != null ? Math.min(10, Math.max(1, n.ratio)) : 3;
-    const pct = Math.min(76, 42 + pri * 3);
+    const pri = n.ratio != null ? Math.min(10, Math.max(1, n.ratio)) : 4;
+    const pct = Math.min(82, 50 + pri * 4.2);
     return {
       dir: n.side === "buy" ? 1 : -1,
-      w: 0.9 + pri * 0.08,
+      w: 1.55 + pri * 0.18,
       label: n.ratio != null ? `IMB ×${n.ratio.toFixed(1)}` : "IMB",
       pct,
     };
@@ -523,8 +523,14 @@ export function tapeVsSide(
   }
   const imb = [...micro.nodes].reverse().find((n) => n.kind === "imbalance");
   if (imb) {
-    if (imb.side === "buy") (action === "long" ? yes : no).push("IMB Ask>Bid");
-    else (action === "short" ? yes : no).push("IMB Bid>Ask");
+    const bit = imb.side === "buy" ? "IMB Ask>Bid (сильный перекос)" : "IMB Bid>Ask (сильный перекос)";
+    if (imb.side === "buy") {
+      (action === "long" ? yes : no).push(bit);
+      if (action === "long") yes.push("IMB подтверждает лонг");
+    } else {
+      (action === "short" ? yes : no).push(bit);
+      if (action === "short") yes.push("IMB подтверждает шорт");
+    }
   }
   if (!yes.length && !no.length) {
     return {

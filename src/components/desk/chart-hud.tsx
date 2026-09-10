@@ -15,6 +15,8 @@ export function ChartHud({ boxRef }: { boxRef: RefObject<HTMLDivElement | null> 
   const setTimeframe = useDeskStore((s) => s.setTimeframe);
   const quoteSource = useDeskStore((s) => s.quoteSource);
   const setQuoteSource = useDeskStore((s) => s.setQuoteSource);
+  const toggleOverlay = useDeskStore((s) => s.toggleOverlay);
+  const callouts = useDeskStore((s) => s.overlays.callouts !== false);
   const requestFit = useDeskStore((s) => s.requestFit);
   const symbol = useDeskStore((s) => s.symbol);
   const [wide, setWide] = useState(false);
@@ -66,14 +68,23 @@ export function ChartHud({ boxRef }: { boxRef: RefObject<HTMLDivElement | null> 
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "F8") return;
-      e.preventDefault();
-      e.stopPropagation();
-      void toggle();
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (e.key === "F8") {
+        e.preventDefault();
+        e.stopPropagation();
+        void toggle();
+        return;
+      }
+      if (e.key === "F9") {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleOverlay("callouts");
+      }
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [toggle]);
+  }, [toggle, toggleOverlay]);
 
   return (
     <div className="pointer-events-none absolute inset-x-0 top-0 z-40 flex items-start justify-between gap-2 p-2">
@@ -121,6 +132,17 @@ export function ChartHud({ boxRef }: { boxRef: RefObject<HTMLDivElement | null> 
         <button type="button" onClick={() => void cmd("CLOSE_PROFIT")} className="h-8 rounded-md bg-bg/80 px-2 font-mono text-[11px] text-muted backdrop-blur-sm hover:text-fg">+прибыль</button>
         <button type="button" onClick={() => void cmd("CLOSE_ALL")} className="h-8 rounded-md bg-bg/80 px-2 font-mono text-[11px] text-muted backdrop-blur-sm hover:text-fg">всё</button>
         {note ? <span className="max-w-[9rem] truncate font-mono text-[10px] text-dim">{note}</span> : null}
+        <button
+          type="button"
+          onClick={() => toggleOverlay("callouts")}
+          className={cn(
+            "inline-flex h-8 items-center rounded-md bg-bg/80 px-2 font-mono text-[11px] backdrop-blur-sm",
+            callouts ? "text-muted hover:text-fg" : "text-gold",
+          )}
+          title="F9 — скрыть стрелки и пузыри"
+        >
+          {callouts ? "F9 скрыть" : "F9 подписи"}
+        </button>
         <button
           type="button"
           onClick={() => {
