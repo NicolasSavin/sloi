@@ -5,12 +5,13 @@ import { SYMBOLS, getSymbol } from "@/lib/market/symbols";
 import { newsAlertText } from "@/lib/calendar";
 import { analyzeMarket } from "@/lib/smc/engine";
 import { formatPrice } from "@/lib/utils";
-import { askPlain } from "@/lib/ai/plain";
+import { askPlain, askVision } from "@/lib/ai/plain";
 import { pairLine, playText } from "@/lib/macro-scenarios";
 
 const Input = z.object({
-  question: z.string().min(2).max(500),
+  question: z.string().max(500).optional(),
   symbol: z.string().optional(),
+  image: z.string().max(1_400_000).optional(),
 });
 
 const ALIAS: [RegExp, string][] = [
@@ -96,8 +97,12 @@ const SYSTEM_CHAT =
 export const askDeskChat = createServerFn({ method: "POST" })
   .validator((input: unknown) => Input.parse(input))
   .handler(async ({ data }) => {
+    const question = (data.question ?? "").trim() || (data.image ? "Что на графике? Разбор по смарт мани." : "");
+    if (question.length < 2 && !data.image) {
+      return { ok: true as const, symbol: data.symbol ?? "EURUSD", model: "стол", text: "Напишите вопрос или приложите снимок графика." };
+    }
     const pack = await fetchDigest();
-    const symbol = guessSymbol(data.question, data.symbol);
+    const symbol = guessSymbol(question, data.symbol);
     let snap: ReturnType<typeof analyzeMarket> | null = null;
     try {
       const market = await fetchMarket({ data: { symbol, timeframe: "1h" } });
@@ -105,18 +110,22 @@ export const askDeskChat = createServerFn({ method: "POST" })
     } catch {
       snap = null;
     }
-    const fallback = replyFromSnap(data.question, symbol, pack, snap);
+    const fallback = replyFromSnap(question, symbol, pack, snap);
     const harm = snap?.patterns.filter((p) => p.family === "harmonic").map((p) => p.name) ?? [];
     const st = snap?.story;
     const play = pack.digest.fund.play;
-    const prompt = `Вопрос: ${data.question}
+    const prompt = `Вопрос: ${question}
 Пара ${symbol}. Паттерны: ${snap?.patterns.map((p) => `${p.name}: ${p.therefore}`).join(" | ") || "нет"}.
 Гармоника: ${harm.join(", ") || "нет"}. Вайкофф: ${snap?.wyckoff ? `${snap.wyckoff.name}. ${snap.wyckoff.therefore}` : "нет"}.
 Крупняк делает: ${st?.doing ?? ""}. Значит: ${st?.means ?? ""}. Ждёт: ${st?.waiting ?? ""}.
 Совет: ${pack.digest.markets.find((x) => x.spec.id === symbol)?.advice.title ?? ""}.
 Макро: ${play.kind !== "none" ? playText(play) : pack.digest.fund.line}
-По паре: ${play.kind !== "none" ? pairLine(symbol, play.base) : ""}.`;
-    const ai = await askPlain(SYSTEM_CHAT, prompt);
+По паре: ${play.kind !== "none" ? pairLine(symbol, play.base) : ""}.
+${data.image ? "К вопросу приложена картинка графика/терминала. Опиши что видишь: структура, сплэш/вливание, паттерн, куда логичнее. Не выдумывай цифры, которых нет на снимке." : ""}`;
+    const sys = data.image
+      ? `${SYSTEM_CHAT} Смотри снимок. Если это MT4/график — назови инструменты, зоны, куда цена упирается.`
+      : SYSTEM_CHAT;
+    const ai = data.image ? await askVision(sys, prompt, data.image) : await askPlain(sys, prompt);
     if ("text" in ai) return { ok: true as const, symbol, model: ai.model, text: ai.text };
     return { ok: true as const, symbol, model: "стол", text: `${ai.miss} ${fallback}` };
   });
