@@ -799,9 +799,15 @@ function buildSetup(
       (t, i, a) => t > entry && a.indexOf(t) === i,
     );
     const stall = nearestStall(entry, 1, atr, micro.nodes, hvn);
-    const targets = stall
-      ? [stall.price, ...structural.filter((t) => t > stall.price + atr * 0.25)]
-      : structural;
+    const far = structural.filter((t) => t > entry + atr * 1.1);
+    const stallOk = stall && stall.price - entry >= atr * 1.05;
+    const targets = stallOk
+      ? [stall!.price, ...far.filter((t) => t > stall!.price + atr * 0.25)]
+      : far.length
+        ? far
+        : stall
+          ? [stall.price, ...far]
+          : structural;
     return {
       thesis: stall
         ? `Лонг от зоны. TP1 — ${stall.from === "hvn" ? "кластер HVN" : "infusion"} ${stall.price.toFixed(last.close > 50 ? 2 : 5)} (остановка объёма CME/профиля).`
@@ -832,9 +838,15 @@ function buildSetup(
       (t, i, a) => t < entry && a.indexOf(t) === i,
     );
     const stall = nearestStall(entry, -1, atr, micro.nodes, hvn);
-    const targets = stall
-      ? [stall.price, ...structural.filter((t) => t < stall.price - atr * 0.25)]
-      : structural;
+    const far = structural.filter((t) => t < entry - atr * 1.1);
+    const stallOk = stall && entry - stall.price >= atr * 1.05;
+    const targets = stallOk
+      ? [stall!.price, ...far.filter((t) => t < stall!.price - atr * 0.25)]
+      : far.length
+        ? far
+        : stall
+          ? [stall.price, ...far]
+          : structural;
     return {
       thesis: stall
         ? `Шорт от зоны. TP1 — ${stall.from === "hvn" ? "кластер HVN" : "infusion"} ${stall.price.toFixed(last.close > 50 ? 2 : 5)} (остановка объёма CME/профиля).`
