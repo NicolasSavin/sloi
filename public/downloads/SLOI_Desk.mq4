@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.17"
+#property version   "5.18"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -150,7 +150,7 @@ int OnInit()
    if(!g_leader)
      {
       g_auto = false;
-      Print("SLOI 5.16 дубль на ЭТОМ терминале: авто ВЫКЛ, кружки всё равно уходят");
+      Print("SLOI 5.18 дубль на ЭТОМ MT4: авто ВЫКЛ, кружки уходят. Кнопка АВТО на этом окне — забрать торговлю");
      }
    else Print("SLOI 5.17 лидер этого терминала, чарт ", ChartSymbol(0));
    DrawDesk();
@@ -210,10 +210,13 @@ void OnChartEvent(const int id, const long &lparam, const double &dparam, const 
      {
       if(!g_leader)
         {
-         Print("SLOI авто только на одном чарте. Снимите сов с фунта/йены, оставьте индюки CD");
-         return;
+         GlobalVariableSet("SLOI_LEAD_T", TimeCurrent());
+         GlobalVariableSet("SLOI_LEAD_CH", (double)ChartID());
+         g_leader = true;
+         g_auto = true;
+         Print("SLOI этот чарт теперь один торгует. Сов на втором окне сам выключит авто");
         }
-      g_auto = !g_auto;
+      else g_auto = !g_auto;
       DrawDesk();
       return;
      }
@@ -1691,7 +1694,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 5.17\n";
+   body += "EA 5.18\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();
