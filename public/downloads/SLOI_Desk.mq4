@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.18"
+#property version   "5.19"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -1104,8 +1104,8 @@ void DumpCdObject(long ch, string n, string &body, int &sent, bool hasSplash, bo
    int r0 = (c0 & 0xFF);
    int g0 = ((c0 >> 8) & 0xFF);
    int b0 = ((c0 >> 16) & 0xFF);
-   bool lime = g0 >= 70 && g0 >= r0 - 25 && g0 >= b0 - 40;
-   bool gold = (r0 >= 100 && g0 >= 40 && r0 > b0 + 15 && b0 < 130);
+   bool lime = g0 >= 110 && g0 > r0 + 28 && g0 > b0 + 18;
+   bool gold = (r0 >= 150 && g0 >= 70 && r0 >= g0 - 20 && b0 < 150);
    bool redish = r0 >= 150 && g0 < 90 && b0 < 120;
    bool blue = b0 >= 90 && b0 >= g0 - 10 && b0 >= r0 - 20;
    bool mag = r0 >= 120 && b0 >= 120 && g0 < 90;
@@ -1197,9 +1197,9 @@ void AppendClusters(string &body)
    bool hasI = ChartHasInd(self, "infusion");
    bool hasM = ChartHasInd(self, "imbalance");
    string wantA[3];
-   wantA[0] = "IMBALANCE";
+   wantA[0] = "SPLASH";
    wantA[1] = "INFUSION";
-   wantA[2] = "SPLASH";
+   wantA[2] = "IMBALANCE";
    for(int p = 0; p < 3 && sent < 400; p++)
      {
       int cap = 0;
@@ -1221,9 +1221,9 @@ void AppendClusters(string &body)
       hasI = ChartHasInd(ch, "infusion");
       hasM = ChartHasInd(ch, "imbalance");
       int wins = (int)ChartGetInteger(ch, CHART_WINDOWS_TOTAL);
-      ScrapeWant(ch, wins, hasS, hasI, hasM, "IMBALANCE", body, sent);
-      ScrapeWant(ch, wins, hasS, hasI, hasM, "INFUSION", body, sent);
       ScrapeWant(ch, wins, hasS, hasI, hasM, "SPLASH", body, sent);
+      ScrapeWant(ch, wins, hasS, hasI, hasM, "INFUSION", body, sent);
+      ScrapeWant(ch, wins, hasS, hasI, hasM, "IMBALANCE", body, sent);
       ch = ChartNext(ch);
      }
   }
@@ -1694,7 +1694,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 5.18\n";
+   body += "EA 5.19\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();

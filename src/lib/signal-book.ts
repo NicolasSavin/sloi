@@ -2,6 +2,7 @@ import type { DigestMarket } from "@/lib/digest";
 import type { NewsHalt } from "@/lib/calendar";
 import type { Candle } from "@/lib/market/types";
 import { formatPrice } from "@/lib/utils";
+import { brokerAccount } from "@/lib/broker-tape";
 import type { SignalHit, SignalStatus } from "@/lib/dispatch-store";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -43,6 +44,18 @@ function explain(
   return `Вход ${hit.entry != null ? fmt(hit.entry) : "—"} так и не коснули (или сутки без TP/SL). Это не сделка — сценарий не состоялся.`
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function brokerHas(hit: SignalHit) {
+  const acc = brokerAccount();
+  if (!acc?.positions?.length) return Boolean(hit.filled);
+  const want = hit.action === "long" ? "buy" : "sell";
+  return acc.positions.some(
+    (p) =>
+      p.id === hit.symbol &&
+      p.side === want &&
+      (p.magic === 0 || p.magic === 220826 || p.magic > 0),
+  );
 }
 
 function fillTol(hit: SignalHit) {
@@ -118,8 +131,9 @@ export function settleHit(
   const px = candles?.at(-1)?.close ?? market?.lastClose;
   if (px == null) return { ...hit, status: hit.status ?? "open" };
 
+  const live = brokerHas(hit);
   const walked = candles?.length ? walkPath(hit, candles) : null;
-  const filled = walked ? walked.filled : hit.filled === true;
+  const filled = hit.filled === true || live;
   const base: SignalHit = filled
     ? { ...hit, filled: true, filledAt: hit.filledAt ?? Date.now(), status: "open" }
     : {
@@ -128,7 +142,7 @@ export function settleHit(
         status: "open",
         why:
           hit.entry != null
-            ? `Ждёт касания входа ${formatPrice(hit.entry, hit.decimals)} — это ещё не сделка`
+            ? `Ждёт ордер в MT4 (вход ${formatPrice(hit.entry, hit.decimals)}). Пока сов не открыл — это не сделка`
             : hit.why,
       };
 
@@ -141,9 +155,6 @@ export function settleHit(
     why: explain(status, base, exit, market, halt),
   });
 
-  if (walked?.status === "target" && walked.exit != null) return mark("target", walked.exit);
-  if (walked?.status === "stop" && walked.exit != null) return mark("stop", walked.exit);
-
   if (!filled) {
     if (halt?.active) return mark("halt", px);
     const opposite =
@@ -151,9 +162,22 @@ export function settleHit(
       ((hit.action === "long" && market.advice.action === "short") ||
         (hit.action === "short" && market.advice.action === "long"));
     if (opposite) return mark("reverse", px);
+    if (walked?.status === "target" || walked?.status === "stop") {
+      return {
+        ...base,
+        status: "expired",
+        closedAt: Date.now(),
+        exit: px,
+        resultR: null,
+        why: `Цена прошла уровни, но в MT4 ордера не было — не тейк и не стоп. Авто выкл, спред или сов не взял.`,
+      };
+    }
     if (Date.now() - hit.at > DAY * 2) return mark("expired", px);
     return base;
   }
+
+  if (walked?.status === "target" && walked.exit != null) return mark("target", walked.exit);
+  if (walked?.status === "stop" && walked.exit != null) return mark("stop", walked.exit);
 
   if (halt?.active) return mark("halt", px);
   const opposite =

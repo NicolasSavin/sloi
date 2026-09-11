@@ -187,6 +187,7 @@ export function scriptExit(hit: {
   closedAt?: number;
   pip?: number;
   decimals?: number;
+  filled?: boolean;
 }): string {
   const at = speakClock(hit.closedAt ?? Date.now());
   const name = pairRu(hit.symbol, hit.label);
@@ -208,9 +209,15 @@ export function scriptExit(hit: {
           ? toPips(hit.target - hit.entry, pip)
           : 0;
   if (hit.status === "target") {
+    if (!hit.filled) {
+      return `${at} По ${name} цена дошла до цели, но в терминале сделки не было. Это не тейк.`;
+    }
     return `${at} По ${name} сделка закрыта по тейку. Плюс около ${moved || "нескольких"} пунктов.`;
   }
   if (hit.status === "stop") {
+    if (!hit.filled) {
+      return `${at} По ${name} цена сходила в стоп, ордера в терминале не было. Это не убыток по счёту.`;
+    }
     return `${at} По ${name} сделка закрыта по стопу. Минус около ${moved || "нескольких"} пунктов.`;
   }
   if (hit.status === "halt") return `${at} По ${name} ордер сняли из‑за новости. Это не стоп и не тейк.`;
