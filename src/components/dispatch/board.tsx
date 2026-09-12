@@ -74,6 +74,11 @@ export function DispatchBoard() {
         <div className="mt-8">
           <SessionStrip />
         </div>
+        {q.data?.digest.adapt ? (
+          <p className="mt-4 rounded-xl bg-subtle px-4 py-3 text-sm leading-relaxed text-gold">
+            {q.data.digest.adapt}
+          </p>
+        ) : null}
         <div className="mt-6 flex flex-wrap gap-2">
           <Button
             onClick={() => {

@@ -693,19 +693,31 @@ async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }
     /* */
   }
   const held = applyThemeBook(applyCool(applyHold(markets), stops));
-  const leadMarket = pickLead(held);
+  let adaptLine = "";
+  let adapted = held;
+  try {
+    const { getArchive } = await import("@/lib/archive-store");
+    const { adaptGates, applyAdapt } = await import("@/lib/adapt");
+    const gates = adaptGates(getArchive());
+    adaptLine = gates.line;
+    adapted = applyAdapt(held, gates);
+  } catch {
+    adapted = held;
+  }
+  const leadMarket = pickLead(adapted);
   const leadRow = rows.find((r) => r.spec.id === leadMarket.spec.id) ?? rows[0]!;
   const { parseTgChannel } = await import("@/lib/tg-options");
   const tgOptions = tgHtml ? parseTgChannel(tgHtml) : [];
   const packed = {
     digest: buildDigest({
-      markets: held,
+      markets: adapted,
       leadSnap: leadRow.snap,
       leadCandles: leadRow.candles,
       sentiment,
       fund,
       date: todayKey(),
       tgOptions,
+      adapt: adaptLine,
     }),
     source: payloads[0]?.source ?? "demo",
   };

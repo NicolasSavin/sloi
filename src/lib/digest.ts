@@ -111,6 +111,7 @@ export interface DailyDigest {
   chart: LeadChart;
   poster: DailyPoster;
   tgOptions: { text: string; at: string }[];
+  adapt?: string;
   article: {
     kicker: string;
     title: string;
@@ -745,6 +746,7 @@ export function buildDigest(input: {
   fund: FundamentalSnap;
   date?: string;
   tgOptions?: { text: string; at: string }[];
+  adapt?: string;
 }): DailyDigest {
   const date = input.date ?? todayKey();
   const lead = pickLead(input.markets);
@@ -758,6 +760,7 @@ export function buildDigest(input: {
     fund: input.fund,
     poster: buildPoster(lead, input.leadSnap, date),
     tgOptions: input.tgOptions ?? [],
+    adapt: input.adapt,
     chart: chartFromSnap(input.leadSnap, input.leadCandles, lead.spec.decimals),
     article: writeArticle(lead, others, date, input.sentiment, input.fund, input.leadSnap),
   };
