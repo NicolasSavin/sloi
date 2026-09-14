@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.9.30",
+    d: "2026-09-14",
+    items: [
+      "Сигналы и итоги в ваш Telegram-канал: TELEGRAM_BOT_TOKEN + TELEGRAM_CHANNEL в Vercel. Тест из кабинета",
+    ],
+  },
+  {
     v: "1.9.29",
     d: "2026-09-12",
     items: [

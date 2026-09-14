@@ -20,6 +20,15 @@ export function CabinetGate() {
   const [busy, setBusy] = useState(false);
   const [sym, setSym] = useState("EURUSD");
   const [note, setNote] = useState("");
+  const [tgNote, setTgNote] = useState("");
+  const tgQ = useQuery({
+    queryKey: ["telegram-ready"],
+    queryFn: async () => {
+      const r = await fetch("/api/telegram");
+      return (await r.json()) as { ready?: boolean };
+    },
+    staleTime: 30_000,
+  });
 
   useEffect(() => {
     const k = readDeskKey();
@@ -153,6 +162,29 @@ export function CabinetGate() {
       </div>
 
       <AccountBanner account={account} className="mx-0" />
+
+      <div className="panel-volume rounded-xl p-5">
+        <p className="font-mono text-xs tracking-[0.2em] text-accent">TELEGRAM-КАНАЛ</p>
+        <p className="mt-2 text-sm leading-relaxed text-muted">
+          {tgQ.data?.ready
+            ? "Бот подключён. Новый лонг/шорт и итог (тейк, стоп, не состоялся) уходят в канал сами."
+            : "Пока выключено. @BotFather → токен. Бот админом в канале. Vercel → TELEGRAM_BOT_TOKEN и TELEGRAM_CHANNEL (@имя). Redeploy."}
+        </p>
+        <Button
+          className="mt-3"
+          variant="outline"
+          disabled={!tgQ.data?.ready || busy}
+          onClick={async () => {
+            setTgNote("шлю тест…");
+            const r = await fetch("/api/telegram", { method: "POST" });
+            const j = (await r.json()) as { ok?: boolean; error?: string };
+            setTgNote(j.ok ? "Тест ушёл в канал." : j.error ?? "не ушло");
+          }}
+        >
+          Тест в Telegram
+        </Button>
+        {tgNote ? <p className="mt-2 text-sm text-muted">{tgNote}</p> : null}
+      </div>
 
       <div className="panel-volume rounded-xl p-5">
         <p className="font-mono text-xs tracking-[0.2em] text-accent">УПРАВЛЕНИЕ С САЙТА</p>

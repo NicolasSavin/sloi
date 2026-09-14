@@ -722,10 +722,13 @@ async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }
     source: payloads[0]?.source ?? "demo",
   };
   try {
-    const { syncArchiveFromDigest } = await import("@/lib/archive-store");
-    syncArchiveFromDigest(packed.digest.markets, packed.digest.fund?.halt);
+    const { syncArchiveFromDigest, getArchive } = await import("@/lib/archive-store");
+    const before = getArchive();
+    await syncArchiveFromDigest(packed.digest.markets, packed.digest.fund?.halt);
+    const { fanoutTelegram } = await import("@/lib/telegram");
+    void fanoutTelegram(before, getArchive());
   } catch {
-    /* archive optional */
+    /* archive / telegram optional */
   }
   digestCache = { at: Date.now(), data: packed };
   try {
