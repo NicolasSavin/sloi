@@ -221,6 +221,13 @@ export function refineAdvice(
   const stop = opts.stop ?? 0;
   const mode = fillMode(advice.action, last, entry, stop, opts.target);
   if (mode === "LATE") {
+    if (opts.hasZone) {
+      return {
+        ...advice,
+        title: "Лимит: цена убежала от зоны",
+        therefore: "Рынком не догоняем. Лимитка в зону остаётся — сов снимет, если сценарий сменится.",
+      };
+    }
     return { ...advice, action: "wait", title: "Поздно: цена уже убежала", therefore: "Лимитку не догоняем." };
   }
   const stack = stackGrade(advice.action, opts.htfBias, opts.d1Bias, opts.choch);
@@ -251,20 +258,18 @@ export function refineAdvice(
   if (hi != null && lo != null && last > 0) {
     const where = boxWhere(last, hi, lo);
     const ranging = opts.h1Trend === "range" || opts.h1Trend == null;
-    if (senior === "none" && where === "mid" && ranging) {
+    if (senior === "none" && where === "mid" && ranging && !opts.hasZone) {
       return {
         ...advice,
         action: "wait",
         title: "Ждать: старший не выбрал",
-        therefore: "H4 и дневка во флэте, час в середине коробки. Край или полка — можно. Середину не гадаем.",
+        therefore: "H4 и дневка во флэте, час в середине, зоны нет. Край — можно. Середину без блока не гадаем.",
       };
     }
     if (ranging && where === "mid" && opts.coil !== "coil") {
       return {
         ...advice,
-        action: "wait",
-        title: "Ждать: середина коробки",
-        therefore: "Большую часть времени цена во флэте. Вход от края часовой коробки, в сторону H4/D1.",
+        therefore: `${advice.therefore} Середина коробки: не рынок — лимит в зону на краю, сов ставит отложку.`,
       };
     }
     if (senior === "long" && advice.action === "short") {

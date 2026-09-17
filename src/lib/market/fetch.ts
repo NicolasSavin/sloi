@@ -781,8 +781,7 @@ async function formatSignalFeed(digest: DailyDigest) {
     let mode =
       side === "WAIT" ? "WAIT" : fillMode(side === "BUY" ? "long" : "short", last, e, s, t);
     if (mode === "LATE") {
-      if (isHeld(m.spec.id)) mode = "LIMIT";
-      else side = "WAIT";
+      mode = "LIMIT";
     }
     if (side !== "WAIT" && mode === "MARKET" && !sessionAllows(m.spec.id, session).ok) {
       const risk = Math.abs(e - s);
