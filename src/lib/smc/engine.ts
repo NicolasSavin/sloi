@@ -721,6 +721,21 @@ function nearestZone(zones: Zone[], price: number): Zone | undefined {
   })[0];
 }
 
+function clipTp1(entry: number, stop: number, targets: number[], dir: 1 | -1) {
+  const risk = Math.abs(entry - stop);
+  if (!(risk > 0) || !targets.length) return targets;
+  const maxR = 1.55 * risk;
+  const t0 = targets[0]!;
+  const rew = (t0 - entry) * dir;
+  const first = rew > maxR ? entry + dir * maxR : t0;
+  const rest = targets.filter((t, i) => i > 0 && (t - first) * dir > risk * 0.2);
+  return [first, ...rest].slice(0, 3);
+}
+
+function minStopDist(entry: number, atr: number) {
+  return Math.max(atr * 1.15, Math.abs(entry) * 0.0016);
+}
+
 function buildSetup(
   last: Candle,
   trend: "up" | "down" | "range",
@@ -793,7 +808,7 @@ function buildSetup(
       };
     }
     const entry = (zone.top + zone.bottom) / 2;
-    const stop = Math.min(zone.bottom, entry) - atr * 1.15;
+    const stop = Math.min(zone.bottom, entry) - minStopDist(entry, atr);
     const buyLiq = liq.filter((l) => l.side === "buy").sort((a, b) => a.price - b.price);
     const structural = [range.eq, buyLiq.at(-1)?.price ?? range.high, range.high].filter(
       (t, i, a) => t > entry && a.indexOf(t) === i,
@@ -816,7 +831,7 @@ function buildSetup(
           : `Лонг от ${zoneName(zone)}. Реакция в зоне, не догон.`,
       entry,
       stop,
-      targets: targets.slice(0, 3),
+      targets: clipTp1(entry, stop, targets, 1),
       invalidation: "Закрытие ниже стопа / последнего HL.",
     };
   }
@@ -832,7 +847,7 @@ function buildSetup(
       };
     }
     const entry = (zone.top + zone.bottom) / 2;
-    const stop = Math.max(zone.top, entry) + atr * 1.15;
+    const stop = Math.max(zone.top, entry) + minStopDist(entry, atr);
     const sellLiq = liq.filter((l) => l.side === "sell").sort((a, b) => b.price - a.price);
     const structural = [range.eq, sellLiq.at(-1)?.price ?? range.low, range.low].filter(
       (t, i, a) => t < entry && a.indexOf(t) === i,
@@ -855,7 +870,7 @@ function buildSetup(
           : `Шорт от ${zoneName(zone)}. Реакция в зоне, не догон.`,
       entry,
       stop,
-      targets: targets.slice(0, 3),
+      targets: clipTp1(entry, stop, targets, -1),
       invalidation: "Закрытие выше стопа / последнего LH.",
     };
   }
