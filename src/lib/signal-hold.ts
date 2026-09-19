@@ -66,7 +66,7 @@ export function applyHold(markets: DigestMarket[]): DigestMarket[] {
       const action = m.advice.action as "long" | "short";
       // Встречный живой приказ — не сразу: 25 мин держим сторону, иначе USDCAD хлопает.
       if (prev && prev.action !== action) {
-        if (now - prev.since < 25 * 60_000) {
+        if (now - prev.since < 3 * 60 * 60_000) {
           return {
             ...m,
             advice: {
@@ -74,7 +74,7 @@ export function applyHold(markets: DigestMarket[]): DigestMarket[] {
               action: prev.action,
               title: "Держим сторону",
               therefore:
-                "Стол не разворачивает 25 минут: иначе сов открывает и сразу закрывает.",
+                "Стол не разворачивает 3 часа: на истории отмена лимитки как раз съедала плюсовые цели.",
             },
             setup: {
               ...m.setup,

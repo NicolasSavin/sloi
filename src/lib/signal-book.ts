@@ -161,7 +161,12 @@ export function settleHit(
       market &&
       ((hit.action === "long" && market.advice.action === "short") ||
         (hit.action === "short" && market.advice.action === "long"));
-    if (opposite) return mark("reverse", px);
+    if (opposite) {
+      return {
+        ...base,
+        why: `Характер шуманул против, лимитку не снимаем. На истории такие отмены часто были бы в плюсе.`,
+      };
+    }
     if (walked?.status === "target" || walked?.status === "stop") {
       return {
         ...base,
