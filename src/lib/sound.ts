@@ -102,6 +102,7 @@ export function forVoice(text: string) {
     .replace(/EUR\/USD|EURUSD/g, "евро доллар")
     .replace(/GBP\/USD|GBPUSD/g, "фунт")
     .replace(/XAUUSD|XAU\/USD/g, "золото")
+    .replace(/ClusterDelta/gi, "кластер дельта")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -112,11 +113,13 @@ export function scriptOrder(m: {
   advice: { action: "long" | "short" | "wait" | "skip"; therefore?: string };
   setup: { entry: number | null; stop: number | null; targets: number[] };
   story?: { doing?: string };
+  volumeSpeak?: string;
 }): string {
   const at = speakClock();
   const name = pairRu(m.spec.id, m.spec.label);
+  const vol = m.volumeSpeak ? ` ${forVoice(m.volumeSpeak)}` : "";
   if (m.advice.action !== "long" && m.advice.action !== "short") {
-    return `${at} По ${name} ждём. Ордер не открываем.`;
+    return `${at} По ${name} ждём. Ордер не открываем.${vol}`;
   }
   const side = m.advice.action === "long" ? "покупка" : "продажа";
   const entry = m.setup.entry;
@@ -129,10 +132,10 @@ export function scriptOrder(m: {
   const logic = why ? ` Логика: ${why}` : "";
   const rr = rrLine(entry, m.setup.stop, m.setup.targets[0], m.spec.pip);
   if (mode === "MARKET") {
-    return `${at} Сигнал по ${name}. ${side} по рынку. Вход сейчас. ${rr}${logic}`;
+    return `${at} Сигнал по ${name}. ${side} по рынку. Вход сейчас. ${rr}${logic}${vol}`;
   }
   if (mode === "LATE") {
-    return `${at} По ${name} поздно. ${side} не догоняем.`;
+    return `${at} По ${name} поздно. ${side} не догоняем.${vol}`;
   }
   const when =
     pips <= 4
@@ -140,7 +143,7 @@ export function scriptOrder(m: {
       : pips <= 25
         ? `до входа примерно ${pips} пунктов`
         : `до зоны ещё ${pips} пунктов, ордер подождёт`;
-  return `${at} Сигнал по ${name}. ${side} лимитным ордером. ${when}. ${rr}${logic}`;
+  return `${at} Сигнал по ${name}. ${side} лимитным ордером. ${when}. ${rr}${logic}${vol}`;
 }
 
 export function scriptCancel(id: string, label: string, action: "long" | "short") {
@@ -434,6 +437,7 @@ export function scriptFor(input: {
   fund?: string;
   channel?: string;
   foreign?: boolean;
+  volume?: string;
 }): string {
   const open =
     input.action === "long"
@@ -449,5 +453,6 @@ export function scriptFor(input: {
       ? `На экране ${input.channel}.`
       : "";
   const fund = input.fund ? ` ${input.fund}` : "";
-  return forVoice(`${screen} ${input.label}. ${open}${fund} ${input.doing} ${input.waiting} ${input.leadsTo}`);
+  const vol = input.volume ? ` ${input.volume}` : "";
+  return forVoice(`${screen} ${input.label}. ${open}${fund}${vol} ${input.doing} ${input.waiting} ${input.leadsTo}`);
 }

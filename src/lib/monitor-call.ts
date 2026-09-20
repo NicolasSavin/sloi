@@ -84,6 +84,23 @@ export function linesFromTick(
     });
   }
 
+  for (const m of markets) {
+    if (!m.volumeSpeak) continue;
+    const vk = `vol:${m.spec.id}:${m.volumeSpeak.slice(0, 80)}`;
+    if (!first && prev.get(`vol:${m.spec.id}`) === m.volumeSpeak) continue;
+    prev.set(`vol:${m.spec.id}`, m.volumeSpeak);
+    const n = nameOf(m.spec.id, m.spec.label);
+    const text = `${clockRu(at)} ${n}. ${m.volumeSpeak}`;
+    out.push({
+      id: vk,
+      at,
+      pair: m.spec.id,
+      text,
+      speak: text.replace(/\s+/g, " ").slice(0, 320),
+      tone: /против/i.test(m.volumeSpeak) ? "alert" : /подтверд/i.test(m.volumeSpeak) ? "bull" : "neutral",
+    });
+  }
+
   const tapeRows = tape?.length ? tape : [];
   const ordered = [
     ...tapeRows.filter((r) => r.id === "XAUUSD"),

@@ -138,6 +138,7 @@ export function Studio({
         fund: digest.fund.line,
         channel: onAir.label,
         foreign: onAir.lang === "en",
+        volume: current.volumeSpeak,
       });
       if (cancelled) return;
       setLine(text);

@@ -646,3 +646,32 @@ export function entryVolume(
   }
   return { verdict: "neutral", title: "", because: "", therefore: "" };
 }
+
+export function volumeSpeakLine(
+  action: "long" | "short" | "wait" | "skip",
+  micro: MicroSnap | undefined,
+  last: number,
+  entry: number | null,
+  cdLive?: boolean,
+): string {
+  const live = cdLive || micro?.footprint.source === "tape" || Boolean(micro?.nodes.some((n) => n.tape));
+  if (!live || !micro) return "";
+  if (action === "long" || action === "short") {
+    const v = entryVolume(action, micro, last, entry);
+    if (v.verdict === "confirm") return `Реальный объём: ${v.because}. ${v.therefore}`;
+    if (v.verdict === "wait") return `Реальный объём: ${v.because}. ${v.therefore}`;
+  }
+  const bits: string[] = [];
+  const d = micro.footprint.delta;
+  if (Number.isFinite(d) && d !== 0) bits.push(`дельта ${d > 0 ? "плюс" : "минус"} ${Math.round(Math.abs(d))}`);
+  if (micro.splash) {
+    bits.push(micro.splash.side === "buy" ? "сплэш вверх, сняли стопы покупок" : "сплэш вниз, сняли стопы продаж");
+  }
+  if (micro.infusion && micro.infusion) {
+    bits.push(
+      micro.infusion.side === "buy" ? "вливание снизу, остановка покупок" : "вливание сверху, остановка продаж",
+    );
+  }
+  if (!bits.length) return "Лента ClusterDelta живая. Кружков по стороне сейчас нет.";
+  return `Реальный объём: ${bits.join(". ")}.`;
+}

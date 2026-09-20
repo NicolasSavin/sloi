@@ -4,7 +4,7 @@ import { buildConstruction } from "@/lib/options";
 import type { FundWind, FundamentalSnap } from "@/lib/fundamentals";
 import type { SentimentSnap } from "@/lib/sentiment";
 import type { LocalSetup, LiquidityPool, MarketStory, SmcSnapshot, StructureEvent, Zone } from "@/lib/smc/engine";
-import { tapeVsSide } from "@/lib/smc/micro";
+import { volumeSpeakLine } from "@/lib/smc/micro";
 import { formatPrice } from "@/lib/utils";
 
 export interface DigestMarket {
@@ -26,6 +26,7 @@ export interface DigestMarket {
   d1Bias?: SmcSnapshot["bias"];
   spark?: number[];
   boxVector?: SmcSnapshot["boxVector"];
+  volumeSpeak?: string;
 }
 
 export interface ChartNote {
@@ -141,6 +142,7 @@ export function shortDate(iso: string): string {
 }
 
 export function toDigestMarket(spec: SymbolSpec, snap: SmcSnapshot, spread?: number, last?: Candle, options?: OptionsSnapshot | null, candles?: Candle[]): DigestMarket {
+  const advice = advise(snap, spec, spread ?? spec.spread);
   return {
     spec,
     lastClose: snap.lastClose,
@@ -152,11 +154,18 @@ export function toDigestMarket(spec: SymbolSpec, snap: SmcSnapshot, spread?: num
     story: snap.story,
     setup: snap.localSetup,
     range: snap.dealingRange,
-    advice: advise(snap, spec, spread ?? spec.spread),
+    advice,
     premiumDiscount: snap.premiumDiscount,
     construction: buildConstruction(options, spec),
     spark: candles?.slice(-48).map((c) => c.close),
     boxVector: snap.boxVector,
+    volumeSpeak: volumeSpeakLine(
+      advice.action,
+      snap.micro,
+      snap.lastClose,
+      snap.localSetup.entry,
+      snap.cdTape?.live,
+    ),
   };
 }
 
@@ -502,12 +511,7 @@ export function writeArticle(
   const body = [
     fund.halt.active ? fund.halt.line : "",
     `${name}. ${lead.advice.title}. ${lead.advice.therefore}`,
-    leadSnap?.micro
-      ? (() => {
-          const t = tapeVsSide(leadSnap.micro, lead.advice.action);
-          return `Кружки: ${t.because}. ${t.therefore}`;
-        })()
-      : "",
+    lead.volumeSpeak ?? "",
     lead.story.doing,
     lead.story.waiting,
     leadSnap?.wyckoff ? `${leadSnap.wyckoff.name}. ${leadSnap.wyckoff.therefore}` : "",
