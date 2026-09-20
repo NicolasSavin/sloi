@@ -570,6 +570,15 @@ export function entryVolume(
       therefore: "",
     };
   }
+  const live = micro.footprint.source === "tape" || micro.nodes.some((n) => n.tape);
+  if (!live) {
+    return {
+      verdict: "neutral",
+      title: "",
+      because: "реальной ленты CD нет",
+      therefore: "Кросс/прокси не подтверждают и не режут вход. Работают зона и структура.",
+    };
+  }
   const tape = tapeVsSide(micro, action);
   const spl = [...micro.nodes].reverse().find((n) => n.kind === "splash");
   const splashPx = spl?.price ?? micro.splash?.price;
@@ -593,7 +602,6 @@ export function entryVolume(
   const strong = buy > 0 && Math.abs(delta) > buy * 0.12;
   const deltaAgainst = strong && ((action === "long" && delta < 0) || (action === "short" && delta > 0));
   const deltaWith = strong && ((action === "long" && delta > 0) || (action === "short" && delta < 0));
-  const live = micro.footprint.source === "tape" || micro.nodes.some((n) => n.tape);
   if (tape.against > tape.confirm || deltaAgainst) {
     return {
       verdict: "wait",
