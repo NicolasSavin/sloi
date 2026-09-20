@@ -135,7 +135,7 @@ export function scriptOrder(m: {
     return `${at} Сигнал по ${name}. ${side} по рынку. Вход сейчас. ${rr}${logic}${vol}`;
   }
   if (mode === "LATE") {
-    return `${at} По ${name} поздно. ${side} не догоняем.${vol}`;
+    return `${at} По ${name} ${side} лимитным ордером в зоне. Рынком не догоняем, отложка остаётся.${vol}`;
   }
   const when =
     pips <= 4

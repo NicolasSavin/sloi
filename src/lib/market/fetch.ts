@@ -788,7 +788,7 @@ async function formatSignalFeed(digest: DailyDigest) {
       const away = Math.abs(last - e);
       if (risk > 0 && away > risk * 0.35) mode = "LIMIT";
     }
-    lines.push(`${m.spec.id} ${side} ${e} ${s} ${t} ${last} SKEW ${cap} MODE ${mode === "LATE" ? "WAIT" : mode}`);
+    lines.push(`${m.spec.id} ${side} ${e} ${s} ${t} ${last} SKEW ${cap} MODE ${mode}`);
   }
   return `${lines.join("\n")}\n`;
 }

@@ -143,12 +143,14 @@ export function fillMode(
   const zone = risk * 0.38;
   if (!Number.isFinite(zone) || zone <= 0) return "LIMIT";
   if (action === "long") {
-    if (target != null && target > entry && last > entry + (target - entry) * 0.32) return "LATE";
     if (last <= entry + zone) return "MARKET";
+    const span = target != null && target > entry ? target - entry : 0;
+    if (span > 0 && last >= entry + Math.max(zone * 1.6, span * 0.72)) return "LATE";
     return "LIMIT";
   }
-  if (target != null && target < entry && last < entry - (entry - target) * 0.32) return "LATE";
   if (last >= entry - zone) return "MARKET";
+  const span = target != null && target < entry ? entry - target : 0;
+  if (span > 0 && last <= entry - Math.max(zone * 1.6, span * 0.72)) return "LATE";
   return "LIMIT";
 }
 
@@ -224,8 +226,8 @@ export function refineAdvice(
     if (opts.hasZone) {
       return {
         ...advice,
-        title: "Лимит: цена убежала от зоны",
-        therefore: "Рынком не догоняем. Лимитка в зону остаётся — сов снимет, если сценарий сменится.",
+        title: "Лимит: цена ушла от зоны",
+        therefore: "Рынком не догоняем. Лимитка в зоне остаётся — когда цена вернётся, ордер уже стоит.",
       };
     }
     return { ...advice, action: "wait", title: "Поздно: цена уже убежала", therefore: "Лимитку не догоняем." };
@@ -269,7 +271,8 @@ export function refineAdvice(
     if (ranging && where === "mid" && opts.coil !== "coil") {
       return {
         ...advice,
-        therefore: `${advice.therefore} Середина коробки: не рынок — лимит в зону на краю, сов ставит отложку.`,
+        title: advice.action === "long" ? "Лимит на покупку в зоне" : "Лимит на продажу в зоне",
+        therefore: `${advice.therefore} Середина коробки: лимитку вешаем СЕЙЧАС на край. Когда цена придёт — ордер уже стоит, «поздно» не будет.`,
       };
     }
     if (senior === "long" && advice.action === "short") {
@@ -290,39 +293,23 @@ export function refineAdvice(
     }
     if (senior === "long" && advice.action === "long" && where === "upper") {
       if (opts.coil === "coil" && opts.coilDir === "up") {
-        /* полка на потолке — выход наружу, не ждать закрытия выше */
-      } else if (opts.coil === "spike") {
-        return {
-          ...advice,
-          action: "wait",
-          title: "Ждать возврат в коробку",
-          therefore: "Шпиль через верх без полки. Не догонять наружу — ждать возврат к краю, лонг от уровня.",
-        };
+        /* полка на потолке — можно рынок на выход */
       } else {
         return {
           ...advice,
-          action: "wait",
-          title: "Ждать выноса коробки",
-          therefore: "Лонг из потолка H1 без полки — догон. Нужна микрополка у края или закрытие выше.",
+          title: "Лимит в зоне, не потолок",
+          therefore: "Цена у потолка. Рынком не догоняем. Лимитка на нижней зоне остаётся — сов не снимает.",
         };
       }
     }
     if (senior === "short" && advice.action === "short" && where === "lower") {
       if (opts.coil === "coil" && opts.coilDir === "down") {
-        /* полка на полу — выход наружу */
-      } else if (opts.coil === "spike") {
-        return {
-          ...advice,
-          action: "wait",
-          title: "Ждать возврат в коробку",
-          therefore: "Шпиль через низ без полки. Не догонять вниз — ждать возврат к краю, шорт от уровня.",
-        };
+        /* полка на полу */
       } else {
         return {
           ...advice,
-          action: "wait",
-          title: "Ждать слома коробки",
-          therefore: "Шорт из пола H1 без полки — догон. Нужна микрополка у края или закрытие ниже.",
+          title: "Лимит в зоне, не пол",
+          therefore: "Цена у пола. Рынком не догоняем. Лимитка на верхней зоне остаётся — сов не снимает.",
         };
       }
     }
