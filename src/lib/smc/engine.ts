@@ -1600,6 +1600,14 @@ export function analyzeMarket(
         : "short"
       : "wait";
   const tapeRead = tapeVsSide(micro, setupSide);
+  const tapeScore =
+    setupSide === "wait"
+      ? 0
+      : tapeRead.confirm > tapeRead.against
+        ? 8
+        : tapeRead.against > tapeRead.confirm
+          ? -10
+          : 0;
   story.chain.unshift({
     because: `Кружки CD: ${tapeRead.because}.`,
     therefore: tapeRead.therefore,
@@ -1651,7 +1659,7 @@ export function analyzeMarket(
     ivNews,
     killzone: kz,
     confluence,
-    score,
+    score: Math.min(100, Math.max(8, score + tapeScore)),
     localSetup,
     story,
   };

@@ -549,9 +549,92 @@ export function tapeVsSide(
   } else if (yes.length && !no.length) {
     therefore = `Лента CD совпадает с приказом ${action === "long" ? "лонг" : "шорт"}. Это усиление, не замена диспетчера.`;
   } else if (no.length && !yes.length) {
-    therefore = "Кружки против приказа. Сделка всё равно по диспетчеру, кружки — предупреждение.";
+    therefore = "Кружки против приказа. Вход не подтверждаем — ждём совпадения ленты.";
   } else {
-    therefore = `Смесь: ${yes.length} за приказ, ${no.length} против. Вес у приказа, кружки — комментарий.`;
+    therefore = `Смесь: ${yes.length} за приказ, ${no.length} против. Пока против больше — не входим.`;
   }
   return { because, therefore, confirm: yes.length, against: no.length };
+}
+
+export function entryVolume(
+  action: "long" | "short",
+  micro: MicroSnap | undefined,
+  last: number,
+  entry: number | null,
+): { verdict: "confirm" | "wait" | "neutral"; title: string; because: string; therefore: string } {
+  if (!micro) {
+    return {
+      verdict: "neutral",
+      title: "",
+      because: "",
+      therefore: "",
+    };
+  }
+  const tape = tapeVsSide(micro, action);
+  const spl = [...micro.nodes].reverse().find((n) => n.kind === "splash");
+  const splashPx = spl?.price ?? micro.splash?.price;
+  const splashSide = spl?.side ?? micro.splash?.side;
+  const near = (a: number, b: number) => Math.abs(a - b) <= Math.abs(a) * 0.0012;
+  const atSplash = splashPx != null && Number.isFinite(last) && near(last, splashPx);
+  const chase =
+    splashSide != null &&
+    ((action === "long" && splashSide === "buy") || (action === "short" && splashSide === "sell")) &&
+    atSplash;
+  if (chase) {
+    return {
+      verdict: "wait",
+      title: "Ждать: не догонять сплэш",
+      because: micro.splash?.because ?? "Вынос объёмом, цена ещё на сплэше.",
+      therefore: "Сплэш — съём стопов, не вход. Лимит после возврата в зону.",
+    };
+  }
+  const buy = Math.abs(micro.footprint.buy) + Math.abs(micro.footprint.sell);
+  const delta = micro.footprint.delta;
+  const strong = buy > 0 && Math.abs(delta) > buy * 0.12;
+  const deltaAgainst = strong && ((action === "long" && delta < 0) || (action === "short" && delta > 0));
+  const deltaWith = strong && ((action === "long" && delta > 0) || (action === "short" && delta < 0));
+  const live = micro.footprint.source === "tape" || micro.nodes.some((n) => n.tape);
+  if (tape.against > tape.confirm || deltaAgainst) {
+    return {
+      verdict: "wait",
+      title: "Ждать: объём против входа",
+      because: tape.because || `Дельта ${delta >= 0 ? "+" : ""}${delta.toFixed(0)} против стороны.`,
+      therefore: "Зона есть, лента не подтвердила. Лимитку не ставим, пока дельта/кружки не совпадут.",
+    };
+  }
+  const fade =
+    splashSide != null &&
+    !atSplash &&
+    ((action === "long" && splashSide === "sell") || (action === "short" && splashSide === "buy"));
+  const inf = [...micro.nodes].reverse().find((n) => n.kind === "infusion" && n.held !== false);
+  const infOk =
+    inf && ((action === "long" && inf.side === "buy") || (action === "short" && inf.side === "sell"));
+  if (tape.confirm > tape.against || fade || deltaWith || infOk) {
+    const bits = [
+      fade ? "сплэш снял чужие стопы, цена вернулась" : "",
+      infOk ? "вливание по стороне — лужа" : "",
+      deltaWith ? `дельта ${delta >= 0 ? "+" : ""}${delta.toFixed(0)}` : "",
+      tape.confirm ? tape.because : "",
+    ]
+      .filter(Boolean)
+      .join("; ");
+    const inZone = entry != null && near(last, entry);
+    return {
+      verdict: "confirm",
+      title: inZone ? (action === "long" ? "Рынок: объём подтвердил лонг" : "Рынок: объём подтвердил шорт") : "",
+      because: bits || "лента по стороне входа",
+      therefore: inZone
+        ? "Зона и объём совпали — можно рынок, не догон сплэша."
+        : "Объём подтвердил. Лимит в зону, не рынок из середины.",
+    };
+  }
+  if (live && tape.confirm === 0 && tape.against === 0 && !deltaWith) {
+    return {
+      verdict: "neutral",
+      title: "",
+      because: "CD жив, кружков по стороне нет",
+      therefore: "Ленту не спорит и не подтверждает — решают зона и структура.",
+    };
+  }
+  return { verdict: "neutral", title: "", because: "", therefore: "" };
 }
