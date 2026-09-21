@@ -244,8 +244,8 @@ export function refineAdvice(
   }
   const align = playAligned(opts.id, opts.play, advice.action, last, prev);
   const score = (opts.score ?? 50) + align.boost;
-  const need = align.ok ? 42 : 52;
-  const h1need = align.ok ? 48 : 62;
+  const need = align.ok ? 38 : 46;
+  const h1need = align.ok ? 42 : 52;
   if (!opts.hasZone) {
     return {
       ...advice,
@@ -276,19 +276,33 @@ export function refineAdvice(
       };
     }
     if (senior === "long" && advice.action === "short") {
+      if (opts.hasZone) {
+        return {
+          ...advice,
+          title: "Лимит: блок против набора",
+          therefore: "Старший копит лонг, но шорт-блок есть. Лимитка в зону, рынок не догоняем.",
+        };
+      }
       return {
         ...advice,
         action: "wait",
         title: "Ждать: набор вверх",
-        therefore: "Старший копит лонг. Шорт коробки — против накопления.",
+        therefore: "Старший копит лонг. Шорт без блока — против накопления.",
       };
     }
     if (senior === "short" && advice.action === "long") {
+      if (opts.hasZone) {
+        return {
+          ...advice,
+          title: "Лимит: блок против раздачи",
+          therefore: "Старший копит шорт, но лонг-блок есть. Лимитка в зону, не рынок.",
+        };
+      }
       return {
         ...advice,
         action: "wait",
         title: "Ждать: раздача вниз",
-        therefore: "Старший копит шорт. Лонг коробки — против раздачи.",
+        therefore: "Старший копит шорт. Лонг без блока — против раздачи.",
       };
     }
     if (senior === "long" && advice.action === "long" && where === "upper") {
@@ -315,7 +329,7 @@ export function refineAdvice(
     }
   }
   const pd = opts.premiumDiscount;
-  if (!align.ok && advice.action === "long" && pd === "premium" && !opts.choch) {
+  if (!align.ok && advice.action === "long" && pd === "premium" && !opts.choch && !opts.hasZone) {
     return {
       ...advice,
       action: "wait",
@@ -323,7 +337,7 @@ export function refineAdvice(
       therefore: "Цена дорогая относительно диапазона. Покупка только после CHoCH или возврата в дисконт.",
     };
   }
-  if (!align.ok && advice.action === "short" && pd === "discount" && !opts.choch) {
+  if (!align.ok && advice.action === "short" && pd === "discount" && !opts.choch && !opts.hasZone) {
     return {
       ...advice,
       action: "wait",
@@ -331,20 +345,20 @@ export function refineAdvice(
       therefore: "Цена дешёвая относительно диапазона. Продажа только после CHoCH или возврата в премию.",
     };
   }
-  if (score < need && !opts.choch) {
+  if (score < need && !opts.choch && !opts.hasZone) {
     return {
       ...advice,
       action: "wait",
       title: "Слабое совпадение слоёв",
-      therefore: `Счёт ${score}/100, нет CHoCH. Ждём, пока структура, зона и старший ТФ не сойдутся.`,
+      therefore: `Счёт ${score}/100, нет зоны и нет CHoCH. Ждём блок, ликвидность или всплеск.`,
     };
   }
-  if (stack.grade === "H1" && !opts.choch && score < h1need) {
+  if (stack.grade === "H1" && !opts.choch && score < h1need && !opts.hasZone) {
     return {
       ...advice,
       action: "wait",
       title: "Только час — мало",
-      therefore: `${stack.note} Без CHoCH и счёта выше 62 лимитку не вешаем.`,
+      therefore: `${stack.note} Нет блока/FVG. Без зоны лимитку не вешаем.`,
     };
   }
   if (stack.block === "all") {
