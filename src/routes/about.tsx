@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.9.47",
+    d: "2026-09-21",
+    items: [
+      "Тиковый сплэш только на кроссах. Мажоры, золото, нефть — только ClusterDelta, даже если индюк молчит",
+    ],
+  },
+  {
     v: "1.9.46",
     d: "2026-09-21",
     items: [

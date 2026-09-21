@@ -381,7 +381,7 @@ export function buildMicro(
       }
     }
   }
-  if (!fromCd) {
+  if (!native) {
     const burst = liveTickBurst(symbol);
     if (burst && !raw.some((n) => n.kind === burst.kind)) {
       raw.push({
