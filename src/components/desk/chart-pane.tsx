@@ -1406,7 +1406,17 @@ function drawTape(
     ctx.font = "bold 12px IBM Plex Sans, sans-serif";
     ctx.strokeStyle = "rgba(8,6,4,0.7)";
     ctx.lineWidth = 3;
-    const label = splash ? "СПЛЭШ" : broken ? "ВЛИВ. ПРОБИТО" : inf ? "ВЛИВАНИЕ" : "IMB";
+    const label = splash
+      ? n.follow === "continue"
+        ? "СПЛЭШ ХОД"
+        : n.follow === "fade"
+          ? "СПЛЭШ ВЫНОС"
+          : "СПЛЭШ"
+      : broken
+        ? "ВЛИВ. ПРОБИТО"
+        : inf
+          ? "ВЛИВАНИЕ"
+          : "IMB";
     const lx = xx + 12;
     const ly = yy - 10;
     ctx.strokeText(label, lx, ly);

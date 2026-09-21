@@ -25,6 +25,8 @@ export interface VolumeNode {
   ratio?: number;
   note?: string;
   tape?: boolean;
+  delta?: number;
+  follow?: "continue" | "fade" | "open";
 }
 
 export interface MicroSnap {
@@ -35,6 +37,7 @@ export interface MicroSnap {
   footprint: { buy: number; sell: number; delta: number; source: "tape" | "proxy" | "cme-delayed" };
   infusion: VolumeMark | null;
   splash: VolumeMark | null;
+  splashDelta?: SplashDeltaRead | null;
   nodes: VolumeNode[];
   cmeTicker: string | null;
   circlePath: CirclePath;
@@ -48,6 +51,78 @@ export interface CirclePath {
   because: string;
   therefore: string;
   via: "tape" | "cross" | "none";
+}
+
+export interface SplashDeltaRead {
+  verdict: "continue" | "fade" | "open";
+  splashDelta: number;
+  followDelta: number;
+  because: string;
+  therefore: string;
+}
+
+export function readSplashDelta(
+  splash: VolumeNode,
+  cdBars: CdBar[],
+  candles: Candle[],
+  lastClose: number,
+): SplashDeltaRead {
+  const near = cdBars.find((b) => Math.abs(b.time - splash.time) < 120);
+  const bar = candles.find((c) => Math.abs(c.time - splash.time) < 3600);
+  const splashDelta = splash.delta ?? near?.delta ?? (bar ? deltaOf(bar) : 0);
+  const afterCd = cdBars.filter((b) => b.time > splash.time + 30).slice(0, 4);
+  const afterC = candles.filter((c) => c.time > splash.time).slice(0, 4);
+  const followDelta = afterCd.length
+    ? afterCd.reduce((s, b) => s + b.delta, 0)
+    : afterC.reduce((s, c) => s + deltaOf(c), 0);
+  const sign = splash.side === "buy" ? 1 : -1;
+  const absS = Math.max(Math.abs(splashDelta), 1);
+  const withSplash = splashDelta * sign;
+  const withFollow = followDelta * sign;
+  const stillOut = splash.side === "buy" ? lastClose >= splash.price : lastClose <= splash.price;
+  const back = !stillOut;
+  const dS = `${splashDelta >= 0 ? "+" : ""}${Math.round(splashDelta)}`;
+  const dF = `${followDelta >= 0 ? "+" : ""}${Math.round(followDelta)}`;
+  if (!afterCd.length && !afterC.length) {
+    return {
+      verdict: "open",
+      splashDelta,
+      followDelta: 0,
+      because: `Сплэш ${splash.side === "buy" ? "вверх" : "вниз"}, дельта бара ${dS}. Следующих баров ещё нет.`,
+      therefore: "Рано: не ясно, топливо это или старт. Не входить в кружок.",
+    };
+  }
+  if (withSplash > 0 && withFollow > absS * 0.22 && stillOut) {
+    return {
+      verdict: "continue",
+      splashDelta,
+      followDelta,
+      because: `Сплэш ${dS}, следом дельта ${dF} в ту же сторону, цена ещё за уровнем.`,
+      therefore:
+        splash.side === "buy"
+          ? "Стопы сверху сняли и агрессор остался. Не шортить вынос. Лонг от возврата в зону, цель — следующая ликвидность."
+          : "Стопы снизу сняли и продажи живы. Не ловить нож. Шорт от возврата, цель — ликвидность ниже.",
+    };
+  }
+  if (withFollow < -absS * 0.12 || (back && withFollow <= absS * 0.1)) {
+    return {
+      verdict: "fade",
+      splashDelta,
+      followDelta,
+      because: `Сплэш ${dS}, после дельта ${dF} схлопнулась или развернулась${back ? ", цена вернулась" : ""}.`,
+      therefore:
+        splash.side === "buy"
+          ? "Вынос лонгов без продолжения. Ждём возврат вниз, не догоняем хай."
+          : "Вынос шортов без продолжения. Ждём возврат вверх, не догоняем лой.",
+    };
+  }
+  return {
+    verdict: "open",
+    splashDelta,
+    followDelta,
+    because: `Сплэш ${dS}, ответ дельты ${dF} слабый.`,
+    therefore: "Дельта не решила. Кружок не вход.",
+  };
 }
 
 export function nodeForecast(
@@ -77,8 +152,19 @@ export function nodeForecast(
     };
   }
   const up = n.side === "buy";
+  if (n.follow === "continue") {
+    return {
+      dir: up ? 1 : -1,
+      w: 0.85,
+      label: up ? "сплэш+дельта вверх" : "сплэш+дельта вниз",
+      pct: 62,
+    };
+  }
+  if (n.follow === "open") {
+    return { dir: up ? 1 : -1, w: 0.25, label: "сплэш без ответа дельты", pct: 48 };
+  }
   const stillOut = up ? close >= n.price : close <= n.price;
-  if (stillOut) {
+  if (stillOut && n.follow !== "fade") {
     return { dir: up ? 1 : -1, w: 0.35, label: "сплэш ещё снаружи", pct: 46 };
   }
   return {
@@ -265,6 +351,8 @@ export function buildMicro(
           kind: "splash",
           time: b.time,
           tape: true,
+          delta: b.delta,
+          volume: b.volume || undefined,
         });
       }
       if (b.infusion && !raw.some((n) => n.kind === "infusion" && Math.abs(n.time - b.time) < 60)) {
@@ -309,6 +397,8 @@ export function buildMicro(
             kind: "splash",
             time: b.time,
             tape: true,
+            delta: b.delta,
+            volume: b.volume || undefined,
           });
         }
         if (!raw.some((n) => n.kind === "infusion" && Math.abs(n.time - b.time) < 60) && share < 0.38 && rangeRatio < 1.05) {
@@ -393,6 +483,13 @@ export function buildMicro(
       ? !after.some((c) => c.close < n.price - atrLike * 0.28)
       : !after.some((c) => c.close > n.price + atrLike * 0.28);
   }
+  for (const n of nodes) {
+    if (n.kind !== "splash") continue;
+    const read = readSplashDelta(n, cdBars, use, last.close);
+    n.follow = read.verdict;
+    n.delta = read.splashDelta;
+    n.note = `${read.verdict === "continue" ? "ход" : read.verdict === "fade" ? "вынос" : "?"} Δ${Math.round(read.splashDelta)}→${Math.round(read.followDelta)}`;
+  }
   if (!fromCd && !nodes.some((n) => n.kind === "splash" || n.kind === "infusion")) {
     const tail = use.slice(-24);
     const ranked = [...tail].sort((a, b) => b.high - b.low - (a.high - a.low));
@@ -438,18 +535,16 @@ export function buildMicro(
   }
 
   let splash: MicroSnap["splash"] = null;
+  let splashDelta: SplashDeltaRead | null = null;
   const lastSplash = [...nodes].reverse().find((n) => n.kind === "splash" && fresh(n.time));
   if (lastSplash) {
+    splashDelta = readSplashDelta(lastSplash, cdBars, use, last.close);
+    lastSplash.follow = splashDelta.verdict;
     splash = {
       price: lastSplash.price,
       side: lastSplash.side,
-      because: fromCd
-        ? `Сплэш ClusterDelta: объём толкнул цену (стопы или старт).`
-        : `Сплэш (прокси свечей, CD нет): объём и широкий бар.`,
-      therefore:
-        lastSplash.side === "buy"
-          ? "Вынос вверх. Не цель. Ждём закрытие и возврат."
-          : "Вынос вниз. Не цель и не догон середины бара.",
+      because: splashDelta.because,
+      therefore: splashDelta.therefore,
     };
   }
 
@@ -481,6 +576,7 @@ export function buildMicro(
     footprint: { buy, sell, delta, source: ab || tape ? "tape" : cme ? "cme-delayed" : "proxy" },
     infusion,
     splash,
+    splashDelta,
     nodes: (() => {
       const stepH = step || 3600;
       const day = 86400;
@@ -515,7 +611,14 @@ export function tapeVsSide(
   }
   const spl = [...micro.nodes].reverse().find((n) => n.kind === "splash") ?? micro.splash;
   if (spl) {
-    if (spl.side === "buy") {
+    const follow = "follow" in spl ? spl.follow : micro.splashDelta?.verdict;
+    if (follow === "continue") {
+      if (spl.side === "buy") (action === "long" ? yes : no).push("сплэш+дельта: ход вверх после выноса");
+      else (action === "short" ? yes : no).push("сплэш+дельта: ход вниз после выноса");
+    } else if (follow === "fade") {
+      if (spl.side === "buy") (action === "short" ? yes : action === "long" ? no : yes).push("сплэш сверху, дельта умерла — вынос лонгов");
+      else (action === "long" ? yes : action === "short" ? no : yes).push("сплэш снизу, дельта умерла — вынос шортов");
+    } else if (spl.side === "buy") {
       (action === "short" ? yes : action === "long" ? no : yes).push("сплэш сверху — сняли стопы лонгистов");
     } else {
       (action === "long" ? yes : action === "short" ? no : yes).push("сплэш снизу — сняли стопы шортистов");
@@ -590,11 +693,15 @@ export function entryVolume(
     ((action === "long" && splashSide === "buy") || (action === "short" && splashSide === "sell")) &&
     atSplash;
   if (chase) {
+    const read = micro.splashDelta;
     return {
       verdict: "wait",
       title: "Ждать: не догонять сплэш",
-      because: micro.splash?.because ?? "Вынос объёмом, цена ещё на сплэше.",
-      therefore: "Сплэш — съём стопов, не вход. Лимит после возврата в зону.",
+      because: read?.because ?? micro.splash?.because ?? "Вынос объёмом, цена ещё на сплэше.",
+      therefore:
+        read?.verdict === "continue"
+          ? "Дельта жива, ход может продолжиться — но в кружок не входим. Лимит на возврат в зону."
+          : (read?.therefore ?? "Сплэш — не вход. Лимит после возврата."),
     };
   }
   const buy = Math.abs(micro.footprint.buy) + Math.abs(micro.footprint.sell);
@@ -614,12 +721,18 @@ export function entryVolume(
     splashSide != null &&
     !atSplash &&
     ((action === "long" && splashSide === "sell") || (action === "short" && splashSide === "buy"));
+  const goOn =
+    (micro.splashDelta?.verdict === "continue" || spl?.follow === "continue") &&
+    !atSplash &&
+    splashSide != null &&
+    ((action === "long" && splashSide === "buy") || (action === "short" && splashSide === "sell"));
   const inf = [...micro.nodes].reverse().find((n) => n.kind === "infusion" && n.held !== false);
   const infOk =
     inf && ((action === "long" && inf.side === "buy") || (action === "short" && inf.side === "sell"));
-  if (tape.confirm > tape.against || fade || deltaWith || infOk) {
+  if (tape.confirm > tape.against || fade || goOn || deltaWith || infOk) {
     const bits = [
-      fade ? "сплэш снял чужие стопы, цена вернулась" : "",
+      fade ? "сплэш снял чужие стопы, дельта умерла, цена вернулась" : "",
+      goOn ? micro.splashDelta?.because ?? "сплэш+дельта: импульс жив, вход от зоны" : "",
       infOk ? "вливание по стороне — лужа" : "",
       deltaWith ? `дельта ${delta >= 0 ? "+" : ""}${delta.toFixed(0)}` : "",
       tape.confirm ? tape.because : "",
