@@ -5,15 +5,16 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "4.36"
+#property version   "5.23"
 #property strict
-#property description "На графике: VWAP, профиль, футпринт бара, infusion/splash, Bid/Ask."
+#property description "SLOI 5.23: вход лимиткой брокера, виртуал только стоп/тейк"
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
+input string  DeskKey         = "";
 input string  WatchList       = "EURUSD,GBPUSD,USDJPY,USDCHF,AUDUSD,USDCAD,NZDUSD,EURGBP,EURJPY,GBPJPY,AUDJPY,CADJPY,NZDJPY,EURCHF,EURAUD,GBPAUD,XAUUSD,XAGUSD,XTIUSD,XBRUSD,XNGUSD,ETHUSD,LTCUSD,BCHUSD,BTCUSD,XRPUSD,TONUSD";
 input string  BrokerSuffix    = ".cs";
 input int     WorkTF          = 60;
-input bool    AutoTrade       = true;
+input bool    AutoTrade       = true; // на доп. терминале с CD — false, торгует только первый
 input double  Lots            = 0.03;
 input double  LotGold         = 0.01;
 input double  LotSilver       = 0.01;
@@ -32,10 +33,23 @@ input double  MaxSkewPct      = 0.12;
 input double  MinCover        = 1.0;
 input double  MinNetRR        = 0.8;
 input int     OneTradeOnly    = 1;
-input int     CoolMinutes     = 0;
+input int     CoolMinutes     = 40;
+input int     MinHoldMinutes  = 25;
 input bool    FixForeign      = false;
 input string  ForeignTag      = "WS";
 input bool    AlertsOn        = true;
+input bool    VirtualPendings = true; // виртуал: отложка, стоп и тейк. Сдвиг со стола.
+input bool    HostFeed        = true;  // true на каждом терминале с CD-чартами, один ключ сайта
+input bool    UseClusterDelta = true; // CD только с открытых чартов (не весь WatchList)
+input string  CdVolume        = "ClusterDelta_#Volumes";
+input string  CdDelta         = "ClusterDelta_#Delta";
+input string  CdInfusion      = "ClusterDelta_#Infusion";
+input string  CdSplash        = "ClusterDelta_#Splash";
+input string  CdProfile       = "ClusterDelta_#MarketProfile";
+input string  CdBookMap       = "ClusterDelta_#BookMap";
+input string  CdAskBid        = "ClusterDelta_#AskBid";
+input string  CdImbalance     = "ClusterDelta_#Imbalance";
+input string  CdCumDelta      = "ClusterDelta_#CumDelta";
 input int     PanelX          = 8;
 input int     PanelY          = 18;
 
@@ -48,10 +62,14 @@ string   g_lastKey[MAXSYM];
 datetime g_lastBar[MAXSYM];
 string   g_prevV[MAXSYM];
 int      g_lim[MAXSYM];
+double   g_vSL[MAXSYM];
+double   g_vTP[MAXSYM];
 
 string g_watch;
 string g_suffix;
 string g_url;
+string g_key;
+string g_cmds;
 int    g_tf;
 bool   g_auto;
 double g_lots;
@@ -68,12 +86,27 @@ int    g_martMax;
 int    g_maxSp;
 double g_skew;
 bool   g_alerts;
+bool   g_virt;
+bool   g_cd;
+bool   g_host;
+bool   g_leader = false;
 bool   g_seeded = false;
 bool   g_ready = false;
 bool   g_min = false;
+datetime g_lastClose[MAXSYM];
+int      g_holdMin;
 string g_feed = "";
 datetime g_feedAt = 0;
+datetime g_tapeAt = 0;
+datetime g_uiAt = 0;
+datetime g_clickAt = 0;
+uint     g_uiMs = 0;
+uint     g_clickMs = 0;
 string g_feedNote = "нет ленты";
+#define TICKKEEP 20
+double   g_mids[MAXSYM][TICKKEEP];
+int      g_midN[MAXSYM];
+int      g_midW[MAXSYM];
 
 color C_BG   = C'16,14,12';
 color C_BOX  = C'32,28,24';
@@ -91,6 +124,10 @@ int OnInit()
    g_watch  = WatchList;
    g_suffix = BrokerSuffix;
    g_url    = SignalsUrl;
+   g_key    = DeskKey;
+   StringTrimLeft(g_key);
+   StringTrimRight(g_key);
+   g_cmds   = "";
    g_tf     = WorkTF;
    g_auto   = AutoTrade;
    g_lots   = Lots;
@@ -107,81 +144,215 @@ int OnInit()
    g_maxSp  = MaxSpreadPoints;
    g_skew   = MaxSkewPct;
    g_alerts = AlertsOn;
+   g_virt   = VirtualPendings;
+   g_cd     = UseClusterDelta;
+   g_host   = HostFeed;
+   g_holdMin = MinHoldMinutes;
    Wipe();
    ParseWatch();
-   EventSetTimer(2);
+   EventSetTimer(1);
    ChartSetInteger(0, CHART_FOREGROUND, false);
    g_ready = true;
    g_seeded = false;
-   DrawDesk();
-   Print("SLOI 4.35: чужие WS подтягиваю под стол или закрываю, если WAIT.");
+   TakeLead();
+   if(!g_leader)
+     {
+      g_auto = false;
+      Print("SLOI 5.18 дубль на ЭТОМ MT4: авто ВЫКЛ, кружки уходят. Кнопка АВТО на этом окне — забрать торговлю");
+     }
+   else Print("SLOI 5.23 лидер этого терминала, чарт ", ChartSymbol(0));
+   DrawDesk(true);
    return(INIT_SUCCEEDED);
+  }
+
+void TakeLead()
+  {
+   datetime now = TimeCurrent();
+   double me = (double)ChartID();
+   if(!GlobalVariableCheck("SLOI_LEAD_T") || now - (datetime)GlobalVariableGet("SLOI_LEAD_T") > 12)
+     {
+      GlobalVariableSet("SLOI_LEAD_T", now);
+      GlobalVariableSet("SLOI_LEAD_CH", me);
+      g_leader = true;
+      return;
+     }
+   g_leader = (GlobalVariableGet("SLOI_LEAD_CH") == me);
+   if(g_leader) GlobalVariableSet("SLOI_LEAD_T", now);
   }
 
 void OnDeinit(const int reason)
   {
+   g_ready = false;
    EventKillTimer();
+   if(g_leader)
+     {
+      GlobalVariableDel("SLOI_LEAD_T");
+      GlobalVariableDel("SLOI_LEAD_CH");
+     }
    Wipe();
    Comment("");
   }
 
-void OnTick()   { if(g_ready) DrawDesk(); }
-void OnTimer()  { if(g_ready) DrawDesk(); }
+void SampleMids()
+  {
+   for(int i = 0; i < g_n; i++)
+     {
+      double b = BidOf(g_sym[i]);
+      if(b <= 0) continue;
+      int w = g_midW[i] % TICKKEEP;
+      g_mids[i][w] = b;
+      g_midW[i]++;
+      if(g_midN[i] < TICKKEEP) g_midN[i]++;
+     }
+  }
+
+void OnTick()
+  {
+   if(!g_ready) return;
+   SampleMids();
+   SweepVirtPendings();
+  }
+void OnTimer()
+  {
+   if(!g_ready) return;
+   SampleMids();
+   if(TimeCurrent() - g_clickAt > 15) TakeLead();
+   if(!g_leader && TimeCurrent() - g_clickAt > 15) g_auto = false;
+   DrawDesk(false);
+  }
+
+bool HitBox(int cx, int cy, int x, int y, int w, int h)
+  {
+   return(cx >= x && cx < x + w && cy >= y && cy < y + h);
+  }
+
+void HideFat()
+  {
+   for(int i = ObjectsTotal() - 1; i >= 0; i--)
+     {
+      string n = ObjectName(i);
+      if(StringFind(n, "SLOI_") != 0) continue;
+      if(n == "SLOI_bg" || n == "SLOI_title" || n == "SLOI_b_min") continue;
+      ObjectDelete(n);
+     }
+  }
+
+void RaiseClicks()
+  {
+   for(int i = ObjectsTotal() - 1; i >= 0; i--)
+     {
+      string n = ObjectName(i);
+      if(StringFind(n, "SLOI_b") != 0 && StringFind(n, "SLOI_e") != 0 && StringFind(n, "SLOI_g") != 0) continue;
+      ObjectSetInteger(0, n, OBJPROP_ZORDER, 2000);
+      ObjectSetInteger(0, n, OBJPROP_BACK, false);
+     }
+  }
 
 void OnChartEvent(const int id, const long &lparam, const double &dparam, const string &sparam)
   {
+   int px = PanelX;
+   int py = PanelY;
+   if(id == CHARTEVENT_CLICK)
+     {
+      int cx = (int)lparam;
+      int cy = (int)dparam;
+      int mx = g_min ? px + 260 : px + 674;
+      int my = g_min ? py + 6 : py + 8;
+      if(HitBox(cx, cy, mx, my, 40, 26))
+        {
+         if(GetTickCount() - g_clickMs < 500) return;
+         g_clickMs = GetTickCount();
+         g_min = !g_min;
+         g_clickAt = TimeCurrent();
+         Wipe();
+         g_seeded = false;
+         DrawDesk(true);
+         return;
+        }
+      if(!g_min && HitBox(cx, cy, px + 470, py + 8, 96, 22))
+        {
+         g_clickAt = TimeCurrent();
+         if(!g_leader)
+           {
+            GlobalVariableSet("SLOI_LEAD_T", TimeCurrent());
+            GlobalVariableSet("SLOI_LEAD_CH", (double)ChartID());
+            g_leader = true;
+            g_auto = true;
+           }
+         else g_auto = !g_auto;
+         DrawDesk(true);
+         return;
+        }
+     }
    if(id != CHARTEVENT_OBJECT_CLICK) return;
+   g_clickAt = TimeCurrent();
    ObjectSetInteger(0, sparam, OBJPROP_STATE, false);
    if(sparam == P+"b_min")
      {
+      if(GetTickCount() - g_clickMs < 500) return;
+      g_clickMs = GetTickCount();
       g_min = !g_min;
       Wipe();
       g_seeded = false;
-      DrawDesk();
+      DrawDesk(true);
       return;
      }
    if(sparam == P+"b_auto")
      {
-      g_auto = !g_auto;
-      DrawDesk();
+      if(!g_leader)
+        {
+         GlobalVariableSet("SLOI_LEAD_T", TimeCurrent());
+         GlobalVariableSet("SLOI_LEAD_CH", (double)ChartID());
+         g_leader = true;
+         g_auto = true;
+         Print("SLOI этот чарт теперь один торгует. Сов на втором окне сам выключит авто");
+        }
+      else g_auto = !g_auto;
+      DrawDesk(true);
       return;
      }
    if(sparam == P+"b_alrt")
      {
       g_alerts = !g_alerts;
-      DrawDesk();
+      DrawDesk(true);
+      return;
+     }
+   if(sparam == P+"b_virt")
+     {
+      g_virt = !g_virt;
+      DrawDesk(true);
       return;
      }
    if(sparam == P+"b_risk")
      {
       g_riskOn = !g_riskOn;
       g_seeded = false;
-      DrawDesk();
+      DrawDesk(true);
       return;
      }
    if(sparam == P+"b_mart")
      {
       g_mart = !g_mart;
-      DrawDesk();
+      DrawDesk(true);
       return;
      }
    if(sparam == P+"b_ok")
      {
       ApplyEdits();
       g_seeded = false;
-      DrawDesk();
+      DrawDesk(true);
       return;
      }
    if(sparam == P+"b_ws")
      {
       CloseForeignAll();
-      DrawDesk();
+      DrawDesk(true);
       return;
      }
-   if(sparam == P+"b_buy")  { ManualTrade(1);  DrawDesk(); return; }
-   if(sparam == P+"b_sell") { ManualTrade(-1); DrawDesk(); return; }
-   if(sparam == P+"b_cp")   { CloseMine(false); DrawDesk(); return; }
-   if(sparam == P+"b_ca")   { CloseMine(true);  DrawDesk(); return; }
+   if(sparam == P+"b_buy")  { ManualTrade(1);  DrawDesk(true); return; }
+   if(sparam == P+"b_sell") { ManualTrade(-1); DrawDesk(true); return; }
+   if(sparam == P+"b_cp")   { CloseMine(false); DrawDesk(true); return; }
+   if(sparam == P+"b_ca")   { CloseMine(true);  DrawDesk(true); return; }
    if(StringFind(sparam, P+"g") == 0)
      {
       int idx = (int)StringToInteger(StringSubstr(sparam, StringLen(P+"g")));
@@ -254,8 +425,47 @@ void Box(string id, datetime t1, double p1, datetime t2, double p2, color clr)
    ObjectSet(n, OBJPROP_TIME2, t2);
    ObjectSet(n, OBJPROP_PRICE2, p2);
    ObjectSet(n, OBJPROP_COLOR, clr);
+   ObjectSet(n, OBJPROP_STYLE, STYLE_SOLID);
    ObjectSet(n, OBJPROP_BACK, true);
-   ObjectSet(n, OBJPROP_WIDTH, 1);
+   ObjectSet(n, OBJPROP_WIDTH, 2);
+   ObjectSet(n, OBJPROP_SELECTABLE, false);
+   ObjectSetInteger(0, n, OBJPROP_FILL, true);
+  }
+
+void Tag(string id, datetime t, double px, string txt, color clr)
+  {
+   if(px <= 0 || t <= 0) return;
+   string n = P + id;
+   if(ObjectFind(0, n) < 0)
+     {
+      if(!ObjectCreate(0, n, OBJ_TEXT, 0, t, px))
+         ObjectCreate(n, OBJ_TEXT, 0, t, px);
+     }
+   ObjectSet(n, OBJPROP_TIME1, t);
+   ObjectSet(n, OBJPROP_PRICE1, px);
+   ObjectSet(n, OBJPROP_COLOR, clr);
+   ObjectSet(n, OBJPROP_ANCHOR, ANCHOR_LEFT);
+   ObjectSet(n, OBJPROP_SELECTABLE, false);
+   ObjectSetText(n, txt, 10, "Arial Bold", clr);
+  }
+
+void Ray(string id, datetime t1, double p1, datetime t2, double p2, color clr)
+  {
+   if(p1 <= 0 || p2 <= 0) return;
+   string n = P + id;
+   if(ObjectFind(0, n) < 0)
+     {
+      if(!ObjectCreate(0, n, OBJ_TREND, 0, t1, p1, t2, p2))
+         ObjectCreate(n, OBJ_TREND, 0, t1, p1, t2, p2);
+     }
+   ObjectSet(n, OBJPROP_TIME1, t1);
+   ObjectSet(n, OBJPROP_PRICE1, p1);
+   ObjectSet(n, OBJPROP_TIME2, t2);
+   ObjectSet(n, OBJPROP_PRICE2, p2);
+   ObjectSet(n, OBJPROP_COLOR, clr);
+   ObjectSet(n, OBJPROP_STYLE, STYLE_SOLID);
+   ObjectSet(n, OBJPROP_WIDTH, 2);
+   ObjectSet(n, OBJPROP_RAY, true);
    ObjectSet(n, OBJPROP_SELECTABLE, false);
   }
 
@@ -396,37 +606,121 @@ void DrawSmcOnChart()
    int dir = 0, spPts = 0;
    double entry = 0, stop = 0, target = 0;
    Scan(idx, bias, verdict, why, dir, entry, stop, target, spPts);
-
-   Hln("lv_en", entry, C_GOLD);
-   Hln("lv_sl", stop, C_SEL);
-   Hln("lv_tp", target, C_BUY);
+   ObjectDelete(P+"lv_en");
+   ObjectDelete(P+"lv_sl");
+   ObjectDelete(P+"lv_tp");
+   ObjectDelete(P+"sw_h");
+   ObjectDelete(P+"sw_l");
+   ObjectDelete(P+"bos_h_t");
+   ObjectDelete(P+"bos_l_t");
+   for(i = 0; i < 4; i++)
+     {
+      ObjectDelete(P+"fvg"+IntegerToString(i));
+      ObjectDelete(P+"fvg_t"+IntegerToString(i));
+      ObjectDelete(P+"ob"+IntegerToString(i));
+      ObjectDelete(P+"ob_t"+IntegerToString(i));
+     }
 
    int tf = PeriodOf(g_tf);
-   int drawn = 0;
    datetime tNow = iTime(s, tf, 0);
-   for(i = 3; i < 70 && drawn < 3; i++)
+   datetime tLeft = iTime(s, tf, 36);
+   datetime tRight = tNow + tf * 60 * 12;
+   if(tLeft <= 0) tLeft = tNow - tf * 60 * 36;
+   double atr = 0;
+   for(i = 1; i <= 14; i++) atr += (iHigh(s, tf, i) - iLow(s, tf, i));
+   atr /= 14.0;
+   double pad = MathMax(atr * 0.04, SpreadPr(s) * 2.0);
+
+   if(entry > 0)
+     {
+      Box("zn_en", tLeft, entry + pad, tRight, entry - pad, C_GOLD);
+      Tag("zn_en_t", tNow, entry + pad, "ВХОД "+Px(s, entry)+"  "+verdict, C_GOLD);
+      Ray("zn_en_r", tLeft, entry, tNow, entry, C_GOLD);
+     }
+   if(stop > 0)
+     {
+      Box("zn_sl", tLeft, stop + pad, tRight, stop - pad, C_SEL);
+      Tag("zn_sl_t", tNow, stop, "СТОП "+Px(s, stop), C_SEL);
+      Ray("zn_sl_r", tLeft, stop, tNow, stop, C_SEL);
+     }
+   if(target > 0)
+     {
+      Box("zn_tp", tLeft, target + pad, tRight, target - pad, C_BUY);
+      Tag("zn_tp_t", tNow, target, "ТЕЙК "+Px(s, target), C_BUY);
+      Ray("zn_tp_r", tLeft, target, tNow, target, C_BUY);
+     }
+
+   double lastPx = iClose(s, tf, 0);
+   int drawn = 0;
+   for(i = 3; i < 80 && drawn < 2; i++)
      {
       double hi = iHigh(s, tf, i);
       double lo = iLow(s, tf, i);
       double hi2 = iHigh(s, tf, i - 2);
       double lo2 = iLow(s, tf, i - 2);
       datetime t1 = iTime(s, tf, i);
-      if(lo2 > hi)
+      if(lo2 > hi && (lo2 - hi) >= atr * 0.12)
         {
-         Box("fvg"+IntegerToString(drawn), t1, hi, tNow, lo2, C_BUY);
+         if(lastPx < hi - atr * 1.15 || lastPx > lo2 + atr * 1.15) continue;
+         Box("fvg"+IntegerToString(drawn), t1, hi, tRight, lo2, C_BUY);
+         Tag("fvg_t"+IntegerToString(drawn), t1, lo2, "ИМБАЛАНС спрос", C_BUY);
          drawn++;
         }
-      else if(hi2 < lo)
+      else if(hi2 < lo && (lo - hi2) >= atr * 0.12)
         {
-         Box("fvg"+IntegerToString(drawn), t1, lo, tNow, hi2, C_SEL);
+         if(lastPx < hi2 - atr * 1.15 || lastPx > lo + atr * 1.15) continue;
+         Box("fvg"+IntegerToString(drawn), t1, lo, tRight, hi2, C_SEL);
+         Tag("fvg_t"+IntegerToString(drawn), t1, hi2, "ИМБАЛАНС предложение", C_SEL);
          drawn++;
         }
      }
 
-   int sh = iHighest(s, tf, MODE_HIGH, 48, 1);
-   int sl = iLowest(s, tf, MODE_LOW, 48, 1);
-   if(sh > 0) Hln("sw_h", iHigh(s, tf, sh), C_SEL);
-   if(sl > 0) Hln("sw_l", iLow(s, tf, sl), C_BUY);
+   int obn = 0;
+   for(i = 4; i < 70 && obn < 2; i++)
+     {
+      double o = iOpen(s, tf, i);
+      double c = iClose(s, tf, i);
+      double hi = iHigh(s, tf, i);
+      double lo = iLow(s, tf, i);
+      datetime t1 = iTime(s, tf, i);
+      if(lastPx < lo - atr * 1.15 || lastPx > hi + atr * 1.15) continue;
+      if(c < o && iClose(s, tf, i - 1) > hi && iClose(s, tf, i - 2) > iClose(s, tf, i - 1))
+        {
+         Box("ob"+IntegerToString(obn), t1, lo, tRight, hi, C_BUY);
+         Tag("ob_t"+IntegerToString(obn), t1, hi, "ОРДЕРБЛОК спрос", C_BUY);
+         obn++;
+        }
+      else if(c > o && iClose(s, tf, i - 1) < lo && iClose(s, tf, i - 2) < iClose(s, tf, i - 1))
+        {
+         Box("ob"+IntegerToString(obn), t1, lo, tRight, hi, C_SEL);
+         Tag("ob_t"+IntegerToString(obn), t1, lo, "ОРДЕРБЛОК предложение", C_SEL);
+         obn++;
+        }
+     }
+
+   int sh = iHighest(s, tf, MODE_HIGH, 40, 1);
+   int sl = iLowest(s, tf, MODE_LOW, 40, 1);
+   int sh2 = (sh > 4 ? iHighest(s, tf, MODE_HIGH, 40, sh + 3) : 0);
+   int sl2 = (sl > 4 ? iLowest(s, tf, MODE_LOW, 40, sl + 3) : 0);
+   if(sh > 0 && sh2 > sh && MathAbs(lastPx - iHigh(s, tf, sh)) <= atr * 1.4)
+     {
+      Ray("bos_h", iTime(s, tf, sh2), iHigh(s, tf, sh2), iTime(s, tf, sh), iHigh(s, tf, sh), C_SEL);
+      Box("liq_h", iTime(s, tf, sh), iHigh(s, tf, sh) + pad * 2, tRight, iHigh(s, tf, sh) - pad, C_GOLD);
+      Tag("liq_h_t", iTime(s, tf, sh), iHigh(s, tf, sh) + pad * 2, "ЛИКВИДНОСТЬ BSL", C_GOLD);
+     }
+   if(sl > 0 && sl2 > sl && MathAbs(lastPx - iLow(s, tf, sl)) <= atr * 1.4)
+     {
+      Ray("bos_l", iTime(s, tf, sl2), iLow(s, tf, sl2), iTime(s, tf, sl), iLow(s, tf, sl), C_BUY);
+      Box("liq_l", iTime(s, tf, sl), iLow(s, tf, sl) + pad, tRight, iLow(s, tf, sl) - pad * 2, C_GOLD);
+      Tag("liq_l_t", iTime(s, tf, sl), iLow(s, tf, sl), "ЛИКВИДНОСТЬ SSL", C_GOLD);
+     }
+   if(sh > 0 && sl > 0)
+     {
+      color moveC = lastPx < iHigh(s, tf, sh) ? C_SEL : C_BUY;
+      Ray("move", iTime(s, tf, sh), iHigh(s, tf, sh), tNow, lastPx, moveC);
+      Tag("itog", tNow, lastPx, "ИТОГ "+verdict+" · "+why, C_GOLD);
+     }
+
    DrawTape();
   }
 
@@ -461,6 +755,9 @@ void ParseWatch()
       g_lastKey[g_n] = "";
       g_prevV[g_n] = "";
       g_lastBar[g_n] = 0;
+      g_lastClose[g_n] = 0;
+      g_midN[g_n] = 0;
+      g_midW[g_n] = 0;
       g_n++;
      }
    if(g_n == 0)
@@ -519,6 +816,13 @@ int SendOrder(string s, int cmd, double lots, double px, double sl, double tp, s
    int dir = (cmd == OP_BUY || cmd == OP_BUYLIMIT || cmd == OP_BUYSTOP) ? 1 : -1;
    sl = StopAway(s, dir, px, sl);
    tp = TakeAway(s, dir, px, tp);
+   double keepSL = sl;
+   double keepTP = tp;
+   if(g_virt)
+     {
+      sl = 0;
+      tp = 0;
+     }
    int slip = SlipFor(s);
    int ticket = OrderSend(s, cmd, lots, px, slip, sl, tp, cmt, Magic, 0, clr);
    if(ticket < 0)
@@ -547,6 +851,7 @@ int SendOrder(string s, int cmd, double lots, double px, double sl, double tp, s
          Alert("SLOI ", s, " ошибка ", err, " спред ", SpreadPt(s), "п  slip ", slip);
         }
      }
+   if(ticket > 0 && g_virt) SetVirt(s, keepSL, keepTP);
    return(ticket);
   }
 
@@ -576,6 +881,137 @@ string Naked(string s)
    return(u);
   }
 
+int IdxOf(string s)
+  {
+   string n = Naked(s);
+   for(int i = 0; i < g_n; i++)
+      if(Naked(g_sym[i]) == n) return(i);
+   return(-1);
+  }
+
+void SetVirt(string s, double sl, double tp)
+  {
+   int idx = IdxOf(s);
+   if(idx < 0) return;
+   g_vSL[idx] = sl;
+   g_vTP[idx] = tp;
+  }
+
+void AlignVirt(int idx, int dir, double stop, double target)
+  {
+   if(!g_virt) return;
+   if(idx < 0 || idx >= g_n) return;
+   if(dir == 0) return;
+   string s = g_sym[idx];
+   bool ours = false;
+   int tyWant = (dir > 0 ? OP_BUY : OP_SELL);
+   for(int i = OrdersTotal() - 1; i >= 0; i--)
+     {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
+      if(OrderMagicNumber() != Magic) continue;
+      if(Naked(OrderSymbol()) != Naked(s)) continue;
+      if(OrderType() != OP_BUY && OrderType() != OP_SELL) continue;
+      if(OrderType() != tyWant)
+        {
+         if(g_holdMin > 0 && TimeCurrent() - OrderOpenTime() < g_holdMin * 60) continue;
+         CloseOne();
+         continue;
+        }
+      ours = true;
+     }
+   if(!ours) return;
+   int digits = DigitsOf(s);
+   double pt = PointOf(s) * 2.0;
+   bool moved = false;
+   if(stop > 0 && MathAbs(g_vSL[idx] - stop) > pt)
+     {
+      g_vSL[idx] = NormalizeDouble(stop, digits);
+      moved = true;
+     }
+   if(target > 0 && MathAbs(g_vTP[idx] - target) > pt)
+     {
+      g_vTP[idx] = NormalizeDouble(target, digits);
+      moved = true;
+     }
+   if(moved)
+     {
+      Print("SLOI сдвиг SL/TP ", s, " sl=", DoubleToStr(g_vSL[idx], digits), " tp=", DoubleToStr(g_vTP[idx], digits));
+      if(g_alerts) Alert("SLOI сдвиг SL/TP ", s);
+     }
+  }
+
+void DrawVirtLines()
+  {
+   if(!g_virt)
+     {
+      ObjectDelete(0, P + "vsl");
+      ObjectDelete(0, P + "vtp");
+      ObjectDelete(0, P + "vsl_t");
+      ObjectDelete(0, P + "vtp_t");
+      return;
+     }
+   int idx = IdxOf(Symbol());
+   if(idx < 0) return;
+   if(g_vSL[idx] > 0)
+     {
+      Hln("vsl", g_vSL[idx], C_SEL);
+      Tag("vsl_t", iTime(Symbol(), g_tf, 0), g_vSL[idx], "ВИРТ СТОП", C_SEL);
+     }
+   if(g_vTP[idx] > 0)
+     {
+      Hln("vtp", g_vTP[idx], C_BUY);
+      Tag("vtp_t", iTime(Symbol(), g_tf, 0), g_vTP[idx], "ВИРТ ТЕЙК", C_BUY);
+     }
+  }
+
+void ManageVirtBook()
+  {
+   if(!g_virt) return;
+   for(int i = OrdersTotal() - 1; i >= 0; i--)
+     {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
+      if(OrderMagicNumber() != Magic) continue;
+      int type = OrderType();
+      if(type != OP_BUY && type != OP_SELL) continue;
+      int idx = IdxOf(OrderSymbol());
+      if(idx < 0) continue;
+      string s = OrderSymbol();
+      double sl = g_vSL[idx];
+      double tp = g_vTP[idx];
+      if(type == OP_BUY)
+        {
+         if(sl > 0 && BidOf(s) <= sl)
+           {
+            Alert("SLOI вирт стоп ", s);
+            CloseOne();
+            continue;
+           }
+         if(tp > 0 && BidOf(s) >= tp)
+           {
+            Alert("SLOI вирт тейк ", s);
+            CloseOne();
+            continue;
+           }
+        }
+      else
+        {
+         if(sl > 0 && AskOf(s) >= sl)
+           {
+            Alert("SLOI вирт стоп ", s);
+            CloseOne();
+            continue;
+           }
+         if(tp > 0 && AskOf(s) <= tp)
+           {
+            Alert("SLOI вирт тейк ", s);
+            CloseOne();
+            continue;
+           }
+        }
+     }
+   DrawVirtLines();
+  }
+
 void PullFeed()
   {
    if(TimeCurrent() - g_feedAt < 20) return;
@@ -586,21 +1022,27 @@ void PullFeed()
    string rh = "";
    ArrayResize(data, 0);
    ResetLastError();
-   if(StringLen(g_url) < 12)
+   string url = FeedUrl();
+   if(StringLen(url) < 12)
      {
       g_feedNote = "вставьте адрес ленты";
       return;
      }
-   int res = WebRequest("GET", g_url, hdr, 25000, data, result, rh);
+   int res = WebRequest("GET", url, hdr, 25000, data, result, rh);
    if(res == -1)
      {
       int err = GetLastError();
       if(err == 4060) g_feedNote = "этот адрес в WebRequest";
       else if(err == 5200) g_feedNote = "домена нет";
-      else if(err == 5203) g_feedNote = "таймаут Vercel, повтор";
+      else if(err == 5203)
+        {
+         g_feedNote = StringLen(g_feed) > 8 ? "таймаут, держим ленту" : "таймаут Vercel, повтор";
+         g_feedAt = TimeCurrent() - 12;
+         if(StringLen(g_feed) > 8) return;
+        }
       else g_feedNote = "сеть "+IntegerToString(err);
       Print("SLOI WebRequest fail ", err, " url=", g_url);
-      g_feed = "";
+      if(StringLen(g_feed) < 8) g_feed = "";
       return;
      }
    if(res != 200)
@@ -611,12 +1053,49 @@ void PullFeed()
      }
    g_feed = CharArrayToString(result, 0, WHOLE_ARRAY, CP_UTF8);
    g_feedNote = (StringFind(g_feed, "SLOI") >= 0 || StringLen(g_feed) > 8 ? "сайт ок" : "пустая лента");
+   if(StringLen(g_key) > 6) g_feedNote = g_feedNote + " ключ";
    SeedFromFeed();
-   PushTape();
+   ApplySiteCommands();
+  }
+
+string FeedUrl()
+  {
+   string u = g_url;
+   if(StringLen(g_key) < 8) return(u);
+   if(StringFind(u, "k=") >= 0) return(u);
+   if(StringFind(u, "?") >= 0) return(u + "&k=" + g_key);
+   return(u + "?k=" + g_key);
   }
 
 void AddSym(string s)
   {
+   if(StringLen(s) < 3) return;
+   string nkd = Naked(s);
+   if(nkd == "XTIUSD")
+     {
+      string oil[];
+      ArrayResize(oil, 8);
+      oil[0] = "XTIUSD" + g_suffix; oil[1] = "USOIL" + g_suffix;
+      oil[2] = "WTI" + g_suffix; oil[3] = "XTIUSD";
+      oil[4] = "USOIL"; oil[5] = "WTI"; oil[6] = "USOIL.cs"; oil[7] = s;
+      for(int k = 0; k < 8; k++)
+        {
+         SymbolSelect(oil[k], true);
+         if(BidOf(oil[k]) > 0 || AskOf(oil[k]) > 0) { s = oil[k]; break; }
+        }
+     }
+   if(nkd == "XBRUSD")
+     {
+      string br[];
+      ArrayResize(br, 6);
+      br[0] = "XBRUSD" + g_suffix; br[1] = "UKOIL" + g_suffix;
+      br[2] = "BRENT" + g_suffix; br[3] = "XBRUSD"; br[4] = "UKOIL"; br[5] = s;
+      for(int k = 0; k < 6; k++)
+        {
+         SymbolSelect(br[k], true);
+         if(BidOf(br[k]) > 0 || AskOf(br[k]) > 0) { s = br[k]; break; }
+        }
+     }
    if(StringLen(s) < 3) return;
    for(int i = 0; i < g_n; i++)
       if(g_sym[i] == s || Naked(g_sym[i]) == Naked(s)) return;
@@ -661,24 +1140,625 @@ void SeedFromFeed()
      }
   }
 
-void PushTape()
+bool ChartHasInd(long ch, string needle)
   {
-   string url = g_url;
-   StringReplace(url, "signals.txt", "broker");
-   if(StringFind(url, "broker") < 0)
+   string want = needle;
+   StringToLower(want);
+   for(int w = 0; w < 3; w++)
      {
-      if(StringGetCharacter(url, StringLen(url) - 1) == '/') url = url + "api/broker";
-      else url = url + "/api/broker";
+      int n = ChartIndicatorsTotal(ch, w);
+      for(int i = 0; i < n; i++)
+        {
+         string ind = ChartIndicatorName(ch, w, i);
+         StringToLower(ind);
+         if(StringFind(ind, want) >= 0) return(true);
+        }
      }
-   string body = "# SLOI broker\n";
+   return(false);
+  }
+
+void DumpCdObject(long ch, string n, string &body, int &sent, bool hasSplash, bool hasInf, bool hasImb, string want)
+  {
+   if(sent >= 400) return;
+   if(StringFind(n, "SLOI_") == 0) return;
+   string low = n;
+   StringToLower(low);
+   string txt = ObjectGetString(ch, n, OBJPROP_TEXT);
+   StringToLower(txt);
+   string tip = ObjectGetString(ch, n, OBJPROP_TOOLTIP);
+   StringToLower(tip);
+   string blob = low + " " + txt + " " + tip;
+   int t = (int)ObjectGetInteger(ch, n, OBJPROP_TYPE);
+   double px = ObjectGetDouble(ch, n, OBJPROP_PRICE1);
+   datetime tm = (datetime)ObjectGetInteger(ch, n, OBJPROP_TIME1);
+   if((t == OBJ_RECTANGLE || t == OBJ_TREND || t == OBJ_CHANNEL) && ObjectGetDouble(ch, n, OBJPROP_PRICE2) > 0)
+      px = 0.5 * (ObjectGetDouble(ch, n, OBJPROP_PRICE1) + ObjectGetDouble(ch, n, OBJPROP_PRICE2));
+   if(px <= 0 && ch == ChartID()) px = ObjectGet(n, OBJPROP_PRICE1);
+   if(tm <= 0 && ch == ChartID()) tm = (datetime)ObjectGet(n, OBJPROP_TIME1);
+   if(px <= 0) px = ObjectGetDouble(ch, n, OBJPROP_PRICE2);
+   if(px <= 0) return;
+   if(tm <= 0) tm = TimeCurrent();
+   bool namedSplash = StringFind(blob, "splash") >= 0 || StringFind(blob, "#spl") >= 0
+      || StringFind(blob, "сплэш") >= 0 || StringFind(blob, "сплеш") >= 0 || StringFind(blob, "btrade") >= 0
+      || StringFind(blob, "ticks number") >= 0 || StringFind(blob, "market splash") >= 0;
+   bool namedInf = StringFind(blob, "infusion") >= 0 || StringFind(blob, "infuz") >= 0
+      || StringFind(blob, "влив") >= 0 || StringFind(blob, "inflow") >= 0;
+   bool namedImb = StringFind(blob, "imbalance") >= 0
+      || StringFind(blob, "дисбал") >= 0 || StringFind(blob, "#imb") >= 0 || StringFind(blob, "imbal") >= 0;
+   bool isDot = t == OBJ_ELLIPSE || t == OBJ_ARROW || t == OBJ_ARROW_UP || t == OBJ_ARROW_DOWN
+      || t == OBJ_BITMAP || t == OBJ_BITMAP_LABEL || t == OBJ_TEXT || t == OBJ_LABEL
+      || t == OBJ_TRIANGLE;
+   bool isLevel = t == OBJ_HLINE || t == OBJ_TREND || t == OBJ_RECTANGLE;
+   color c0 = (color)ObjectGetInteger(ch, n, OBJPROP_COLOR);
+   int r0 = (c0 & 0xFF);
+   int g0 = ((c0 >> 8) & 0xFF);
+   int b0 = ((c0 >> 16) & 0xFF);
+   bool lime = g0 >= 110 && g0 > r0 + 28 && g0 > b0 + 18;
+   bool gold = (r0 >= 150 && g0 >= 70 && r0 >= g0 - 20 && b0 < 150);
+   bool redish = r0 >= 150 && g0 < 90 && b0 < 120;
+   bool blue = b0 >= 90 && b0 >= g0 - 10 && b0 >= r0 - 20;
+   bool mag = r0 >= 120 && b0 >= 120 && g0 < 90;
+   string kind = "";
+   if(namedImb) kind = "IMBALANCE";
+   else if(namedInf) kind = "INFUSION";
+   else if(namedSplash) kind = "SPLASH";
+   else if(isDot)
+     {
+      if(blue || redish || mag) kind = "IMBALANCE";
+      else if(lime) kind = "INFUSION";
+      else if(gold) kind = "SPLASH";
+     }
+   else if(isLevel)
+     {
+      if(hasImb && (blue || redish || mag || t == OBJ_RECTANGLE)) kind = "IMBALANCE";
+      else if(hasInf && lime) kind = "INFUSION";
+      else if(hasSplash && gold) kind = "SPLASH";
+     }
+   if(kind == "") return;
+   if(StringLen(want) > 0 && kind != want) return;
+   string sym = ChartSymbol(ch);
+   if(StringLen(sym) < 3) sym = Symbol();
+   double bid = BidOf(sym);
+   string sd = (redish || (r0 > g0 + 20)) ? "SELL" : "BUY";
+   if(!LooksPx(px, bid))
+     {
+      int sh = iBarShift(sym, PERIOD_H1, tm);
+      if(sh < 0) sh = 0;
+      double hi = iHigh(sym, PERIOD_H1, sh);
+      double lo = iLow(sym, PERIOD_H1, sh);
+      if(kind == "SPLASH") px = (sd == "SELL") ? lo : hi;
+      else if(kind == "INFUSION") px = 0.5 * (hi + lo);
+      else px = iClose(sym, PERIOD_H1, sh);
+     }
+   if(px <= 0) return;
+   string extra = ObjectGetString(ch, n, OBJPROP_TEXT);
+   if(StringLen(extra) < 1) extra = ObjectGetString(ch, n, OBJPROP_TOOLTIP);
+   StringReplace(extra, " ", "");
+   StringReplace(extra, "\n", "");
+   if(StringLen(extra) > 18) extra = StringSubstr(extra, 0, 18);
+   body += "CLUSTER " + Naked(sym) + " " + kind + " " + DoubleToStr(px, DigitsOf(sym)) + " " + sd
+        + " " + IntegerToString((int)tm);
+   if(StringLen(extra) > 0) body += " " + extra;
+   body += "\n";
+   sent++;
+  }
+
+void ScrapeWant(long ch, int wins, bool hasS, bool hasI, bool hasM, string want, string &body, int &sent)
+  {
+   int cap = 0;
+   for(int w = 0; w < MathMax(1, wins) && sent < 400 && cap < 36; w++)
+     {
+      int total = ObjectsTotal(ch, w, -1);
+      for(int i = 0; i < total && sent < 400 && cap < 36; i++)
+        {
+         string nm = ObjectName(ch, i, w, -1);
+         if(StringLen(nm) < 1) continue;
+         int before = sent;
+         DumpCdObject(ch, nm, body, sent, hasS, hasI, hasM, want);
+         if(sent > before) cap++;
+        }
+     }
+  }
+
+void AppendClusters(string &body)
+  {
+   int sent = 0;
+   string seen = "";
+   long ch = ChartFirst();
+   while(ch >= 0)
+     {
+      string ns = Naked(ChartSymbol(ch));
+      int wins = (int)ChartGetInteger(ch, CHART_WINDOWS_TOTAL);
+      int objs = 0;
+      for(int w = 0; w < MathMax(1, wins); w++) objs += ObjectsTotal(ch, w, -1);
+      string inds = "";
+      if(ChartHasInd(ch, "splash")) inds += "S";
+      if(ChartHasInd(ch, "infusion")) inds += "I";
+      if(ChartHasInd(ch, "imbalance")) inds += "M";
+      if(StringLen(ns) > 2) seen = seen + ns + ":" + inds + objs + ",";
+      ch = ChartNext(ch);
+     }
+   if(StringLen(seen) > 2) body += "CDCHARTS " + seen + "\n";
+   if(g_cd && g_host) AppendCdClusters(body, sent);
+   long self = ChartID();
+   int here = ObjectsTotal();
+   bool hasS = ChartHasInd(self, "splash");
+   bool hasI = ChartHasInd(self, "infusion");
+   bool hasM = ChartHasInd(self, "imbalance");
+   string wantA[3];
+   wantA[0] = "SPLASH";
+   wantA[1] = "INFUSION";
+   wantA[2] = "IMBALANCE";
+   for(int p = 0; p < 3 && sent < 400; p++)
+     {
+      int cap = 0;
+      for(int i = 0; i < here && sent < 400 && cap < 48; i++)
+        {
+         string nm = ObjectName(i);
+         if(StringLen(nm) < 1) continue;
+         int before = sent;
+         DumpCdObject(self, nm, body, sent, hasS, hasI, hasM, wantA[p]);
+         if(sent > before) cap++;
+        }
+     }
+   Print("SLOI CD ", Naked(Symbol()), " объектов ", here, " ушло ", sent);
+   ch = ChartFirst();
+   while(ch >= 0 && sent < 400)
+     {
+      if(ch == self) { ch = ChartNext(ch); continue; }
+      hasS = ChartHasInd(ch, "splash");
+      hasI = ChartHasInd(ch, "infusion");
+      hasM = ChartHasInd(ch, "imbalance");
+      int wins = (int)ChartGetInteger(ch, CHART_WINDOWS_TOTAL);
+      ScrapeWant(ch, wins, hasS, hasI, hasM, "SPLASH", body, sent);
+      ScrapeWant(ch, wins, hasS, hasI, hasM, "INFUSION", body, sent);
+      ScrapeWant(ch, wins, hasS, hasI, hasM, "IMBALANCE", body, sent);
+      ch = ChartNext(ch);
+     }
+  }
+
+string g_cdDir = "";
+
+double Icd(string s, int tf, string ind, int buf, int sh)
+  {
+   if(StringLen(ind) < 3) return(EMPTY_VALUE);
+   string names[5];
+   names[0] = (StringLen(g_cdDir) > 0 ? g_cdDir + ind : "Indicators\\" + ind);
+   names[1] = "Indicators\\" + ind;
+   names[2] = "ClusterDelta\\" + ind;
+   names[3] = ind;
+   names[4] = StringSubstr(ind, StringFind(ind, "#"));
+   for(int i = 0; i < 5; i++)
+     {
+      if(StringLen(names[i]) < 2) continue;
+      if(i > 0 && names[i] == names[0]) continue;
+      ResetLastError();
+      double v = iCustom(s, tf, names[i], buf, sh);
+      int err = GetLastError();
+      if(err == 2 || err == 4072) continue;
+      int slash = StringFind(names[i], "\\");
+      if(slash > 0) g_cdDir = StringSubstr(names[i], 0, slash + 1);
+      else g_cdDir = "";
+      return(v);
+     }
+   return(EMPTY_VALUE);
+  }
+
+bool CdFut(string s)
+  {
+   string n = Naked(s);
+   if(n == "EURUSD" || n == "GBPUSD" || n == "USDJPY" || n == "USDCHF"
+      || n == "AUDUSD" || n == "USDCAD" || n == "NZDUSD") return(true);
+   if(n == "XAUUSD" || n == "XAGUSD") return(true);
+   if(n == "XTIUSD" || n == "XBRUSD" || n == "XNGUSD") return(true);
+   if(n == "BTCUSD" || n == "ETHUSD") return(true);
+   return(false);
+  }
+
+void AppendCdHistTF(string &body, string s, int tf, int bars, int &sent)
+  {
+   for(int i = 0; i < bars && sent < 280; i++)
+     {
+      datetime t = iTime(s, tf, i);
+      if(t <= 0) continue;
+      double v = Icd(s, tf, CdVolume, 0, i);
+      double d = Icd(s, tf, CdDelta, 0, i);
+      if(v == EMPTY_VALUE || v < 0) v = 0;
+      if(d == EMPTY_VALUE) d = 0;
+      double sp = Icd(s, tf, CdSplash, 0, i);
+      if(sp == EMPTY_VALUE || sp == 0) sp = Icd(s, tf, CdSplash, 1, i);
+      double inf = Icd(s, tf, CdInfusion, 0, i);
+      if(inf == EMPTY_VALUE || inf == 0) inf = Icd(s, tf, CdInfusion, 1, i);
+      double imb = Icd(s, tf, CdImbalance, 0, i);
+      if(imb == EMPTY_VALUE || imb == 0) imb = Icd(s, tf, CdImbalance, 1, i);
+      int spl = (sp != EMPTY_VALUE && sp != 0) ? 1 : 0;
+      int infg = (inf != EMPTY_VALUE && inf != 0) ? 1 : 0;
+      int imbg = (imb != EMPTY_VALUE && imb != 0) ? 1 : 0;
+      if(tf == PERIOD_H1)
+         body += "CDBAR " + Naked(s) + " " + IntegerToString((int)t) + " "
+              + DoubleToStr(v, 0) + " " + DoubleToStr(d, 0) + " 0 0 "
+              + IntegerToString(spl) + " " + IntegerToString(infg) + " " + IntegerToString(imbg) + "\n";
+      if(spl)
+        {
+         double px = LooksPx(sp, BidOf(s)) ? sp : iClose(s, tf, i);
+         body += "CLUSTER " + Naked(s) + " SPLASH " + DoubleToStr(px, DigitsOf(s)) + " "
+              + ((d < 0) ? "SELL" : "BUY") + " " + IntegerToString((int)t) + "\n";
+         sent++;
+        }
+      if(infg)
+        {
+         double px = LooksPx(inf, BidOf(s)) ? inf : iClose(s, tf, i);
+         body += "CLUSTER " + Naked(s) + " INFUSION " + DoubleToStr(px, DigitsOf(s)) + " "
+              + ((d < 0) ? "SELL" : "BUY") + " " + IntegerToString((int)t) + "\n";
+         sent++;
+        }
+      if(imbg)
+        {
+         double px = LooksPx(imb, BidOf(s)) ? imb : iClose(s, tf, i);
+         body += "CLUSTER " + Naked(s) + " IMBALANCE " + DoubleToStr(px, DigitsOf(s)) + " "
+              + ((d < 0) ? "SELL" : "BUY") + " " + IntegerToString((int)t) + "\n";
+         sent++;
+        }
+     }
+  }
+
+void AppendCdStat(string &body, string s)
+  {
+   double v = Icd(s, PERIOD_M15, CdVolume, 0, 1);
+   double d = Icd(s, PERIOD_M15, CdDelta, 0, 1);
+   double sp = Icd(s, PERIOD_M15, CdSplash, 0, 1);
+   if(sp == EMPTY_VALUE || sp == 0) sp = Icd(s, PERIOD_M15, CdSplash, 1, 1);
+   int onch = 0;
+   long ch = ChartFirst();
+   while(ch >= 0)
+     {
+      if(Naked(ChartSymbol(ch)) == Naked(s)) { onch = 1; break; }
+      ch = ChartNext(ch);
+     }
+   body += "CDSTAT " + Naked(s) + " " + DoubleToStr((v == EMPTY_VALUE || v < 0) ? 0 : v, 0) + " "
+        + DoubleToStr(d == EMPTY_VALUE ? 0 : d, 0) + " "
+        + ((sp != EMPTY_VALUE && sp != 0) ? "1" : "0") + " " + IntegerToString(onch) + "\n";
+  }
+
+bool CdChartOpen(string s)
+  {
+   long ch = ChartFirst();
+   while(ch >= 0)
+     {
+      if(Naked(ChartSymbol(ch)) == Naked(s)) return(true);
+      ch = ChartNext(ch);
+     }
+   return(false);
+  }
+
+void AppendCdHist(string &body, string s, int &sent)
+  {
+   if(!CdChartOpen(s)) return;
+   AppendCdHistTF(body, s, PERIOD_H1, 48, sent);
+  }
+
+void AppendCdOne(string &body, string s, int &sent)
+  {
+   if(!CdChartOpen(s)) return;
+   if(CdFut(s))
+     {
+      AppendCdHist(body, s, sent);
+      AppendCdStat(body, s);
+      return;
+     }
+   int tf = PERIOD_H1;
+   double sum = 0;
+   int ok = 0;
+   double vol[10];
+   double del[10];
+   ArrayInitialize(vol, 0);
+   ArrayInitialize(del, 0);
+   for(int i = 1; i <= 10; i++)
+     {
+      double v = Icd(s, tf, CdVolume, 0, i);
+      double d = Icd(s, tf, CdDelta, 0, i);
+      if(v == EMPTY_VALUE || v <= 0) { vol[i - 1] = 0; continue; }
+      vol[i - 1] = v;
+      del[i - 1] = (d == EMPTY_VALUE ? 0 : d);
+      sum += v;
+      ok++;
+     }
+   if(ok < 4) return;
+   double avg = sum / ok;
+   for(int j = 0; j < 8 && sent < 80; j++)
+     {
+      if(vol[j] < avg * 1.55) continue;
+      double ratio = vol[j] > 0 ? MathAbs(del[j]) / vol[j] : 0;
+      if(ratio >= 0.28) continue;
+      double px = iClose(s, tf, j + 1);
+      if(px <= 0) continue;
+      string sd = (del[j] >= 0) ? "BUY" : "SELL";
+      body += "CLUSTER " + Naked(s) + " INFUSION " + DoubleToStr(px, DigitsOf(s)) + " " + sd
+           + " " + IntegerToString((int)iTime(s, tf, j + 1)) + "\n";
+      sent++;
+     }
+  }
+
+void AppendNamed(string &body, string s, string ind, string kind, int &sent)
+  {
+   if(StringLen(ind) < 3 || sent >= 200) return;
+   int tf = PERIOD_H1;
+   double bid = BidOf(s);
+   for(int i = 0; i < 40 && sent < 200; i++)
+     {
+      double x = Icd(s, tf, ind, 0, i);
+      if(x == EMPTY_VALUE || x == 0) x = Icd(s, tf, ind, 1, i);
+      if(x == EMPTY_VALUE || x == 0) continue;
+      double px = LooksPx(x, bid) ? x : iClose(s, tf, i);
+      if(px <= 0) continue;
+      string sd = (iClose(s, tf, i) >= iOpen(s, tf, i)) ? "BUY" : "SELL";
+      datetime tm = iTime(s, tf, i);
+      if(tm <= 0) tm = TimeCurrent();
+      body += "CLUSTER " + Naked(s) + " " + kind + " " + DoubleToStr(px, DigitsOf(s)) + " " + sd
+           + " " + IntegerToString((int)tm) + "\n";
+      sent++;
+     }
+  }
+
+bool CdLightSym(string s)
+  {
+   string n = Naked(s);
+   if(n == "GBPUSD" || n == "USDJPY" || n == "USDCHF") return(true);
+   if(n == "AUDUSD" || n == "USDCAD" || n == "NZDUSD") return(true);
+   if(n == "XAGUSD") return(true);
+   return(false);
+  }
+
+void AppendCdLight(string &body, string s)
+  {
+   if(!CdLightSym(s) || CdChartOpen(s)) return;
+   for(int i = 0; i < 24; i++)
+     {
+      datetime t = iTime(s, PERIOD_H1, i);
+      if(t <= 0) continue;
+      double v = Icd(s, PERIOD_H1, CdVolume, 0, i);
+      double d = Icd(s, PERIOD_H1, CdDelta, 0, i);
+      if(v == EMPTY_VALUE || v < 0) v = 0;
+      if(d == EMPTY_VALUE) d = 0;
+      if(v <= 0 && d == 0) continue;
+      double share = MathAbs(d) / MathMax(v, 1);
+      int spl = (v > 0 && share >= 0.42) ? 1 : 0;
+      int infg = (v > 0 && share < 0.28) ? 1 : 0;
+      int imbg = (share >= 0.55) ? 1 : 0;
+      body += "CDBAR " + Naked(s) + " " + IntegerToString((int)t) + " "
+           + DoubleToStr(v, 0) + " " + DoubleToStr(d, 0) + " 0 0 "
+           + IntegerToString(spl) + " " + IntegerToString(infg) + " " + IntegerToString(imbg) + "\n";
+     }
+  }
+
+void AppendCdClusters(string &body, int &sent)
+  {
+   sent = sent;
+  }
+
+bool LooksPx(double x, double bid)
+  {
+   if(x <= 0 || x == EMPTY_VALUE || x > 1.0e12 || bid <= 0) return(false);
+   return(MathAbs(x - bid) / bid < 0.08);
+  }
+
+void AppendCdProfile(string &body, string s)
+  {
+   if(StringLen(CdProfile) < 4) return;
+   double bid = BidOf(s);
+   double poc = Icd(s, PERIOD_H1, CdProfile, 0, 0);
+   double vah = Icd(s, PERIOD_H1, CdProfile, 1, 0);
+   double val = Icd(s, PERIOD_H1, CdProfile, 2, 0);
+   if(!LooksPx(poc, bid)) return;
+   if(!LooksPx(vah, bid)) vah = poc;
+   if(!LooksPx(val, bid)) val = poc;
+   int d = DigitsOf(s);
+   body += "PROFILE " + Naked(s) + " " + DoubleToStr(poc, d) + " " + DoubleToStr(vah, d) + " " + DoubleToStr(val, d) + "\n";
+  }
+
+void AppendCdBook(string &body, string s)
+  {
+   if(StringLen(CdBookMap) < 4) return;
+   double bid = BidOf(s);
+   string row = "BOOK " + Naked(s);
+   int n = 0;
+   for(int b = 0; b <= 10 && n < 8; b += 2)
+     {
+      double px = Icd(s, PERIOD_H1, CdBookMap, b, 0);
+      double vol = Icd(s, PERIOD_H1, CdBookMap, b + 1, 0);
+      if(!LooksPx(px, bid) || vol == EMPTY_VALUE || vol <= 0 || vol > 1.0e12) continue;
+      string sd = (px <= bid ? "B" : "S");
+      row += " " + sd + " " + DoubleToStr(px, DigitsOf(s)) + " " + DoubleToStr(vol, 0);
+      n++;
+     }
+   if(n >= 2) body += row + "\n";
+  }
+
+void ScrapeChartCd(long ch, string s, string &body)
+  {
+   double nums[32];
+   int nn = 0;
+   ArrayInitialize(nums, 0);
+   int total = (int)ObjectsTotal(ch, -1, -1);
+   for(int o = total - 1; o >= 0 && nn < 32; o--)
+     {
+      string on = ObjectName(ch, o, -1, -1);
+      if(StringLen(on) < 1) continue;
+      string tx = ObjectGetString(ch, on, OBJPROP_TEXT);
+      if(StringLen(tx) < 1) tx = ObjectGetString(ch, on, OBJPROP_TOOLTIP);
+      double v = StringToDouble(tx);
+      if(MathAbs(v) < 2 || MathAbs(v) > 1.0e8) continue;
+      bool dup = false;
+      for(int k = 0; k < nn; k++) if(MathAbs(nums[k] - v) < 0.1) dup = true;
+      if(dup) continue;
+      nums[nn] = v;
+      nn++;
+     }
+   string dump = " n=" + IntegerToString(nn);
+   for(int i = 0; i < nn && i < 8; i++) dump += " " + DoubleToStr(nums[i], 0);
+   body += "NOTE CD " + Naked(s) + " obj" + dump + "\n";
+   if(nn < 1) return;
+   double vol = 0, dlt = 0, askV = 0, bidV = 0;
+   for(int j = 0; j < nn; j++)
+     {
+      double v = nums[j];
+      if(MathAbs(v) > vol) vol = MathAbs(v);
+      if(v < 0 && MathAbs(v) > MathAbs(dlt)) dlt = v;
+     }
+   for(int j = 0; j < nn; j++)
+     {
+      double v = MathAbs(nums[j]);
+      if(v < 2) continue;
+      if(MathAbs(v - vol) < 0.1) continue;
+      if(dlt != 0 && MathAbs(v - MathAbs(dlt)) < 0.1) continue;
+      if(askV <= 0) askV = v;
+      else if(bidV <= 0 && MathAbs(v - askV) > 0.1) bidV = v;
+     }
+   if(askV <= 0 && vol > 0) askV = vol;
+   if(bidV <= 0 && dlt != 0) bidV = MathAbs(dlt);
+   if(askV > 0 || bidV > 0)
+      body += "ASKBID " + Naked(s) + " " + DoubleToStr(askV, 0) + " " + DoubleToStr(bidV, 0) + "\n";
+   if(vol >= 1) body += "VOLUME " + Naked(s) + " " + DoubleToStr(vol, 0) + "\n";
+   if(dlt != 0) body += "DELTA " + Naked(s) + " " + DoubleToStr(dlt, 0) + "\n";
+   bool inf = false, spl = false, imb = false, cum = false;
+   int total2 = (int)ObjectsTotal(ch, -1, -1);
+   int sentCl = 0;
+   double bidNow = BidOf(s);
+   for(int o2 = total2 - 1; o2 >= 0 && sentCl < 90; o2--)
+     {
+      string nm = ObjectName(ch, o2, -1, -1);
+      if(StringLen(nm) < 1) continue;
+      if(StringFind(nm, "SLOI_") == 0) continue;
+      string low = nm;
+      StringToLower(low);
+      int typ = (int)ObjectGetInteger(ch, nm, OBJPROP_TYPE);
+      bool isInf = StringFind(low, "infusion") >= 0 || StringFind(low, "infuz") >= 0 || StringFind(low, "влив") >= 0 || StringFind(low, "#inf") >= 0;
+      bool isSpl = StringFind(low, "splash") >= 0 || StringFind(low, "btrade") >= 0 || StringFind(low, "сплэш") >= 0 || StringFind(low, "#spl") >= 0;
+      bool isImb = StringFind(low, "imbalance") >= 0 || StringFind(low, "imbal") >= 0 || StringFind(low, "#imb") >= 0;
+      if(StringFind(low, "cumdelta") >= 0 || StringFind(low, "cum_delta") >= 0) cum = true;
+      bool shape = (typ == OBJ_ELLIPSE || typ == OBJ_ARROW || typ == OBJ_TEXT);
+      if(!isInf && !isSpl && !isImb && !shape) continue;
+      double opx = ObjectGetDouble(ch, nm, OBJPROP_PRICE1);
+      datetime ot = (datetime)ObjectGetInteger(ch, nm, OBJPROP_TIME1);
+      if(opx <= 0) opx = ObjectGet(nm, OBJPROP_PRICE1);
+      if(ot <= 0) ot = (datetime)ObjectGet(nm, OBJPROP_TIME1);
+      if(opx <= 0) continue;
+      if(bidNow > 0 && MathAbs(opx - bidNow) / bidNow > 0.25) continue;
+      if(ot <= 0) ot = TimeCurrent();
+      string knd = "SPLASH";
+      if(isInf) knd = "INFUSION";
+      else if(isImb) knd = "IMBALANCE";
+      else if(typ == OBJ_RECTANGLE || typ == OBJ_HLINE) knd = "IMBALANCE";
+      else if(typ == OBJ_ELLIPSE)
+        {
+         color ac = (color)ObjectGetInteger(ch, nm, OBJPROP_COLOR);
+         int r = ac & 0xFF, g = (ac >> 8) & 0xFF, b = (ac >> 16) & 0xFF;
+         if(b > r + 20 && b > g) knd = "IMBALANCE";
+         else if(r >= 150 && g < 90) knd = "IMBALANCE";
+         else if(g > r + 20) knd = "INFUSION";
+         else knd = "SPLASH";
+        }
+      else if(typ == OBJ_ARROW)
+        {
+         color ac = (color)ObjectGetInteger(ch, nm, OBJPROP_COLOR);
+         int r = ac & 0xFF, g = (ac >> 8) & 0xFF, b = (ac >> 16) & 0xFF;
+         if(b > r + 30 && b > g) knd = "IMBALANCE";
+         else if(g > r + 20) knd = "INFUSION";
+         else knd = "SPLASH";
+        }
+      else if(!isSpl && !isInf && !isImb) continue;
+      if(knd == "SPLASH") spl = true;
+      if(knd == "INFUSION") inf = true;
+      if(knd == "IMBALANCE") imb = true;
+      string sd2 = (iClose(s, PERIOD_H1, iBarShift(s, PERIOD_H1, ot)) >= iOpen(s, PERIOD_H1, iBarShift(s, PERIOD_H1, ot))) ? "BUY" : "SELL";
+      body += "CLUSTER " + Naked(s) + " " + knd + " " + DoubleToStr(opx, DigitsOf(s)) + " " + sd2
+           + " " + IntegerToString((int)ot) + "\n";
+      sentCl++;
+     }
+   datetime bt = iTime(ChartSymbol(ch), PERIOD_H1, 0);
+   if(bt <= 0) bt = TimeCurrent();
+   int sp = spl ? 1 : 0;
+   int infg = inf ? 1 : 0;
+   int im = (askV > 1 && bidV > 1 && (askV > bidV * 1.45 || bidV > askV * 1.45)) ? 1 : 0;
+   body += "CDBAR " + Naked(s) + " " + IntegerToString(bt) + " "
+        + DoubleToStr(vol, 0) + " " + DoubleToStr(dlt, 0) + " "
+        + DoubleToStr(askV, 0) + " " + DoubleToStr(bidV, 0) + " "
+        + IntegerToString(sp) + " " + IntegerToString(infg) + " " + IntegerToString(im) + "\n";
+  }
+
+void AppendCdCum(string &body, string s)
+  {
+   if(StringLen(CdCumDelta) < 4) return;
+   int tf = PERIOD_H1;
+   for(int i = 24; i >= 0; i--)
+     {
+      ResetLastError();
+      double x = Icd(s, tf, CdCumDelta, 0, i);
+      if(x == EMPTY_VALUE || MathAbs(x) > 1.0e12) continue;
+      datetime t = iTime(s, tf, i);
+      if(t <= 0) continue;
+      body += "CUMDELTA " + Naked(s) + " " + IntegerToString((int)t) + " " + DoubleToStr(x, 0) + "\n";
+     }
+  }
+
+void AppendCdAskBid(string &body, string s)
+  {
+   long ch = ChartFirst();
+   while(ch >= 0)
+     {
+      if(Naked(ChartSymbol(ch)) == Naked(s) && ChartPeriod(ch) == PERIOD_H1)
+        {
+         ScrapeChartCd(ch, s, body);
+         return;
+        }
+      ch = ChartNext(ch);
+     }
+   if(Naked(s) == Naked(Symbol()))
+     {
+      ScrapeChartCd(0, s, body);
+      return;
+     }
+   double vol = Icd(s, PERIOD_H1, CdVolume, 0, 0);
+   double dlt = Icd(s, PERIOD_H1, CdDelta, 0, 0);
+   double askV = Icd(s, PERIOD_H1, CdAskBid, 0, 0);
+   double bidV = Icd(s, PERIOD_H1, CdAskBid, 1, 0);
+   if(vol == EMPTY_VALUE || vol < 0 || vol > 1.0e12) vol = 0;
+   if(dlt == EMPTY_VALUE || MathAbs(dlt) > 1.0e12) dlt = 0;
+   if(askV == EMPTY_VALUE || askV < 0 || askV > 1.0e12) askV = 0;
+   if(bidV == EMPTY_VALUE || bidV < 0 || bidV > 1.0e12) bidV = 0;
+   if(askV > 0 || bidV > 0)
+      body += "ASKBID " + Naked(s) + " " + DoubleToStr(askV, 0) + " " + DoubleToStr(bidV, 0) + "\n";
+   if(vol >= 1) body += "VOLUME " + Naked(s) + " " + DoubleToStr(vol, 0) + "\n";
+   if(dlt != 0) body += "DELTA " + Naked(s) + " " + DoubleToStr(dlt, 0) + "\n";
+  }
+
+void AppendBrokerBars(string &body)
+  {
+   int tf = PERIOD_H1;
    for(int i = 0; i < g_n; i++)
      {
       string s = g_sym[i];
-      double bid = BidOf(s);
-      double ask = AskOf(s);
-      if(bid <= 0 || ask <= 0) continue;
-      body += Naked(s) + " " + DoubleToStr(bid, DigitsOf(s)) + " " + DoubleToStr(ask, DigitsOf(s)) + "\n";
+      int d = DigitsOf(s);
+      int depth = 4;
+      string nkd = Naked(s);
+      if(nkd == Naked(Symbol())) depth = 16;
+      for(int b = depth; b >= 0; b--)
+        {
+         datetime t = iTime(s, tf, b);
+         double o = iOpen(s, tf, b);
+         double h = iHigh(s, tf, b);
+         double l = iLow(s, tf, b);
+         double c = iClose(s, tf, b);
+         if(t <= 0 || o <= 0 || h <= 0 || l <= 0 || c <= 0) continue;
+         body += "BAR " + Naked(s) + " " + IntegerToString((int)t) + " "
+              + DoubleToStr(o, d) + " " + DoubleToStr(h, d) + " "
+              + DoubleToStr(l, d) + " " + DoubleToStr(c, d) + "\n";
+        }
      }
+  }
+
+void PostTape(string url, string body)
+  {
    char data[];
    char result[];
    string rh = "";
@@ -686,7 +1766,72 @@ void PushTape()
    if(n > 0) ArrayResize(data, n - 1);
    string hdr = "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)\r\nContent-Type: text/plain\r\n";
    ResetLastError();
-   WebRequest("POST", url, hdr, 8000, data, result, rh);
+   int res = WebRequest("POST", url, hdr, 16000, data, result, rh);
+   if(res == -1) Print("SLOI tape POST fail ", GetLastError(), " ", url);
+   else if(res != 200) Print("SLOI tape HTTP ", res, " ", url);
+   else Print("SLOI tape ok ", CharArrayToString(result, 0, 80, CP_UTF8), " байт ", StringLen(body));
+  }
+
+void PushTape()
+  {
+   string url = FeedUrl();
+   StringReplace(url, "signals.txt", "broker");
+   if(StringFind(url, "broker") < 0)
+     {
+      if(StringGetCharacter(url, StringLen(url) - 1) == '/') url = url + "api/broker";
+      else url = url + "/api/broker";
+     }
+   string body = "# SLOI broker\n";
+   if(g_host) body += "HOST 1\n";
+   body += "EA 5.23\n";
+   string srv = AccountServer();
+   StringReplace(srv, " ", "_");
+   string cur = AccountCurrency();
+   StringReplace(cur, " ", "");
+   body += "ACCOUNT " + IntegerToString(AccountNumber()) + " " + srv + " "
+        + DoubleToStr(AccountBalance(), 2) + " " + DoubleToStr(AccountEquity(), 2) + " "
+        + DoubleToStr(AccountMargin(), 2) + " " + DoubleToStr(AccountFreeMargin(), 2) + " "
+        + DoubleToStr(AccountProfit(), 2) + " " + IntegerToString(AccountLeverage()) + " " + cur + "\n";
+   int sent = 0;
+   for(int o = OrdersTotal() - 1; o >= 0 && sent < 24; o--)
+     {
+      if(!OrderSelect(o, SELECT_BY_POS, MODE_TRADES)) continue;
+      int ty = OrderType();
+      if(ty != OP_BUY && ty != OP_SELL && ty != OP_BUYLIMIT && ty != OP_SELLLIMIT
+         && ty != OP_BUYSTOP && ty != OP_SELLSTOP) continue;
+      string side = (ty == OP_BUY || ty == OP_BUYLIMIT || ty == OP_BUYSTOP) ? "BUY" : "SELL";
+      body += "POS " + IntegerToString(OrderTicket()) + " " + Naked(OrderSymbol()) + " " + side + " "
+           + DoubleToStr(OrderLots(), 2) + " " + DoubleToStr(OrderOpenPrice(), DigitsOf(OrderSymbol())) + " "
+           + DoubleToStr(OrderStopLoss(), DigitsOf(OrderSymbol())) + " "
+           + DoubleToStr(OrderTakeProfit(), DigitsOf(OrderSymbol())) + " "
+           + DoubleToStr(OrderProfit() + OrderSwap() + OrderCommission(), 2) + " "
+           + IntegerToString(OrderMagicNumber()) + "\n";
+      sent++;
+     }
+   for(int i = 0; i < g_n; i++)
+     {
+      string s = g_sym[i];
+      double bid = BidOf(s);
+      double ask = AskOf(s);
+      if(bid <= 0 || ask <= 0) continue;
+      body += Naked(s) + " " + DoubleToStr(bid, DigitsOf(s)) + " " + DoubleToStr(ask, DigitsOf(s)) + "\n";
+      int n = g_midN[i];
+      if(n >= 4)
+        {
+         body += "TAPE " + Naked(s);
+         int w = g_midW[i];
+         for(int k = 0; k < n; k++)
+           {
+            int idx = (w - n + k + TICKKEEP * 4) % TICKKEEP;
+            body += " " + DoubleToStr(g_mids[i][idx], DigitsOf(s));
+           }
+         body += "\n";
+        }
+     }
+   string extra = "";
+   AppendClusters(extra);
+   if(StringLen(extra) > 8) PostTape(url, body + extra);
+   else PostTape(url, body);
   }
 
 void ReadSite(string naked, int &dir, double &entry, double &stop, double &target, double &siteLast, string &verdict, string &why, double &skewCap, int &lim)
@@ -810,7 +1955,7 @@ void Scan(int idx, string &bias, string &verdict, string &why,
    double rr = (netK > 0 ? netR / netK : 0);
    if(netR <= 0 || covers < MinCover || rr < MinNetRR)
      { dir = 0; verdict = "СПРЕД"; why = "круг"; return; }
-   why = (lim > 0 ? "лимит " : "рынок ") + bias + " RR " + DoubleToStr(rr, 1);
+   why = (lim > 0 ? (g_virt ? "виртуал " : "лимит ") : "рынок ") + bias + " RR " + DoubleToStr(rr, 1);
   }
 
 void MaybeTrade(int idx, int dir, double entry, double stop, double target, string verdict, int spPts)
@@ -847,18 +1992,24 @@ void MaybeTrade(int idx, int dir, double entry, double stop, double target, stri
       return;
      }
    if(CountMarket(s) > 0 && OneTradeOnly > 0) { g_lastKey[idx] = key; return; }
-   if(CoolMinutes > 0 && RecentLoss(s, CoolMinutes)) { g_lastKey[idx] = key; return; }
+   if(CoolMinutes > 0 && (RecentLoss(s, CoolMinutes) || RecentClose(s, CoolMinutes))) { g_lastKey[idx] = key; return; }
    RefreshRates();
    int digits = DigitsOf(s);
    int cmd = dir > 0 ? OP_BUY : OP_SELL;
    double px = dir > 0 ? AskOf(s) : BidOf(s);
    double risk = MathAbs(entry - stop);
-   if(g_lim[idx] > 0 && entry > 0 && risk > 0)
+   bool far = false;
+   if(entry > 0 && risk > 0)
      {
       double near = MathMax(SpreadPr(s) * 2.0, MarketInfo(s, MODE_STOPLEVEL) * PointOf(s));
       near = MathMax(near, risk * 0.3);
-      if(dir > 0 && AskOf(s) > entry + near) { cmd = OP_BUYLIMIT; px = NormalizeDouble(entry, digits); }
-      if(dir < 0 && BidOf(s) < entry - near) { cmd = OP_SELLLIMIT; px = NormalizeDouble(entry, digits); }
+      if(dir > 0 && AskOf(s) > entry + near) far = true;
+      if(dir < 0 && BidOf(s) < entry - near) far = true;
+     }
+   if(far)
+     {
+      cmd = dir > 0 ? OP_BUYLIMIT : OP_SELLLIMIT;
+      px = NormalizeDouble(entry, digits);
      }
    DeleteWrongPending(s, dir);
    if((cmd == OP_BUYLIMIT || cmd == OP_SELLLIMIT) && SamePending(s, dir, px))
@@ -898,8 +2049,8 @@ void DeleteWrongPending(string s, int dir)
       int ty = OrderType();
       bool buyP = (ty == OP_BUYLIMIT || ty == OP_BUYSTOP);
       bool selP = (ty == OP_SELLLIMIT || ty == OP_SELLSTOP);
-      if(dir > 0 && selP) OrderDelete(OrderTicket());
-      if(dir < 0 && buyP) OrderDelete(OrderTicket());
+      if(dir > 0 && selP) { if(!OrderDelete(OrderTicket())) Print("OrderDelete ", GetLastError()); }
+      if(dir < 0 && buyP) { if(!OrderDelete(OrderTicket())) Print("OrderDelete ", GetLastError()); }
      }
   }
 
@@ -928,6 +2079,24 @@ int CountPending(string s)
       if(ty == OP_BUYLIMIT || ty == OP_SELLLIMIT || ty == OP_BUYSTOP || ty == OP_SELLSTOP) n++;
      }
    return(n);
+  }
+
+bool RecentClose(string s, int minutes)
+  {
+   int idx = IdxOf(s);
+   if(idx >= 0 && g_lastClose[idx] > 0 && TimeCurrent() - g_lastClose[idx] < minutes * 60) return(true);
+   datetime since = TimeCurrent() - minutes * 60;
+   int n = OrdersHistoryTotal();
+   int from = MathMax(0, n - 80);
+   for(int i = n - 1; i >= from; i--)
+     {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_HISTORY)) continue;
+      if(OrderMagicNumber() != Magic || OrderSymbol() != s) continue;
+      int ty = OrderType();
+      if(ty != OP_BUY && ty != OP_SELL) continue;
+      if(OrderCloseTime() >= since) return(true);
+     }
+   return(false);
   }
 
 bool RecentLoss(string s, int minutes)
@@ -1040,8 +2209,9 @@ void ManageBE()
       int type = OrderType();
       if(type != OP_BUY && type != OP_SELL) continue;
       double open = OrderOpenPrice();
-      double sl = OrderStopLoss();
-      double tp = OrderTakeProfit();
+      int idx = IdxOf(OrderSymbol());
+      double sl = (g_virt && idx >= 0 && g_vSL[idx] > 0) ? g_vSL[idx] : OrderStopLoss();
+      double tp = (g_virt && idx >= 0 && g_vTP[idx] > 0) ? g_vTP[idx] : OrderTakeProfit();
       double risk = MathAbs(open - sl);
       if(risk <= 0) continue;
       string s = OrderSymbol();
@@ -1051,7 +2221,8 @@ void ManageBE()
          double be = NormalizeDouble(open + SpreadPr(s), digits);
          if(sl < be)
            {
-            if(!OrderModify(OrderTicket(), open, be, tp, 0, C_GOLD))
+            if(g_virt && idx >= 0) g_vSL[idx] = be;
+            else if(!OrderModify(OrderTicket(), open, be, tp, 0, C_GOLD))
                Print("SLOI BE buy ", GetLastError());
            }
         }
@@ -1060,7 +2231,8 @@ void ManageBE()
          double be = NormalizeDouble(open - SpreadPr(s), digits);
          if(sl == 0 || sl > be)
            {
-            if(!OrderModify(OrderTicket(), open, be, tp, 0, C_GOLD))
+            if(g_virt && idx >= 0) g_vSL[idx] = be;
+            else if(!OrderModify(OrderTicket(), open, be, tp, 0, C_GOLD))
                Print("SLOI BE sell ", GetLastError());
            }
         }
@@ -1069,12 +2241,21 @@ void ManageBE()
 
 void ManualTrade(int dir)
   {
-   string s = Symbol();
+   ManualTradeSym(Symbol(), dir);
+  }
+
+void ManualTradeSym(string s, int dir)
+  {
    SymbolSelect(s, true);
    RefreshRates();
    int digits = DigitsOf(s);
    int cmd = dir > 0 ? OP_BUY : OP_SELL;
    double px = dir > 0 ? AskOf(s) : BidOf(s);
+   if(px <= 0)
+     {
+      for(int i = 0; i < g_n; i++)
+         if(Naked(g_sym[i]) == Naked(s)) { s = g_sym[i]; px = dir > 0 ? AskOf(s) : BidOf(s); break; }
+     }
    if(px <= 0) { Print("SLOI ручной: нет котировки ", s); return; }
    int d = 0;
    double entry = 0, stop = 0, target = 0, siteLast = 0, skewCap = 0;
@@ -1082,10 +2263,53 @@ void ManualTrade(int dir)
    int lim = 0;
    ReadSite(Naked(s), d, entry, stop, target, siteLast, verdict, why, skewCap, lim);
    double lots = LotFor(s, entry, stop);
-   double sl = (stop > 0 ? NormalizeDouble(stop, digits) : 0);
-   double tp = (target > 0 ? NormalizeDouble(target, digits) : 0);
-   int ticket = SendOrder(s, cmd, lots, px, sl, tp, "SLOI manual", dir > 0 ? C_BUY : C_SEL);
-   if(ticket > 0) Alert("SLOI ", (dir > 0 ? "КУПИТЬ " : "ПРОДАТЬ "), s, " #", ticket);
+   double sl = (stop > 0 ? NormalizeDouble(stop, DigitsOf(s)) : 0);
+   double tp = (target > 0 ? NormalizeDouble(target, DigitsOf(s)) : 0);
+   int ticket = SendOrder(s, cmd, lots, px, sl, tp, "SLOI site", dir > 0 ? C_BUY : C_SEL);
+   if(ticket > 0) Alert("SLOI сайт ", (dir > 0 ? "КУПИТЬ " : "ПРОДАТЬ "), s, " #", ticket);
+  }
+
+void CloseByNaked(string naked)
+  {
+   int n = 0;
+   for(int i = OrdersTotal() - 1; i >= 0; i--)
+     {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
+      if(OrderMagicNumber() != Magic) continue;
+      if(Naked(OrderSymbol()) != naked) continue;
+      CloseOne();
+      n++;
+     }
+   Alert("SLOI сайт закрыть ", naked, " ", n);
+  }
+
+void ApplySiteCommands()
+  {
+   if(StringLen(g_key) < 8) return;
+   string lines[];
+   int n = StringSplit(g_feed, '\n', lines);
+   for(int i = 0; i < n; i++)
+     {
+      string line = lines[i];
+      if(StringFind(line, "#CMD ") != 0) continue;
+      string p[];
+      int k = StringSplit(line, ' ', p);
+      if(k < 3) continue;
+      string cid = p[1];
+      if(StringFind(g_cmds, cid) >= 0) continue;
+      g_cmds = g_cmds + cid + ",";
+      if(StringLen(g_cmds) > 500) g_cmds = StringSubstr(g_cmds, StringLen(g_cmds) - 240);
+      string kind = p[2];
+      string a = (k >= 4 ? p[3] : "");
+      if(kind == "PAUSE") g_auto = false;
+      else if(kind == "RESUME") g_auto = true;
+      else if(kind == "CLOSE_ALL") CloseMine(true);
+      else if(kind == "CLOSE_PROFIT") CloseMine(false);
+      else if(kind == "CLOSE") CloseByNaked(a);
+      else if(kind == "BUY") ManualTradeSym(a, 1);
+      else if(kind == "SELL") ManualTradeSym(a, -1);
+      Print("SLOI CMD ", cid, " ", kind, " ", a);
+     }
   }
 
 void CloseOne()
@@ -1100,6 +2324,16 @@ void CloseOne()
    else if(type == OP_SELL) ok = OrderClose(ticket, lots, AskOf(s), SlippagePoints, C_BUY);
    else ok = OrderDelete(ticket);
    if(!ok) Print("SLOI close err ", GetLastError(), " #", ticket);
+   else
+     {
+      int ix = IdxOf(s);
+      if(ix >= 0) g_lastClose[ix] = TimeCurrent();
+     }
+  }
+
+void SweepVirtPendings()
+  {
+   // 5.23: вход — брокерская лимитка. Виртуал только SL/TP, отложки не трогаем.
   }
 
 void DeletePending(string s)
@@ -1108,7 +2342,7 @@ void DeletePending(string s)
      {
       if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
       if(OrderMagicNumber() != Magic) continue;
-      if(OrderSymbol() != s) continue;
+      if(Naked(OrderSymbol()) != Naked(s)) continue;
       int type = OrderType();
       if(type != OP_BUYLIMIT && type != OP_SELLLIMIT && type != OP_BUYSTOP && type != OP_SELLSTOP) continue;
       if(!OrderDelete(OrderTicket())) Print("SLOI снять отложку ", s, " ", GetLastError());
@@ -1138,10 +2372,15 @@ void CloseMine(bool all)
 bool IsForeign()
   {
    if(OrderMagicNumber() == Magic) return(false);
+   if(OrderMagicNumber() == 0)
+     {
+      string c0 = OrderComment();
+      if(StringFind(c0, "WS") < 0 && StringFind(c0, "world") < 0 && StringFind(c0, "World") < 0)
+         return(false);
+     }
    string c = OrderComment();
-   if(StringLen(ForeignTag) <= 0) return(true);
-   if(StringFind(c, ForeignTag) >= 0) return(true);
    if(StringFind(c, "WS") >= 0) return(true);
+   if(StringLen(ForeignTag) > 0 && StringFind(c, ForeignTag) >= 0) return(true);
    if(StringFind(c, "world") >= 0 || StringFind(c, "World") >= 0) return(true);
    return(false);
   }
@@ -1158,16 +2397,8 @@ void AlignForeign(string s, int dir, double stop, double target)
       int ty = OrderType();
       bool buy = (ty == OP_BUY || ty == OP_BUYLIMIT || ty == OP_BUYSTOP);
       bool sel = (ty == OP_SELL || ty == OP_SELLLIMIT || ty == OP_SELLSTOP);
-      if(dir == 0)
-        {
-         CloseOne();
-         continue;
-        }
-      if((dir > 0 && sel) || (dir < 0 && buy))
-        {
-         CloseOne();
-         continue;
-        }
+      if(dir == 0) continue;
+      if((dir > 0 && sel) || (dir < 0 && buy)) continue;
       if(ty != OP_BUY && ty != OP_SELL) continue;
       double sl = (stop > 0 ? NormalizeDouble(stop, digits) : OrderStopLoss());
       double tp = (target > 0 ? NormalizeDouble(target, digits) : OrderTakeProfit());
@@ -1220,6 +2451,7 @@ void Rect(string id, int x, int y, int w, int h, color bg)
    ObjectSetInteger(0, n, OBJPROP_BACK, false);
    ObjectSetInteger(0, n, OBJPROP_SELECTABLE, false);
    ObjectSetInteger(0, n, OBJPROP_HIDDEN, true);
+   ObjectSetInteger(0, n, OBJPROP_ZORDER, 0);
   }
 
 void Lab(string id, int x, int y, string text, color clr, int size)
@@ -1239,6 +2471,7 @@ void Lab(string id, int x, int y, string text, color clr, int size)
    ObjectSetString(0, n, OBJPROP_TEXT, text);
    ObjectSetInteger(0, n, OBJPROP_SELECTABLE, false);
    ObjectSetInteger(0, n, OBJPROP_HIDDEN, true);
+   ObjectSetInteger(0, n, OBJPROP_ZORDER, 1);
   }
 
 void Btn(string id, int x, int y, int w, int h, string text, color bg)
@@ -1259,9 +2492,9 @@ void Btn(string id, int x, int y, int w, int h, string text, color bg)
    ObjectSetInteger(0, n, OBJPROP_FONTSIZE, 8);
    ObjectSetString(0, n, OBJPROP_FONT, "Arial");
    ObjectSetString(0, n, OBJPROP_TEXT, text);
-   ObjectSetInteger(0, n, OBJPROP_STATE, false);
    ObjectSetInteger(0, n, OBJPROP_SELECTABLE, true);
    ObjectSetInteger(0, n, OBJPROP_HIDDEN, false);
+   ObjectSetInteger(0, n, OBJPROP_ZORDER, 2000);
   }
 
 void Edit(string id, int x, int y, int w, int h, string text, bool force)
@@ -1285,6 +2518,7 @@ void Edit(string id, int x, int y, int w, int h, string text, bool force)
    if(force) ObjectSetString(0, n, OBJPROP_TEXT, text);
    ObjectSetInteger(0, n, OBJPROP_SELECTABLE, true);
    ObjectSetInteger(0, n, OBJPROP_HIDDEN, false);
+   ObjectSetInteger(0, n, OBJPROP_ZORDER, 80);
   }
 
 color VClr(string v)
@@ -1295,16 +2529,31 @@ color VClr(string v)
    return(C_WAIT);
   }
 
-void DrawDesk()
+void DrawDesk(bool force)
   {
+   if(!g_ready) return;
    int x = PanelX;
    int y = PanelY;
    PullFeed();
+   if(TimeCurrent() - g_tapeAt >= 15)
+     {
+      g_tapeAt = TimeCurrent();
+      PushTape();
+     }
+   SweepVirtPendings();
+   uint nowMs = GetTickCount();
+   bool paint = force || (nowMs - g_uiMs >= 2500);
+   if(paint) g_uiMs = nowMs;
    if(g_min)
      {
-      Rect("bg", x, y, 300, 34, C_BG);
-      Lab("title", x + 12, y + 8, "SLOI  "+g_feedNote+"  "+TimeToStr(TimeLocal(), TIME_MINUTES)+" лок", C_GOLD, 10);
-      Btn("b_min", x + 260, y + 6, 32, 22, "+", C_GOLD);
+      if(paint)
+        {
+         HideFat();
+         Rect("bg", x, y, 300, 34, C_BG);
+         Lab("title", x + 12, y + 8, "SLOI  "+g_feedNote+"  "+TimeToStr(TimeLocal(), TIME_MINUTES)+" лок", C_GOLD, 10);
+         Btn("b_min", x + 260, y + 6, 32, 22, "+", C_GOLD);
+         RaiseClicks();
+        }
       for(int i = 0; i < g_n; i++)
         {
          string bias, verdict, why;
@@ -1313,9 +2562,11 @@ void DrawDesk()
          Scan(i, bias, verdict, why, dir, entry, stop, target, spPts);
          if(!g_auto && dir != 0) why = "АВТО ВЫКЛ";
          AlignForeign(g_sym[i], dir, stop, target);
+         AlignVirt(i, dir, stop, target);
          MaybeTrade(i, dir, entry, stop, target, verdict, spPts);
         }
       ManageBE();
+      ManageVirtBook();
       DrawSmcOnChart();
       ChartRedraw();
       return;
@@ -1326,9 +2577,28 @@ void DrawDesk()
    int head = 22;
    int h = setH + head + rowH * g_n + 16;
 
+   if(!paint)
+     {
+      for(int j = 0; j < g_n; j++)
+        {
+         string bias, verdict, why;
+         int dir = 0, spPts = 0;
+         double entry = 0, stop = 0, target = 0;
+         Scan(j, bias, verdict, why, dir, entry, stop, target, spPts);
+         if(!g_auto && dir != 0) why = "АВТО ВЫКЛ";
+         AlignForeign(g_sym[j], dir, stop, target);
+         AlignVirt(j, dir, stop, target);
+         MaybeTrade(j, dir, entry, stop, target, verdict, spPts);
+        }
+      ManageBE();
+      ManageVirtBook();
+      DrawSmcOnChart();
+      return;
+     }
+
    Rect("bg", x, y, w, h, C_BG);
    Lab("title", x + 14, y + 8, "SLOI DESK", C_GOLD, 12);
-   Lab("hint", x + 150, y + 12, g_feedNote+"  "+IntegerToString(g_n)+"/"+IntegerToString(MAXSYM)+" пар  >> график  — свернуть", C_DIM, 8);
+   Lab("hint", x + 150, y + 12, g_feedNote+"  "+(g_host?"хозяин CD":"сверка брокер/сайт")+"  "+IntegerToString(g_n)+" пар", C_DIM, 8);
 
    Btn("b_auto", x + 470, y + 8, 96, 22, g_auto ? "АВТО ВКЛ" : "АВТО ВЫКЛ", g_auto ? C_BUY : C_SEL);
    Btn("b_alrt", x + 572, y + 8, 96, 22, g_alerts ? "АЛЕРТ ВКЛ" : "АЛЕРТ ВЫКЛ", C_GOLD);
@@ -1349,6 +2619,7 @@ void DrawDesk()
    Edit("e_suf", x + 348, y + 36, 56, 20, g_suffix, seed);
 
    Btn("b_mart", x + 410, y + 36, 90, 22, g_mart ? "МАРТ ВКЛ" : "МАРТ ВЫКЛ", g_mart ? C_WAIT : C_OFF);
+   Btn("b_virt", x + 600, y + 36, 88, 22, g_virt ? "ВИРТ ВКЛ" : "БРОКЕР", g_virt ? C_BUY : C_WAIT);
    Btn("b_ok", x + 506, y + 36, 90, 22, "ПРИМЕНИТЬ", C_GOLD);
 
    Lab("l_fx", x + 14, y + 62, "FX", C_DIM, 8);
@@ -1373,21 +2644,21 @@ void DrawDesk()
    Btn("b_sell", x + 158, y + 132, 100, 24, "ПРОДАТЬ", C_SEL);
    Btn("b_cp",   x + 266, y + 132, 150, 24, "ЗАКРЫТЬ ПРИБЫЛЬ", C_GOLD);
    Btn("b_ca",   x + 424, y + 132, 110, 24, "ЗАКРЫТЬ ВСЁ", C_SEL);
-   Btn("b_ws",   x + 540, y + 132, 100, 24, "СНЯТЬ WS", C_WAIT);
-   Lab("l_man", x + 648, y + 136, "WS→стол", C_DIM, 8);
+   Btn("b_ws",   x + 520, y + 132, 118, 24, "СНЯТЬ ЧУЖИЕ", C_WAIT);
+   Lab("l_man", x + 644, y + 136, "тег WS", C_DIM, 8);
 
    int hx = x + 14;
    int hy = y + setH + 2;
    Lab("h1", hx,     hy, "СИМВОЛ",  C_DIM, 8);
    Lab("h2", hx+110, hy, "СПРЕД",   C_DIM, 8);
-   Lab("h3", hx+170, hy, "% YAHOO", C_DIM, 8);
+   Lab("h3", hx+170, hy, "САЙТ/БРОК", C_DIM, 8);
    Lab("h4", hx+250, hy, "ВХОД",    C_DIM, 8);
    Lab("h5", hx+350, hy, "СТОП",    C_DIM, 8);
    Lab("h6", hx+450, hy, "ЦЕЛЬ",    C_DIM, 8);
    Lab("h7", hx+530, hy, "ВЕРДИКТ", C_DIM, 8);
    Lab("h8", hx+700, hy, "ЛОТ", C_DIM, 8);
 
-   string cmt = "SLOI DESK | лента "+g_feedNote+" | авто "+(g_auto?"ВКЛ":"ВЫКЛ")+" | макс спред "+IntegerToString(g_maxSp)+"п\n";
+   string cmt = "SLOI DESK | лента "+g_feedNote+" | авто "+(g_auto?"ВКЛ":"ВЫКЛ")+" | "+(g_virt?"виртуал SL/TP":"брокер SL/TP")+" | макс спред "+IntegerToString(g_maxSp)+"п\n";
    cmt += "СИМВОЛ     СПРЕД  СТРУКТ   ВХОД        СТОП        ЦЕЛЬ        ВЕРДИКТ\n";
 
    for(int i = 0; i < g_n; i++)
@@ -1398,6 +2669,7 @@ void DrawDesk()
       Scan(i, bias, verdict, why, dir, entry, stop, target, spPts);
       if(!g_auto && dir != 0) why = "АВТО ВЫКЛ";
       AlignForeign(g_sym[i], dir, stop, target);
+      AlignVirt(i, dir, stop, target);
       MaybeTrade(i, dir, entry, stop, target, verdict, spPts);
 
       int ry = y + setH + head + i * rowH;
@@ -1422,6 +2694,8 @@ void DrawDesk()
       cmt += "  " + IntegerToString(spPts) + "п  " + bias + "  " + verdict + "  " + why + "\n";
      }
    ManageBE();
+   ManageVirtBook();
    DrawSmcOnChart();
+   if(paint) RaiseClicks();
    ChartRedraw();
   }

@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.22"
+#property version   "5.23"
 #property strict
-#property description "SLOI 5.22: панель сворачивается по клику, фон не перехватывает кнопки"
+#property description "SLOI 5.23: вход лимиткой брокера, виртуал только стоп/тейк"
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -160,7 +160,7 @@ int OnInit()
       g_auto = false;
       Print("SLOI 5.18 дубль на ЭТОМ MT4: авто ВЫКЛ, кружки уходят. Кнопка АВТО на этом окне — забрать торговлю");
      }
-   else Print("SLOI 5.22 лидер этого терминала, чарт ", ChartSymbol(0));
+   else Print("SLOI 5.23 лидер этого терминала, чарт ", ChartSymbol(0));
    DrawDesk(true);
    return(INIT_SUCCEEDED);
   }
@@ -320,10 +320,6 @@ void OnChartEvent(const int id, const long &lparam, const double &dparam, const 
    if(sparam == P+"b_virt")
      {
       g_virt = !g_virt;
-      if(g_virt)
-        {
-         for(int v = 0; v < g_n; v++) DeletePending(g_sym[v]);
-        }
       DrawDesk(true);
       return;
      }
@@ -1787,7 +1783,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 5.22\n";
+   body += "EA 5.23\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();
@@ -2003,23 +1999,14 @@ void MaybeTrade(int idx, int dir, double entry, double stop, double target, stri
    double px = dir > 0 ? AskOf(s) : BidOf(s);
    double risk = MathAbs(entry - stop);
    bool far = false;
-   if(g_lim[idx] > 0 && entry > 0 && risk > 0)
+   if(entry > 0 && risk > 0)
      {
       double near = MathMax(SpreadPr(s) * 2.0, MarketInfo(s, MODE_STOPLEVEL) * PointOf(s));
       near = MathMax(near, risk * 0.3);
       if(dir > 0 && AskOf(s) > entry + near) far = true;
       if(dir < 0 && BidOf(s) < entry - near) far = true;
      }
-   if(g_virt)
-     {
-      DeletePending(s);
-      if(far)
-        {
-         g_lastKey[idx] = key;
-         return;
-        }
-     }
-   else if(far)
+   if(far)
      {
       cmd = dir > 0 ? OP_BUYLIMIT : OP_SELLLIMIT;
       px = NormalizeDouble(entry, digits);
@@ -2346,15 +2333,7 @@ void CloseOne()
 
 void SweepVirtPendings()
   {
-   if(!g_virt) return;
-   for(int i = OrdersTotal() - 1; i >= 0; i--)
-     {
-      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
-      if(OrderMagicNumber() != Magic) continue;
-      int type = OrderType();
-      if(type != OP_BUYLIMIT && type != OP_SELLLIMIT && type != OP_BUYSTOP && type != OP_SELLSTOP) continue;
-      if(!OrderDelete(OrderTicket())) Print("SLOI virt del ", OrderSymbol(), " ", GetLastError());
-     }
+   // 5.23: вход — брокерская лимитка. Виртуал только SL/TP, отложки не трогаем.
   }
 
 void DeletePending(string s)
