@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.9.48",
+    d: "2026-09-21",
+    items: [
+      "Название SLOI над разбором пары: объём, градиент и лёгкое 3D-движение",
+    ],
+  },
+  {
     v: "1.9.47",
     d: "2026-09-21",
     items: [

@@ -167,6 +167,18 @@
   }
 }
 
+@keyframes brand-float {
+  0% {
+    transform: perspective(720px) rotateX(10deg) rotateY(-8deg) translate3d(0, 2px, 0);
+  }
+  50% {
+    transform: perspective(720px) rotateX(4deg) rotateY(8deg) translate3d(0, -8px, 12px);
+  }
+  100% {
+    transform: perspective(720px) rotateX(10deg) rotateY(-8deg) translate3d(0, 2px, 0);
+  }
+}
+
 @keyframes on-air {
   0%,
   100% {
@@ -213,6 +225,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .brand-mark,
+  .brand-shine,
   .on-air-dot,
   .img-live,
   .emoji-live,
@@ -230,24 +244,30 @@
     display: inline-block;
     line-height: 0.82;
     font-family: var(--font-display);
-    font-weight: 600;
-    letter-spacing: 0.14em;
-    font-size: clamp(4.6rem, 16vw, 10rem);
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    font-size: clamp(4.2rem, 14vw, 8.5rem);
     user-select: none;
+    transform-style: preserve-3d;
+    animation: brand-float 6.5s ease-in-out infinite;
   }
   .brand-extrude {
     position: absolute;
     inset: 0;
-    color: #3a2710;
+    color: #2a1a08;
+    transform: translate3d(5px, 9px, -18px);
     text-shadow:
-      0 1px 0 #6a4a1c,
-      0 2px 0 #5a3c16,
-      0 3px 0 #4c3212,
-      0 4px 0 #3e280e,
-      0 6px 0 #2c1c0a,
-      0 9px 0 #1c1208,
-      0 14px 22px rgba(0, 0, 0, 0.62),
-      0 0 40px rgba(240, 215, 168, 0.28);
+      0 1px 0 #c9a056,
+      0 2px 0 #b89048,
+      0 3px 0 #a07838,
+      0 4px 0 #8c662c,
+      0 5px 0 #785624,
+      0 6px 0 #64461c,
+      0 8px 0 #4e3614,
+      0 10px 0 #3a280e,
+      0 13px 0 #241808,
+      0 18px 28px rgba(0, 0, 0, 0.72),
+      0 0 48px rgba(240, 215, 168, 0.35);
     z-index: 0;
   }
   .brand-shine {
@@ -255,20 +275,21 @@
     z-index: 1;
     color: #ffe7a0;
     background-image: linear-gradient(
-      90deg,
+      105deg,
       #7af0ff 0%,
-      #fff6c8 14%,
-      #ffd060 28%,
-      #ffffff 42%,
-      #ffb347 56%,
-      #5eead4 72%,
-      #ffe08a 86%,
+      #fff6c8 16%,
+      #ffd060 32%,
+      #ffffff 48%,
+      #ffb347 64%,
+      #5eead4 80%,
+      #ffe08a 92%,
       #7af0ff 100%
     );
-    background-size: 220% 100%;
+    background-size: 240% 100%;
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 8px 10px rgba(0, 0, 0, 0.45));
     animation: brand-flow 3.2s linear infinite, brand-glow 2.4s ease-in-out infinite;
   }
 

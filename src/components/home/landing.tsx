@@ -16,19 +16,22 @@ export function Landing({ data }: { data: HomePayload }) {
       <AppNav />
       <Ticker quotes={data.quotes} />
       <NewsTicker news={data.news} flashes={data.flashes} />
+      <div className="relative mx-auto max-w-6xl px-4 pb-1 pt-5 sm:px-6">
+        <BrandMark />
+        <p className="-mt-1 font-mono text-xs tracking-[0.28em] text-accent">слои рынка · {DOMAIN}</p>
+      </div>
+      <HomeLeadPoster quotes={data.quotes} />
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
         <SessionStrip />
         <HomeCalStrip />
       </div>
-      <HomeLeadPoster quotes={data.quotes} />
       <section className="relative overflow-hidden">
         <img src="/art/strata.jpg" alt="" className="absolute inset-0 h-full w-full object-cover opacity-40" />
         <div className="mesh-orb absolute -left-24 -top-24 size-[28rem] rounded-full bg-[radial-gradient(circle,rgba(240,215,168,0.28),transparent_68%)]" />
         <div className="mesh-orb absolute -right-16 top-10 size-[22rem] rounded-full bg-[radial-gradient(circle,rgba(79,208,222,0.2),transparent_70%)] [animation-delay:-6s]" />
         <div className="absolute inset-0 bg-gradient-to-r from-bg via-bg/70 to-bg/25" />
         <div className="relative mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-24">
-          <BrandMark />
-          <p className="mt-3 font-mono text-xs tracking-[0.28em] text-accent">слои рынка · {DOMAIN}</p>
+          <p className="font-mono text-xs tracking-[0.28em] text-accent">слои рынка · {DOMAIN}</p>
           <h2 className="mt-6 max-w-3xl text-3xl font-medium tracking-tight sm:text-5xl">
             Котировки, новости и разбор крупняка — один стол
           </h2>
