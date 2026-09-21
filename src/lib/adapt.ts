@@ -53,7 +53,7 @@ export function adaptGates(log: SignalHit[]): AdaptGates {
   }
   const line =
     last.length < 3
-      ? "Зона важнее счёта: ордерблок, ликвидность, сплэш → лимитка. Крипта и GBPJPY по-прежнему режем."
+      ? "Зона + ещё два слоя (структура, объём, счёт, вектор). Один ордерблок без дельты/структуры — не вход."
       : level === 2
         ? `После ${streak || losses} стопов: RR≥1.25, живых не больше 1${pause.size ? `, пауза ${[...pause].join(", ")}` : ""}.`
         : level === 1
@@ -69,15 +69,19 @@ function wait(m: DigestMarket, title: string, therefore: string): DigestMarket {
   };
 }
 
-/** Keep limits when OB/FVG/liquidity exist. Only cut the pairs that burned the archive. */
+/** Zone opens the door. Volume, structure, score, PD, splash-delta still have to agree. */
 export function applyLessons(markets: DigestMarket[]): DigestMarket[] {
   return markets.map((m) => {
     const live = m.advice.action === "long" || m.advice.action === "short";
     if (!live) return m;
     const id = m.spec.id;
     const zoned = m.setup.entry != null && m.setup.stop != null;
-    if (WEAK.has(id) && m.score < 55 && !zoned) {
-      return wait(m, "Слабая пара без зоны", `${id} на архиве жгла. Без ордерблока не ставим.`);
+    const vol = m.volumeSpeak ?? "";
+    if (/против входа|не догонять сплэш/i.test(vol)) {
+      return wait(m, "Слой объёма против", vol);
+    }
+    if (WEAK.has(id) && m.score < 52) {
+      return wait(m, "Слабая пара", `${id} на архиве жгла. Нужен счёт ≥52 и зона.`);
     }
     if (CRYPTO.has(id) && m.score < 58) {
       return wait(m, "Крипта без набора", "По крипте слабо. Нужен счёт ≥58 и зона.");
@@ -91,8 +95,37 @@ export function applyLessons(markets: DigestMarket[]): DigestMarket[] {
       }
     }
     const rr = m.advice.netRr;
-    if (rr != null && rr > 2.4 && !zoned) {
-      return wait(m, "Цель слишком далеко", `RR ${rr.toFixed(2)}. Без зоны не догоняем.`);
+    if (rr != null && rr > 2.4 && m.score < 55) {
+      return wait(m, "Цель слишком далеко", `RR ${rr.toFixed(2)} при слабом счёте. Режем жадность.`);
+    }
+    const bits: string[] = [];
+    if (zoned) bits.push("зона");
+    if (m.score >= 48) bits.push("счёт");
+    if (
+      (m.advice.action === "long" && m.bias === "bullish") ||
+      (m.advice.action === "short" && m.bias === "bearish")
+    ) {
+      bits.push("структура");
+    }
+    if (/подтверд|сплэш\+дельта: ход|лужа|вливание по стороне/i.test(vol)) bits.push("объём");
+    if (
+      m.boxVector &&
+      ((m.advice.action === "long" && m.boxVector.dir === "up") ||
+        (m.advice.action === "short" && m.boxVector.dir === "down"))
+    ) {
+      bits.push("вектор");
+    }
+    if (m.premiumDiscount === "discount" && m.advice.action === "long") bits.push("дисконт");
+    if (m.premiumDiscount === "premium" && m.advice.action === "short") bits.push("премия");
+    if (m.construction && /call|put|стена/i.test(`${m.construction.type} ${m.construction.ticker ?? ""}`)) {
+      bits.push("опцион");
+    }
+    if (bits.length < 3) {
+      return wait(
+        m,
+        "Мало слоёв",
+        `Сейчас: ${bits.join(", ") || "пусто"}. Ордерблок один не вход. Нужны ещё структура, объём CD, счёт или вектор коробки.`,
+      );
     }
     return m;
   });
