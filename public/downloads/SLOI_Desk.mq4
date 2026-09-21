@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.19"
+#property version   "5.20"
 #property strict
 #property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
 
@@ -98,6 +98,8 @@ int      g_holdMin;
 string g_feed = "";
 datetime g_feedAt = 0;
 datetime g_tapeAt = 0;
+datetime g_uiAt = 0;
+datetime g_clickAt = 0;
 string g_feedNote = "нет ленты";
 
 color C_BG   = C'16,14,12';
@@ -152,7 +154,7 @@ int OnInit()
       g_auto = false;
       Print("SLOI 5.18 дубль на ЭТОМ MT4: авто ВЫКЛ, кружки уходят. Кнопка АВТО на этом окне — забрать торговлю");
      }
-   else Print("SLOI 5.17 лидер этого терминала, чарт ", ChartSymbol(0));
+   else Print("SLOI 5.20 лидер этого терминала, чарт ", ChartSymbol(0));
    DrawDesk();
    return(INIT_SUCCEEDED);
   }
@@ -185,18 +187,26 @@ void OnDeinit(const int reason)
    Comment("");
   }
 
-void OnTick()   { if(g_ready) DrawDesk(); }
+void OnTick()
+  {
+   if(!g_ready) return;
+   SweepVirtPendings();
+   if(TimeCurrent() == g_uiAt) return;
+   g_uiAt = TimeCurrent();
+   DrawDesk();
+  }
 void OnTimer()
   {
    if(!g_ready) return;
-   TakeLead();
-   if(!g_leader) g_auto = false;
+   if(TimeCurrent() - g_clickAt > 15) TakeLead();
+   if(!g_leader && TimeCurrent() - g_clickAt > 15) g_auto = false;
    DrawDesk();
   }
 
 void OnChartEvent(const int id, const long &lparam, const double &dparam, const string &sparam)
   {
    if(id != CHARTEVENT_OBJECT_CLICK) return;
+   g_clickAt = TimeCurrent();
    ObjectSetInteger(0, sparam, OBJPROP_STATE, false);
    if(sparam == P+"b_min")
      {
@@ -2367,6 +2377,7 @@ void Rect(string id, int x, int y, int w, int h, color bg)
    ObjectSetInteger(0, n, OBJPROP_BACK, false);
    ObjectSetInteger(0, n, OBJPROP_SELECTABLE, false);
    ObjectSetInteger(0, n, OBJPROP_HIDDEN, true);
+   ObjectSetInteger(0, n, OBJPROP_ZORDER, 0);
   }
 
 void Lab(string id, int x, int y, string text, color clr, int size)
@@ -2386,6 +2397,7 @@ void Lab(string id, int x, int y, string text, color clr, int size)
    ObjectSetString(0, n, OBJPROP_TEXT, text);
    ObjectSetInteger(0, n, OBJPROP_SELECTABLE, false);
    ObjectSetInteger(0, n, OBJPROP_HIDDEN, true);
+   ObjectSetInteger(0, n, OBJPROP_ZORDER, 1);
   }
 
 void Btn(string id, int x, int y, int w, int h, string text, color bg)
@@ -2406,9 +2418,9 @@ void Btn(string id, int x, int y, int w, int h, string text, color bg)
    ObjectSetInteger(0, n, OBJPROP_FONTSIZE, 8);
    ObjectSetString(0, n, OBJPROP_FONT, "Arial");
    ObjectSetString(0, n, OBJPROP_TEXT, text);
-   ObjectSetInteger(0, n, OBJPROP_STATE, false);
    ObjectSetInteger(0, n, OBJPROP_SELECTABLE, true);
    ObjectSetInteger(0, n, OBJPROP_HIDDEN, false);
+   ObjectSetInteger(0, n, OBJPROP_ZORDER, 100);
   }
 
 void Edit(string id, int x, int y, int w, int h, string text, bool force)
@@ -2432,6 +2444,7 @@ void Edit(string id, int x, int y, int w, int h, string text, bool force)
    if(force) ObjectSetString(0, n, OBJPROP_TEXT, text);
    ObjectSetInteger(0, n, OBJPROP_SELECTABLE, true);
    ObjectSetInteger(0, n, OBJPROP_HIDDEN, false);
+   ObjectSetInteger(0, n, OBJPROP_ZORDER, 80);
   }
 
 color VClr(string v)
