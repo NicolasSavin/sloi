@@ -301,6 +301,18 @@ export function ingestBrokerTape(text: string, tenant = "legacy") {
       r.cdCharts = [...new Set([...old, ...next])].join(",");
       continue;
     }
+    if (p[0] === "TAPE" && p.length >= 5) {
+      const id = (p[1] ?? "").replace(/[^A-Za-z]/g, "").toUpperCase();
+      const pts = p.slice(2).map(Number).filter((n) => Number.isFinite(n) && n > 0);
+      if (id && pts.length >= 4) {
+        const step = 15_000 / Math.max(pts.length - 1, 1);
+        r.tape.set(
+          id,
+          pts.map((mid, i) => ({ t: at - (pts.length - 1 - i) * step, mid })),
+        );
+      }
+      continue;
+    }
     if (p[0] === "CDSTAT" && p.length >= 5) {
       const id = (p[1] ?? "").replace(/[^A-Za-z]/g, "").toUpperCase();
       const volume = Number(p[2]);
@@ -405,7 +417,7 @@ export function liveTickBurst(id: string): { kind: "splash" | "infusion"; side: 
     if (t?.length) buf = t;
   }
   const win = buf.filter((x) => now - x.t < 12_000);
-  if (win.length < 16) return null;
+  if (win.length < 8) return null;
   let hi = -Infinity;
   let lo = Infinity;
   for (const x of win) {

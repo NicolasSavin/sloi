@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.20"
+#property version   "5.21"
 #property strict
-#property description "SLOI 4.71: HostFeed — CD на сайт только у хозяина. Клиенту CD не нужен."
+#property description "SLOI 5.21: тики WatchList на сайт для сплэша на кроссах"
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -101,6 +101,10 @@ datetime g_tapeAt = 0;
 datetime g_uiAt = 0;
 datetime g_clickAt = 0;
 string g_feedNote = "нет ленты";
+#define TICKKEEP 20
+double   g_mids[MAXSYM][TICKKEEP];
+int      g_midN[MAXSYM];
+int      g_midW[MAXSYM];
 
 color C_BG   = C'16,14,12';
 color C_BOX  = C'32,28,24';
@@ -144,7 +148,7 @@ int OnInit()
    g_holdMin = MinHoldMinutes;
    Wipe();
    ParseWatch();
-   EventSetTimer(2);
+   EventSetTimer(1);
    ChartSetInteger(0, CHART_FOREGROUND, false);
    g_ready = true;
    g_seeded = false;
@@ -154,7 +158,7 @@ int OnInit()
       g_auto = false;
       Print("SLOI 5.18 дубль на ЭТОМ MT4: авто ВЫКЛ, кружки уходят. Кнопка АВТО на этом окне — забрать торговлю");
      }
-   else Print("SLOI 5.20 лидер этого терминала, чарт ", ChartSymbol(0));
+   else Print("SLOI 5.21 лидер этого терминала, чарт ", ChartSymbol(0));
    DrawDesk();
    return(INIT_SUCCEEDED);
   }
@@ -187,9 +191,23 @@ void OnDeinit(const int reason)
    Comment("");
   }
 
+void SampleMids()
+  {
+   for(int i = 0; i < g_n; i++)
+     {
+      double b = BidOf(g_sym[i]);
+      if(b <= 0) continue;
+      int w = g_midW[i] % TICKKEEP;
+      g_mids[i][w] = b;
+      g_midW[i]++;
+      if(g_midN[i] < TICKKEEP) g_midN[i]++;
+     }
+  }
+
 void OnTick()
   {
    if(!g_ready) return;
+   SampleMids();
    SweepVirtPendings();
    if(TimeCurrent() == g_uiAt) return;
    g_uiAt = TimeCurrent();
@@ -198,6 +216,7 @@ void OnTick()
 void OnTimer()
   {
    if(!g_ready) return;
+   SampleMids();
    if(TimeCurrent() - g_clickAt > 15) TakeLead();
    if(!g_leader && TimeCurrent() - g_clickAt > 15) g_auto = false;
    DrawDesk();
@@ -679,6 +698,8 @@ void ParseWatch()
       g_prevV[g_n] = "";
       g_lastBar[g_n] = 0;
       g_lastClose[g_n] = 0;
+      g_midN[g_n] = 0;
+      g_midW[g_n] = 0;
       g_n++;
      }
    if(g_n == 0)
@@ -1704,7 +1725,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 5.19\n";
+   body += "EA 5.21\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();
@@ -1736,6 +1757,18 @@ void PushTape()
       double ask = AskOf(s);
       if(bid <= 0 || ask <= 0) continue;
       body += Naked(s) + " " + DoubleToStr(bid, DigitsOf(s)) + " " + DoubleToStr(ask, DigitsOf(s)) + "\n";
+      int n = g_midN[i];
+      if(n >= 4)
+        {
+         body += "TAPE " + Naked(s);
+         int w = g_midW[i];
+         for(int k = 0; k < n; k++)
+           {
+            int idx = (w - n + k + TICKKEEP * 4) % TICKKEEP;
+            body += " " + DoubleToStr(g_mids[i][idx], DigitsOf(s));
+           }
+         body += "\n";
+        }
      }
    string extra = "";
    AppendClusters(extra);

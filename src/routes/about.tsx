@@ -9,6 +9,14 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.9.46",
+    d: "2026-09-21",
+    items: [
+      "Сов 5.21 шлёт ленту тиков WatchList (TAPE). Сплэш на кроссах без CD",
+      "Голос новости: факт / прогноз / сюрприз",
+    ],
+  },
+  {
     v: "1.9.45",
     d: "2026-09-21",
     items: [

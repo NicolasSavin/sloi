@@ -291,7 +291,16 @@ export function newsAlertText(halt: NewsHalt) {
   const when =
     halt.minutes > 0 ? `через ${halt.minutes} минут` : halt.minutes === 0 ? "прямо сейчас" : "уже вышла";
   if (halt.active) {
-    return `Крупная новость по ${pair}: ${name}. ${when}. Не запрет: если ожидание совпадает с нашей стороной — вход разрешаю и добавляю очки. Против ожидания — жду.`;
+    const print = halt.printLine ? ` ${halt.printLine}.` : "";
+    const tilt =
+      halt.surprise === "hot"
+        ? " Горячее прогноза — доллар чаще вверх, очки в эту сторону."
+        : halt.surprise === "miss"
+          ? " Слабее прогноза — доллар чаще вниз."
+          : halt.surprise === "inline"
+            ? " Как ждали — шип часто возвращают, не рынок в первую минуту."
+            : "";
+    return `Крупная новость по ${pair}: ${name}. ${when}.${print}${tilt} Попутный макро — вход не глушу. Против — жду.`;
   }
   if (halt.impact === "High" && halt.minutes > 0 && halt.minutes <= 45) {
     return `Крупная новость по ${pair}: ${name}. ${when}. Ближе к выходу смотрю, совпадает ли макро с зоной. Попутный — плюс очки, встречный — пауза.`;
