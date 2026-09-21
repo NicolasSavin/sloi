@@ -17,7 +17,7 @@ import type { Advice } from "@/lib/advisor";
 import type { LocalSetup, SmcSnapshot, Zone } from "@/lib/smc/engine";
 import { deltaOf } from "@/lib/smc/flow";
 import { CD_FUT, nodeForecast, type VolumeNode } from "@/lib/smc/micro";
-import { clipWicks, liveCdCharts } from "@/lib/broker-tape";
+import { liveCdCharts } from "@/lib/broker-tape";
 import { WalkingMascot } from "@/components/desk/walking-mascot";
 import { cn } from "@/lib/utils";
 
@@ -1180,41 +1180,31 @@ function drawProfile(
   ctx.fillText("B", rect.width - 12, 12);
 }
 
-function lockPriceScale(series: ISeriesApi<"Candlestick">, close: number) {
-  const px = Math.abs(close) || 1;
-  const span = px * 0.007;
+function lockPriceScale(series: ISeriesApi<"Candlestick">, candles: { high: number; low: number }[]) {
+  const win = candles.slice(-80);
+  let hi = -Infinity;
+  let lo = Infinity;
+  for (const c of win) {
+    if (c.high > hi) hi = c.high;
+    if (c.low < lo) lo = c.low;
+  }
+  if (!Number.isFinite(hi) || !Number.isFinite(lo) || hi <= lo) return;
+  const pad = (hi - lo) * 0.14 || Math.abs(hi) * 0.002;
   series.applyOptions({
     visible: true,
     autoscaleInfoProvider: () => ({
-      priceRange: { minValue: close - span, maxValue: close + span },
+      priceRange: { minValue: lo - pad, maxValue: hi + pad },
     }),
   });
-  series.priceScale().applyOptions({ autoScale: true, scaleMargins: { top: 0.12, bottom: 0.18 } });
+  series.priceScale().applyOptions({ autoScale: true, scaleMargins: { top: 0.06, bottom: 0.1 } });
 }
 
 function clipForDraw<T extends { open: number; high: number; low: number; close: number }>(cs: T[]): T[] {
-  const w = clipWicks(cs);
-  if (w.length < 2) return w;
-  const px = Math.abs(w.at(-1)!.close) || 1;
-  const bodies = w
-    .slice(-60)
-    .map((c) => Math.abs(c.close - c.open))
-    .filter((x) => x > 0)
-    .sort((a, b) => a - b);
-  const med = bodies[Math.floor(bodies.length / 2)] || px * 0.0008;
-  const cap = Math.min(Math.max(med * 2.2, px * 0.0006), px * 0.0038);
-  return w.map((c) => {
-    let o = c.open;
-    const cl = c.close;
-    if (Math.abs(cl - o) > cap) o = cl - Math.sign(cl - o || 1) * cap;
-    const top = Math.max(o, cl);
-    const bot = Math.min(o, cl);
-    return { ...c, open: o, close: cl, high: Math.min(c.high, top + cap * 0.7), low: Math.max(c.low, bot - cap * 0.7) };
-  });
+  return cs;
 }
 
 function clipCandlesForView<T extends { open: number; high: number; low: number; close: number }>(cs: T[]): T[] {
-  return clipForDraw(cs);
+  return cs;
 }
 
 function drawBricks(
@@ -1640,8 +1630,7 @@ export function ChartPane({
       const cs = clipForDraw(candlesRef.current);
       if (!chart || !series || cs.length < 2) return;
       const last = cs.slice(-Math.min(80, cs.length));
-      const mid = last.at(-1)!.close;
-      lockPriceScale(series, mid);
+      lockPriceScale(series, last);
       try {
         chart.timeScale().setVisibleLogicalRange({
           from: Math.max(-0.4, cs.length - 70),
@@ -1851,7 +1840,7 @@ export function ChartPane({
       wickVisible: true,
       visible: true,
     });
-    lockPriceScale(series, view.at(-1)!.close);
+    lockPriceScale(series, view);
     volume.setData(
       view.map((c) => {
         const d = deltaOf(c);
@@ -2061,7 +2050,15 @@ export function ChartPane({
 
   return (
     <div className={cn("relative overflow-hidden bg-bg", className)}>
-      <div ref={hostRef} className="absolute inset-0" />
+      <div
+        ref={hostRef}
+        className="absolute inset-0"
+        onDoubleClick={() => {
+          useDeskStore.getState().requestFit();
+          window.dispatchEvent(new Event("sloi-fit"));
+        }}
+        title="Двойной клик — вместить свечи с тенями"
+      />
       <canvas
         ref={profileRef}
         className="pointer-events-none absolute top-0 right-14 bottom-8 z-10 w-32"
