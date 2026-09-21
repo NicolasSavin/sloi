@@ -3,7 +3,6 @@ import { AppNav } from "@/components/app-nav";
 import { NewsBoard } from "@/components/home/news";
 import { QuoteBoard } from "@/components/home/quotes";
 import { Ticker, NewsTicker } from "@/components/home/ticker";
-import { BrandMark } from "@/components/home/brand-mark";
 import { HomeLeadPoster } from "@/components/home/lead-poster";
 import { SessionStrip } from "@/components/session-strip";
 import { HomeCalStrip } from "@/components/home/cal-strip";
@@ -16,10 +15,6 @@ export function Landing({ data }: { data: HomePayload }) {
       <AppNav />
       <Ticker quotes={data.quotes} />
       <NewsTicker news={data.news} flashes={data.flashes} />
-      <div className="relative mx-auto max-w-6xl px-4 pb-1 pt-5 sm:px-6">
-        <BrandMark />
-        <p className="-mt-1 font-mono text-xs tracking-[0.28em] text-accent">слои рынка · {DOMAIN}</p>
-      </div>
       <HomeLeadPoster quotes={data.quotes} />
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
         <SessionStrip />

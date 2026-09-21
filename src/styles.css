@@ -251,6 +251,15 @@
     transform-style: preserve-3d;
     animation: brand-float 6.5s ease-in-out infinite;
   }
+  .brand-side {
+    position: absolute;
+    inset: 0;
+    color: #8a6230;
+    transform: translate3d(10px, 4px, -28px) skewY(-8deg);
+    text-shadow: 0 0 12px rgba(0, 0, 0, 0.5);
+    z-index: 0;
+    opacity: 0.55;
+  }
   .brand-extrude {
     position: absolute;
     inset: 0;

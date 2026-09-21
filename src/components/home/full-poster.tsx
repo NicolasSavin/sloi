@@ -4,6 +4,8 @@ import { detectPatterns } from "@/lib/smc/patterns";
 import { analyzeMarket, type Swing } from "@/lib/smc/engine";
 import type { Candle } from "@/lib/market/types";
 import type { HomeQuote } from "@/lib/home";
+import { BrandMark } from "@/components/home/brand-mark";
+import { DOMAIN } from "@/lib/brand";
 
 interface Tape {
   id: string;
@@ -378,7 +380,9 @@ export function HomeFullPoster({ quotes = [] }: { quotes?: HomeQuote[] }) {
   const quote = lead ? quotes.find((x) => x.id === lead.id) : undefined;
   const candles = mkt.data?.candles ?? [];
   return (
-    <section className="mx-auto max-w-[1100px] px-3 py-4 sm:px-6">
+    <section className="mx-auto max-w-[1100px] px-3 pb-4 pt-2 sm:px-6">
+      <BrandMark />
+      <p className="-mt-1 mb-3 font-mono text-xs tracking-[0.28em] text-accent">слои рынка · {DOMAIN}</p>
       {lead && candles.length >= 8 ? (
         <OnePoster t={lead} quote={quote} candles={candles} source={mkt.data?.source} />
       ) : (
