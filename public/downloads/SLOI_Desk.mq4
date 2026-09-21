@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.21"
+#property version   "5.22"
 #property strict
-#property description "SLOI 5.21: тики WatchList на сайт для сплэша на кроссах"
+#property description "SLOI 5.22: панель сворачивается по клику, фон не перехватывает кнопки"
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -100,6 +100,8 @@ datetime g_feedAt = 0;
 datetime g_tapeAt = 0;
 datetime g_uiAt = 0;
 datetime g_clickAt = 0;
+uint     g_uiMs = 0;
+uint     g_clickMs = 0;
 string g_feedNote = "нет ленты";
 #define TICKKEEP 20
 double   g_mids[MAXSYM][TICKKEEP];
@@ -158,8 +160,8 @@ int OnInit()
       g_auto = false;
       Print("SLOI 5.18 дубль на ЭТОМ MT4: авто ВЫКЛ, кружки уходят. Кнопка АВТО на этом окне — забрать торговлю");
      }
-   else Print("SLOI 5.21 лидер этого терминала, чарт ", ChartSymbol(0));
-   DrawDesk();
+   else Print("SLOI 5.22 лидер этого терминала, чарт ", ChartSymbol(0));
+   DrawDesk(true);
    return(INIT_SUCCEEDED);
   }
 
@@ -209,9 +211,6 @@ void OnTick()
    if(!g_ready) return;
    SampleMids();
    SweepVirtPendings();
-   if(TimeCurrent() == g_uiAt) return;
-   g_uiAt = TimeCurrent();
-   DrawDesk();
   }
 void OnTimer()
   {
@@ -219,20 +218,83 @@ void OnTimer()
    SampleMids();
    if(TimeCurrent() - g_clickAt > 15) TakeLead();
    if(!g_leader && TimeCurrent() - g_clickAt > 15) g_auto = false;
-   DrawDesk();
+   DrawDesk(false);
+  }
+
+bool HitBox(int cx, int cy, int x, int y, int w, int h)
+  {
+   return(cx >= x && cx < x + w && cy >= y && cy < y + h);
+  }
+
+void HideFat()
+  {
+   for(int i = ObjectsTotal() - 1; i >= 0; i--)
+     {
+      string n = ObjectName(i);
+      if(StringFind(n, "SLOI_") != 0) continue;
+      if(n == "SLOI_bg" || n == "SLOI_title" || n == "SLOI_b_min") continue;
+      ObjectDelete(n);
+     }
+  }
+
+void RaiseClicks()
+  {
+   for(int i = ObjectsTotal() - 1; i >= 0; i--)
+     {
+      string n = ObjectName(i);
+      if(StringFind(n, "SLOI_b") != 0 && StringFind(n, "SLOI_e") != 0 && StringFind(n, "SLOI_g") != 0) continue;
+      ObjectSetInteger(0, n, OBJPROP_ZORDER, 2000);
+      ObjectSetInteger(0, n, OBJPROP_BACK, false);
+     }
   }
 
 void OnChartEvent(const int id, const long &lparam, const double &dparam, const string &sparam)
   {
+   int px = PanelX;
+   int py = PanelY;
+   if(id == CHARTEVENT_CLICK)
+     {
+      int cx = (int)lparam;
+      int cy = (int)dparam;
+      int mx = g_min ? px + 260 : px + 674;
+      int my = g_min ? py + 6 : py + 8;
+      if(HitBox(cx, cy, mx, my, 40, 26))
+        {
+         if(GetTickCount() - g_clickMs < 500) return;
+         g_clickMs = GetTickCount();
+         g_min = !g_min;
+         g_clickAt = TimeCurrent();
+         Wipe();
+         g_seeded = false;
+         DrawDesk(true);
+         return;
+        }
+      if(!g_min && HitBox(cx, cy, px + 470, py + 8, 96, 22))
+        {
+         g_clickAt = TimeCurrent();
+         if(!g_leader)
+           {
+            GlobalVariableSet("SLOI_LEAD_T", TimeCurrent());
+            GlobalVariableSet("SLOI_LEAD_CH", (double)ChartID());
+            g_leader = true;
+            g_auto = true;
+           }
+         else g_auto = !g_auto;
+         DrawDesk(true);
+         return;
+        }
+     }
    if(id != CHARTEVENT_OBJECT_CLICK) return;
    g_clickAt = TimeCurrent();
    ObjectSetInteger(0, sparam, OBJPROP_STATE, false);
    if(sparam == P+"b_min")
      {
+      if(GetTickCount() - g_clickMs < 500) return;
+      g_clickMs = GetTickCount();
       g_min = !g_min;
       Wipe();
       g_seeded = false;
-      DrawDesk();
+      DrawDesk(true);
       return;
      }
    if(sparam == P+"b_auto")
@@ -246,13 +308,13 @@ void OnChartEvent(const int id, const long &lparam, const double &dparam, const 
          Print("SLOI этот чарт теперь один торгует. Сов на втором окне сам выключит авто");
         }
       else g_auto = !g_auto;
-      DrawDesk();
+      DrawDesk(true);
       return;
      }
    if(sparam == P+"b_alrt")
      {
       g_alerts = !g_alerts;
-      DrawDesk();
+      DrawDesk(true);
       return;
      }
    if(sparam == P+"b_virt")
@@ -262,39 +324,39 @@ void OnChartEvent(const int id, const long &lparam, const double &dparam, const 
         {
          for(int v = 0; v < g_n; v++) DeletePending(g_sym[v]);
         }
-      DrawDesk();
+      DrawDesk(true);
       return;
      }
    if(sparam == P+"b_risk")
      {
       g_riskOn = !g_riskOn;
       g_seeded = false;
-      DrawDesk();
+      DrawDesk(true);
       return;
      }
    if(sparam == P+"b_mart")
      {
       g_mart = !g_mart;
-      DrawDesk();
+      DrawDesk(true);
       return;
      }
    if(sparam == P+"b_ok")
      {
       ApplyEdits();
       g_seeded = false;
-      DrawDesk();
+      DrawDesk(true);
       return;
      }
    if(sparam == P+"b_ws")
      {
       CloseForeignAll();
-      DrawDesk();
+      DrawDesk(true);
       return;
      }
-   if(sparam == P+"b_buy")  { ManualTrade(1);  DrawDesk(); return; }
-   if(sparam == P+"b_sell") { ManualTrade(-1); DrawDesk(); return; }
-   if(sparam == P+"b_cp")   { CloseMine(false); DrawDesk(); return; }
-   if(sparam == P+"b_ca")   { CloseMine(true);  DrawDesk(); return; }
+   if(sparam == P+"b_buy")  { ManualTrade(1);  DrawDesk(true); return; }
+   if(sparam == P+"b_sell") { ManualTrade(-1); DrawDesk(true); return; }
+   if(sparam == P+"b_cp")   { CloseMine(false); DrawDesk(true); return; }
+   if(sparam == P+"b_ca")   { CloseMine(true);  DrawDesk(true); return; }
    if(StringFind(sparam, P+"g") == 0)
      {
       int idx = (int)StringToInteger(StringSubstr(sparam, StringLen(P+"g")));
@@ -1725,7 +1787,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 5.21\n";
+   body += "EA 5.22\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();
@@ -2453,7 +2515,7 @@ void Btn(string id, int x, int y, int w, int h, string text, color bg)
    ObjectSetString(0, n, OBJPROP_TEXT, text);
    ObjectSetInteger(0, n, OBJPROP_SELECTABLE, true);
    ObjectSetInteger(0, n, OBJPROP_HIDDEN, false);
-   ObjectSetInteger(0, n, OBJPROP_ZORDER, 100);
+   ObjectSetInteger(0, n, OBJPROP_ZORDER, 2000);
   }
 
 void Edit(string id, int x, int y, int w, int h, string text, bool force)
@@ -2488,7 +2550,7 @@ color VClr(string v)
    return(C_WAIT);
   }
 
-void DrawDesk()
+void DrawDesk(bool force)
   {
    if(!g_ready) return;
    int x = PanelX;
@@ -2500,11 +2562,19 @@ void DrawDesk()
       PushTape();
      }
    SweepVirtPendings();
+   uint nowMs = GetTickCount();
+   bool paint = force || (nowMs - g_uiMs >= 2500);
+   if(paint) g_uiMs = nowMs;
    if(g_min)
      {
-      Rect("bg", x, y, 300, 34, C_BG);
-      Lab("title", x + 12, y + 8, "SLOI  "+g_feedNote+"  "+TimeToStr(TimeLocal(), TIME_MINUTES)+" лок", C_GOLD, 10);
-      Btn("b_min", x + 260, y + 6, 32, 22, "+", C_GOLD);
+      if(paint)
+        {
+         HideFat();
+         Rect("bg", x, y, 300, 34, C_BG);
+         Lab("title", x + 12, y + 8, "SLOI  "+g_feedNote+"  "+TimeToStr(TimeLocal(), TIME_MINUTES)+" лок", C_GOLD, 10);
+         Btn("b_min", x + 260, y + 6, 32, 22, "+", C_GOLD);
+         RaiseClicks();
+        }
       for(int i = 0; i < g_n; i++)
         {
          string bias, verdict, why;
@@ -2527,6 +2597,25 @@ void DrawDesk()
    int rowH = 20;
    int head = 22;
    int h = setH + head + rowH * g_n + 16;
+
+   if(!paint)
+     {
+      for(int j = 0; j < g_n; j++)
+        {
+         string bias, verdict, why;
+         int dir = 0, spPts = 0;
+         double entry = 0, stop = 0, target = 0;
+         Scan(j, bias, verdict, why, dir, entry, stop, target, spPts);
+         if(!g_auto && dir != 0) why = "АВТО ВЫКЛ";
+         AlignForeign(g_sym[j], dir, stop, target);
+         AlignVirt(j, dir, stop, target);
+         MaybeTrade(j, dir, entry, stop, target, verdict, spPts);
+        }
+      ManageBE();
+      ManageVirtBook();
+      DrawSmcOnChart();
+      return;
+     }
 
    Rect("bg", x, y, w, h, C_BG);
    Lab("title", x + 14, y + 8, "SLOI DESK", C_GOLD, 12);
@@ -2628,5 +2717,6 @@ void DrawDesk()
    ManageBE();
    ManageVirtBook();
    DrawSmcOnChart();
+   if(paint) RaiseClicks();
    ChartRedraw();
   }
