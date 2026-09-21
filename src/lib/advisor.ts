@@ -1,5 +1,6 @@
 import type { SymbolSpec } from "@/lib/market/types";
-import type { SmcSnapshot } from "@/lib/smc/engine";
+import type { SmcSnapshot, Zone } from "@/lib/smc/engine";
+import { zoneName } from "@/lib/smc/engine";
 import { entryVolume } from "@/lib/smc/micro";
 import { formatPrice } from "@/lib/utils";
 
@@ -20,7 +21,83 @@ export interface Advice {
   covers: number | null;
 }
 
-export function advise(snap: Pick<SmcSnapshot, "bias" | "localSetup" | "margin" | "wyckoff" | "patterns" | "auction" | "ivNews" | "micro" | "divergences" | "flow" | "coil" | "lastClose">, spec: SymbolSpec, spread = spec.spread): Advice {
+function blockUnderPrice(snap: Pick<SmcSnapshot, "orderBlocks" | "localSetup" | "lastClose">): Zone | null {
+  const last = snap.lastClose;
+  const zones = snap.orderBlocks ?? [];
+  if (!Number.isFinite(last) || !zones.length) return null;
+  const hit = zones.find((z) => {
+    if (z.mitigated && z.kind === "ob") return false;
+    const lo = Math.min(z.top, z.bottom);
+    const hi = Math.max(z.top, z.bottom);
+    const pad = Math.max((hi - lo) * 0.45, Math.abs(last) * 0.00035);
+    return last >= lo - pad && last <= hi + pad;
+  });
+  if (hit) return hit;
+  const e = snap.localSetup?.entry;
+  if (e == null) return null;
+  return (
+    zones.find((z) => {
+      const lo = Math.min(z.top, z.bottom);
+      const hi = Math.max(z.top, z.bottom);
+      return e >= lo && e <= hi;
+    }) ?? null
+  );
+}
+
+/** Regular div on the OB = block may fail. With-side / hidden = block is the turn. */
+export function divOnOrderBlock(
+  snap: Pick<SmcSnapshot, "orderBlocks" | "localSetup" | "lastClose" | "divergences" | "flow">,
+  side: "long" | "short",
+): { verdict: "confirm" | "wait" | "neutral"; title: string; because: string; therefore: string } {
+  const z = blockUnderPrice(snap);
+  const empty = { verdict: "neutral" as const, title: "", because: "", therefore: "" };
+  if (!z) return empty;
+  const name = zoneName(z);
+  const blockLong = z.side === "bull";
+  const div = snap.divergences?.[0];
+  const hid = snap.divergences?.find((d) => d.kind === "hidden");
+  const cvd = snap.flow?.cvdDiv;
+  const rsiAgainst =
+    div?.kind === "regular" &&
+    ((blockLong && div.side === "bear") || (!blockLong && div.side === "bull"));
+  const rsiWith =
+    div?.kind === "regular" &&
+    ((blockLong && div.side === "bull") || (!blockLong && div.side === "bear"));
+  const cvdAgainst =
+    Boolean(cvd) && ((blockLong && cvd!.side === "bear") || (!blockLong && cvd!.side === "bull"));
+  const takingBlock = (side === "long") === blockLong;
+  if (takingBlock && (rsiAgainst || cvdAgainst)) {
+    return {
+      verdict: "wait",
+      title: "Дивер на ордерблоке",
+      because: [`Цена в ${name}.`, rsiAgainst ? div!.note : "", cvdAgainst ? cvd!.because : ""]
+        .filter(Boolean)
+        .join(" "),
+      therefore: blockLong
+        ? "Бычий блок, покупки слабеют: цена ещё здесь, RSI/дельта уже нет. Часто пробой и брейкер. Лонг от блока не ставим."
+        : "Медвежий блок, продажи выдыхаются. Шорт от блока — кормить разворот. Ждём CHoCH.",
+    };
+  }
+  if (takingBlock && rsiWith) {
+    return {
+      verdict: "confirm",
+      title: "",
+      because: `Дивер на ${name} по стороне: ${div!.note}`,
+      therefore: "Импульс в блок живой. Лимит в зону, не рынок сквозь него.",
+    };
+  }
+  if (takingBlock && hid && ((blockLong && hid.side === "bull") || (!blockLong && hid.side === "bear"))) {
+    return {
+      verdict: "confirm",
+      title: "",
+      because: `Скрытая дивергенция на ${name}: ${hid.note}`,
+      therefore: "Скрытая — откат в блок, не разворот. Лимит в блок по тренду.",
+    };
+  }
+  return empty;
+}
+
+export function advise(snap: Pick<SmcSnapshot, "bias" | "localSetup" | "margin" | "wyckoff" | "patterns" | "auction" | "ivNews" | "micro" | "divergences" | "flow" | "coil" | "lastClose" | "orderBlocks">, spec: SymbolSpec, spread = spec.spread): Advice {
   const roundTrip = spread * 2;
   const entry = snap.localSetup.entry;
   const stop = snap.localSetup.stop;
@@ -239,6 +316,23 @@ export function advise(snap: Pick<SmcSnapshot, "bias" | "localSetup" | "margin" 
       covers,
     };
   }
+  const onBlk = divOnOrderBlock(snap, side);
+  if (onBlk.verdict === "wait") {
+    return {
+      action: "wait",
+      title: onBlk.title,
+      because: onBlk.because,
+      therefore: onBlk.therefore,
+      spread,
+      roundTrip,
+      grossRisk,
+      grossReward,
+      netRisk,
+      netReward,
+      netRr,
+      covers,
+    };
+  }
   const cvd = snap.flow?.cvdDiv;
   const atEdge = cvd?.where === "edge" || snap.margin.upper.active || snap.margin.lower.active;
   const div = snap.divergences?.[0];
@@ -312,6 +406,7 @@ export function advise(snap: Pick<SmcSnapshot, "bias" | "localSetup" | "margin" 
         ? " Дивер в середине не считаю."
         : "";
 
+  const blkNote = onBlk.verdict === "confirm" ? ` ${onBlk.therefore}` : "";
   const volOk = vol.verdict === "confirm" ? ` ${vol.therefore}` : vol.because ? ` ${vol.therefore}` : "";
 
   return {
@@ -323,7 +418,7 @@ export function advise(snap: Pick<SmcSnapshot, "bias" | "localSetup" | "margin" 
           ? "Лимит на покупку в зоне"
           : "Лимит на продажу в зоне",
     because: `Вход ${fmt(entry)}, стоп ${fmt(stop)}, цель ${fmt(target)}. Круг ${fmt(roundTrip)}.${vol.verdict === "confirm" ? ` ${vol.because}` : ""}`,
-    therefore: `Чистый RR ${netRr?.toFixed(2)}. Ордер вешаем заранее, пока цена идёт к зоне.${marginNote}${patNote}${infNote}${hidNote}${coilNote}${volNote}${volOk}`,
+    therefore: `Чистый RR ${netRr?.toFixed(2)}. Ордер вешаем заранее, пока цена идёт к зоне.${blkNote}${marginNote}${patNote}${infNote}${hidNote}${coilNote}${volNote}${volOk}`,
     spread,
     roundTrip,
     grossRisk,
