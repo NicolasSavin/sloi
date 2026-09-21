@@ -1,4 +1,5 @@
-import type { NewsHalt } from "@/lib/calendar";
+import type { NewsHalt, NewsSurprise } from "@/lib/calendar";
+import { printLineOf, surpriseOf } from "@/lib/calendar";
 
 export type MacroKind = "fomc" | "powell" | "ecb" | "boe" | "boj" | "nfp" | "cpi" | "us" | "none";
 export type MacroPhase = "before" | "live" | "after" | "quiet";
@@ -77,17 +78,46 @@ function tiltHawk(rates: "hawkish" | "dovish" | "quiet", hawk: number, dove: num
   return [hawk, dove, mid];
 }
 
+function tiltPrint(paths: MacroPath[], surprise: NewsSurprise): MacroPath[] {
+  if (!surprise) return paths;
+  return norm(
+    paths.map((x) => {
+      const hawk = /ястреб|жёстче|горяч/i.test(x.name);
+      const dove = /голуб|мягче/i.test(x.name);
+      const mid = /ждали|заложил|тон как/i.test(x.name);
+      if (surprise === "hot") {
+        if (hawk) return { ...x, p: x.p + 24 };
+        if (dove) return { ...x, p: Math.max(6, x.p - 16) };
+        if (mid) return { ...x, p: Math.max(8, x.p - 10) };
+      }
+      if (surprise === "miss") {
+        if (dove) return { ...x, p: x.p + 24 };
+        if (hawk) return { ...x, p: Math.max(6, x.p - 16) };
+        if (mid) return { ...x, p: Math.max(8, x.p - 10) };
+      }
+      if (surprise === "inline") {
+        if (mid) return { ...x, p: x.p + 16 };
+        if (hawk || dove) return { ...x, p: Math.max(8, x.p - 8) };
+      }
+      return x;
+    }),
+  );
+}
+
 function pack(
   kind: MacroKind,
   event: string,
   phase: MacroPhase,
   rates: "hawkish" | "dovish" | "quiet",
+  surprise: NewsSurprise = "",
+  printLine = "",
 ): MacroPlay {
   if (kind === "none") return EMPTY;
+  const usePaths = (rows: MacroPath[]) => tiltPrint(norm(rows), surprise);
 
   if (kind === "fomc") {
     const [h, d, m] = tiltHawk(rates, 28, 22, 50);
-    const paths = norm([
+    const paths = usePaths([
       {
         name: "как ждали",
         p: m,
@@ -129,7 +159,7 @@ function pack(
 
   if (kind === "powell") {
     const [h, d, m] = tiltHawk(rates, 30, 30, 40);
-    const paths = norm([
+    const paths = usePaths([
       {
         name: "тон как рынок уже заложил",
         p: m,
@@ -169,7 +199,7 @@ function pack(
   }
 
   if (kind === "ecb") {
-    const paths = norm([
+    const paths = usePaths([
       { name: "как ждали", p: 50, usd: "chop", when: "5–40 мин", move: "EUR 20–40 п. шум", therefore: "Евро часто возвращает заголовок к пресс-конференции Лагард." },
       { name: "жёстче", p: 25, usd: "down", when: "1–4 ч", move: "EURUSD вверх 50–80 п.", therefore: "ЕЦБ ястреб — евро, не доллар. USDJPY может не слушаться." },
       { name: "мягче", p: 25, usd: "up", when: "1–4 ч", move: "EURUSD вниз", therefore: "Голубь ЕЦБ бьёт евро. Не ловить дно в первую минуту." },
@@ -178,7 +208,7 @@ function pack(
   }
 
   if (kind === "boe") {
-    const paths = norm([
+    const paths = usePaths([
       { name: "как ждали", p: 48, usd: "chop", when: "5–40 мин", move: "GBP 20–40 п. шум", therefore: "Банк Англии часто «как ждали». Первый шип по фунту часто возвращают." },
       { name: "жёстче", p: 28, usd: "down", when: "1–4 ч", move: "GBPUSD вверх, EURGBP вниз", therefore: "Ястреб BOE — фунт в спросе. EUR/GBP логичнее шорт, не лонг евро против фунта." },
       { name: "мягче", p: 24, usd: "up", when: "1–4 ч", move: "GBPUSD вниз, EURGBP вверх", therefore: "Голубь BOE — фунт отдают. Лонг EUR/GBP только если цена уже пошла вверх, не в шип." },
@@ -197,7 +227,7 @@ function pack(
   }
 
   if (kind === "boj") {
-    const paths = norm([
+    const paths = usePaths([
       { name: "без сюрприза", p: 55, usd: "chop", when: "15–60 мин", move: "USDJPY 40–80 п. шум", therefore: "Банк Японии часто «ничего», йена всё равно дёргается — потом возвращают." },
       { name: "ястреб / интервенция", p: 25, usd: "down", when: "минуты–часы", move: "USDJPY резко вниз", therefore: "Редкие удары сильные. Не ловить нож йены." },
       { name: "ещё мягче", p: 20, usd: "up", when: "1–4 ч", move: "USDJPY вверх", therefore: "Расхождение со ФРС — йена слабее дольше." },
@@ -206,7 +236,7 @@ function pack(
   }
 
   if (kind === "nfp") {
-    const paths = norm([
+    const paths = usePaths([
       { name: "близко к прогнозу", p: 45, usd: "chop", when: "1–15 мин шип, 30–90 мин затухание", move: "EUR 30–50 п. туда-сюда", therefore: "NFP без сюрприза — классика ложного выноса стопов. Не торговать первый принт." },
       { name: "сильно выше", p: 28, usd: "up", when: "час–сессия", move: "доллар вверх, золото вниз", therefore: "Сильный рынок труда = ФРС может не резать. Тренд, если не переписали через 30 мин." },
       { name: "сильно ниже", p: 27, usd: "down", when: "час–сессия", move: "доллар вниз, золото вверх", therefore: "Слабые payrolls — голубиный шип. Смотри безработицу и ревизии." },
@@ -215,7 +245,7 @@ function pack(
   }
 
   if (kind === "us") {
-    const paths = norm([
+    const paths = usePaths([
       { name: "цифра «как ждали»", p: 48, usd: "chop", when: "1–5 мин шип, 30–90 мин возврат", move: "EUR 20–40 п. шум", therefore: "В этом слоте обычно CPI, NFP или FOMC. Без сюрприза крупняк не даёт день — снимает стопы и возвращает." },
       { name: "жёстче / сильнее США", p: 27, usd: "up", when: "15 мин → 2–4 часа", move: "доллар вверх, золото и евро вниз", therefore: "Горячий CPI, сильный NFP или ястреб ФРС. Не ловить дно евро в первую минуту." },
       { name: "мягче / слабее США", p: 25, usd: "down", when: "15 мин → 2–4 часа", move: "доллар вниз, золото вверх", therefore: "Холодный CPI, слабый NFP или голубь ФРС. Не шортить золото на первом баре." },
@@ -233,7 +263,7 @@ function pack(
     };
   }
 
-  const paths = norm([
+  const paths = usePaths([
     { name: "как ждали", p: 42, usd: "chop", when: "5–40 мин", move: "EUR 20–40 п.", therefore: "CPI в прогнозе — шип и возврат. Core важнее headline." },
     { name: "горячее", p: 30, usd: "up", when: "1–4 ч", move: "доллар и доходности вверх", therefore: "Выше инфляции = ФРС жёстче. Золото часто падает сразу, потом может ожить как хедж." },
     { name: "холоднее", p: 28, usd: "down", when: "1–4 ч", move: "доллар вниз, золото вверх", therefore: "Ниже инфляции — самый чистый голубиный день для металла." },
@@ -267,15 +297,21 @@ export function buildMacroPlay(
   const minutes = halt.active ? halt.minutes : halt.next ? Math.round((halt.next.at - Date.now()) / 60000) : halt.minutes;
   const phase = phaseOf(minutes, halt.active);
   if (phase === "quiet" && !themes.some((t) => kindOfEvent(t) !== "none")) return EMPTY;
-  return pack(kind, title || kind, phase, rates);
+  const play = pack(kind, title || kind, phase, rates, halt.surprise ?? "", halt.printLine ?? "");
+  if (halt.printLine) {
+    return { ...play, headline: `${play.headline} ${halt.printLine}.` };
+  }
+  return play;
 }
 
 export function playForEvent(
   title: string,
   at: number,
   rates: "hawkish" | "dovish" | "quiet" = "quiet",
+  print?: { forecast?: string; actual?: string; previous?: string },
 ): MacroPlay {
   const minutes = Math.round((at - Date.now()) / 60_000);
+  const surprise = print ? surpriseOf(title, print.actual, print.forecast) : "";
   const halt: NewsHalt = {
     active: minutes <= 45 && minutes >= -40,
     event: title,
@@ -285,6 +321,11 @@ export function playForEvent(
     line: title,
     impact: "High",
     next: minutes > 45 ? { event: title, at, label: title } : null,
+    forecast: print?.forecast,
+    actual: print?.actual,
+    previous: print?.previous,
+    surprise,
+    printLine: print ? printLineOf({ title, ...print }) : "",
   };
   return buildMacroPlay(halt, rates, [title]);
 }

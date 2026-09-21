@@ -1,6 +1,7 @@
 import type { Candle } from "@/lib/market/types";
 import { buyVolumeOf, deltaOf } from "@/lib/smc/flow";
 import type { CdBar } from "@/lib/broker-tape";
+import { liveTickBurst } from "@/lib/broker-tape";
 
 export function barVolume(c: Candle) {
   return (c.cmeVolume != null && c.cmeVolume > 0 ? c.cmeVolume : c.volume) || 1;
@@ -378,6 +379,19 @@ export function buildMicro(
           tape: true,
         });
       }
+    }
+  }
+  if (!fromCd) {
+    const burst = liveTickBurst(symbol);
+    if (burst && !raw.some((n) => n.kind === burst.kind)) {
+      raw.push({
+        price: burst.price,
+        side: burst.side,
+        kind: burst.kind,
+        time: last.time,
+        tape: true,
+        note: `тики брокера ×${burst.ticks}`,
+      });
     }
   }
   if (native && cdBars.length) {

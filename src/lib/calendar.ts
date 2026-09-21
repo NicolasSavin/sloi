@@ -4,7 +4,12 @@ export interface CalEvent {
   country: string;
   at: number;
   impact: "High" | "Medium" | "Low";
+  forecast?: string;
+  actual?: string;
+  previous?: string;
 }
+
+export type NewsSurprise = "hot" | "miss" | "inline" | "";
 
 export interface NewsHalt {
   active: boolean;
@@ -15,6 +20,11 @@ export interface NewsHalt {
   line: string;
   impact: "High" | "Medium" | "";
   next: { event: string; at: number; label: string } | null;
+  forecast?: string;
+  actual?: string;
+  previous?: string;
+  surprise?: NewsSurprise;
+  printLine?: string;
 }
 
 const RU: [RegExp, string][] = [
@@ -71,11 +81,57 @@ function parseStamp(date: string, time: string): number | null {
   return etToUtc(year, month, day, hour, minute);
 }
 
+export function parsePrint(s?: string | null): number | null {
+  if (!s) return null;
+  const t = String(s).replace(/,/g, "").replace(/\s/g, "").trim();
+  if (!t || t === "-" || /^n\/?a$/i.test(t)) return null;
+  const m = t.match(/^([+-]?\d+(?:\.\d+)?)([kmb%])?$/i);
+  if (!m) return null;
+  let n = Number(m[1]);
+  const u = (m[2] || "").toLowerCase();
+  if (u === "k") n *= 1e3;
+  if (u === "m") n *= 1e6;
+  if (u === "b") n *= 1e9;
+  return Number.isFinite(n) ? n : null;
+}
+
+export function surpriseOf(title: string, actual?: string, forecast?: string): NewsSurprise {
+  const a = parsePrint(actual);
+  const f = parsePrint(forecast);
+  if (a == null || f == null) return "";
+  const inv = /unemployment|безработ|jobless|claims/i.test(title);
+  const scale = Math.max(Math.abs(f), 1e-9);
+  const diff = (a - f) / scale;
+  if (Math.abs(diff) < 0.04) return "inline";
+  const hotter = inv ? a < f : a > f;
+  return hotter ? "hot" : "miss";
+}
+
+export function printLineOf(e: Pick<CalEvent, "title" | "forecast" | "actual" | "previous">): string {
+  const bits = [
+    e.actual ? `факт ${e.actual}` : "",
+    e.forecast ? `прогноз ${e.forecast}` : "",
+    e.previous ? `было ${e.previous}` : "",
+  ].filter(Boolean);
+  if (!bits.length) return "";
+  const s = surpriseOf(`${e.title}`, e.actual, e.forecast);
+  const tag = s === "hot" ? "горячий сюрприз" : s === "miss" ? "промах слабее прогноза" : s === "inline" ? "как ждали" : "";
+  return `${bits.join(" / ")}${tag ? ` — ${tag}` : ""}`;
+}
+
 export function parseFfJson(raw: unknown): CalEvent[] {
   if (!Array.isArray(raw)) return [];
   const out: CalEvent[] = [];
   for (const row of raw) {
-    const r = row as { title?: string; country?: string; date?: string; impact?: string };
+    const r = row as {
+      title?: string;
+      country?: string;
+      date?: string;
+      impact?: string;
+      forecast?: string;
+      actual?: string;
+      previous?: string;
+    };
     const title = String(r.title ?? "").trim();
     const at = Date.parse(String(r.date ?? ""));
     if (!title || !Number.isFinite(at)) continue;
@@ -87,6 +143,9 @@ export function parseFfJson(raw: unknown): CalEvent[] {
       country: String(r.country ?? ""),
       at,
       impact,
+      forecast: String(r.forecast ?? "").trim() || undefined,
+      actual: String(r.actual ?? "").trim() || undefined,
+      previous: String(r.previous ?? "").trim() || undefined,
     });
   }
   return out.sort((a, b) => a.at - b.at);
@@ -105,7 +164,10 @@ export function parseFfCalendar(xml: string): CalEvent[] {
     const time = cdata(body, "time");
     const at = parseStamp(date, time);
     if (!title || !at) continue;
-    out.push({ title, label: ruEvent(title), country, at, impact });
+    const forecast = cdata(body, "forecast") || undefined;
+    const actual = cdata(body, "actual") || undefined;
+    const previous = cdata(body, "previous") || undefined;
+    out.push({ title, label: ruEvent(title), country, at, impact, forecast, actual, previous });
   }
   return out.sort((a, b) => a.at - b.at);
 }
@@ -151,6 +213,16 @@ export function buildHalt(events: CalEvent[], now = Date.now()): NewsHalt {
   const upcoming = high.find((e) => e.at - now > 0 && (!current || e.at !== current.at)) ?? null;
   if (current) {
     const phase = minutes > 0 ? `через ${minutes} мин` : minutes === 0 ? "сейчас" : `${Math.abs(minutes)} мин как вышла`;
+    const print = printLineOf(current);
+    const surprise = surpriseOf(current.title, current.actual, current.forecast);
+    const usd =
+      surprise === "hot"
+        ? "Горячее прогноза — доллар чаще вверх."
+        : surprise === "miss"
+          ? "Слабее прогноза — доллар чаще вниз."
+          : surprise === "inline"
+            ? "Как ждали — первый шип часто возвращают."
+            : "";
     return {
       active: true,
       event: current.label,
@@ -158,7 +230,12 @@ export function buildHalt(events: CalEvent[], now = Date.now()): NewsHalt {
       at: current.at,
       minutes,
       impact: "High",
-      line: `Крупная новость: ${current.label} (${current.country}) ${phase}. Торговлю торможу — спред и стопы в такие минуты лгут.`,
+      forecast: current.forecast,
+      actual: current.actual,
+      previous: current.previous,
+      surprise,
+      printLine: print,
+      line: `Крупная новость: ${current.label} (${current.country}) ${phase}.${print ? ` ${print}.` : ""}${usd ? ` ${usd}` : ""}`,
       next: upcoming ? { event: upcoming.label, at: upcoming.at, label: whenLabel(upcoming.at, now) } : null,
     };
   }

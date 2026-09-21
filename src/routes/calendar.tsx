@@ -23,7 +23,13 @@ export const Route = createFileRoute("/calendar")({
 
 function CalendarPage() {
   const { events, halt, session } = Route.useLoaderData();
-  const rowPlays = events.map((e) => playForEvent(`${e.label} ${e.title}`, e.at));
+  const rowPlays = events.map((e) =>
+    playForEvent(`${e.label} ${e.title}`, e.at, "quiet", {
+      forecast: e.forecast,
+      actual: e.actual,
+      previous: e.previous,
+    }),
+  );
   const fromHalt = buildMacroPlay(
     halt,
     "quiet",
@@ -71,6 +77,9 @@ function CalendarPage() {
                 <p className="text-sm font-medium">{e.label}</p>
                 <p className="mt-1 font-mono text-[10px] text-dim">
                   {e.country} · {e.title}
+                  {e.forecast || e.actual
+                    ? ` · ${[e.actual ? `факт ${e.actual}` : "", e.forecast ? `прогноз ${e.forecast}` : "", e.previous ? `было ${e.previous}` : ""].filter(Boolean).join(" / ")}`
+                    : ""}
                 </p>
               </div>
               <div className="text-right">

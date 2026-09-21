@@ -71,6 +71,7 @@ type Room = {
   ohlc: Map<string, { at: number; bars: { time: number; open: number; high: number; low: number; close: number }[] }>;
   cdStat: Map<string, { at: number; volume: number; delta: number; splash: boolean; onChart: boolean }>;
   cdCharts: string;
+  tape: Map<string, { t: number; mid: number }[]>;
 };
 
 const g = globalThis as typeof globalThis & { __sloiRooms__?: Map<string, Room> };
@@ -82,7 +83,7 @@ function room(tenant = "legacy"): Room {
   const map = rooms();
   let r = map.get(tenant);
   if (!r) {
-    r = { ticks: new Map(), books: new Map(), account: null, clusters: new Map(), profiles: new Map(), askbid: new Map(), flow: new Map(), cdBars: new Map(), cum: new Map(), ohlc: new Map(), cdStat: new Map(), cdCharts: "" };
+    r = { ticks: new Map(), books: new Map(), account: null, clusters: new Map(), profiles: new Map(), askbid: new Map(), flow: new Map(), cdBars: new Map(), cum: new Map(), ohlc: new Map(), cdStat: new Map(), cdCharts: "", tape: new Map() };
     map.set(tenant, r);
   }
   if (!r.profiles) r.profiles = new Map();
@@ -92,8 +93,9 @@ function room(tenant = "legacy"): Room {
   if (!r.cdBars) r.cdBars = new Map();
   if (!r.cum) r.cum = new Map();
   if (!r.ohlc) r.ohlc = new Map();
-  if (!r.cdStat) r.cdStat = new Map();
+  if (r.cdStat) r.cdStat = r.cdStat;
   if (r.cdCharts == null) r.cdCharts = "";
+  if (!r.tape) r.tape = new Map();
   return r;
 }
 
@@ -314,6 +316,10 @@ export function ingestBrokerTape(text: string, tenant = "legacy") {
     const ask = Number(p[2]);
     if (!id || !Number.isFinite(bid) || !Number.isFinite(ask) || bid <= 0) continue;
     r.ticks.set(id, { id, bid, ask, at });
+    const mid = (bid + ask) / 2;
+    const buf = r.tape.get(id) ?? [];
+    buf.push({ t: at, mid });
+    r.tape.set(id, buf.slice(-120));
   }
   if (nextAcc) {
     if (pos.length) nextAcc.positions = pos.slice(0, 24);
@@ -387,6 +393,35 @@ export function liveProfile(id: string): { poc: number; vah: number; val: number
   for (const roomItem of rooms().values()) {
     const p = roomItem.profiles.get(id);
     if (p && now - p.at < 90_000) return { poc: p.poc, vah: p.vah, val: p.val };
+  }
+  return null;
+}
+
+export function liveTickBurst(id: string): { kind: "splash" | "infusion"; side: "buy" | "sell"; price: number; ticks: number } | null {
+  const now = Date.now();
+  let buf: { t: number; mid: number }[] = [];
+  for (const r of rooms().values()) {
+    const t = r.tape?.get(id);
+    if (t?.length) buf = t;
+  }
+  const win = buf.filter((x) => now - x.t < 12_000);
+  if (win.length < 16) return null;
+  let hi = -Infinity;
+  let lo = Infinity;
+  for (const x of win) {
+    if (x.mid > hi) hi = x.mid;
+    if (x.mid < lo) lo = x.mid;
+  }
+  const span = hi - lo;
+  const px = Math.abs(win.at(-1)!.mid) || 1;
+  const typical = px * (px > 50 ? 0.00035 : 0.00012);
+  const side: "buy" | "sell" = win.at(-1)!.mid >= win[0]!.mid ? "buy" : "sell";
+  const price = side === "buy" ? hi : lo;
+  if (win.length >= 28 && span < typical * 0.85) {
+    return { kind: "infusion", side, price, ticks: win.length };
+  }
+  if (span >= typical * 1.8) {
+    return { kind: "splash", side, price, ticks: win.length };
   }
   return null;
 }
