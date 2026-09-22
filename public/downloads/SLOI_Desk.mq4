@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.23"
+#property version   "5.24"
 #property strict
-#property description "SLOI 5.23: вход лимиткой брокера, виртуал только стоп/тейк"
+#property description "SLOI 5.24: половина на первой цели, остаток дальше, панель кнопкой"
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -64,6 +64,8 @@ string   g_prevV[MAXSYM];
 int      g_lim[MAXSYM];
 double   g_vSL[MAXSYM];
 double   g_vTP[MAXSYM];
+double   g_tp1[MAXSYM];
+int      g_half[MAXSYM];
 
 string g_watch;
 string g_suffix;
@@ -160,7 +162,7 @@ int OnInit()
       g_auto = false;
       Print("SLOI 5.18 дубль на ЭТОМ MT4: авто ВЫКЛ, кружки уходят. Кнопка АВТО на этом окне — забрать торговлю");
      }
-   else Print("SLOI 5.23 лидер этого терминала, чарт ", ChartSymbol(0));
+   else Print("SLOI 5.24 лидер этого терминала, чарт ", ChartSymbol(0));
    DrawDesk(true);
    return(INIT_SUCCEEDED);
   }
@@ -252,15 +254,24 @@ void OnChartEvent(const int id, const long &lparam, const double &dparam, const 
   {
    int px = PanelX;
    int py = PanelY;
+   if(id == CHARTEVENT_KEYDOWN && (lparam == 'M' || lparam == 'm'))
+     {
+      g_min = !g_min;
+      Wipe();
+      g_seeded = false;
+      DrawDesk(true);
+      return;
+     }
    if(id == CHARTEVENT_CLICK)
      {
       int cx = (int)lparam;
       int cy = (int)dparam;
-      int mx = g_min ? px + 260 : px + 674;
-      int my = g_min ? py + 6 : py + 8;
-      if(HitBox(cx, cy, mx, my, 40, 26))
+      bool hit = false;
+      if(g_min) hit = HitBox(cx, cy, px, py, 320, 36);
+      else hit = HitBox(cx, cy, px + 700, py + 6, 130, 28);
+      if(hit)
         {
-         if(GetTickCount() - g_clickMs < 500) return;
+         if(GetTickCount() - g_clickMs < 400) return;
          g_clickMs = GetTickCount();
          g_min = !g_min;
          g_clickAt = TimeCurrent();
@@ -895,6 +906,8 @@ void SetVirt(string s, double sl, double tp)
    if(idx < 0) return;
    g_vSL[idx] = sl;
    g_vTP[idx] = tp;
+   g_tp1[idx] = tp;
+   g_half[idx] = 0;
   }
 
 void AlignVirt(int idx, int dir, double stop, double target)
@@ -913,6 +926,11 @@ void AlignVirt(int idx, int dir, double stop, double target)
       if(OrderType() != OP_BUY && OrderType() != OP_SELL) continue;
       if(OrderType() != tyWant)
         {
+         double pnl = OrderProfit() + OrderSwap() + OrderCommission();
+         if(pnl > 0)
+           {
+            continue;
+           }
          if(g_holdMin > 0 && TimeCurrent() - OrderOpenTime() < g_holdMin * 60) continue;
          CloseOne();
          continue;
@@ -920,6 +938,7 @@ void AlignVirt(int idx, int dir, double stop, double target)
       ours = true;
      }
    if(!ours) return;
+   if(g_half[idx] > 0) return;
    int digits = DigitsOf(s);
    double pt = PointOf(s) * 2.0;
    bool moved = false;
@@ -928,7 +947,8 @@ void AlignVirt(int idx, int dir, double stop, double target)
       g_vSL[idx] = NormalizeDouble(stop, digits);
       moved = true;
      }
-   if(target > 0 && MathAbs(g_vTP[idx] - target) > pt)
+      if(target > 0 && g_tp1[idx] <= 0) g_tp1[idx] = NormalizeDouble(target, digits);
+      if(target > 0 && g_half[idx] == 0 && MathAbs(g_vTP[idx] - target) > pt)
      {
       g_vTP[idx] = NormalizeDouble(target, digits);
       moved = true;
@@ -977,39 +997,100 @@ void ManageVirtBook()
       if(idx < 0) continue;
       string s = OrderSymbol();
       double sl = g_vSL[idx];
-      double tp = g_vTP[idx];
-      if(type == OP_BUY)
+      if(type == OP_BUY && sl > 0 && BidOf(s) <= sl)
         {
-         if(sl > 0 && BidOf(s) <= sl)
-           {
-            Alert("SLOI вирт стоп ", s);
-            CloseOne();
-            continue;
-           }
-         if(tp > 0 && BidOf(s) >= tp)
-           {
-            Alert("SLOI вирт тейк ", s);
-            CloseOne();
-            continue;
-           }
+         Alert("SLOI вирт стоп ", s);
+         CloseOne();
+         g_half[idx] = 0;
         }
-      else
+      else if(type == OP_SELL && sl > 0 && AskOf(s) >= sl)
         {
-         if(sl > 0 && AskOf(s) >= sl)
-           {
-            Alert("SLOI вирт стоп ", s);
-            CloseOne();
-            continue;
-           }
-         if(tp > 0 && AskOf(s) <= tp)
-           {
-            Alert("SLOI вирт тейк ", s);
-            CloseOne();
-            continue;
-           }
+         Alert("SLOI вирт стоп ", s);
+         CloseOne();
+         g_half[idx] = 0;
         }
      }
    DrawVirtLines();
+  }
+
+double HalfLots(string s, double lots)
+  {
+   double step = MarketInfo(s, MODE_LOTSTEP);
+   double mn = MarketInfo(s, MODE_MINLOT);
+   if(step <= 0) step = 0.01;
+   if(mn <= 0) mn = step;
+   double h = MathFloor((lots * 0.5) / step + 1e-8) * step;
+   if(h < mn) return(0);
+   if(lots - h < mn - 1e-8) return(0);
+   return(NormalizeDouble(h, 2));
+  }
+
+bool CloseLots(double lots)
+  {
+   if(lots <= 0) return(false);
+   if(lots >= OrderLots() - 1e-8)
+     {
+      CloseOne();
+      return(true);
+     }
+   int type = OrderType();
+   int ticket = OrderTicket();
+   string s = OrderSymbol();
+   RefreshRates();
+   bool ok = false;
+   if(type == OP_BUY) ok = OrderClose(ticket, lots, BidOf(s), SlippagePoints, C_SEL);
+   else if(type == OP_SELL) ok = OrderClose(ticket, lots, AskOf(s), SlippagePoints, C_BUY);
+   if(!ok) Print("SLOI часть err ", GetLastError(), " #", ticket);
+   return(ok);
+  }
+
+void ScaleOut()
+  {
+   for(int i = OrdersTotal() - 1; i >= 0; i--)
+     {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
+      if(OrderMagicNumber() != Magic) continue;
+      int type = OrderType();
+      if(type != OP_BUY && type != OP_SELL) continue;
+      int idx = IdxOf(OrderSymbol());
+      if(idx < 0) continue;
+      string s = OrderSymbol();
+      int digits = DigitsOf(s);
+      double open = OrderOpenPrice();
+      double tp1 = g_tp1[idx];
+      if(tp1 <= 0) tp1 = g_vTP[idx];
+      if(tp1 <= 0) tp1 = OrderTakeProfit();
+      if(tp1 <= 0) continue;
+      bool buy = (type == OP_BUY);
+      double px = buy ? BidOf(s) : AskOf(s);
+      if(g_half[idx] > 0)
+        {
+         if(g_vTP[idx] > 0 && ((buy && px >= g_vTP[idx]) || (!buy && px <= g_vTP[idx])))
+           {
+            Alert("SLOI вторая цель ", s);
+            CloseOne();
+            g_half[idx] = 0;
+           }
+         continue;
+        }
+      bool hit1 = buy ? (px >= tp1) : (px <= tp1);
+      if(!hit1) continue;
+      double leg = MathAbs(tp1 - open);
+      if(leg <= 0) continue;
+      double tp2 = buy ? NormalizeDouble(open + leg * 2.0, digits) : NormalizeDouble(open - leg * 2.0, digits);
+      double be = buy ? NormalizeDouble(open + SpreadPr(s), digits) : NormalizeDouble(open - SpreadPr(s), digits);
+      double half = HalfLots(s, OrderLots());
+      if(half > 0)
+        {
+         if(!CloseLots(half)) continue;
+         Alert("SLOI половина ", s, " дальше ", DoubleToStr(tp2, digits));
+        }
+      else Alert("SLOI лот мал для половины, тяну ", s);
+      g_half[idx] = 1;
+      g_tp1[idx] = tp1;
+      g_vSL[idx] = be;
+      g_vTP[idx] = tp2;
+     }
   }
 
 void PullFeed()
@@ -1783,7 +1864,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 5.23\n";
+   body += "EA 5.24\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();
@@ -2549,10 +2630,9 @@ void DrawDesk(bool force)
       if(paint)
         {
          HideFat();
-         Rect("bg", x, y, 300, 34, C_BG);
-         Lab("title", x + 12, y + 8, "SLOI  "+g_feedNote+"  "+TimeToStr(TimeLocal(), TIME_MINUTES)+" лок", C_GOLD, 10);
-         Btn("b_min", x + 260, y + 6, 32, 22, "+", C_GOLD);
-         RaiseClicks();
+         Btn("b_min", x, y, 300, 34, "SLOI  ОТКРЫТЬ", C_GOLD);
+         ObjectSetInteger(0, P+"b_min", OBJPROP_ZORDER, 100000);
+         ObjectSetInteger(0, P+"b_min", OBJPROP_STATE, false);
         }
       for(int i = 0; i < g_n; i++)
         {
@@ -2566,6 +2646,7 @@ void DrawDesk(bool force)
          MaybeTrade(i, dir, entry, stop, target, verdict, spPts);
         }
       ManageBE();
+      ScaleOut();
       ManageVirtBook();
       DrawSmcOnChart();
       ChartRedraw();
@@ -2591,6 +2672,7 @@ void DrawDesk(bool force)
          MaybeTrade(j, dir, entry, stop, target, verdict, spPts);
         }
       ManageBE();
+      ScaleOut();
       ManageVirtBook();
       DrawSmcOnChart();
       return;
@@ -2602,7 +2684,6 @@ void DrawDesk(bool force)
 
    Btn("b_auto", x + 470, y + 8, 96, 22, g_auto ? "АВТО ВКЛ" : "АВТО ВЫКЛ", g_auto ? C_BUY : C_SEL);
    Btn("b_alrt", x + 572, y + 8, 96, 22, g_alerts ? "АЛЕРТ ВКЛ" : "АЛЕРТ ВЫКЛ", C_GOLD);
-   Btn("b_min", x + 674, y + 8, 32, 22, "—", C_GOLD);
 
    bool seed = !g_seeded;
    g_seeded = true;
@@ -2694,8 +2775,14 @@ void DrawDesk(bool force)
       cmt += "  " + IntegerToString(spPts) + "п  " + bias + "  " + verdict + "  " + why + "\n";
      }
    ManageBE();
+   ScaleOut();
    ManageVirtBook();
    DrawSmcOnChart();
+   Btn("b_min", x + 700, y + 6, 120, 26, "СВЕРНУТЬ", C_GOLD);
+   ObjectSetInteger(0, P+"b_min", OBJPROP_ZORDER, 100000);
+   ObjectSetInteger(0, P+"b_min", OBJPROP_BACK, false);
+   ObjectSetInteger(0, P+"b_min", OBJPROP_STATE, false);
    if(paint) RaiseClicks();
+   ObjectSetInteger(0, P+"b_min", OBJPROP_ZORDER, 100000);
    ChartRedraw();
   }
