@@ -15,7 +15,6 @@ import type { OverlayFlags } from "@/lib/desk-store";
 import { useDeskStore } from "@/lib/desk-store";
 import type { Advice } from "@/lib/advisor";
 import type { LocalSetup, SmcSnapshot, Zone } from "@/lib/smc/engine";
-import { zoneName } from "@/lib/smc/engine";
 import { deltaOf } from "@/lib/smc/flow";
 import { CD_FUT, nodeForecast, type VolumeNode } from "@/lib/smc/micro";
 import { liveCdCharts } from "@/lib/broker-tape";
@@ -1344,57 +1343,86 @@ function candleBrief(
   const tight = range < spanMed * 0.55;
 
   const bits: string[] = [];
-  if (upperW > body * 1.25 && upperW > range * 0.3) bits.push(up ? "хвост сверху, но закрыли выше открытия" : "сняли верх и закрыли вниз");
-  else if (lowerW > body * 1.25 && lowerW > range * 0.3) bits.push(up ? "сняли низ и закрыли вверх" : "хвост снизу, закрытие всё равно ниже");
-  else if (body / range > 0.62) bits.push(up ? "плотное тело вверх" : "плотное тело вниз");
-  else if (body / range < 0.2) bits.push("тело крошечное");
-  else bits.push(up ? "закрытие выше открытия" : "закрытие ниже открытия");
-  if (wide) bits.push("ход шире обычного");
-  else if (tight) bits.push("ход узкий");
-  if (volX >= 1.8) bits.push(`объём в ${volX.toFixed(1)} раза выше соседних`);
-  else if (med > 0 && volX <= 0.55) bits.push("объём тонкий");
+  if (upperW > body * 1.25 && upperW > range * 0.3) {
+    bits.push(up ? "Цена выскочила вверх и всё же закрылась выше." : "Цена выскочила вверх, сняла стопы и закрылась ниже.");
+  } else if (lowerW > body * 1.25 && lowerW > range * 0.3) {
+    bits.push(up ? "Цена нырнула вниз, сняла стопы и закрылась выше." : "Цена нырнула вниз и закрылась ещё ниже.");
+  } else if (body / range > 0.62) {
+    bits.push(up ? "Почти вся свеча — рост." : "Почти вся свеча — падение.");
+  } else if (body / range < 0.2) {
+    bits.push("Свеча почти стояла на месте.");
+  } else {
+    bits.push(up ? "Свеча закрылась выше, чем открылась." : "Свеча закрылась ниже, чем открылась.");
+  }
+  if (wide) bits.push("Ход шире соседних.");
+  else if (tight) bits.push("Ход совсем короткий.");
+  if (volX >= 1.8) bits.push(`Сделок было примерно в ${volX.toFixed(1)} раза больше обычного.`);
+  else if (med > 0 && volX <= 0.55) bits.push("Сделок было мало.");
   if (prev && Math.abs(c.close - prev.close) > spanMed * 0.8) {
-    bits.push(c.close > prev.close ? "ушли заметно выше прошлой" : "ушли заметно ниже прошлой");
+    bits.push(c.close > prev.close ? "От прошлой свечи ушли сильно вверх." : "От прошлой свечи ушли сильно вниз.");
   }
 
   const zones = [...(snap?.fvgs ?? []), ...(snap?.orderBlocks ?? [])];
   const born = zones.find((z) => nearBar(z.endTime, c.time, candles) || nearBar(z.startTime, c.time, candles));
   const inside = zones.find((z) => !z.mitigated && overlapsZone(c, z) && c.time >= z.startTime);
   const z = born ?? inside;
-  if (z) {
-    const name = zoneName(z);
-    if (born && z.kind === "fvg") bits.push(`здесь родился ${name}${z.mitigated ? ", его уже закрыли" : ", дыра ещё открыта"}`);
-    else if (born) bits.push(`это свеча: ${name}`);
-    else bits.push(`цена в зоне «${name}»${z.mitigated ? "" : ", зона ещё жива"}`);
+  if (z?.kind === "fvg") {
+    bits.push(
+      z.mitigated
+        ? "Пустую дыру между свечами уже заполнили."
+        : "Между свечами осталась пустая дыра. Цена часто возвращается её закрыть.",
+    );
+  } else if (z?.kind === "ob" || z?.kind === "mitigation") {
+    bits.push(
+      z.side === "bull"
+        ? "Здесь крупный игрок набирал покупки. От этой цены часто отталкиваются вверх."
+        : "Здесь крупный игрок набирал продажи. От этой цены часто отталкиваются вниз.",
+    );
+  } else if (z?.kind === "breaker") {
+    bits.push("Старый уровень сломали, теперь он работает наоборот.");
   }
 
   const nodes = (snap?.micro.nodes ?? []).filter((n) => nearBar(n.time, c.time, candles));
   const splash = nodes.find((n) => n.kind === "splash");
   const inf = nodes.find((n) => n.kind === "infusion");
   const imb = nodes.find((n) => n.kind === "imbalance");
-  if (splash) bits.push(splash.side === "buy" ? "сплэш покупателей — вынос, часто потом откат" : "сплэш продавцов — вынос вниз, часто потом откат");
-  if (inf) bits.push(inf.held === false ? "вливание пробито, остановка не удержалась" : "вливание: крупняк остановился, это цель, не разгон");
-  if (imb && imb.ratio != null) bits.push(`перекос заявок ×${imb.ratio.toFixed(1)} в ${imb.side === "buy" ? "покупку" : "продажу"}`);
+  if (splash) {
+    bits.push(
+      splash.side === "buy"
+        ? "Резкий вынос вверх на большом объёме. После такого часто бывает откат."
+        : "Резкий вынос вниз на большом объёме. После такого часто бывает откат.",
+    );
+  }
+  if (inf) {
+    bits.push(
+      inf.held === false
+        ? "Объём пытался остановить цену, но его продавили."
+        : "Большой объём встал, а цена почти не пошла. Это остановка, не разгон.",
+    );
+  }
+  if (imb && imb.ratio != null && imb.ratio >= 1.4) {
+    bits.push(imb.side === "buy" ? "Покупателей в заявках было больше." : "Продавцов в заявках было больше.");
+  }
 
   let expect = "";
-  if (z?.kind === "fvg" && !z.mitigated) expect = z.side === "bull" ? "Ждём возврат в бычий разрыв." : "Ждём возврат в медвежий разрыв.";
-  else if (inf && inf.held !== false) expect = "Дальше скорее стоянка, чем новый импульс.";
-  else if (splash) expect = "После сплэша смотрим, не развернёт ли обратно.";
-  else if (snap?.boxVector?.dir === "up") expect = "Коробка всё ещё тянет вверх.";
-  else if (snap?.boxVector?.dir === "down") expect = "Коробка всё ещё тянет вниз.";
+  if (z?.kind === "fvg" && !z.mitigated) expect = "Дальше логично ждать возврат в эту дыру.";
+  else if (inf && inf.held !== false) expect = "Дальше скорее пауза, чем новый рывок.";
+  else if (splash) expect = "Смотрим, не развернётся ли цена обратно.";
+  else if (snap?.boxVector?.dir === "up") expect = "В целом цену всё ещё тянет вверх.";
+  else if (snap?.boxVector?.dir === "down") expect = "В целом цену всё ещё тянет вниз.";
 
   const act = order?.action;
   let off = false;
   let plan = "";
   if (act === "long" && !up && body / range > 0.4) {
     off = true;
-    plan = "Приказ лонг, эта свеча идёт против.";
+    plan = "Стол просил покупать, а эта свеча пошла вниз.";
   } else if (act === "short" && up && body / range > 0.4) {
     off = true;
-    plan = "Приказ шорт, эта свеча идёт против.";
+    plan = "Стол просил продавать, а эта свеча пошла вверх.";
   }
 
-  const text = [bits.join(", ") + ".", expect, plan].filter(Boolean).join(" ");
+  const text = [bits.slice(0, 3).join(" "), expect, plan].filter(Boolean).join(" ");
   return { text, off };
 }
 
@@ -1416,51 +1444,63 @@ function drawLiftedCandle(
   const next = i >= 0 ? candles[i + 1] : undefined;
   const x2 = next ? ts.timeToCoordinate(next.time as UTCTimestamp) : x + 12;
   const gap = Math.abs((x2 ?? x + 12) - x);
-  const bw = Math.max(7, Math.min(22, gap * 0.72));
+  const base = Math.max(8, Math.min(18, gap * 0.62));
   const bull = candle.close >= candle.open;
-  const top = Math.min(yO, yC);
-  const h = Math.max(3, Math.abs(yC - yO));
-  const depth = Math.min(9, bw * 0.42);
+  const mid = (Math.min(yO, yC) + Math.max(yO, yC)) / 2;
+  const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 280);
+  const pop = 1.55 + pulse * 0.55;
+  const depth = 18 + pulse * 16;
   ctx.save();
-  ctx.shadowColor = bull ? "rgba(70,240,160,0.55)" : "rgba(255,120,120,0.5)";
-  ctx.shadowBlur = 18;
-  ctx.shadowOffsetX = -depth;
-  ctx.shadowOffsetY = -depth * 0.35;
-  ctx.strokeStyle = bull ? "rgba(90,230,150,0.95)" : "rgba(240,120,120,0.95)";
-  ctx.lineWidth = 1.6;
+  ctx.translate(x, mid);
+  ctx.scale(pop, pop);
+  ctx.translate(-x, -mid);
+  const top = Math.min(yO, yC);
+  const h = Math.max(4, Math.abs(yC - yO));
+  const bw = base;
+  ctx.shadowColor = bull ? "rgba(80,255,170,0.85)" : "rgba(255,90,90,0.8)";
+  ctx.shadowBlur = 28 + pulse * 18;
+  ctx.shadowOffsetX = -depth * 0.35;
+  ctx.shadowOffsetY = -depth * 0.2;
+  for (let layer = 3; layer >= 1; layer--) {
+    const ox = (depth * layer) / 3;
+    const oy = -(depth * layer) / 5;
+    ctx.beginPath();
+    ctx.moveTo(x + bw / 2 + ox, top + oy);
+    ctx.lineTo(x + bw / 2 + ox + 8, top + oy - 5);
+    ctx.lineTo(x + bw / 2 + ox + 8, top + h + oy - 5);
+    ctx.lineTo(x + bw / 2 + ox, top + h + oy);
+    ctx.closePath();
+    ctx.fillStyle = bull ? `rgba(12,90,48,${0.35 + layer * 0.15})` : `rgba(120,24,24,${0.35 + layer * 0.15})`;
+    ctx.fill();
+  }
+  ctx.strokeStyle = bull ? "rgba(160,255,200,0.95)" : "rgba(255,170,170,0.95)";
+  ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(x, yH);
   ctx.lineTo(x, top);
   ctx.moveTo(x, top + h);
   ctx.lineTo(x, yL);
   ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(x + bw / 2, top);
-  ctx.lineTo(x + bw / 2 + depth, top - depth * 0.45);
-  ctx.lineTo(x + bw / 2 + depth, top + h - depth * 0.45);
-  ctx.lineTo(x + bw / 2, top + h);
-  ctx.closePath();
-  ctx.fillStyle = bull ? "#146b3a" : "#8a2424";
-  ctx.fill();
   const g = ctx.createLinearGradient(x - bw / 2, top, x + bw / 2 + depth, top + h);
   if (bull) {
-    g.addColorStop(0, "#d8ffe8");
-    g.addColorStop(0.35, "#46f0a0");
-    g.addColorStop(0.7, "#1a9a55");
-    g.addColorStop(1, "#0c4a2c");
+    g.addColorStop(0, "#f4fff8");
+    g.addColorStop(0.25, "#7dffc0");
+    g.addColorStop(0.6, "#1fa85c");
+    g.addColorStop(1, "#08381f");
   } else {
-    g.addColorStop(0, "#ffe0e0");
-    g.addColorStop(0.35, "#ff8a8a");
-    g.addColorStop(0.7, "#c43333");
-    g.addColorStop(1, "#6a1212");
+    g.addColorStop(0, "#fff4f4");
+    g.addColorStop(0.25, "#ffb0b0");
+    g.addColorStop(0.6, "#d23a3a");
+    g.addColorStop(1, "#4a0c0c");
   }
   ctx.fillStyle = g;
   ctx.fillRect(x - bw / 2, top, bw, h);
   ctx.shadowColor = "transparent";
-  ctx.strokeStyle = "rgba(255,255,255,0.55)";
+  ctx.strokeStyle = "rgba(255,255,255,0.8)";
+  ctx.lineWidth = 1.5;
   ctx.strokeRect(x - bw / 2, top, bw, h);
   ctx.restore();
-  return { x, y: top + h / 2, bw };
+  return { x: x - depth * 0.15, y: mid - depth * 0.15, bw: bw * pop };
 }
 
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
@@ -1736,7 +1776,11 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
     this.chart = param.chart as IChartApi;
     this.series = param.series as ISeriesApi<"Candlestick">;
     this._upd = param.requestUpdate;
-    this.blink = setInterval(() => this._upd?.(), 180);
+    let tick = 0;
+    this.blink = setInterval(() => {
+      tick += 1;
+      if (this.payload.hoverBar || tick % 4 === 0) this._upd?.();
+    }, 45);
     this.unsub = this.chart.timeScale().subscribeVisibleLogicalRangeChange(() => this._upd?.()) as unknown as () => void;
   }
   detached() {
