@@ -14,6 +14,7 @@ import type { Candle } from "@/lib/market/types";
 import type { OverlayFlags } from "@/lib/desk-store";
 import { useDeskStore } from "@/lib/desk-store";
 import type { Advice } from "@/lib/advisor";
+import type { SignalHit } from "@/lib/dispatch-store";
 import type { LocalSetup, SmcSnapshot, Zone } from "@/lib/smc/engine";
 import { deltaOf } from "@/lib/smc/flow";
 import { CD_FUT, nodeForecast, type VolumeNode } from "@/lib/smc/micro";
@@ -1569,6 +1570,132 @@ function drawCandleCard(
   ctx.restore();
 }
 
+function secOf(t: number) {
+  return t > 1e12 ? t / 1000 : t;
+}
+
+function xAt(chart: IChartApi, candles: Candle[], ms: number) {
+  if (!candles.length) return null;
+  const ts = chart.timeScale();
+  const want = secOf(ms);
+  let best = candles[0]!;
+  let dist = Infinity;
+  for (const c of candles) {
+    const d = Math.abs(secOf(c.time) - want);
+    if (d < dist) {
+      dist = d;
+      best = c;
+    }
+  }
+  if (dist > 8 * 3600) return null;
+  const x = ts.timeToCoordinate(best.time as UTCTimestamp);
+  return x == null ? null : x;
+}
+
+function dealOutcome(h: SignalHit): "open" | "win" | "stop" | "off" {
+  if ((h.status ?? "open") === "open") return "open";
+  if (h.status === "stop") return "stop";
+  if (h.status === "target") return "win";
+  if (h.resultR != null && Number.isFinite(h.resultR)) return h.resultR >= 0 ? "win" : "stop";
+  if (h.exit != null && h.entry != null) {
+    const up = h.action === "long" ? h.exit >= h.entry : h.exit <= h.entry;
+    return up ? "win" : "stop";
+  }
+  return "off";
+}
+
+function drawDealMarks(
+  ctx: CanvasRenderingContext2D,
+  chart: IChartApi,
+  series: ISeriesApi<"Candlestick">,
+  candles: Candle[],
+  marks: SignalHit[],
+) {
+  const now = performance.now();
+  const pulse = 0.5 + 0.5 * Math.sin(now / 220);
+  const bob = Math.sin(now / 280) * 2.2;
+  marks.slice(0, 14).forEach((h, i) => {
+    if (h.entry == null) return;
+    const opened = Boolean(h.filled || (h.status && h.status !== "open") || h.exit != null);
+    if (!opened) return;
+    const x = xAt(chart, candles, h.filledAt ?? h.at);
+    const y = series.priceToCoordinate(h.entry);
+    if (x == null || y == null) return;
+    const side = h.action === "long" ? -1 : 1;
+    const ox = x + ((i % 3) - 1) * 4;
+    const oy = y + side * (18 + bob);
+    ctx.save();
+    ctx.translate(ox, oy);
+    const s = 0.86 + pulse * 0.16;
+    ctx.scale(s, s);
+    ctx.beginPath();
+    ctx.arc(0, 0, 8, 0, Math.PI * 2);
+    ctx.fillStyle = h.action === "long" ? "rgba(36,138,88,0.95)" : "rgba(168,58,58,0.95)";
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,0.9)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = "#fff";
+    ctx.beginPath();
+    ctx.arc(-2.2, -1.2, 0.85, 0, Math.PI * 2);
+    ctx.arc(2.2, -1.2, 0.85, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 1.1;
+    ctx.arc(0, 1.4, 2.3, 0.2 * Math.PI, 0.8 * Math.PI);
+    ctx.stroke();
+    ctx.restore();
+
+    const out = dealOutcome(h);
+    if (out === "open" || h.exit == null) return;
+    const xe = xAt(chart, candles, h.closedAt ?? h.at);
+    const ye = series.priceToCoordinate(h.exit);
+    if (xe == null || ye == null) return;
+    ctx.save();
+    ctx.translate(xe + 12, ye - side * (16 + bob));
+    if (out === "win") {
+      ctx.scale(0.92 + pulse * 0.2, 0.92 + pulse * 0.2);
+      ctx.fillStyle = "#e7c56a";
+      ctx.beginPath();
+      ctx.ellipse(0, 3.2, 7.2, 2.3, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(0, 0.4, 7.2, 2.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#fff6d0";
+      ctx.beginPath();
+      ctx.ellipse(0, -2.4, 7.2, 2.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#8a6420";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.strokeStyle = "#1d6b3a";
+      ctx.lineWidth = 1.7;
+      ctx.beginPath();
+      ctx.moveTo(-2.1, -2.2);
+      ctx.lineTo(-0.2, -0.4);
+      ctx.lineTo(2.8, -4.2);
+      ctx.stroke();
+    } else if (out === "stop") {
+      ctx.translate(Math.sin(now / 80) * 1.3, 0);
+      ctx.fillStyle = "#c23b3b";
+      ctx.beginPath();
+      ctx.roundRect(-7, -7, 14, 14, 2);
+      ctx.fill();
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(-4, -4);
+      ctx.lineTo(4, 4);
+      ctx.moveTo(4, -4);
+      ctx.lineTo(-4, 4);
+      ctx.stroke();
+    }
+    ctx.restore();
+  });
+}
+
 function tapeHoverRead(
   n: VolumeNode,
   last: Candle | undefined,
@@ -1742,6 +1869,7 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
     hover: boolean;
     hoverPt: { x: number; y: number } | null;
     hoverBar: Candle | null;
+    marks: SignalHit[];
   } = {
     zones: [],
     overlays: {
@@ -1769,6 +1897,7 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
     hover: false,
     hoverPt: null,
     hoverBar: null,
+    marks: [],
   };
 
   private unsub: (() => void) | null = null;
@@ -1779,7 +1908,7 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
     let tick = 0;
     this.blink = setInterval(() => {
       tick += 1;
-      if (this.payload.hoverBar || tick % 4 === 0) this._upd?.();
+      if (this.payload.hoverBar || (this.payload.marks?.length ?? 0) > 0 || tick % 4 === 0) this._upd?.();
     }, 45);
     this.unsub = this.chart.timeScale().subscribeVisibleLogicalRangeChange(() => this._upd?.()) as unknown as () => void;
   }
@@ -1828,6 +1957,7 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
               drawPathArrows(ctx, w, chart, series, p.snap, p.order, p.setup, p.candles.at(-1)?.time ?? 0);
             drawTape(ctx, w, chart, series, p.candles, p.snap, p.overlays, p.book, hover ? null : p.hoverPt);
             ctx.globalAlpha = 1;
+            if (p.marks?.length) drawDealMarks(ctx, chart, series, p.candles, p.marks);
             if (p.hoverBar) {
               const prev = p.candles[p.candles.findIndex((c) => c.time === p.hoverBar!.time) - 1];
               const anchor = drawLiftedCandle(ctx, chart, series, p.hoverBar, p.candles);
@@ -1857,6 +1987,7 @@ export function ChartPane({
   book = null,
   order = null,
   setup = null,
+  marks = [],
   className,
 }: {
   candles: Candle[];
@@ -1865,6 +1996,7 @@ export function ChartPane({
   book?: { bids: { price: number; volume: number }[]; asks: { price: number; volume: number }[] } | null;
   order?: Advice | null;
   setup?: LocalSetup | null;
+  marks?: SignalHit[];
   className?: string;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -1883,6 +2015,7 @@ export function ChartPane({
   const bookRef = useRef(book);
   const orderRef = useRef(order);
   const setupRef = useRef(setup);
+  const marksRef = useRef(marks);
   const pair = useDeskStore((s) => s.symbol);
   const fitGen = useDeskStore((s) => s.fitGen);
   const pairRef = useRef(pair);
@@ -1899,6 +2032,7 @@ export function ChartPane({
   bookRef.current = book;
   orderRef.current = order;
   setupRef.current = setup;
+  marksRef.current = marks;
   pairRef.current = pair;
   overlaysRef.current = overlays;
   candlesRef.current = candles;
@@ -2049,6 +2183,7 @@ export function ChartPane({
             hover: hoverRef.current,
             hoverPt: hoverPtRef.current,
             hoverBar: hoverBarRef.current,
+            marks: marksRef.current,
           };
           prim.refresh();
         }
@@ -2341,6 +2476,7 @@ export function ChartPane({
           hover: hoverRef.current,
           hoverPt: hoverPtRef.current,
           hoverBar: hoverBarRef.current,
+          marks: marksRef.current,
         };
         prim.refresh();
       }

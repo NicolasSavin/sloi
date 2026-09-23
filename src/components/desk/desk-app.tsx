@@ -20,6 +20,7 @@ import { actionLabel, actionTone } from "@/lib/advisor";
 import { FundStrip } from "@/components/fund-strip";
 import { fetchBroker, fetchDigest, fetchMarket, fetchTvGuide } from "@/lib/market/fetch";
 import { useDeskStore, type OverlayFlags } from "@/lib/desk-store";
+import { useDispatchStore, type SignalHit } from "@/lib/dispatch-store";
 import { loadJournal, saveJournal, type JournalEntry } from "@/lib/journal";
 import type { MarketPayload } from "@/lib/market/types";
 import { KIND_LABEL, SYMBOLS, TIMEFRAMES, getSymbol } from "@/lib/market/symbols";
@@ -88,6 +89,25 @@ export function DeskApp({ initialMarket, forcedSymbol }: { initialMarket?: Marke
   const [deskKey, setDeskKey] = useState("");
   useEffect(() => { setDeskKey(readDeskKey()); }, []);
   const spec = getSymbol(symbol);
+  const localHits = useDispatchStore((s) => s.log);
+  const archQ = useQuery({
+    queryKey: ["signal-archive"],
+    queryFn: async () => {
+      const res = await fetch("/api/archive.json", { cache: "no-store" });
+      if (!res.ok) return [] as SignalHit[];
+      const data = (await res.json()) as { log?: SignalHit[] };
+      return Array.isArray(data.log) ? data.log : [];
+    },
+    staleTime: 30_000,
+  });
+  const tradeMarks = useMemo(() => {
+    const map = new Map<string, SignalHit>();
+    for (const h of archQ.data ?? []) if (h.symbol === spec.id) map.set(h.id, h);
+    for (const h of localHits) if (h.symbol === spec.id) map.set(h.id, h);
+    return [...map.values()]
+      .filter((h) => h.entry != null && (h.filled || (h.status && h.status !== "open") || h.exit != null))
+      .slice(0, 16);
+  }, [archQ.data, localHits, spec.id]);
   const market = useQuery({
     queryKey: ["market", symbol, timeframe],
     queryFn: () => fetchMarket({ data: { symbol, timeframe } }),
@@ -323,7 +343,7 @@ export function DeskApp({ initialMarket, forcedSymbol }: { initialMarket?: Marke
               <BookBanner book={book} iceberg={snap?.flow.events.find((e) => e.kind === "absorption")?.therefore} />
               {snap?.clusters ? <ClusterBanner snap={snap} /> : null}
               <ChartStage className="mx-4 mt-2 h-[min(72vh,820px)] min-h-[480px] overflow-hidden rounded-xl panel-volume">
-                <ChartPane candles={candles} snap={snap} overlays={overlays} book={book} order={order} setup={deskMarket?.setup ?? null} className="absolute inset-0 h-full" />
+                <ChartPane candles={candles} snap={snap} overlays={overlays} book={book} order={order} setup={deskMarket?.setup ?? null} marks={tradeMarks} className="absolute inset-0 h-full" />
                 <OrderHud order={order} setup={deskMarket?.setup ?? null} decimals={spec.decimals} loading={digestQ.isLoading} boxVector={deskMarket?.boxVector ?? snap?.boxVector} />
                 <div className="pointer-events-none absolute inset-x-0 bottom-1 z-30 px-2">
                   <div className="pointer-events-auto ml-auto max-w-xl">
