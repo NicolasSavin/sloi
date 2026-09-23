@@ -169,6 +169,7 @@ export function DispatchBoard() {
                 <Link
                   key={m.spec.id}
                   to="/desk"
+                  search={{ pair: m.spec.id }}
                   className={cn(
                     "panel-volume group relative overflow-hidden rounded-xl p-4",
                     open && (m.advice.action === "long" ? "border-bull/35" : "border-bear/35"),

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
+import { createRootRoute, HeadContent, Outlet, Scripts, useRouterState } from "@tanstack/react-router";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/lib/auth/provider";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
@@ -42,6 +42,15 @@ export const Route = createRootRoute({
   component: RootDocument,
 });
 
+function PageFade() {
+  const pathname = useRouterState({ select: (s) => s.location.href });
+  return (
+    <div key={pathname} className="page-enter">
+      <Outlet />
+    </div>
+  );
+}
+
 function RootDocument() {
   const [queryClient] = useState(
     () =>
@@ -61,7 +70,7 @@ function RootDocument() {
         <PreviewHostBridge />
         <AuthProvider>
           <QueryClientProvider client={queryClient}>
-            <Outlet />
+            <PageFade />
             <DispatchWatcher />
             <Toaster theme="dark" position="bottom-center" />
           </QueryClientProvider>

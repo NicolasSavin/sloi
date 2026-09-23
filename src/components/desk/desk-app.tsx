@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Activity, Layers, RefreshCw, Volume2, VolumeX } from "lucide-react";
 import { toast } from "sonner";
@@ -63,8 +63,13 @@ function sourceLabel(source: string, staleSec?: number) {
   return source;
 }
 
-export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
-  const symbol = useDeskStore((s) => s.symbol);
+export function DeskApp({ initialMarket, forcedSymbol }: { initialMarket?: MarketPayload; forcedSymbol?: string }) {
+  const stored = useDeskStore((s) => s.symbol);
+  const setSymbol = useDeskStore((s) => s.setSymbol);
+  const symbol = forcedSymbol && getSymbol(forcedSymbol).id === forcedSymbol ? forcedSymbol : stored;
+  useLayoutEffect(() => {
+    if (forcedSymbol && forcedSymbol !== stored) setSymbol(forcedSymbol);
+  }, [forcedSymbol, stored, setSymbol]);
   const timeframe = useDeskStore((s) => s.timeframe);
   const autoAnalyze = useDeskStore((s) => s.autoAnalyze);
   const soundOn = useDeskStore((s) => s.soundOn);
@@ -72,7 +77,6 @@ export function DeskApp({ initialMarket }: { initialMarket?: MarketPayload }) {
   const chochLen = useDeskStore((s) => s.chochLen);
   const chochClose = useDeskStore((s) => s.chochClose);
   const spreads = useDeskStore((s) => s.spreads);
-  const setSymbol = useDeskStore((s) => s.setSymbol);
   const setTimeframe = useDeskStore((s) => s.setTimeframe);
   const setAutoAnalyze = useDeskStore((s) => s.setAutoAnalyze);
   const setSoundOn = useDeskStore((s) => s.setSoundOn);

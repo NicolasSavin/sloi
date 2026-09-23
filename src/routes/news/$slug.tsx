@@ -121,7 +121,7 @@ function NewsPage() {
           </section>
 
           {related ? (
-            <Link to="/desk" className="panel-volume mt-6 flex items-center justify-between gap-4 rounded-xl p-5">
+            <Link to="/desk" search={{ pair: related.id }} className="panel-volume mt-6 flex items-center justify-between gap-4 rounded-xl p-5">
               <div>
                 <p className="font-mono text-xs text-accent">СТОЛ</p>
                 <p className="mt-1 text-lg">{related.label}</p>

@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { AppNav } from "@/components/app-nav";
 import { FundStrip } from "@/components/fund-strip";
@@ -104,10 +104,11 @@ function DailyPage() {
           <ul className="mt-4 grid gap-3 sm:grid-cols-2">
             {digest.markets.map((m) => (
               <li key={m.spec.id}>
-                <button
-                  type="button"
+                <Link
+                  to="/desk"
+                  search={{ pair: m.spec.id }}
                   onClick={() => setSymbol(m.spec.id)}
-                  className="panel-volume group w-full overflow-hidden rounded-xl text-left"
+                  className="panel-volume group block w-full overflow-hidden rounded-xl text-left no-underline"
                 >
                 <div className="relative h-28 overflow-hidden">
                   <LiveShot src={marketArt(m.spec.id)} beat={m.spec.id.length} />
@@ -129,7 +130,7 @@ function DailyPage() {
                     <span className="text-muted">{formatPct(m.changePct)}</span>
                   </p>
                 </div>
-                </button>
+                </Link>
               </li>
             ))}
           </ul>

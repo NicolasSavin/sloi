@@ -59,7 +59,7 @@ export function Ticker({ quotes }: { quotes: HomeQuote[] }) {
   const chips = quotes.map((q) => {
     const up = q.changePct >= 0;
     return (
-      <Link key={q.id} to="/desk" className="ticker-chip shrink-0 no-underline">
+      <Link key={q.id} to="/desk" search={{ pair: q.id }} className="ticker-chip shrink-0 no-underline">
         <span className="font-mono text-[10px] tracking-[0.16em] text-accent">{q.label}</span>
         <span className="font-mono text-sm tabular-nums text-fg">{formatPrice(q.price, q.decimals)}</span>
         <span className={cn("font-mono text-xs tabular-nums", up ? "text-bull" : "text-bear")}>{formatPct(q.changePct)}</span>

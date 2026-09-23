@@ -17,6 +17,7 @@ export function QuoteBoard({ quotes }: { quotes: HomeQuote[] }) {
               <Link
                 key={q.id}
                 to="/desk"
+                search={{ pair: q.id }}
                 className="panel-volume group relative overflow-hidden rounded-xl p-5"
               >
                 <LiveShot src={q.art} beat={q.id.length} className="opacity-30 transition-opacity duration-500 group-hover:opacity-50" />
