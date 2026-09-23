@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.25"
+#property version   "5.26"
 #property strict
-#property description "SLOI 5.25: кнопка СВЕРНУТЬ справа от панели, фон больше не съедает клик"
+#property description "SLOI 5.26: кнопки не под фоном, СВЕРНУТЬ слева"
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -162,7 +162,7 @@ int OnInit()
       g_auto = false;
       Print("SLOI 5.18 дубль на ЭТОМ MT4: авто ВЫКЛ, кружки уходят. Кнопка АВТО на этом окне — забрать торговлю");
      }
-   else Print("SLOI 5.25 лидер этого терминала, чарт ", ChartSymbol(0));
+   else Print("SLOI 5.26 лидер этого терминала, чарт ", ChartSymbol(0));
    DrawDesk(true);
    return(INIT_SUCCEEDED);
   }
@@ -268,7 +268,7 @@ void OnChartEvent(const int id, const long &lparam, const double &dparam, const 
       int cy = (int)dparam;
       bool hit = false;
       if(g_min) hit = HitBox(cx, cy, px, py, 320, 36);
-      else hit = HitBox(cx, cy, px + 848, py + 4, 150, 32);
+      else hit = HitBox(cx, cy, px + 8, py + 6, 104, 24);
       if(hit)
         {
          if(GetTickCount() - g_clickMs < 400) return;
@@ -1864,7 +1864,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 5.25\n";
+   body += "EA 5.26\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();
@@ -2678,9 +2678,10 @@ void DrawDesk(bool force)
       return;
      }
 
-   Rect("bg", x, y, w, h, C_BG);
-   Lab("title", x + 14, y + 8, "SLOI DESK", C_GOLD, 12);
-   Lab("hint", x + 150, y + 12, g_feedNote+"  "+(g_host?"хозяин CD":"сверка брокер/сайт")+"  "+IntegerToString(g_n)+" пар", C_DIM, 8);
+   Rect("bg", x, y + setH, w - 88, h - setH, C_BG);
+   Lab("title", x + 118, y + 8, "SLOI DESK", C_GOLD, 12);
+   Lab("hint", x + 230, y + 12, g_feedNote, C_DIM, 8);
+   Btn("b_min", x + 8, y + 6, 104, 24, "СВЕРНУТЬ", C_GOLD);
 
    Btn("b_auto", x + 470, y + 8, 96, 22, g_auto ? "АВТО ВКЛ" : "АВТО ВЫКЛ", g_auto ? C_BUY : C_SEL);
    Btn("b_alrt", x + 572, y + 8, 96, 22, g_alerts ? "АЛЕРТ ВКЛ" : "АЛЕРТ ВЫКЛ", C_GOLD);
@@ -2754,7 +2755,7 @@ void DrawDesk(bool force)
       MaybeTrade(i, dir, entry, stop, target, verdict, spPts);
 
       int ry = y + setH + head + i * rowH;
-      Rect("r"+IntegerToString(i), x + 8, ry - 2, w - 16, rowH - 2, C_BOX);
+      Rect("r"+IntegerToString(i), x + 8, ry - 2, w - 100, rowH - 2, C_BOX);
       string s = g_sym[i];
       Lab("s"+IntegerToString(i), hx,     ry, s, C_FG, 9);
       Lab("p"+IntegerToString(i), hx+110, ry, IntegerToString(spPts)+" п", C_GOLD, 9);
@@ -2778,13 +2779,10 @@ void DrawDesk(bool force)
    ScaleOut();
    ManageVirtBook();
    DrawSmcOnChart();
-   Btn("b_min", x + 848, y + 4, 140, 28, "СВЕРНУТЬ", C_GOLD);
    ObjectSetInteger(0, P+"bg", OBJPROP_ZORDER, 0);
    ObjectSetInteger(0, P+"b_min", OBJPROP_ZORDER, 100000);
-   ObjectSetInteger(0, P+"b_min", OBJPROP_BACK, false);
    ObjectSetInteger(0, P+"b_min", OBJPROP_SELECTABLE, true);
    ObjectSetInteger(0, P+"b_min", OBJPROP_STATE, false);
-   if(paint) RaiseClicks();
-   ObjectSetInteger(0, P+"b_min", OBJPROP_ZORDER, 100000);
+   RaiseClicks();
    ChartRedraw();
   }
