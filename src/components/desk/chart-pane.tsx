@@ -15,6 +15,7 @@ import type { OverlayFlags } from "@/lib/desk-store";
 import { useDeskStore } from "@/lib/desk-store";
 import type { Advice } from "@/lib/advisor";
 import type { LocalSetup, SmcSnapshot, Zone } from "@/lib/smc/engine";
+import { zoneName } from "@/lib/smc/engine";
 import { deltaOf } from "@/lib/smc/flow";
 import { CD_FUT, nodeForecast, type VolumeNode } from "@/lib/smc/micro";
 import { liveCdCharts } from "@/lib/broker-tape";
@@ -1309,32 +1310,92 @@ function candleUnder(
   return null;
 }
 
-function candleBrief(c: Candle, prev: Candle | undefined, snap: SmcSnapshot | null, order: Advice | null) {
+function nearBar(a: number, b: number, candles: Candle[]) {
+  const step = candles.length > 2 ? Math.abs(candles.at(-1)!.time - candles.at(-2)!.time) : 3600;
+  return Math.abs(a - b) <= Math.max(step * 0.65, 45);
+}
+
+function overlapsZone(c: Candle, z: Zone) {
+  const hi = Math.max(z.top, z.bottom);
+  const lo = Math.min(z.top, z.bottom);
+  return c.low <= hi && c.high >= lo;
+}
+
+function candleBrief(
+  c: Candle,
+  prev: Candle | undefined,
+  candles: Candle[],
+  snap: SmcSnapshot | null,
+  order: Advice | null,
+) {
   const range = Math.max(c.high - c.low, 1e-9);
   const body = Math.abs(c.close - c.open);
   const up = c.close >= c.open;
   const upperW = c.high - Math.max(c.open, c.close);
   const lowerW = Math.min(c.open, c.close) - c.low;
-  let happened = up ? "Закрыли выше открытия." : "Закрыли ниже открытия.";
-  if (upperW > body * 1.3 && upperW > range * 0.32) happened = "Сняли стопы сверху.";
-  else if (lowerW > body * 1.3 && lowerW > range * 0.32) happened = "Сняли стопы снизу.";
-  else if (body / range > 0.62) happened = up ? "Импульс вверх." : "Импульс вниз.";
-  else if (body / range < 0.22) happened = "Узкая свеча, решения нет.";
-  if (prev && prev.volume > 0 && c.volume > prev.volume * 1.7) happened = happened.replace(/\.$/, "") + ", объём выше.";
+  const i = candles.findIndex((x) => x.time === c.time);
+  const back = candles.slice(Math.max(0, i - 20), Math.max(0, i));
+  const vols = back.map((x) => x.volume).filter((v) => v > 0).sort((a, b) => a - b);
+  const med = vols[Math.floor(vols.length / 2)] || 0;
+  const spans = back.map((x) => x.high - x.low).sort((a, b) => a - b);
+  const spanMed = spans[Math.floor(spans.length / 2)] || range;
+  const volX = med > 0 ? c.volume / med : 1;
+  const wide = range > spanMed * 1.45;
+  const tight = range < spanMed * 0.55;
 
-  let global = "Глобально ждём края.";
-  if (snap?.boxVector?.dir === "up") global = "Глобально вектор вверх.";
-  else if (snap?.boxVector?.dir === "down") global = "Глобально вектор вниз.";
-  else if (snap?.bias === "bullish") global = "Глобально карта бычья.";
-  else if (snap?.bias === "bearish") global = "Глобально карта медвежья.";
+  const bits: string[] = [];
+  if (upperW > body * 1.25 && upperW > range * 0.3) bits.push(up ? "хвост сверху, но закрыли выше открытия" : "сняли верх и закрыли вниз");
+  else if (lowerW > body * 1.25 && lowerW > range * 0.3) bits.push(up ? "сняли низ и закрыли вверх" : "хвост снизу, закрытие всё равно ниже");
+  else if (body / range > 0.62) bits.push(up ? "плотное тело вверх" : "плотное тело вниз");
+  else if (body / range < 0.2) bits.push("тело крошечное");
+  else bits.push(up ? "закрытие выше открытия" : "закрытие ниже открытия");
+  if (wide) bits.push("ход шире обычного");
+  else if (tight) bits.push("ход узкий");
+  if (volX >= 1.8) bits.push(`объём в ${volX.toFixed(1)} раза выше соседних`);
+  else if (med > 0 && volX <= 0.55) bits.push("объём тонкий");
+  if (prev && Math.abs(c.close - prev.close) > spanMed * 0.8) {
+    bits.push(c.close > prev.close ? "ушли заметно выше прошлой" : "ушли заметно ниже прошлой");
+  }
+
+  const zones = [...(snap?.fvgs ?? []), ...(snap?.orderBlocks ?? [])];
+  const born = zones.find((z) => nearBar(z.endTime, c.time, candles) || nearBar(z.startTime, c.time, candles));
+  const inside = zones.find((z) => !z.mitigated && overlapsZone(c, z) && c.time >= z.startTime);
+  const z = born ?? inside;
+  if (z) {
+    const name = zoneName(z);
+    if (born && z.kind === "fvg") bits.push(`здесь родился ${name}${z.mitigated ? ", его уже закрыли" : ", дыра ещё открыта"}`);
+    else if (born) bits.push(`это свеча: ${name}`);
+    else bits.push(`цена в зоне «${name}»${z.mitigated ? "" : ", зона ещё жива"}`);
+  }
+
+  const nodes = (snap?.micro.nodes ?? []).filter((n) => nearBar(n.time, c.time, candles));
+  const splash = nodes.find((n) => n.kind === "splash");
+  const inf = nodes.find((n) => n.kind === "infusion");
+  const imb = nodes.find((n) => n.kind === "imbalance");
+  if (splash) bits.push(splash.side === "buy" ? "сплэш покупателей — вынос, часто потом откат" : "сплэш продавцов — вынос вниз, часто потом откат");
+  if (inf) bits.push(inf.held === false ? "вливание пробито, остановка не удержалась" : "вливание: крупняк остановился, это цель, не разгон");
+  if (imb && imb.ratio != null) bits.push(`перекос заявок ×${imb.ratio.toFixed(1)} в ${imb.side === "buy" ? "покупку" : "продажу"}`);
+
+  let expect = "";
+  if (z?.kind === "fvg" && !z.mitigated) expect = z.side === "bull" ? "Ждём возврат в бычий разрыв." : "Ждём возврат в медвежий разрыв.";
+  else if (inf && inf.held !== false) expect = "Дальше скорее стоянка, чем новый импульс.";
+  else if (splash) expect = "После сплэша смотрим, не развернёт ли обратно.";
+  else if (snap?.boxVector?.dir === "up") expect = "Коробка всё ещё тянет вверх.";
+  else if (snap?.boxVector?.dir === "down") expect = "Коробка всё ещё тянет вниз.";
 
   const act = order?.action;
-  let plan = "Приказа нет — это не вход.";
-  if (act === "long" && !up && body / range > 0.4) plan = "Не по плану: лонг, а свеча вниз.";
-  else if (act === "short" && up && body / range > 0.4) plan = "Не по плану: шорт, а свеча вверх.";
-  else if (act === "long") plan = "Пока по плану: лонг.";
-  else if (act === "short") plan = "Пока по плану: шорт.";
-  return { happened, global, plan, off: plan.startsWith("Не по") };
+  let off = false;
+  let plan = "";
+  if (act === "long" && !up && body / range > 0.4) {
+    off = true;
+    plan = "Приказ лонг, эта свеча идёт против.";
+  } else if (act === "short" && up && body / range > 0.4) {
+    off = true;
+    plan = "Приказ шорт, эта свеча идёт против.";
+  }
+
+  const text = [bits.join(", ") + ".", expect, plan].filter(Boolean).join(" ");
+  return { text, off };
 }
 
 function drawLiftedCandle(
@@ -1412,19 +1473,37 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.closePath();
 }
 
+function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxW: number) {
+  const out: string[] = [];
+  for (const sentence of text.split(/(?<=\.)\s+/)) {
+    const words = sentence.split(" ");
+    let cur = "";
+    for (const w of words) {
+      const next = cur ? `${cur} ${w}` : w;
+      if (cur && ctx.measureText(next).width > maxW) {
+        out.push(cur);
+        cur = w;
+      } else cur = next;
+    }
+    if (cur) out.push(cur);
+  }
+  return out.slice(0, 6);
+}
+
 function drawCandleCard(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
   anchor: { x: number; y: number; bw: number },
-  note: { happened: string; global: string; plan: string; off: boolean },
+  note: { text: string; off: boolean },
 ) {
-  const lines = [note.happened, note.global, note.plan];
   ctx.font = "600 14px IBM Plex Sans, sans-serif";
+  const maxW = 320;
+  const lines = wrapLines(ctx, note.text, maxW - 24);
   const pad = 12;
-  const tw = Math.max(...lines.map((t) => ctx.measureText(t).width));
-  const boxW = Math.min(280, tw + pad * 2);
-  const boxH = 18 * lines.length + pad * 2 - 4;
+  const tw = Math.max(...lines.map((t) => ctx.measureText(t).width), 80);
+  const boxW = Math.min(maxW, tw + pad * 2);
+  const boxH = 18 * lines.length + pad * 2 - 2;
   let x = anchor.x + anchor.bw / 2 + 18;
   let y = anchor.y - boxH / 2;
   if (x + boxW > width - 8) x = anchor.x - anchor.bw / 2 - 18 - boxW;
@@ -1444,8 +1523,8 @@ function drawCandleCard(
   ctx.lineWidth = 1.5;
   ctx.stroke();
   lines.forEach((t, i) => {
-    ctx.fillStyle = i === 2 && note.off ? "#e08b84" : i === 0 ? "#f6edd9" : "#e7d3a4";
-    ctx.fillText(t, x + pad, y + pad + 14 + i * 18);
+    ctx.fillStyle = note.off && i === lines.length - 1 ? "#e08b84" : i === 0 ? "#f6edd9" : "#e7d3a4";
+    ctx.fillText(t, x + pad, y + pad + 13 + i * 18);
   });
   ctx.restore();
 }
@@ -1708,7 +1787,7 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
             if (p.hoverBar) {
               const prev = p.candles[p.candles.findIndex((c) => c.time === p.hoverBar!.time) - 1];
               const anchor = drawLiftedCandle(ctx, chart, series, p.hoverBar, p.candles);
-              if (anchor) drawCandleCard(ctx, w, h, anchor, candleBrief(p.hoverBar, prev, p.snap, p.order));
+              if (anchor) drawCandleCard(ctx, w, h, anchor, candleBrief(p.hoverBar, prev, p.candles, p.snap, p.order));
             }
             if (p.snap && CD_FUT.has(p.pair) && !(p.snap.micro.nodes ?? []).some((n) => n.kind === "splash" || n.kind === "infusion" || n.kind === "imbalance")) {
               const seen = liveCdCharts();
