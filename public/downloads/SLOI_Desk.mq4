@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.24"
+#property version   "5.25"
 #property strict
-#property description "SLOI 5.24: половина на первой цели, остаток дальше, панель кнопкой"
+#property description "SLOI 5.25: кнопка СВЕРНУТЬ справа от панели, фон больше не съедает клик"
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -162,7 +162,7 @@ int OnInit()
       g_auto = false;
       Print("SLOI 5.18 дубль на ЭТОМ MT4: авто ВЫКЛ, кружки уходят. Кнопка АВТО на этом окне — забрать торговлю");
      }
-   else Print("SLOI 5.24 лидер этого терминала, чарт ", ChartSymbol(0));
+   else Print("SLOI 5.25 лидер этого терминала, чарт ", ChartSymbol(0));
    DrawDesk(true);
    return(INIT_SUCCEEDED);
   }
@@ -244,7 +244,7 @@ void RaiseClicks()
    for(int i = ObjectsTotal() - 1; i >= 0; i--)
      {
       string n = ObjectName(i);
-      if(StringFind(n, "SLOI_b") != 0 && StringFind(n, "SLOI_e") != 0 && StringFind(n, "SLOI_g") != 0) continue;
+      if(StringFind(n, "SLOI_b_") != 0 && StringFind(n, "SLOI_e_") != 0 && StringFind(n, "SLOI_g") != 0) continue;
       ObjectSetInteger(0, n, OBJPROP_ZORDER, 2000);
       ObjectSetInteger(0, n, OBJPROP_BACK, false);
      }
@@ -268,7 +268,7 @@ void OnChartEvent(const int id, const long &lparam, const double &dparam, const 
       int cy = (int)dparam;
       bool hit = false;
       if(g_min) hit = HitBox(cx, cy, px, py, 320, 36);
-      else hit = HitBox(cx, cy, px + 700, py + 6, 130, 28);
+      else hit = HitBox(cx, cy, px + 848, py + 4, 150, 32);
       if(hit)
         {
          if(GetTickCount() - g_clickMs < 400) return;
@@ -1864,7 +1864,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 5.24\n";
+   body += "EA 5.25\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();
@@ -2778,9 +2778,11 @@ void DrawDesk(bool force)
    ScaleOut();
    ManageVirtBook();
    DrawSmcOnChart();
-   Btn("b_min", x + 700, y + 6, 120, 26, "СВЕРНУТЬ", C_GOLD);
+   Btn("b_min", x + 848, y + 4, 140, 28, "СВЕРНУТЬ", C_GOLD);
+   ObjectSetInteger(0, P+"bg", OBJPROP_ZORDER, 0);
    ObjectSetInteger(0, P+"b_min", OBJPROP_ZORDER, 100000);
    ObjectSetInteger(0, P+"b_min", OBJPROP_BACK, false);
+   ObjectSetInteger(0, P+"b_min", OBJPROP_SELECTABLE, true);
    ObjectSetInteger(0, P+"b_min", OBJPROP_STATE, false);
    if(paint) RaiseClicks();
    ObjectSetInteger(0, P+"b_min", OBJPROP_ZORDER, 100000);
