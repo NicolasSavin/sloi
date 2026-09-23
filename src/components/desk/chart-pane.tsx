@@ -1284,14 +1284,14 @@ function drawBricks(
   }
 }
 
-function cursorOnCandle(
+function candleUnder(
   chart: IChartApi,
   series: ISeriesApi<"Candlestick">,
   candles: Candle[],
   point: { x: number; y: number } | undefined,
   time: unknown,
-) {
-  if (!point || time == null) return false;
+): Candle | null {
+  if (!point || time == null) return null;
   const ts = chart.timeScale();
   for (let i = 0; i < candles.length; i++) {
     const c = candles[i]!;
@@ -1301,12 +1301,153 @@ function cursorOnCandle(
     if (x == null || yH == null || yL == null) continue;
     const next = candles[i + 1];
     const x2 = next ? ts.timeToCoordinate(next.time as UTCTimestamp) : x + 10;
-    const half = Math.max(4, Math.abs((x2 ?? x + 10) - x) * 0.4);
-    const top = Math.min(yH, yL) - 3;
-    const bot = Math.max(yH, yL) + 3;
-    if (Math.abs(point.x - x) <= half && point.y >= top && point.y <= bot) return true;
+    const half = Math.max(4, Math.abs((x2 ?? x + 10) - x) * 0.42);
+    const top = Math.min(yH, yL) - 4;
+    const bot = Math.max(yH, yL) + 4;
+    if (Math.abs(point.x - x) <= half && point.y >= top && point.y <= bot) return c;
   }
-  return false;
+  return null;
+}
+
+function candleBrief(c: Candle, prev: Candle | undefined, snap: SmcSnapshot | null, order: Advice | null) {
+  const range = Math.max(c.high - c.low, 1e-9);
+  const body = Math.abs(c.close - c.open);
+  const up = c.close >= c.open;
+  const upperW = c.high - Math.max(c.open, c.close);
+  const lowerW = Math.min(c.open, c.close) - c.low;
+  let happened = up ? "Закрыли выше открытия." : "Закрыли ниже открытия.";
+  if (upperW > body * 1.3 && upperW > range * 0.32) happened = "Сняли стопы сверху.";
+  else if (lowerW > body * 1.3 && lowerW > range * 0.32) happened = "Сняли стопы снизу.";
+  else if (body / range > 0.62) happened = up ? "Импульс вверх." : "Импульс вниз.";
+  else if (body / range < 0.22) happened = "Узкая свеча, решения нет.";
+  if (prev && prev.volume > 0 && c.volume > prev.volume * 1.7) happened = happened.replace(/\.$/, "") + ", объём выше.";
+
+  let global = "Глобально ждём края.";
+  if (snap?.boxVector?.dir === "up") global = "Глобально вектор вверх.";
+  else if (snap?.boxVector?.dir === "down") global = "Глобально вектор вниз.";
+  else if (snap?.bias === "bullish") global = "Глобально карта бычья.";
+  else if (snap?.bias === "bearish") global = "Глобально карта медвежья.";
+
+  const act = order?.action;
+  let plan = "Приказа нет — это не вход.";
+  if (act === "long" && !up && body / range > 0.4) plan = "Не по плану: лонг, а свеча вниз.";
+  else if (act === "short" && up && body / range > 0.4) plan = "Не по плану: шорт, а свеча вверх.";
+  else if (act === "long") plan = "Пока по плану: лонг.";
+  else if (act === "short") plan = "Пока по плану: шорт.";
+  return { happened, global, plan, off: plan.startsWith("Не по") };
+}
+
+function drawLiftedCandle(
+  ctx: CanvasRenderingContext2D,
+  chart: IChartApi,
+  series: ISeriesApi<"Candlestick">,
+  candle: Candle,
+  candles: Candle[],
+) {
+  const ts = chart.timeScale();
+  const x = ts.timeToCoordinate(candle.time as UTCTimestamp);
+  const yO = series.priceToCoordinate(candle.open);
+  const yC = series.priceToCoordinate(candle.close);
+  const yH = series.priceToCoordinate(candle.high);
+  const yL = series.priceToCoordinate(candle.low);
+  if (x == null || yO == null || yC == null || yH == null || yL == null) return null;
+  const i = candles.findIndex((c) => c.time === candle.time);
+  const next = i >= 0 ? candles[i + 1] : undefined;
+  const x2 = next ? ts.timeToCoordinate(next.time as UTCTimestamp) : x + 12;
+  const gap = Math.abs((x2 ?? x + 12) - x);
+  const bw = Math.max(7, Math.min(22, gap * 0.72));
+  const bull = candle.close >= candle.open;
+  const top = Math.min(yO, yC);
+  const h = Math.max(3, Math.abs(yC - yO));
+  const depth = Math.min(9, bw * 0.42);
+  ctx.save();
+  ctx.shadowColor = bull ? "rgba(70,240,160,0.55)" : "rgba(255,120,120,0.5)";
+  ctx.shadowBlur = 18;
+  ctx.shadowOffsetX = -depth;
+  ctx.shadowOffsetY = -depth * 0.35;
+  ctx.strokeStyle = bull ? "rgba(90,230,150,0.95)" : "rgba(240,120,120,0.95)";
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(x, yH);
+  ctx.lineTo(x, top);
+  ctx.moveTo(x, top + h);
+  ctx.lineTo(x, yL);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x + bw / 2, top);
+  ctx.lineTo(x + bw / 2 + depth, top - depth * 0.45);
+  ctx.lineTo(x + bw / 2 + depth, top + h - depth * 0.45);
+  ctx.lineTo(x + bw / 2, top + h);
+  ctx.closePath();
+  ctx.fillStyle = bull ? "#146b3a" : "#8a2424";
+  ctx.fill();
+  const g = ctx.createLinearGradient(x - bw / 2, top, x + bw / 2 + depth, top + h);
+  if (bull) {
+    g.addColorStop(0, "#d8ffe8");
+    g.addColorStop(0.35, "#46f0a0");
+    g.addColorStop(0.7, "#1a9a55");
+    g.addColorStop(1, "#0c4a2c");
+  } else {
+    g.addColorStop(0, "#ffe0e0");
+    g.addColorStop(0.35, "#ff8a8a");
+    g.addColorStop(0.7, "#c43333");
+    g.addColorStop(1, "#6a1212");
+  }
+  ctx.fillStyle = g;
+  ctx.fillRect(x - bw / 2, top, bw, h);
+  ctx.shadowColor = "transparent";
+  ctx.strokeStyle = "rgba(255,255,255,0.55)";
+  ctx.strokeRect(x - bw / 2, top, bw, h);
+  ctx.restore();
+  return { x, y: top + h / 2, bw };
+}
+
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function drawCandleCard(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  anchor: { x: number; y: number; bw: number },
+  note: { happened: string; global: string; plan: string; off: boolean },
+) {
+  const lines = [note.happened, note.global, note.plan];
+  ctx.font = "600 14px IBM Plex Sans, sans-serif";
+  const pad = 12;
+  const tw = Math.max(...lines.map((t) => ctx.measureText(t).width));
+  const boxW = Math.min(280, tw + pad * 2);
+  const boxH = 18 * lines.length + pad * 2 - 4;
+  let x = anchor.x + anchor.bw / 2 + 18;
+  let y = anchor.y - boxH / 2;
+  if (x + boxW > width - 8) x = anchor.x - anchor.bw / 2 - 18 - boxW;
+  y = Math.max(8, Math.min(height - boxH - 8, y));
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,0.45)";
+  ctx.shadowBlur = 16;
+  ctx.shadowOffsetY = 6;
+  roundRect(ctx, x, y, boxW, boxH, 10);
+  const bg = ctx.createLinearGradient(x, y, x, y + boxH);
+  bg.addColorStop(0, "rgba(42,32,22,0.94)");
+  bg.addColorStop(1, "rgba(16,12,8,0.94)");
+  ctx.fillStyle = bg;
+  ctx.fill();
+  ctx.shadowColor = "transparent";
+  ctx.strokeStyle = note.off ? "rgba(224,139,132,0.9)" : "rgba(240,215,168,0.75)";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  lines.forEach((t, i) => {
+    ctx.fillStyle = i === 2 && note.off ? "#e08b84" : i === 0 ? "#f6edd9" : "#e7d3a4";
+    ctx.fillText(t, x + pad, y + pad + 14 + i * 18);
+  });
+  ctx.restore();
 }
 
 function tapeHoverRead(
@@ -1481,6 +1622,7 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
     pair: string;
     hover: boolean;
     hoverPt: { x: number; y: number } | null;
+    hoverBar: Candle | null;
   } = {
     zones: [],
     overlays: {
@@ -1507,6 +1649,7 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
     pair: "EURUSD",
     hover: false,
     hoverPt: null,
+    hoverBar: null,
   };
 
   private unsub: (() => void) | null = null;
@@ -1549,19 +1692,24 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
             const w = scope.mediaSize.width;
             const h = scope.mediaSize.height;
             ctx.clearRect(0, 0, w, h);
-            const hover = p.hover;
+            const hover = p.hoverBar != null;
             if (z === "bottom") {
-              ctx.globalAlpha = hover ? 0.4 : 1;
+              ctx.globalAlpha = hover ? 0.5 : 1;
               drawZones(ctx, w, h, chart, series, p.zones, p.overlays, p.snap, p.setup, p.order, p.candles.at(-1)?.time ?? 0, false, p.candles, p.pair, this.faceI, "fill");
               ctx.globalAlpha = 1;
               return;
             }
-            if (!hover) {
-              drawZones(ctx, w, h, chart, series, p.zones, p.overlays, p.snap, p.setup, p.order, p.candles.at(-1)?.time ?? 0, false, p.candles, p.pair, this.faceI, "hud");
-              if (p.overlays.callouts !== false)
-                drawPathArrows(ctx, w, chart, series, p.snap, p.order, p.setup, p.candles.at(-1)?.time ?? 0);
+            ctx.globalAlpha = hover ? 0.5 : 1;
+            drawZones(ctx, w, h, chart, series, p.zones, p.overlays, p.snap, p.setup, p.order, p.candles.at(-1)?.time ?? 0, false, p.candles, p.pair, this.faceI, "hud");
+            if (p.overlays.callouts !== false)
+              drawPathArrows(ctx, w, chart, series, p.snap, p.order, p.setup, p.candles.at(-1)?.time ?? 0);
+            drawTape(ctx, w, chart, series, p.candles, p.snap, p.overlays, p.book, hover ? null : p.hoverPt);
+            ctx.globalAlpha = 1;
+            if (p.hoverBar) {
+              const prev = p.candles[p.candles.findIndex((c) => c.time === p.hoverBar!.time) - 1];
+              const anchor = drawLiftedCandle(ctx, chart, series, p.hoverBar, p.candles);
+              if (anchor) drawCandleCard(ctx, w, h, anchor, candleBrief(p.hoverBar, prev, p.snap, p.order));
             }
-            drawTape(ctx, w, chart, series, p.candles, p.snap, p.overlays, p.book, p.hoverPt);
             if (p.snap && CD_FUT.has(p.pair) && !(p.snap.micro.nodes ?? []).some((n) => n.kind === "splash" || n.kind === "infusion" || n.kind === "imbalance")) {
               const seen = liveCdCharts();
               ctx.font = "600 12px IBM Plex Sans, sans-serif";
@@ -1619,6 +1767,8 @@ export function ChartPane({
   const fitRangeRef = useRef<{ min: number; max: number } | null>(null);
   const hoverRef = useRef(false);
   const hoverPtRef = useRef<{ x: number; y: number } | null>(null);
+  const hoverBarRef = useRef<Candle | null>(null);
+  const dimSeriesRef = useRef<(on: boolean) => void>(() => {});
   const [ready, setReady] = useState(false);
   snapRef.current = snap;
   overlaysRef.current = overlays;
@@ -1775,6 +1925,7 @@ export function ChartPane({
             pair: pairRef.current,
             hover: hoverRef.current,
             hoverPt: hoverPtRef.current,
+            hoverBar: hoverBarRef.current,
           };
           prim.refresh();
         }
@@ -1783,20 +1934,44 @@ export function ChartPane({
           drawProfile(profileRef.current, s, snapRef.current, overlaysRef.current.profile);
         }
       };
+      const fade = (hex: string, a: number) => {
+        const h = hex.startsWith("#") ? hex : "#6f9e86";
+        const r = parseInt(h.slice(1, 3), 16);
+        const g = parseInt(h.slice(3, 5), 16);
+        const b = parseInt(h.slice(5, 7), 16);
+        return `rgba(${r},${g},${b},${a})`;
+      };
+      dimSeriesRef.current = (on) => {
+        const bull = token("--color-bull", "#6f9e86");
+        const bear = token("--color-bear", "#b57a7a");
+        const a = on ? 0.5 : 1;
+        series.applyOptions({
+          upColor: fade(bull, a),
+          downColor: fade(bear, a),
+          borderUpColor: fade(bull, a),
+          borderDownColor: fade(bear, a),
+          wickUpColor: fade(bull, a),
+          wickDownColor: fade(bear, a),
+        });
+      };
       chart.subscribeCrosshairMove((param) => {
         const s = seriesRef.current;
         const pt = param?.point ? { x: param.point.x, y: param.point.y } : null;
-        const next = Boolean(
-          chart &&
-            s &&
-            cursorOnCandle(chart, s, candlesRef.current, param?.point, param?.time),
-        );
+        const bar = s ? candleUnder(chart, s, candlesRef.current, param?.point, param?.time) : null;
         const px = pt ? Math.round(pt.x) : -1;
         const py = pt ? Math.round(pt.y) : -1;
         const prev = hoverPtRef.current;
-        if (next === hoverRef.current && prev && Math.round(prev.x) === px && Math.round(prev.y) === py) return;
-        hoverRef.current = next;
+        const same =
+          (bar?.time ?? 0) === (hoverBarRef.current?.time ?? 0) &&
+          prev != null &&
+          Math.round(prev.x) === px &&
+          Math.round(prev.y) === py;
+        if (same) return;
+        const was = hoverRef.current;
+        hoverBarRef.current = bar;
+        hoverRef.current = bar != null;
         hoverPtRef.current = pt;
+        if (was !== hoverRef.current) dimSeriesRef.current(hoverRef.current);
         paint();
       });
       chart.timeScale().subscribeVisibleLogicalRangeChange(paint);
@@ -1850,6 +2025,7 @@ export function ChartPane({
       wickVisible: true,
       visible: true,
     });
+    if (hoverRef.current) dimSeriesRef.current(true);
     lockPriceScale(series, view);
     volume.setData(
       view.map((c) => {
@@ -2041,6 +2217,7 @@ export function ChartPane({
           pair,
           hover: hoverRef.current,
           hoverPt: hoverPtRef.current,
+          hoverBar: hoverBarRef.current,
         };
         prim.refresh();
       }
