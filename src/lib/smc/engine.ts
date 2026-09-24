@@ -7,7 +7,7 @@ import { buildAuction, type AuctionSnap } from "@/lib/smc/auction";
 import { buildCoilBreak, type CoilBreak } from "@/lib/smc/coil";
 import { buildCorr, inheritCircle, type CorrSnap } from "@/lib/corr";
 import { buildIvNews, type IvNewsSnap } from "@/lib/iv-news";
-import { brokerBook, liveAskBid, liveCdBars, liveCdFlow, liveClusters, liveCumDelta, liveProfile } from "@/lib/broker-tape";
+import { bookAdjust, brokerBook, liveAskBid, liveCdBars, liveCdFlow, liveClusters, liveCumDelta, liveProfile } from "@/lib/broker-tape";
 import type { NewsHalt } from "@/lib/calendar";
 
 export type Bias = "bullish" | "bearish" | "range";
@@ -1557,18 +1557,40 @@ export function analyzeMarket(
     ),
   );
 
-  const localSetup = buildSetup(
-    last,
-    trend,
-    premiumDiscount,
-    fvgs,
-    orderBlocks,
-    liquidity,
-    dealingRange,
-    atr,
-    micro,
-    clusters.hvn,
-  );
+  const localSetup = (() => {
+    const built = buildSetup(
+      last,
+      trend,
+      premiumDiscount,
+      fvgs,
+      orderBlocks,
+      liquidity,
+      dealingRange,
+      atr,
+      micro,
+      clusters.hvn,
+    );
+    if (!opts?.symbol || built.entry == null || built.stop == null || built.targets[0] == null) return built;
+    const book = bookAdjust(opts.symbol, built.entry, built.stop, built.targets[0]);
+    if (book.block) {
+      return {
+        ...built,
+        entry: null,
+        stop: null,
+        targets: [],
+        thesis: book.block,
+        invalidation: "Книга держит ход. Ждём, пока лимитку снимут или цена отойдёт.",
+      };
+    }
+    if (book.note && book.target !== built.targets[0]) {
+      return {
+        ...built,
+        targets: [book.target, ...built.targets.filter((t) => t !== built.targets[0])],
+        thesis: `${built.thesis} ${book.note}`,
+      };
+    }
+    return built;
+  })();
   const story = buildStory(
     last,
     trend,

@@ -368,6 +368,60 @@ export function brokerSkewPct(id: string, site: number, tenant = "legacy"): numb
   return (Math.abs(mid - site) / site) * 100;
 }
 
+export function liveBook(id: string): BrokerBook | null {
+  const now = Date.now();
+  for (const roomItem of rooms().values()) {
+    const b = roomItem.books.get(id);
+    if (b && now - b.at < 90_000 && (b.bids.length + b.asks.length) >= 2) return b;
+  }
+  return null;
+}
+
+/** Gold and euro only. Nearest thick limit is the target. A wall closer than the stop blocks the entry. */
+export function bookAdjust(
+  id: string,
+  entry: number,
+  stop: number,
+  target: number,
+): { target: number; block: string | null; note: string | null } {
+  if (id !== "XAUUSD" && id !== "EURUSD") return { target, block: null, note: null };
+  const book = liveBook(id);
+  if (!book) return { target, block: null, note: null };
+  const levels = [...book.bids, ...book.asks].filter((l) => l.price > 0 && l.volume > 0);
+  if (levels.length < 2) return { target, block: null, note: null };
+  const vols = levels.map((l) => l.volume).sort((a, b) => a - b);
+  const mid = vols[Math.floor(vols.length / 2)] ?? 0;
+  const top = vols[vols.length - 1] ?? 0;
+  const cut = Math.max(mid * 2.2, top * 0.55);
+  const fat = levels.filter((l) => l.volume >= cut);
+  const risk = Math.abs(entry - stop);
+  const dir = target >= entry ? 1 : -1;
+  if (!(risk > 0) || fat.length === 0) return { target, block: null, note: null };
+  const ahead = fat
+    .filter((l) => (l.price - entry) * dir > risk * 0.12)
+    .sort((a, b) => (a.price - entry) * dir - (b.price - entry) * dir);
+  const wall = ahead[0];
+  if (!wall) return { target, block: null, note: "Книга есть, толстой лимитки по ходу нет." };
+  const roomPx = Math.abs(wall.price - entry);
+  if (roomPx < risk * 0.75) {
+    return {
+      target,
+      block: `Толстая лимитка ${wall.price} сразу по ходу. До неё ближе, чем стоп. В защитника не входим.`,
+      note: null,
+    };
+  }
+  const cur = Math.abs(target - entry);
+  const wallDist = Math.abs(wall.price - entry);
+  if (wallDist + risk * 0.02 < cur) {
+    return {
+      target: wall.price,
+      block: null,
+      note: `Цель к толстой лимитке ${wall.price}, не дальше в пустую книгу.`,
+    };
+  }
+  return { target, block: null, note: null };
+}
+
 export function brokerBook(id: string, tenant = "legacy"): BrokerBook | null {
   const b = room(tenant).books.get(id);
   if (!b) return null;

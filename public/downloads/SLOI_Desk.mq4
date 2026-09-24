@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.28"
+#property version   "5.29"
 #property strict
-#property description "SLOI 5.28: торговля с этого графика из параметров, клики сквозь линии"
+#property description "SLOI 5.29: книга BookMap на золоте и евро — цель и запрет входа в защитника"
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -165,7 +165,7 @@ int OnInit()
       GlobalVariableSet("SLOI_LEAD_CH", (double)ChartID());
       g_leader = true;
       g_auto = AutoTrade;
-      Print("SLOI 5.28 торгует ЭТОТ график ", ChartSymbol(0), " авто ", (g_auto ? "ВКЛ" : "ВЫКЛ"), ". На других окнах поставьте TradeHere=false");
+      Print("SLOI 5.29 торгует ЭТОТ график ", ChartSymbol(0), " авто ", (g_auto ? "ВКЛ" : "ВЫКЛ"), ". Книга BookMap — только золото и евро");
      }
    else
      {
@@ -1365,6 +1365,103 @@ void ScrapeWant(long ch, int wins, bool hasS, bool hasI, bool hasM, string want,
      }
   }
 
+void AppendBookFromChart(long ch, string &body)
+  {
+   string sym = ChartSymbol(ch);
+   string naked = Naked(sym);
+   if(naked != "XAUUSD" && naked != "EURUSD") return;
+   if(!ChartHasInd(ch, "bookmap") && !ChartHasInd(ch, "book")) return;
+   double bid = BidOf(sym);
+   if(bid <= 0) return;
+   int d = DigitsOf(sym);
+   double px[24];
+   double vol[24];
+   int n = 0;
+   int wins = (int)ChartGetInteger(ch, CHART_WINDOWS_TOTAL);
+   for(int w = 0; w < MathMax(1, wins) && n < 24; w++)
+     {
+      int total = ObjectsTotal(ch, w, -1);
+      for(int i = 0; i < total && n < 24; i++)
+        {
+         string nm = ObjectName(ch, i, w, -1);
+         if(StringLen(nm) < 1 || StringFind(nm, "SLOI_") == 0) continue;
+         string low = nm;
+         StringToLower(low);
+         int t = (int)ObjectGetInteger(ch, nm, OBJPROP_TYPE);
+         if(t != OBJ_HLINE && t != OBJ_TREND && t != OBJ_RECTANGLE) continue;
+         string tip = ObjectGetString(ch, nm, OBJPROP_TOOLTIP);
+         string tx = ObjectGetString(ch, nm, OBJPROP_TEXT);
+         string blob = low + " " + tip + " " + tx;
+         StringToLower(blob);
+         bool named = (StringFind(blob, "book") >= 0);
+         double p = ObjectGetDouble(ch, nm, OBJPROP_PRICE1);
+         double p2 = ObjectGetDouble(ch, nm, OBJPROP_PRICE2);
+         if((t == OBJ_TREND || t == OBJ_RECTANGLE) && p2 > 0 && LooksPx(p2, bid) && LooksPx(p, bid))
+           {
+            if(MathAbs(p2 - p) / bid < 0.003) p = 0.5 * (p + p2);
+           }
+         else if(!LooksPx(p, bid) && LooksPx(p2, bid)) p = p2;
+         if(!LooksPx(p, bid)) continue;
+         if(MathAbs(p - bid) / bid > 0.012) continue;
+         string digits = "";
+         string src = (StringLen(tip) > 0 ? tip : tx);
+         int L = StringLen(src);
+         for(int k = 0; k < L; k++)
+           {
+            int c = StringGetCharacter(src, k);
+            if(c >= '0' && c <= '9') digits = digits + StringSubstr(src, k, 1);
+            else if(StringLen(digits) >= 2) break;
+            else digits = "";
+           }
+         double v = (StringLen(digits) >= 2 ? StringToDouble(digits) : 0);
+         if(v <= 0) v = (double)ObjectGetInteger(ch, nm, OBJPROP_WIDTH);
+         if(v <= 0 && !named) continue;
+         if(v <= 0) v = 1;
+         bool dup = false;
+         for(int j = 0; j < n; j++)
+           {
+            if(MathAbs(px[j] - p) / bid < 0.0002)
+              {
+               if(v > vol[j]) vol[j] = v;
+               dup = true;
+              }
+           }
+         if(dup) continue;
+         px[n] = p;
+         vol[n] = v;
+         n++;
+        }
+     }
+   if(n < 2)
+     {
+      AppendCdBook(body, sym);
+      return;
+     }
+   int keep = (n > 8 ? 8 : n);
+   int idx[8];
+   for(int a = 0; a < keep; a++) idx[a] = -1;
+   for(int a = 0; a < keep; a++)
+     {
+      int best = -1;
+      for(int j = 0; j < n; j++)
+        {
+         bool used = false;
+         for(int u = 0; u < a; u++) if(idx[u] == j) used = true;
+         if(used) continue;
+         if(best < 0 || vol[j] > vol[best]) best = j;
+        }
+      idx[a] = best;
+     }
+   string row = "BOOK " + naked;
+   for(int a = 0; a < keep; a++)
+     {
+      if(idx[a] < 0) continue;
+      string sd = (px[idx[a]] <= bid ? "B" : "S");
+      row += " " + sd + " " + DoubleToStr(px[idx[a]], d) + " " + DoubleToStr(vol[idx[a]], 0);
+     }
+   body += row + "\n";
+  }
+
 void AppendClusters(string &body)
   {
    int sent = 0;
@@ -1381,6 +1478,7 @@ void AppendClusters(string &body)
       if(ChartHasInd(ch, "infusion")) inds += "I";
       if(ChartHasInd(ch, "imbalance")) inds += "M";
       if(StringLen(ns) > 2) seen = seen + ns + ":" + inds + objs + ",";
+      if(ns == "XAUUSD" || ns == "EURUSD") AppendBookFromChart(ch, body);
       ch = ChartNext(ch);
      }
    if(StringLen(seen) > 2) body += "CDCHARTS " + seen + "\n";
@@ -1888,7 +1986,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 5.28\n";
+   body += "EA 5.29\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();
