@@ -633,29 +633,13 @@ function drawZones(
   }
 
   if (snap?.cdTape?.live && snap.cdTape.book.length) {
-    const book = snap.cdTape.book;
-    const maxV = Math.max(1, ...book.map((l) => l.volume));
-    const fat = [...book].sort((a, b) => b.volume - a.volume)[0];
-    for (const l of book) {
+    const walls = nearWalls(snap.cdTape.book, snap.lastClose);
+    for (const l of walls) {
       const y = series.priceToCoordinate(l.price);
       if (y == null) continue;
-      const t = l.volume / maxV;
-      const h = 7 + t * 20;
-      const bid = l.side === "bid";
-      const g = ctx.createLinearGradient(0, 0, plotW, 0);
-      g.addColorStop(0, bid ? `rgba(30,160,90,${0.05 + t * 0.1})` : `rgba(180,40,40,${0.05 + t * 0.1})`);
-      g.addColorStop(0.62, bid ? `rgba(70,220,130,${0.1 + t * 0.22})` : `rgba(255,80,60,${0.1 + t * 0.22})`);
-      g.addColorStop(1, bid ? `rgba(190,255,210,${0.45 + t * 0.45})` : `rgba(255,170,120,${0.45 + t * 0.45})`);
-      ctx.fillStyle = g;
-      ctx.fillRect(8, y - h / 2, plotW - 16, h);
-    }
-    if (fat) {
-      const y = series.priceToCoordinate(fat.price);
-      if (y != null) {
-        ctx.font = "700 13px IBM Plex Sans, sans-serif";
-        ctx.fillStyle = fat.side === "bid" ? "#d8ffe8" : "#ffe0d4";
-        ctx.fillText(fat.side === "bid" ? "ТЕПЛО БИД" : "ТЕПЛО АСК", 14, y - 10);
-      }
+      const above = l.price >= snap.lastClose;
+      ctx.fillStyle = above ? "rgba(255,80,60,0.22)" : "rgba(60,210,120,0.22)";
+      ctx.fillRect(8, y - 5, plotW - 16, 10);
     }
   }
 
@@ -1839,96 +1823,55 @@ function drawTape(
       ctx.fillText(read.why, boxX, boxY + 42);
     }
   }
-  if (overlays.flow !== false && book && (book.bids.length || book.asks.length)) {
-    const levels = [
-      ...book.bids.map((l) => ({ ...l, side: "bid" as const })),
-      ...book.asks.map((l) => ({ ...l, side: "ask" as const })),
-    ];
-    const max = Math.max(1, ...levels.map((l) => l.volume));
-    const fat = [...levels].sort((a, b) => b.volume - a.volume)[0];
-    for (const l of levels) {
-      const y = series.priceToCoordinate(l.price);
-      if (y == null) continue;
-      const t = l.volume / max;
-      const h = 8 + t * 22;
-      const g = ctx.createLinearGradient(0, 0, width, 0);
-      const bid = l.side === "bid";
-      g.addColorStop(0, bid ? `rgba(30,160,90,${0.06 + t * 0.12})` : `rgba(180,40,40,${0.06 + t * 0.12})`);
-      g.addColorStop(0.7, bid ? `rgba(80,230,140,${0.16 + t * 0.28})` : `rgba(255,90,60,${0.16 + t * 0.28})`);
-      g.addColorStop(1, bid ? `rgba(200,255,220,${0.55 + t * 0.4})` : `rgba(255,180,130,${0.55 + t * 0.4})`);
-      ctx.fillStyle = g;
-      ctx.fillRect(0, y - h / 2, width, h);
-    }
-    if (fat) {
-      const y = series.priceToCoordinate(fat.price);
-      if (y != null) {
-        ctx.font = "700 13px IBM Plex Sans, sans-serif";
-        ctx.fillStyle = fat.side === "bid" ? "#e8fff2" : "#ffe8e0";
-        ctx.fillText(fat.side === "bid" ? "ТЕПЛО БИД" : "ТЕПЛО АСК", 12, Math.max(16, y - 12));
-      }
-    }
-  }
+}
+
+function nearWalls(
+  levels: { price: number; volume: number; side: "bid" | "ask" }[],
+  last: number,
+) {
+  if (!(last > 0)) return [];
+  const span = last * (last > 50 ? 0.0035 : 0.0012);
+  const near = levels.filter((l) => l.price > 0 && Math.abs(l.price - last) <= span && Math.abs(l.price - last) > last * 0.00003);
+  const below = near.filter((l) => l.price <= last).sort((a, b) => b.price - a.price)[0];
+  const above = near.filter((l) => l.price >= last).sort((a, b) => a.price - b.price)[0];
+  return [below, above].filter((l): l is { price: number; volume: number; side: "bid" | "ask" } => Boolean(l));
 }
 
 function drawHeatDock(
   ctx: CanvasRenderingContext2D,
   width: number,
-  height: number,
+  _height: number,
   series: ISeriesApi<"Candlestick">,
-  pair: string,
+  _pair: string,
   book: { bids: { price: number; volume: number }[]; asks: { price: number; volume: number }[] } | null,
   snap: SmcSnapshot | null,
 ) {
-  const id = pair.replace(/[^A-Za-z]/g, "").toUpperCase();
-  const major = id.startsWith("EURUSD") || id.startsWith("XAUUSD");
-  const fromTape = snap?.cdTape?.book ?? [];
+  const last = snap?.lastClose ?? 0;
   const levels = [
     ...(book?.bids ?? []).map((l) => ({ ...l, side: "bid" as const })),
     ...(book?.asks ?? []).map((l) => ({ ...l, side: "ask" as const })),
-    ...fromTape.map((l) => ({ price: l.price, volume: l.volume, side: l.side })),
+    ...(snap?.cdTape?.book ?? []).map((l) => ({ price: l.price, volume: l.volume, side: l.side })),
   ];
-  if (!major && levels.length === 0) return;
-  const x = Math.max(8, width - 132);
-  const top = 36;
-  const dockH = Math.max(80, height - 88);
-  ctx.save();
-  ctx.fillStyle = "rgba(6,5,4,0.82)";
-  ctx.strokeStyle = "rgba(240,215,168,0.7)";
-  ctx.lineWidth = 1.4;
-  ctx.beginPath();
-  ctx.roundRect(x, top, 120, dockH, 8);
-  ctx.fill();
-  ctx.stroke();
-  ctx.font = "700 12px IBM Plex Sans, sans-serif";
-  ctx.fillStyle = "#f3e2bc";
-  ctx.textAlign = "left";
-  ctx.fillText("ТЕПЛО КНИГИ", x + 10, top + 18);
-  if (levels.length === 0) {
-    ctx.font = "12px IBM Plex Sans, sans-serif";
-    ctx.fillStyle = "#f0d8c4";
-    const lines = ["Книга с терминала", "не пришла.", "#BookMap на чарте", "золота или евро,", "советник 5.29."];
-    lines.forEach((line, i) => ctx.fillText(line, x + 10, top + 44 + i * 16));
-    ctx.restore();
-    return;
-  }
-  const max = Math.max(1, ...levels.map((l) => l.volume));
-  const shown = [...levels].sort((a, b) => b.volume - a.volume).slice(0, 14);
-  shown.forEach((l, i) => {
+  const walls = nearWalls(levels, last);
+  if (!walls.length) return;
+  const pip = last > 50 ? 0.1 : 0.0001;
+  for (const l of walls) {
     const y = series.priceToCoordinate(l.price);
-    const row = top + 32 + i * 18;
-    const t = l.volume / max;
-    const bid = l.side === "bid";
-    ctx.fillStyle = bid ? `rgba(40,200,110,${0.35 + t * 0.6})` : `rgba(230,60,50,${0.35 + t * 0.6})`;
-    ctx.fillRect(x + 8, row, 8 + t * 70, 12);
-    ctx.fillStyle = "#fff6ea";
-    ctx.font = "11px IBM Plex Sans, sans-serif";
-    ctx.fillText(bid ? "бид" : "аск", x + 84, row + 10);
-    if (y != null) {
-      ctx.fillStyle = bid ? "rgba(80,230,140,0.28)" : "rgba(255,80,60,0.28)";
-      ctx.fillRect(0, y - 4 - t * 6, x - 4, 8 + t * 12);
-    }
-  });
-  ctx.restore();
+    if (y == null) continue;
+    const above = l.price >= last;
+    const pts = Math.round(Math.abs(l.price - last) / pip);
+    ctx.save();
+    ctx.strokeStyle = above ? "rgba(255,90,70,0.95)" : "rgba(60,220,130,0.95)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(8, y);
+    ctx.lineTo(width - 70, y);
+    ctx.stroke();
+    ctx.font = "700 13px IBM Plex Sans, sans-serif";
+    ctx.fillStyle = above ? "#ffd0c8" : "#d8ffe8";
+    ctx.fillText(above ? `аск +${pts}п` : `бид −${pts}п`, 12, y - 6);
+    ctx.restore();
+  }
 }
 
 class SmcPrimitive implements ISeriesPrimitive<Time> {
@@ -2445,10 +2388,17 @@ export function ChartPane({
         );
       };
       add(snap.dealingRange.eq, "EQ", muted, true);
-      const bookBids = book?.bids ?? [];
-      const bookAsks = book?.asks ?? [];
-      for (const l of bookBids.slice(0, 6)) add(l.price, "БИД", "#3ddc86", false, true);
-      for (const l of bookAsks.slice(0, 6)) add(l.price, "АСК", "#ff5a4a", false, true);
+      const lastPx = snap.lastClose;
+      const bookLevels = [
+        ...(book?.bids ?? []).map((l) => ({ ...l, side: "bid" as const })),
+        ...(book?.asks ?? []).map((l) => ({ ...l, side: "ask" as const })),
+      ];
+      for (const l of nearWalls(bookLevels, lastPx)) {
+        const above = l.price >= lastPx;
+        const pip = lastPx > 50 ? 0.1 : 0.0001;
+        const pts = Math.round(Math.abs(l.price - lastPx) / pip);
+        add(l.price, above ? `аск +${pts}п` : `бид −${pts}п`, above ? "#ff5a4a" : "#3ddc86", false, true);
+      }
       if (overlays.margin !== false) {
         add(snap.margin.upper.bottom, "M↑", token("--color-accent", "#c9b896"), true);
         add(snap.margin.lower.top, "M↓", token("--color-accent", "#c9b896"), true);
