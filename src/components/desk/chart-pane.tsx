@@ -1860,16 +1860,20 @@ function drawHeatDock(
     if (y == null) continue;
     const above = l.price >= last;
     const pts = Math.round(Math.abs(l.price - last) / pip);
+    const thick = pts <= 8 ? 7 : pts <= 18 ? 4.5 : 2.5;
+    const label = above
+      ? `Продавцы держат цену, ${pts} п. выше`
+      : `Покупатели держат цену, ${pts} п. ниже`;
     ctx.save();
     ctx.strokeStyle = above ? "rgba(255,90,70,0.95)" : "rgba(60,220,130,0.95)";
-    ctx.lineWidth = 2;
+    ctx.lineWidth = thick;
     ctx.beginPath();
     ctx.moveTo(8, y);
     ctx.lineTo(width - 70, y);
     ctx.stroke();
-    ctx.font = "700 13px IBM Plex Sans, sans-serif";
+    ctx.font = "700 14px IBM Plex Sans, sans-serif";
     ctx.fillStyle = above ? "#ffd0c8" : "#d8ffe8";
-    ctx.fillText(above ? `аск +${pts}п` : `бид −${pts}п`, 12, y - 6);
+    ctx.fillText(label, 12, y - 8);
     ctx.restore();
   }
 }
@@ -2375,13 +2379,14 @@ export function ChartPane({
       const bull = token("--color-bull", "#6f9e86");
       const bear = token("--color-bear", "#b57a7a");
       const muted = token("--color-muted", "#9a9aa3");
-      const add = (price: number, title: string, color: string, dotted = false, wide = false) => {
+      const add = (price: number, title: string, color: string, dotted = false, wide = false, px = 0) => {
+        const lineWidth = (px >= 1 && px <= 4 ? px : wide ? 2 : 1) as 1 | 2 | 3 | 4;
         linesRef.current.push(
           series.createPriceLine({
             price,
             color,
-            lineWidth: wide ? 2 : 1,
-            lineStyle: wide ? lc.LineStyle.Solid : dotted ? lc.LineStyle.Dashed : lc.LineStyle.SparseDotted,
+            lineWidth,
+            lineStyle: wide || px > 1 ? lc.LineStyle.Solid : dotted ? lc.LineStyle.Dashed : lc.LineStyle.SparseDotted,
             axisLabelVisible: true,
             title,
           }),
@@ -2397,7 +2402,11 @@ export function ChartPane({
         const above = l.price >= lastPx;
         const pip = lastPx > 50 ? 0.1 : 0.0001;
         const pts = Math.round(Math.abs(l.price - lastPx) / pip);
-        add(l.price, above ? `аск +${pts}п` : `бид −${pts}п`, above ? "#ff5a4a" : "#3ddc86", false, true);
+        const thick = (pts <= 8 ? 4 : pts <= 18 ? 3 : 2) as 1 | 2 | 3 | 4;
+        const title = above
+          ? `Продавцы держат, ${pts} п. выше`
+          : `Покупатели держат, ${pts} п. ниже`;
+        add(l.price, title, above ? "#ff5a4a" : "#3ddc86", false, true, thick);
       }
       if (overlays.margin !== false) {
         add(snap.margin.upper.bottom, "M↑", token("--color-accent", "#c9b896"), true);
