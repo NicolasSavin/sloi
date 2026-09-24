@@ -632,21 +632,31 @@ function drawZones(
     }
   }
 
-  if (snap?.cdTape?.live) {
+  if (snap?.cdTape?.live && snap.cdTape.book.length) {
     const book = snap.cdTape.book;
     const maxV = Math.max(1, ...book.map((l) => l.volume));
+    const fat = [...book].sort((a, b) => b.volume - a.volume)[0];
     for (const l of book) {
       const y = series.priceToCoordinate(l.price);
       if (y == null) continue;
-      const w = 10 + (l.volume / maxV) * 42;
-      const h = 7;
-      const x = plotW - w - 2;
-      ctx.fillStyle = l.side === "bid" ? "rgba(50,200,120,0.45)" : "rgba(230,80,80,0.45)";
-      ctx.fillRect(x, y - h / 2, w, h);
-      ctx.strokeStyle = l.side === "bid" ? "rgba(120,255,180,0.8)" : "rgba(255,140,140,0.8)";
-      ctx.strokeRect(x, y - h / 2, w, h);
+      const t = l.volume / maxV;
+      const h = 7 + t * 20;
+      const bid = l.side === "bid";
+      const g = ctx.createLinearGradient(0, 0, plotW, 0);
+      g.addColorStop(0, bid ? `rgba(30,160,90,${0.05 + t * 0.1})` : `rgba(180,40,40,${0.05 + t * 0.1})`);
+      g.addColorStop(0.62, bid ? `rgba(70,220,130,${0.1 + t * 0.22})` : `rgba(255,80,60,${0.1 + t * 0.22})`);
+      g.addColorStop(1, bid ? `rgba(190,255,210,${0.45 + t * 0.45})` : `rgba(255,170,120,${0.45 + t * 0.45})`);
+      ctx.fillStyle = g;
+      ctx.fillRect(8, y - h / 2, plotW - 16, h);
     }
-    if (book[0]) mark(lastTime, book[0].price, book[0].side === "bid" ? "Стакан бид" : "Стакан аск", book[0].side === "bid" ? "ob" : "obBear");
+    if (fat) {
+      const y = series.priceToCoordinate(fat.price);
+      if (y != null) {
+        ctx.font = "700 13px IBM Plex Sans, sans-serif";
+        ctx.fillStyle = fat.side === "bid" ? "#d8ffe8" : "#ffe0d4";
+        ctx.fillText(fat.side === "bid" ? "ТЕПЛО БИД" : "ТЕПЛО АСК", 14, y - 10);
+      }
+    }
   }
 
   if (snap && snap.boxVector && snap.boxVector.dir !== "none" && snap.boxVector.magnet != null) {
@@ -1830,23 +1840,33 @@ function drawTape(
     }
   }
   if (overlays.flow !== false && book && (book.bids.length || book.asks.length)) {
-    const max = Math.max(...book.bids.map((l) => l.volume), ...book.asks.map((l) => l.volume), 1);
-    const x0 = width - 70;
-    for (const l of book.asks.slice(0, 8)) {
+    const levels = [
+      ...book.bids.map((l) => ({ ...l, side: "bid" as const })),
+      ...book.asks.map((l) => ({ ...l, side: "ask" as const })),
+    ];
+    const max = Math.max(1, ...levels.map((l) => l.volume));
+    const fat = [...levels].sort((a, b) => b.volume - a.volume)[0];
+    for (const l of levels) {
       const y = series.priceToCoordinate(l.price);
       if (y == null) continue;
-      ctx.fillStyle = "rgba(181,122,122,0.55)";
-      ctx.fillRect(x0, y - 3, (l.volume / max) * 60, 6);
+      const t = l.volume / max;
+      const h = 8 + t * 22;
+      const g = ctx.createLinearGradient(0, 0, width, 0);
+      const bid = l.side === "bid";
+      g.addColorStop(0, bid ? `rgba(30,160,90,${0.06 + t * 0.12})` : `rgba(180,40,40,${0.06 + t * 0.12})`);
+      g.addColorStop(0.7, bid ? `rgba(80,230,140,${0.16 + t * 0.28})` : `rgba(255,90,60,${0.16 + t * 0.28})`);
+      g.addColorStop(1, bid ? `rgba(200,255,220,${0.55 + t * 0.4})` : `rgba(255,180,130,${0.55 + t * 0.4})`);
+      ctx.fillStyle = g;
+      ctx.fillRect(0, y - h / 2, width, h);
     }
-    for (const l of book.bids.slice(0, 8)) {
-      const y = series.priceToCoordinate(l.price);
-      if (y == null) continue;
-      ctx.fillStyle = "rgba(111,158,134,0.55)";
-      ctx.fillRect(x0, y - 3, (l.volume / max) * 60, 6);
+    if (fat) {
+      const y = series.priceToCoordinate(fat.price);
+      if (y != null) {
+        ctx.font = "700 13px IBM Plex Sans, sans-serif";
+        ctx.fillStyle = fat.side === "bid" ? "#e8fff2" : "#ffe8e0";
+        ctx.fillText(fat.side === "bid" ? "ТЕПЛО БИД" : "ТЕПЛО АСК", 12, Math.max(16, y - 12));
+      }
     }
-    ctx.fillStyle = "rgba(232,220,200,0.8)";
-    ctx.font = "9px IBM Plex Mono, monospace";
-    ctx.fillText("ASK/BID", x0, 12);
   }
 }
 
