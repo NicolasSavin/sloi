@@ -1614,22 +1614,21 @@ function drawDealMarks(
   const now = performance.now();
   const pulse = 0.5 + 0.5 * Math.sin(now / 220);
   const bob = Math.sin(now / 280) * 2.2;
-  marks.slice(0, 14).forEach((h, i) => {
+  marks.slice(0, 14).forEach((h) => {
     if (h.entry == null) return;
     const opened = Boolean(h.filled || (h.status && h.status !== "open") || h.exit != null);
     if (!opened) return;
     const x = xAt(chart, candles, h.filledAt ?? h.at);
     const y = series.priceToCoordinate(h.entry);
     if (x == null || y == null) return;
-    const side = h.action === "long" ? -1 : 1;
-    const ox = x + ((i % 3) - 1) * 4;
-    const oy = y + side * (18 + bob);
+    const ox = x;
+    const oy = y + bob * 0.35;
     ctx.save();
     ctx.translate(ox, oy);
-    const s = 0.86 + pulse * 0.16;
+    const s = 0.9 + pulse * 0.1;
     ctx.scale(s, s);
     ctx.beginPath();
-    ctx.arc(0, 0, 8, 0, Math.PI * 2);
+    ctx.arc(0, 0, 6.5, 0, Math.PI * 2);
     ctx.fillStyle = h.action === "long" ? "rgba(36,138,88,0.95)" : "rgba(168,58,58,0.95)";
     ctx.fill();
     ctx.strokeStyle = "rgba(255,255,255,0.9)";
@@ -1653,7 +1652,7 @@ function drawDealMarks(
     const ye = series.priceToCoordinate(h.exit);
     if (xe == null || ye == null) return;
     ctx.save();
-    ctx.translate(xe + 12, ye - side * (16 + bob));
+    ctx.translate(xe, ye);
     if (out === "win") {
       ctx.scale(0.92 + pulse * 0.2, 0.92 + pulse * 0.2);
       ctx.fillStyle = "#e7c56a";
