@@ -38,20 +38,47 @@
 @keyframes page-in {
   from {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(28px) scale(0.985);
+    filter: blur(3px);
   }
   to {
     opacity: 1;
     transform: none;
+    filter: none;
   }
 }
 
 .page-enter {
-  animation: page-in 0.42s var(--ease-out);
+  animation: page-in 0.62s var(--ease-out);
+}
+
+.page-sweep {
+  pointer-events: none;
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 80;
+  height: 3px;
+  transform-origin: left center;
+  background: linear-gradient(90deg, transparent, #c4a574 12%, #fff4d8 50%, #e8c98a 82%, transparent);
+  animation: page-sweep 0.72s var(--ease-out);
+}
+
+@keyframes page-sweep {
+  from {
+    transform: scaleX(0);
+    opacity: 1;
+  }
+  to {
+    transform: scaleX(1);
+    opacity: 0;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .page-enter {
+  .page-enter,
+  .page-sweep {
     animation: none;
   }
 }

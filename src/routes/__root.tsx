@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRootRoute, HeadContent, Outlet, Scripts, useRouterState } from "@tanstack/react-router";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/lib/auth/provider";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import { DispatchWatcher } from "@/components/dispatch/watcher";
+import { playPage, unlockSound } from "@/lib/sound";
 import appCss from "../styles.css?url";
 
 import { BRAND, DOMAIN, SITE_URL, TAGLINE } from "@/lib/brand";
@@ -43,9 +44,23 @@ export const Route = createRootRoute({
 });
 
 function PageFade() {
-  const pathname = useRouterState({ select: (s) => s.location.href });
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const first = useRef(true);
+  useEffect(() => {
+    const on = () => unlockSound();
+    window.addEventListener("pointerdown", on);
+    return () => window.removeEventListener("pointerdown", on);
+  }, []);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    playPage();
+  }, [pathname]);
   return (
     <div key={pathname} className="page-enter">
+      <div className="page-sweep" aria-hidden />
       <Outlet />
     </div>
   );

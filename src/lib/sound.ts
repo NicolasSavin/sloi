@@ -239,6 +239,26 @@ export function unlockSound() {
   if (ctx.state === "suspended") void ctx.resume();
 }
 
+export function playPage() {
+  unlockSound();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  [392, 523.25].forEach((freq, i) => {
+    const osc = ctx!.createOscillator();
+    const gain = ctx!.createGain();
+    osc.type = "sine";
+    osc.frequency.value = freq;
+    const t0 = now + i * 0.05;
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.exponentialRampToValueAtTime(0.05, t0 + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.28);
+    osc.connect(gain);
+    gain.connect(ctx!.destination);
+    osc.start(t0);
+    osc.stop(t0 + 0.3);
+  });
+}
+
 export function playSignal(tone: SignalTone) {
   unlockSound();
   if (!ctx) return;
