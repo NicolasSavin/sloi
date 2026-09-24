@@ -5,16 +5,17 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.27"
+#property version   "5.28"
 #property strict
-#property description "SLOI 5.27: СВЕРНУТЬ кликается, подписи ленты не лежат на кнопке"
+#property description "SLOI 5.28: торговля с этого графика из параметров, клики сквозь линии"
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
 input string  WatchList       = "EURUSD,GBPUSD,USDJPY,USDCHF,AUDUSD,USDCAD,NZDUSD,EURGBP,EURJPY,GBPJPY,AUDJPY,CADJPY,NZDJPY,EURCHF,EURAUD,GBPAUD,XAUUSD,XAGUSD,XTIUSD,XBRUSD,XNGUSD,ETHUSD,LTCUSD,BCHUSD,BTCUSD,XRPUSD,TONUSD";
 input string  BrokerSuffix    = ".cs";
 input int     WorkTF          = 60;
-input bool    AutoTrade       = true; // на доп. терминале с CD — false, торгует только первый
+input bool    AutoTrade       = true; // true = слать ордера. false = только смотреть
+input bool    TradeHere       = true; // true ТОЛЬКО на графике, с которого торгуете. На остальных false
 input double  Lots            = 0.03;
 input double  LotGold         = 0.01;
 input double  LotSilver       = 0.01;
@@ -95,6 +96,7 @@ bool   g_leader = false;
 bool   g_seeded = false;
 bool   g_ready = false;
 bool   g_min = false;
+bool   g_mouse = false;
 datetime g_lastClose[MAXSYM];
 int      g_holdMin;
 string g_feed = "";
@@ -154,15 +156,23 @@ int OnInit()
    ParseWatch();
    EventSetTimer(1);
    ChartSetInteger(0, CHART_FOREGROUND, false);
+   ChartSetInteger(0, CHART_EVENT_MOUSE_MOVE, true);
    g_ready = true;
    g_seeded = false;
-   TakeLead();
-   if(!g_leader)
+   if(TradeHere)
      {
-      g_auto = false;
-      Print("SLOI 5.18 дубль на ЭТОМ MT4: авто ВЫКЛ, кружки уходят. Кнопка АВТО на этом окне — забрать торговлю");
+      GlobalVariableSet("SLOI_LEAD_T", TimeCurrent());
+      GlobalVariableSet("SLOI_LEAD_CH", (double)ChartID());
+      g_leader = true;
+      g_auto = AutoTrade;
+      Print("SLOI 5.28 торгует ЭТОТ график ", ChartSymbol(0), " авто ", (g_auto ? "ВКЛ" : "ВЫКЛ"), ". На других окнах поставьте TradeHere=false");
      }
-   else Print("SLOI 5.27 лидер этого терминала, чарт ", ChartSymbol(0));
+   else
+     {
+      TakeLead();
+      if(!g_leader) g_auto = false;
+      Print("SLOI 5.28 это окно не торгует: TradeHere=false");
+     }
    DrawDesk(true);
    return(INIT_SUCCEEDED);
   }
@@ -218,8 +228,17 @@ void OnTimer()
   {
    if(!g_ready) return;
    SampleMids();
-   if(TimeCurrent() - g_clickAt > 15) TakeLead();
-   if(!g_leader && TimeCurrent() - g_clickAt > 15) g_auto = false;
+   if(TradeHere)
+     {
+      GlobalVariableSet("SLOI_LEAD_T", TimeCurrent());
+      GlobalVariableSet("SLOI_LEAD_CH", (double)ChartID());
+      g_leader = true;
+     }
+   else
+     {
+      if(TimeCurrent() - g_clickAt > 15) TakeLead();
+      if(!g_leader && TimeCurrent() - g_clickAt > 15) g_auto = false;
+     }
    DrawDesk(false);
   }
 
@@ -250,58 +269,48 @@ void RaiseClicks()
      }
   }
 
-void OnChartEvent(const int id, const long &lparam, const double &dparam, const string &sparam)
+string HitPanel(int cx, int cy)
   {
-   int px = PanelX;
-   int py = PanelY;
-   if(id == CHARTEVENT_KEYDOWN && (lparam == 'M' || lparam == 'm'))
+   int x = PanelX;
+   int y = PanelY;
+   if(g_min)
      {
-      g_min = !g_min;
-      Wipe();
-      g_seeded = false;
-      DrawDesk(true);
-      return;
+      if(HitBox(cx, cy, x, y, 300, 36)) return(P+"b_min");
+      return("");
      }
-   if(id == CHARTEVENT_CLICK)
+   if(HitBox(cx, cy, x + 8, y + 6, 104, 24)) return(P+"b_min");
+   if(HitBox(cx, cy, x + 470, y + 8, 96, 22)) return(P+"b_auto");
+   if(HitBox(cx, cy, x + 572, y + 8, 96, 22)) return(P+"b_alrt");
+   if(HitBox(cx, cy, x + 14, y + 36, 58, 20)) return(P+"b_risk");
+   if(HitBox(cx, cy, x + 410, y + 36, 90, 22)) return(P+"b_mart");
+   if(HitBox(cx, cy, x + 506, y + 36, 90, 22)) return(P+"b_ok");
+   if(HitBox(cx, cy, x + 600, y + 36, 88, 22)) return(P+"b_virt");
+   if(HitBox(cx, cy, x + 50, y + 132, 100, 24)) return(P+"b_buy");
+   if(HitBox(cx, cy, x + 158, y + 132, 100, 24)) return(P+"b_sell");
+   if(HitBox(cx, cy, x + 266, y + 132, 150, 24)) return(P+"b_cp");
+   if(HitBox(cx, cy, x + 424, y + 132, 110, 24)) return(P+"b_ca");
+   if(HitBox(cx, cy, x + 520, y + 132, 118, 24)) return(P+"b_ws");
+   int setH = 164;
+   int rowH = 20;
+   int head = 22;
+   int w = 840;
+   for(int i = 0; i < g_n; i++)
      {
-      int cx = (int)lparam;
-      int cy = (int)dparam;
-      bool hit = false;
-      if(g_min) hit = HitBox(cx, cy, px, py, 320, 36);
-      else hit = HitBox(cx, cy, px + 8, py + 6, 104, 24);
-      if(hit)
-        {
-         if(GetTickCount() - g_clickMs < 400) return;
-         g_clickMs = GetTickCount();
-         g_min = !g_min;
-         g_clickAt = TimeCurrent();
-         Wipe();
-         g_seeded = false;
-         DrawDesk(true);
-         return;
-        }
-      if(!g_min && HitBox(cx, cy, px + 470, py + 8, 96, 22))
-        {
-         g_clickAt = TimeCurrent();
-         if(!g_leader)
-           {
-            GlobalVariableSet("SLOI_LEAD_T", TimeCurrent());
-            GlobalVariableSet("SLOI_LEAD_CH", (double)ChartID());
-            g_leader = true;
-            g_auto = true;
-           }
-         else g_auto = !g_auto;
-         DrawDesk(true);
-         return;
-        }
+      int ry = y + setH + head + i * rowH;
+      if(HitBox(cx, cy, x + w - 72, ry - 1, 58, 18)) return(P+"g"+IntegerToString(i));
      }
-   if(id != CHARTEVENT_OBJECT_CLICK) return;
+   return("");
+  }
+
+void DoBtn(string sparam)
+  {
+   if(StringLen(sparam) < 4) return;
+   if(GetTickCount() - g_clickMs < 350) return;
+   g_clickMs = GetTickCount();
    g_clickAt = TimeCurrent();
    ObjectSetInteger(0, sparam, OBJPROP_STATE, false);
    if(sparam == P+"b_min")
      {
-      if(GetTickCount() - g_clickMs < 500) return;
-      g_clickMs = GetTickCount();
       g_min = !g_min;
       Wipe();
       g_seeded = false;
@@ -310,56 +319,20 @@ void OnChartEvent(const int id, const long &lparam, const double &dparam, const 
      }
    if(sparam == P+"b_auto")
      {
-      if(!g_leader)
-        {
-         GlobalVariableSet("SLOI_LEAD_T", TimeCurrent());
-         GlobalVariableSet("SLOI_LEAD_CH", (double)ChartID());
-         g_leader = true;
-         g_auto = true;
-         Print("SLOI этот чарт теперь один торгует. Сов на втором окне сам выключит авто");
-        }
-      else g_auto = !g_auto;
+      GlobalVariableSet("SLOI_LEAD_T", TimeCurrent());
+      GlobalVariableSet("SLOI_LEAD_CH", (double)ChartID());
+      g_leader = true;
+      g_auto = !g_auto;
+      Print("SLOI авто ", (g_auto ? "ВКЛ" : "ВЫКЛ"), " на ", ChartSymbol(0));
       DrawDesk(true);
       return;
      }
-   if(sparam == P+"b_alrt")
-     {
-      g_alerts = !g_alerts;
-      DrawDesk(true);
-      return;
-     }
-   if(sparam == P+"b_virt")
-     {
-      g_virt = !g_virt;
-      DrawDesk(true);
-      return;
-     }
-   if(sparam == P+"b_risk")
-     {
-      g_riskOn = !g_riskOn;
-      g_seeded = false;
-      DrawDesk(true);
-      return;
-     }
-   if(sparam == P+"b_mart")
-     {
-      g_mart = !g_mart;
-      DrawDesk(true);
-      return;
-     }
-   if(sparam == P+"b_ok")
-     {
-      ApplyEdits();
-      g_seeded = false;
-      DrawDesk(true);
-      return;
-     }
-   if(sparam == P+"b_ws")
-     {
-      CloseForeignAll();
-      DrawDesk(true);
-      return;
-     }
+   if(sparam == P+"b_alrt") { g_alerts = !g_alerts; DrawDesk(true); return; }
+   if(sparam == P+"b_virt") { g_virt = !g_virt; DrawDesk(true); return; }
+   if(sparam == P+"b_risk") { g_riskOn = !g_riskOn; g_seeded = false; DrawDesk(true); return; }
+   if(sparam == P+"b_mart") { g_mart = !g_mart; DrawDesk(true); return; }
+   if(sparam == P+"b_ok")   { ApplyEdits(); g_seeded = false; DrawDesk(true); return; }
+   if(sparam == P+"b_ws")   { CloseForeignAll(); DrawDesk(true); return; }
    if(sparam == P+"b_buy")  { ManualTrade(1);  DrawDesk(true); return; }
    if(sparam == P+"b_sell") { ManualTrade(-1); DrawDesk(true); return; }
    if(sparam == P+"b_cp")   { CloseMine(false); DrawDesk(true); return; }
@@ -369,6 +342,44 @@ void OnChartEvent(const int id, const long &lparam, const double &dparam, const 
       int idx = (int)StringToInteger(StringSubstr(sparam, StringLen(P+"g")));
       if(idx >= 0 && idx < g_n) OpenPair(g_sym[idx]);
      }
+  }
+
+void OnChartEvent(const int id, const long &lparam, const double &dparam, const string &sparam)
+  {
+   if(id == CHARTEVENT_KEYDOWN && (lparam == 'M' || lparam == 'm'))
+     {
+      g_min = !g_min;
+      Wipe();
+      g_seeded = false;
+      DrawDesk(true);
+      return;
+     }
+   if(id == CHARTEVENT_KEYDOWN && (lparam == 'A' || lparam == 'a'))
+     {
+      DoBtn(P+"b_auto");
+      return;
+     }
+   if(id == CHARTEVENT_MOUSE_MOVE)
+     {
+      int st = (int)StringToInteger(sparam);
+      bool down = ((st & 1) != 0);
+      if(down && !g_mouse)
+        {
+         g_mouse = true;
+         string hit = HitPanel((int)lparam, (int)dparam);
+         if(StringLen(hit) > 0) DoBtn(hit);
+        }
+      if(!down) g_mouse = false;
+      return;
+     }
+   if(id == CHARTEVENT_CLICK)
+     {
+      string hit = HitPanel((int)lparam, (int)dparam);
+      if(StringLen(hit) > 0) DoBtn(hit);
+      return;
+     }
+   if(id != CHARTEVENT_OBJECT_CLICK) return;
+   DoBtn(sparam);
   }
 
 void ApplyEdits()
@@ -477,6 +488,7 @@ void Ray(string id, datetime t1, double p1, datetime t2, double p2, color clr)
    ObjectSet(n, OBJPROP_STYLE, STYLE_SOLID);
    ObjectSet(n, OBJPROP_WIDTH, 2);
    ObjectSet(n, OBJPROP_RAY, true);
+   ObjectSet(n, OBJPROP_BACK, true);
    ObjectSet(n, OBJPROP_SELECTABLE, false);
   }
 
@@ -1876,7 +1888,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 5.27\n";
+   body += "EA 5.28\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();

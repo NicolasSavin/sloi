@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.9.63",
+    d: "2026-09-24",
+    items: [
+      "Сов 5.28: если кнопки панели не нажимаются, торговля включается в параметрах. TradeHere=true и AutoTrade=true только на одном графике",
+    ],
+  },
+  {
     v: "1.9.62",
     d: "2026-09-24",
     items: [
