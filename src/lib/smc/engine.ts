@@ -732,8 +732,12 @@ function clipTp1(entry: number, stop: number, targets: number[], dir: 1 | -1) {
   return [first, ...rest].slice(0, 3);
 }
 
-function minStopDist(entry: number, atr: number) {
-  return Math.max(atr * 1.15, Math.abs(entry) * 0.0016);
+function preciseTouch(zone: Zone, dir: 1 | -1, price: number, atr: number) {
+  const inside = price <= zone.top && price >= zone.bottom;
+  const entry = dir === 1 ? (inside ? price : zone.top) : inside ? price : zone.bottom;
+  const pad = Math.max(atr * 0.22, Math.abs(entry) * 0.00025);
+  const stop = dir === 1 ? zone.bottom - pad : zone.top + pad;
+  return { entry, stop };
 }
 
 function buildSetup(
@@ -807,8 +811,7 @@ function buildSetup(
         invalidation: "Ждём бычий блок или гэп.",
       };
     }
-    const entry = (zone.top + zone.bottom) / 2;
-    const stop = Math.min(zone.bottom, entry) - minStopDist(entry, atr);
+    const { entry, stop } = preciseTouch(zone, 1, last.close, atr);
     const buyLiq = liq.filter((l) => l.side === "buy").sort((a, b) => a.price - b.price);
     const structural = [range.eq, buyLiq.at(-1)?.price ?? range.high, range.high].filter(
       (t, i, a) => t > entry && a.indexOf(t) === i,
@@ -828,7 +831,7 @@ function buildSetup(
         ? `Лонг от зоны. TP1 — ${stall.from === "hvn" ? "кластер HVN" : "infusion"} ${stall.price.toFixed(last.close > 50 ? 2 : 5)} (остановка объёма CME/профиля).`
         : pd === "premium"
           ? "Структура вверх. Лимит в дисконт — цена ещё не в зоне, ордер уже рабочий."
-          : `Лонг от ${zoneName(zone)}. Реакция в зоне, не догон.`,
+          : `Лонг от ${zoneName(zone)}. Вход на верхнем крае зоны, не в середине.`,
       entry,
       stop,
       targets: clipTp1(entry, stop, targets, 1),
@@ -846,8 +849,7 @@ function buildSetup(
         invalidation: "Ждём медвежий блок или гэп.",
       };
     }
-    const entry = (zone.top + zone.bottom) / 2;
-    const stop = Math.max(zone.top, entry) + minStopDist(entry, atr);
+    const { entry, stop } = preciseTouch(zone, -1, last.close, atr);
     const sellLiq = liq.filter((l) => l.side === "sell").sort((a, b) => b.price - a.price);
     const structural = [range.eq, sellLiq.at(-1)?.price ?? range.low, range.low].filter(
       (t, i, a) => t < entry && a.indexOf(t) === i,
@@ -867,7 +869,7 @@ function buildSetup(
         ? `Шорт от зоны. TP1 — ${stall.from === "hvn" ? "кластер HVN" : "infusion"} ${stall.price.toFixed(last.close > 50 ? 2 : 5)} (остановка объёма CME/профиля).`
         : pd === "discount"
           ? "Структура вниз. Лимит в премию — цена ещё не в зоне, ордер уже рабочий."
-          : `Шорт от ${zoneName(zone)}. Реакция в зоне, не догон.`,
+          : `Шорт от ${zoneName(zone)}. Вход на нижнем крае зоны, не в середине.`,
       entry,
       stop,
       targets: clipTp1(entry, stop, targets, -1),
