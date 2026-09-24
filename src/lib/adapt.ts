@@ -53,7 +53,7 @@ export function adaptGates(log: SignalHit[]): AdaptGates {
   }
   const line =
     last.length < 3
-      ? "Зона + ещё два слоя (структура, объём, счёт, вектор). Один ордерблок без дельты/структуры — не вход."
+      ? "Вход только по старшему графику, в правильной половине диапазона, с объёмом или вектором. Цель около стопа."
       : level === 2
         ? `После ${streak || losses} стопов: RR≥1.25, живых не больше 1${pause.size ? `, пауза ${[...pause].join(", ")}` : ""}.`
         : level === 1
@@ -126,6 +126,26 @@ export function applyLessons(markets: DigestMarket[]): DigestMarket[] {
         "Мало слоёв",
         `Сейчас: ${bits.join(", ") || "пусто"}. Ордерблок один не вход. Нужны ещё структура, объём CD, счёт или вектор коробки.`,
       );
+    }
+    const withTrend =
+      (m.advice.action === "long" && m.bias === "bullish") ||
+      (m.advice.action === "short" && m.bias === "bearish");
+    if (!withTrend) {
+      return wait(m, "Против старшей структуры", "Час один не берём. Вход только когда старший график смотрит туда же. Так стоп реже прилетает первым.");
+    }
+    if (m.advice.action === "long" && m.premiumDiscount === "premium") {
+      return wait(m, "Покупка дорого", "Цена в верхней части диапазона. Покупку ждём ниже, в дешёвой зоне.");
+    }
+    if (m.advice.action === "short" && m.premiumDiscount === "discount") {
+      return wait(m, "Продажа дёшево", "Цена в нижней части диапазона. Продажу ждём выше, в дорогой зоне.");
+    }
+    const backed =
+      /подтверд|сплэш\+дельта: ход|лужа|вливание по стороне/i.test(vol) ||
+      (m.boxVector &&
+        ((m.advice.action === "long" && m.boxVector.dir === "up") ||
+          (m.advice.action === "short" && m.boxVector.dir === "down")));
+    if (!backed) {
+      return wait(m, "Нет подтверждения", "Структура есть, но ни объём, ни вектор коробки не стоят за входом. Ждём.");
     }
     return m;
   });

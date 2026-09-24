@@ -724,7 +724,7 @@ function nearestZone(zones: Zone[], price: number): Zone | undefined {
 function clipTp1(entry: number, stop: number, targets: number[], dir: 1 | -1) {
   const risk = Math.abs(entry - stop);
   if (!(risk > 0) || !targets.length) return targets;
-  const maxR = 1.55 * risk;
+  const maxR = 1.05 * risk;
   const t0 = targets[0]!;
   const rew = (t0 - entry) * dir;
   const first = rew > maxR ? entry + dir * maxR : t0;
