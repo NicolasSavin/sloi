@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.26"
+#property version   "5.27"
 #property strict
-#property description "SLOI 5.26: кнопки не под фоном, СВЕРНУТЬ слева"
+#property description "SLOI 5.27: СВЕРНУТЬ кликается, подписи ленты не лежат на кнопке"
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -162,7 +162,7 @@ int OnInit()
       g_auto = false;
       Print("SLOI 5.18 дубль на ЭТОМ MT4: авто ВЫКЛ, кружки уходят. Кнопка АВТО на этом окне — забрать торговлю");
      }
-   else Print("SLOI 5.26 лидер этого терминала, чарт ", ChartSymbol(0));
+   else Print("SLOI 5.27 лидер этого терминала, чарт ", ChartSymbol(0));
    DrawDesk(true);
    return(INIT_SUCCEEDED);
   }
@@ -499,18 +499,30 @@ void Hln(string id, double px, color clr)
 void Txt(string id, int x, int y, string t, color clr)
   {
    string n = P + id;
-   if(ObjectFind(0, n) < 0) ObjectCreate(n, OBJ_LABEL, 0, 0, 0);
-   ObjectSet(n, OBJPROP_CORNER, 0);
-   ObjectSet(n, OBJPROP_XDISTANCE, x);
-   ObjectSet(n, OBJPROP_YDISTANCE, y);
-   ObjectSet(n, OBJPROP_COLOR, clr);
-   ObjectSetText(n, t, 9, "Arial", clr);
+   if(ObjectFind(0, n) < 0)
+     {
+      if(!ObjectCreate(0, n, OBJ_LABEL, 0, 0, 0))
+         ObjectCreate(n, OBJ_LABEL, 0, 0, 0);
+     }
+   ObjectSetInteger(0, n, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+   ObjectSetInteger(0, n, OBJPROP_XDISTANCE, x);
+   ObjectSetInteger(0, n, OBJPROP_YDISTANCE, y);
+   ObjectSetInteger(0, n, OBJPROP_COLOR, clr);
+   ObjectSetString(0, n, OBJPROP_FONT, "Arial");
+   ObjectSetString(0, n, OBJPROP_TEXT, t);
+   ObjectSetInteger(0, n, OBJPROP_FONTSIZE, 9);
+   ObjectSetInteger(0, n, OBJPROP_SELECTABLE, false);
+   ObjectSetInteger(0, n, OBJPROP_HIDDEN, true);
+   ObjectSetInteger(0, n, OBJPROP_BACK, false);
+   ObjectSetInteger(0, n, OBJPROP_ZORDER, 1);
   }
 
 void DrawTape()
   {
    string s = Symbol();
    int tf = Period();
+   int capX = (int)ChartGetInteger(0, CHART_WIDTH_IN_PIXELS) - 460;
+   if(capX < PanelX + 860) capX = PanelX + 860;
    int n = 48;
    double pv = 0, vv = 0, varS = 0;
    double vols[];
@@ -551,11 +563,11 @@ void DrawTape()
    if(lastV > avg * 2.0 && span < avgSpan * 0.7)
      {
       Box("inf", iTime(s, tf, 0), iHigh(s, tf, 0), iTime(s, tf, 0) + tf * 60, iLow(s, tf, 0), C_GOLD);
-      Txt("inf_t", 12, 36, "INFUSION  лимит впитал объём", C_GOLD);
+      Txt("inf_t", capX, 22, "INFUSION  лимит впитал объём", C_GOLD);
      }
    if(lastV > avg * 2.2 && span > avgSpan * 1.4)
      {
-      Txt("spl_t", 12, 52, "SPLASH  агрессивный вынос", C_SEL);
+      Txt("spl_t", capX, 40, "SPLASH  агрессивный вынос", C_SEL);
      }
 
    double hiR = iHigh(s, tf, iHighest(s, tf, MODE_HIGH, n, 0));
@@ -599,7 +611,7 @@ void DrawTape()
       else Box("fs"+IntegerToString(i), t, lo, te, mid, selC);
      }
 
-   Txt("ab", 12, 18,
+   Txt("ab", capX, 4,
        "Bid "+DoubleToStr(Bid, Digits)+"  Ask "+DoubleToStr(Ask, Digits)+"  spr "+IntegerToString((int)MarketInfo(s, MODE_SPREAD))+
        "  VWAP "+DoubleToStr(vwap, Digits),
        C_GOLD);
@@ -1864,7 +1876,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 5.26\n";
+   body += "EA 5.27\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();
@@ -2784,5 +2796,15 @@ void DrawDesk(bool force)
    ObjectSetInteger(0, P+"b_min", OBJPROP_SELECTABLE, true);
    ObjectSetInteger(0, P+"b_min", OBJPROP_STATE, false);
    RaiseClicks();
+   for(int k = ObjectsTotal() - 1; k >= 0; k--)
+     {
+      string nm = ObjectName(k);
+      if(StringFind(nm, "SLOI_") != 0) continue;
+      if(StringFind(nm, "SLOI_b_") == 0 || StringFind(nm, "SLOI_e_") == 0) continue;
+      ObjectSetInteger(0, nm, OBJPROP_SELECTABLE, false);
+     }
+   ObjectSetInteger(0, P+"b_min", OBJPROP_ZORDER, 100000);
+   ObjectSetInteger(0, P+"b_min", OBJPROP_SELECTABLE, true);
+   ObjectSetInteger(0, P+"b_min", OBJPROP_BACK, false);
    ChartRedraw();
   }
