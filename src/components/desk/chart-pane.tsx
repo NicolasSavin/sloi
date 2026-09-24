@@ -1870,6 +1870,67 @@ function drawTape(
   }
 }
 
+function drawHeatDock(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  series: ISeriesApi<"Candlestick">,
+  pair: string,
+  book: { bids: { price: number; volume: number }[]; asks: { price: number; volume: number }[] } | null,
+  snap: SmcSnapshot | null,
+) {
+  const id = pair.replace(/[^A-Za-z]/g, "").toUpperCase();
+  const major = id.startsWith("EURUSD") || id.startsWith("XAUUSD");
+  const fromTape = snap?.cdTape?.book ?? [];
+  const levels = [
+    ...(book?.bids ?? []).map((l) => ({ ...l, side: "bid" as const })),
+    ...(book?.asks ?? []).map((l) => ({ ...l, side: "ask" as const })),
+    ...fromTape.map((l) => ({ price: l.price, volume: l.volume, side: l.side })),
+  ];
+  if (!major && levels.length === 0) return;
+  const x = Math.max(8, width - 132);
+  const top = 36;
+  const dockH = Math.max(80, height - 88);
+  ctx.save();
+  ctx.fillStyle = "rgba(6,5,4,0.82)";
+  ctx.strokeStyle = "rgba(240,215,168,0.7)";
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.roundRect(x, top, 120, dockH, 8);
+  ctx.fill();
+  ctx.stroke();
+  ctx.font = "700 12px IBM Plex Sans, sans-serif";
+  ctx.fillStyle = "#f3e2bc";
+  ctx.textAlign = "left";
+  ctx.fillText("ТЕПЛО КНИГИ", x + 10, top + 18);
+  if (levels.length === 0) {
+    ctx.font = "12px IBM Plex Sans, sans-serif";
+    ctx.fillStyle = "#f0d8c4";
+    const lines = ["Книга с терминала", "не пришла.", "#BookMap на чарте", "золота или евро,", "советник 5.29."];
+    lines.forEach((line, i) => ctx.fillText(line, x + 10, top + 44 + i * 16));
+    ctx.restore();
+    return;
+  }
+  const max = Math.max(1, ...levels.map((l) => l.volume));
+  const shown = [...levels].sort((a, b) => b.volume - a.volume).slice(0, 14);
+  shown.forEach((l, i) => {
+    const y = series.priceToCoordinate(l.price);
+    const row = top + 32 + i * 18;
+    const t = l.volume / max;
+    const bid = l.side === "bid";
+    ctx.fillStyle = bid ? `rgba(40,200,110,${0.35 + t * 0.6})` : `rgba(230,60,50,${0.35 + t * 0.6})`;
+    ctx.fillRect(x + 8, row, 8 + t * 70, 12);
+    ctx.fillStyle = "#fff6ea";
+    ctx.font = "11px IBM Plex Sans, sans-serif";
+    ctx.fillText(bid ? "бид" : "аск", x + 84, row + 10);
+    if (y != null) {
+      ctx.fillStyle = bid ? "rgba(80,230,140,0.28)" : "rgba(255,80,60,0.28)";
+      ctx.fillRect(0, y - 4 - t * 6, x - 4, 8 + t * 12);
+    }
+  });
+  ctx.restore();
+}
+
 class SmcPrimitive implements ISeriesPrimitive<Time> {
   chart: IChartApi | null = null;
   series: ISeriesApi<"Candlestick"> | null = null;
@@ -1975,6 +2036,7 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
             if (p.overlays.callouts !== false)
               drawPathArrows(ctx, w, chart, series, p.snap, p.order, p.setup, p.candles.at(-1)?.time ?? 0);
             drawTape(ctx, w, chart, series, p.candles, p.snap, p.overlays, p.book, hover ? null : p.hoverPt);
+            drawHeatDock(ctx, w, h, series, p.pair, p.book, p.snap);
             ctx.globalAlpha = 1;
             if (p.marks?.length) drawDealMarks(ctx, chart, series, p.candles, p.marks);
             if (p.hoverBar) {

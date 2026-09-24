@@ -7,7 +7,7 @@ import { buildAuction, type AuctionSnap } from "@/lib/smc/auction";
 import { buildCoilBreak, type CoilBreak } from "@/lib/smc/coil";
 import { buildCorr, inheritCircle, type CorrSnap } from "@/lib/corr";
 import { buildIvNews, type IvNewsSnap } from "@/lib/iv-news";
-import { bookAdjust, brokerBook, liveAskBid, liveCdBars, liveCdFlow, liveClusters, liveCumDelta, liveProfile } from "@/lib/broker-tape";
+import { bookAdjust, brokerBook, liveAskBid, liveBook, liveCdBars, liveCdFlow, liveClusters, liveCumDelta, liveProfile } from "@/lib/broker-tape";
 import type { NewsHalt } from "@/lib/calendar";
 
 export type Bias = "bullish" | "bearish" | "range";
@@ -1223,7 +1223,7 @@ export function analyzeMarket(
   const ivNews = buildIvNews(opts?.halt, options);
   const tapeProf = opts?.symbol ? liveProfile(opts.symbol) : null;
   const tapeAb = opts?.symbol ? liveAskBid(opts.symbol) : null;
-  const tapeBook = opts?.symbol ? brokerBook(opts.symbol) : null;
+  const tapeBook = opts?.symbol ? liveBook(opts.symbol) ?? brokerBook(opts.symbol) : null;
   const tapeFlow = opts?.symbol ? liveCdFlow(opts.symbol) : null;
   const tapeNodes = opts?.symbol ? liveClusters(opts.symbol) : [];
   const cdTape = {
