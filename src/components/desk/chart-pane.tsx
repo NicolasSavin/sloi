@@ -1825,6 +1825,24 @@ function drawTape(
   }
 }
 
+function priceEcho(price: number, volume: number) {
+  if (!(volume > 0) || !(price > 0)) return true;
+  const frac = (String(price).split(".")[1] ?? "").replace(/0+$/, "");
+  const vol = String(Math.round(volume));
+  return frac === vol || frac.startsWith(vol) || (vol.length >= 4 && frac.includes(vol));
+}
+
+function iceTail(
+  level: { price: number; volume: number },
+  all: { price: number; volume: number }[],
+) {
+  const real = all.filter((l) => !priceEcho(l.price, l.volume));
+  if (real.length < 3 || priceEcho(level.price, level.volume)) return "";
+  const vols = real.map((l) => l.volume).sort((a, b) => a - b);
+  const mid = vols[Math.floor(vols.length / 2)] ?? 0;
+  return mid > 0 && level.volume >= mid * 2.2 ? ", похоже на айсберг" : "";
+}
+
 function nearWalls(
   levels: { price: number; volume: number; side: "bid" | "ask" }[],
   last: number,
@@ -1860,10 +1878,9 @@ function drawHeatDock(
     if (y == null) continue;
     const above = l.price >= last;
     const pts = Math.round(Math.abs(l.price - last) / pip);
-    const thick = pts <= 8 ? 7 : pts <= 18 ? 4.5 : 2.5;
-    const label = above
-      ? `Продавцы держат цену, ${pts} п. выше`
-      : `Покупатели держат цену, ${pts} п. ниже`;
+    const ice = iceTail(l, levels);
+    const thick = ice ? 8 : pts <= 8 ? 7 : pts <= 18 ? 4.5 : 2.5;
+    const label = (above ? `Продавцы держат цену, ${pts} п. выше` : `Покупатели держат цену, ${pts} п. ниже`) + ice;
     ctx.save();
     ctx.strokeStyle = above ? "rgba(255,90,70,0.95)" : "rgba(60,220,130,0.95)";
     ctx.lineWidth = thick;
@@ -2402,10 +2419,10 @@ export function ChartPane({
         const above = l.price >= lastPx;
         const pip = lastPx > 50 ? 0.1 : 0.0001;
         const pts = Math.round(Math.abs(l.price - lastPx) / pip);
-        const thick = (pts <= 8 ? 4 : pts <= 18 ? 3 : 2) as 1 | 2 | 3 | 4;
-        const title = above
-          ? `Продавцы держат, ${pts} п. выше`
-          : `Покупатели держат, ${pts} п. ниже`;
+        const ice = iceTail(l, bookLevels);
+        const thick = (ice ? 4 : pts <= 8 ? 4 : pts <= 18 ? 3 : 2) as 1 | 2 | 3 | 4;
+        const title =
+          (above ? `Продавцы держат, ${pts} п. выше` : `Покупатели держат, ${pts} п. ниже`) + ice;
         add(l.price, title, above ? "#ff5a4a" : "#3ddc86", false, true, thick);
       }
       if (overlays.margin !== false) {
