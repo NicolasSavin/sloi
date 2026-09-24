@@ -2445,6 +2445,10 @@ export function ChartPane({
         );
       };
       add(snap.dealingRange.eq, "EQ", muted, true);
+      const bookBids = book?.bids ?? [];
+      const bookAsks = book?.asks ?? [];
+      for (const l of bookBids.slice(0, 6)) add(l.price, "БИД", "#3ddc86", false, true);
+      for (const l of bookAsks.slice(0, 6)) add(l.price, "АСК", "#ff5a4a", false, true);
       if (overlays.margin !== false) {
         add(snap.margin.upper.bottom, "M↑", token("--color-accent", "#c9b896"), true);
         add(snap.margin.lower.top, "M↓", token("--color-accent", "#c9b896"), true);
@@ -2566,7 +2570,7 @@ export function ChartPane({
         /* overlay must not blank candles */
       }
     });
-  }, [snap, overlays, ready, order, setup, pair]);
+  }, [snap, overlays, ready, order, setup, pair, book]);
 
   const mascotKind: "bull" | "bear" =
     order?.action === "long" || snap?.boxVector?.dir === "up"
