@@ -4,7 +4,7 @@
 //| Один график, все пары. Магия другая, стол SLOI_Desk не трогает.  |
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
-#property version   "1.00"
+#property version   "1.01"
 #property strict
 
 input string TvUrl            = "https://sloi-kohl.vercel.app/api/tv15.txt";
@@ -22,7 +22,9 @@ datetime g_feedAt = 0;
 string   g_note = "старт";
 string   g_sym[];
 string   g_naked[];
-datetime g_sent[];
+datetime g_bar[];
+double   g_tvO[];
+double   g_tvC[];
 int      g_n = 0;
 
 int PeriodOf()
@@ -57,7 +59,9 @@ void ParseWatch()
    int n = StringSplit(WatchList, ',', p);
    ArrayResize(g_sym, n);
    ArrayResize(g_naked, n);
-   ArrayResize(g_sent, n);
+   ArrayResize(g_bar, n);
+   ArrayResize(g_tvO, n);
+   ArrayResize(g_tvC, n);
    g_n = 0;
    for(int i = 0; i < n; i++)
      {
@@ -68,7 +72,9 @@ void ParseWatch()
       if(StringLen(s) < 3) continue;
       g_naked[g_n] = Naked(s);
       g_sym[g_n] = s;
-      g_sent[g_n] = 0;
+      g_bar[g_n] = 0;
+      g_tvO[g_n] = 0;
+      g_tvC[g_n] = 0;
       g_n++;
      }
   }
@@ -154,17 +160,27 @@ void Pull()
    g_note = (StringFind(g_feed, "EURUSD") >= 0 ? "TV 15 ок" : "пустая лента");
   }
 
-void TryOne(int i)
+void Remember(int i)
+  {
+   double op, cl;
+   if(!TvOf(g_naked[i], op, cl)) return;
+   g_tvO[i] = op;
+   g_tvC[i] = cl;
+  }
+
+void AtBirth(int i)
   {
    string s = g_sym[i];
    if(CountMine(s) > 0) return;
    int sp = SpreadPt(s);
    if(sp <= 0 || sp > MaxSpreadPoints) return;
-   double op, cl;
-   if(!TvOf(g_naked[i], op, cl)) return;
+   double op = g_tvO[i];
+   double cl = g_tvC[i];
+   if(op <= 0 || cl <= 0) return;
    int tf = PeriodOf();
-   double brO = iOpen(s, tf, 0);
-   if(brO <= 0) return;
+   double brO = iOpen(s, tf, 1);
+   double brC = iClose(s, tf, 1);
+   if(brO <= 0 || brC <= 0) return;
    double bid = MarketInfo(s, MODE_BID);
    double ask = MarketInfo(s, MODE_ASK);
    if(bid <= 0 || ask <= 0) return;
@@ -174,8 +190,8 @@ void TryOne(int i)
    if(room < spread + pip) return;
    bool tvDown = (cl < op);
    bool tvUp = (cl > op);
-   bool siteUp = (bid > brO);
-   bool siteDown = (ask < brO);
+   bool siteUp = (brC > brO);
+   bool siteDown = (brC < brO);
    int dir = 0;
    if(tvDown && siteUp) dir = -1;
    else if(tvUp && siteDown) dir = 1;
@@ -191,11 +207,7 @@ void TryOne(int i)
    double tp = NormalizeDouble(dir > 0 ? px + take : px - take, digits);
    int cmd = (dir > 0 ? OP_BUY : OP_SELL);
    int ticket = OrderSend(s, cmd, Lots, px, SlippagePoints, sl, tp, "SLOI lead", Magic, 0, dir > 0 ? clrLime : clrTomato);
-   if(ticket > 0)
-     {
-      g_sent[i] = iTime(s, tf, 0);
-      Alert("SLOI lead ", (dir > 0 ? "BUY " : "SELL "), s);
-     }
+   if(ticket > 0) Alert("SLOI lead ", (dir > 0 ? "BUY " : "SELL "), s);
    else Print("SLOI lead ", s, " err ", GetLastError());
   }
 
@@ -206,8 +218,19 @@ void Trade()
    for(int i = 0; i < g_n; i++)
      {
       datetime bar = iTime(g_sym[i], tf, 0);
-      if(bar > 0 && bar == g_sent[i]) continue;
-      TryOne(i);
+      if(bar <= 0) continue;
+      if(g_bar[i] == 0)
+        {
+         g_bar[i] = bar;
+         Remember(i);
+         continue;
+        }
+      if(bar != g_bar[i])
+        {
+         AtBirth(i);
+         g_bar[i] = bar;
+        }
+      Remember(i);
      }
   }
 
@@ -215,6 +238,6 @@ void OnTimer()
   {
    Pull();
    Trade();
-   Comment("SLOI Lead M", WorkTF, "  ", g_note, "  пар ", g_n, "  лот ", DoubleToStr(Lots, 2), "\n",
-           "TV вниз, брокер ещё вверх — продажа. Наоборот — покупка. Ход меньше спреда не берём.");
+   Comment("SLOI Lead 1.01  M", WorkTF, "  ", g_note, "  пар ", g_n, "\n",
+           "Вход только при рождении свечи, по уже закрытой. Середину свечи не торгуем.");
   }
