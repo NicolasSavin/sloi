@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.30"
+#property version   "5.31"
 #property strict
-#property description "SLOI 5.30: виртуальный стоп не ближе трёх спредов, иначе сделка умирает сразу"
+#property description "SLOI 5.31: ручная покупка с сайта ставит тейк в цену прогноза и не затирает его"
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -65,6 +65,7 @@ string   g_prevV[MAXSYM];
 int      g_lim[MAXSYM];
 double   g_vSL[MAXSYM];
 double   g_vTP[MAXSYM];
+double   g_lockTp[MAXSYM];
 double   g_tp1[MAXSYM];
 int      g_half[MAXSYM];
 
@@ -165,7 +166,7 @@ int OnInit()
       GlobalVariableSet("SLOI_LEAD_CH", (double)ChartID());
       g_leader = true;
       g_auto = AutoTrade;
-      Print("SLOI 5.30 торгует ЭТОТ график ", ChartSymbol(0), " авто ", (g_auto ? "ВКЛ" : "ВЫКЛ"), ". Книга BookMap — только золото и евро");
+      Print("SLOI 5.31 торгует ЭТОТ график ", ChartSymbol(0), " авто ", (g_auto ? "ВКЛ" : "ВЫКЛ"), ". Книга BookMap — только золото и евро");
      }
    else
      {
@@ -972,7 +973,7 @@ void AlignVirt(int idx, int dir, double stop, double target)
       moved = true;
      }
       if(target > 0 && g_tp1[idx] <= 0) g_tp1[idx] = NormalizeDouble(target, digits);
-      if(target > 0 && g_half[idx] == 0 && MathAbs(g_vTP[idx] - target) > pt)
+      if(target > 0 && g_half[idx] == 0 && g_lockTp[idx] <= 0 && MathAbs(g_vTP[idx] - target) > pt)
      {
       g_vTP[idx] = NormalizeDouble(target, digits);
       moved = true;
@@ -1998,7 +1999,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 5.30\n";
+   body += "EA 5.31\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();
@@ -2459,7 +2460,7 @@ void ManualTrade(int dir)
    ManualTradeSym(Symbol(), dir);
   }
 
-void ManualTradeSym(string s, int dir)
+void ManualTradeSym(string s, int dir, double forceTp = 0)
   {
    SymbolSelect(s, true);
    RefreshRates();
@@ -2480,7 +2481,14 @@ void ManualTradeSym(string s, int dir)
    double lots = LotFor(s, entry, stop);
    double sl = (stop > 0 ? NormalizeDouble(stop, DigitsOf(s)) : 0);
    double tp = (target > 0 ? NormalizeDouble(target, DigitsOf(s)) : 0);
+   if(forceTp > 0 && ((dir > 0 && forceTp > px) || (dir < 0 && forceTp < px)))
+      tp = NormalizeDouble(forceTp, DigitsOf(s));
    int ticket = SendOrder(s, cmd, lots, px, sl, tp, "SLOI site", dir > 0 ? C_BUY : C_SEL);
+   if(ticket > 0 && forceTp > 0)
+     {
+      int ix = IdxOf(s);
+      if(ix >= 0) g_lockTp[ix] = tp;
+     }
    if(ticket > 0) Alert("SLOI сайт ", (dir > 0 ? "КУПИТЬ " : "ПРОДАТЬ "), s, " #", ticket);
   }
 
@@ -2516,13 +2524,16 @@ void ApplySiteCommands()
       if(StringLen(g_cmds) > 500) g_cmds = StringSubstr(g_cmds, StringLen(g_cmds) - 240);
       string kind = p[2];
       string a = (k >= 4 ? p[3] : "");
+      double forceTp = 0;
+      for(int t = 4; t < k - 1; t++)
+         if(p[t] == "TP") forceTp = StringToDouble(p[t + 1]);
       if(kind == "PAUSE") g_auto = false;
       else if(kind == "RESUME") g_auto = true;
       else if(kind == "CLOSE_ALL") CloseMine(true);
       else if(kind == "CLOSE_PROFIT") CloseMine(false);
       else if(kind == "CLOSE") CloseByNaked(a);
-      else if(kind == "BUY") ManualTradeSym(a, 1);
-      else if(kind == "SELL") ManualTradeSym(a, -1);
+      else if(kind == "BUY") ManualTradeSym(a, 1, forceTp);
+      else if(kind == "SELL") ManualTradeSym(a, -1, forceTp);
       Print("SLOI CMD ", cid, " ", kind, " ", a);
      }
   }
@@ -2543,6 +2554,7 @@ void CloseOne()
      {
       int ix = IdxOf(s);
       if(ix >= 0) g_lastClose[ix] = TimeCurrent();
+      if(ix >= 0 && CountMarket(s) == 0) g_lockTp[ix] = 0;
      }
   }
 

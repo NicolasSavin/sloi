@@ -7,6 +7,7 @@ const CmdIn = z.object({
   key: z.string().min(8).max(120),
   kind: z.enum(["PAUSE", "RESUME", "CLOSE_ALL", "CLOSE_PROFIT", "CLOSE", "BUY", "SELL"]),
   symbol: z.string().max(16).optional(),
+  tp: z.number().finite().optional(),
 });
 
 export const createDeskFn = createServerFn({ method: "POST" }).handler(async () => {
@@ -45,6 +46,7 @@ export const deskCommandFn = createServerFn({ method: "POST" })
         return { ok: false as const, error: "Нет такой пары." };
       }
       payload = sym;
+      if (data.tp != null && data.tp > 0) payload = `${sym} TP ${data.tp}`;
     }
     const id = await enqueueCommand(desk.id, data.kind, payload);
     return { ok: true as const, id };

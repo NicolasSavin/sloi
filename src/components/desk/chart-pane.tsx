@@ -20,7 +20,9 @@ import { deltaOf } from "@/lib/smc/flow";
 import { CD_FUT, nodeForecast, type VolumeNode } from "@/lib/smc/micro";
 import { liveCdCharts } from "@/lib/broker-tape";
 import { WalkingMascot } from "@/components/desk/walking-mascot";
-import { cn } from "@/lib/utils";
+import { cn, formatPrice } from "@/lib/utils";
+import { deskCommandFn } from "@/lib/desk-api";
+import { readDeskKey } from "@/lib/desk-key";
 
 function token(name: string, fallback: string) {
   if (typeof window === "undefined") return fallback;
@@ -1895,22 +1897,14 @@ function drawHeatDock(
   }
 }
 
-function drawForecast(
-  ctx: CanvasRenderingContext2D,
-  width: number,
-  chart: IChartApi,
-  series: ISeriesApi<"Candlestick">,
+function forecastAim(
   candles: Candle[],
   snap: SmcSnapshot | null,
   setup: LocalSetup | null,
   order: Advice | null,
 ) {
   const last = candles.at(-1);
-  if (!last || !snap) return;
-  const ts = chart.timeScale();
-  const x0 = ts.timeToCoordinate(last.time as UTCTimestamp);
-  const y0 = series.priceToCoordinate(last.close);
-  if (x0 == null || y0 == null) return;
+  if (!last || !snap) return null;
   let dir = 0;
   if (order?.action === "long") dir = 1;
   else if (order?.action === "short") dir = -1;
@@ -1932,6 +1926,28 @@ function drawForecast(
     end = magnet;
     dir = end >= last.close ? 1 : -1;
   }
+  return { dir, end, last: last.close };
+}
+
+function drawForecast(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  chart: IChartApi,
+  series: ISeriesApi<"Candlestick">,
+  candles: Candle[],
+  snap: SmcSnapshot | null,
+  setup: LocalSetup | null,
+  order: Advice | null,
+) {
+  const last = candles.at(-1);
+  const aim = forecastAim(candles, snap, setup, order);
+  if (!last || !snap || !aim) return;
+  const { dir, end } = aim;
+  const atr = snap.atr > 0 ? snap.atr : Math.max(last.high - last.low, last.close * 0.001);
+  const ts = chart.timeScale();
+  const x0 = ts.timeToCoordinate(last.time as UTCTimestamp);
+  const y0 = series.priceToCoordinate(last.close);
+  if (x0 == null || y0 == null) return;
   const y1 = series.priceToCoordinate(end);
   const yDip = series.priceToCoordinate(last.close - dir * atr * 0.18);
   if (y1 == null) return;
@@ -2668,6 +2684,28 @@ export function ChartPane({
     });
   }, [snap, overlays, ready, order, setup, pair, book, showPath]);
 
+  const [pathNote, setPathNote] = useState("");
+  const aim = forecastAim(candles, snap, setup, order);
+  const pathTrade = async (kind: "BUY" | "SELL") => {
+    const now = forecastAim(candles, snap, setup, order);
+    if (!now) {
+      setPathNote("прогноза нет");
+      return;
+    }
+    const sideOk = kind === "BUY" ? now.end > now.last : now.end < now.last;
+    if (!sideOk) {
+      setPathNote(kind === "BUY" ? "прогноз вниз — покупке этот тейк не ставим" : "прогноз вверх — продаже этот тейк не ставим");
+      return;
+    }
+    const key = readDeskKey();
+    if (!key) {
+      setPathNote("нет ключа стола");
+      return;
+    }
+    const r = await deskCommandFn({ data: { key, kind, symbol: pair, tp: now.end } });
+    setPathNote(r.ok ? `тейк на конце прогноза` : (r.error ?? "не ушло"));
+  };
+
   const mascotKind: "bull" | "bear" =
     order?.action === "long" || snap?.boxVector?.dir === "up"
       ? "bull"
@@ -2690,6 +2728,17 @@ export function ChartPane({
         ref={profileRef}
         className={cn("pointer-events-none absolute top-0 right-14 bottom-8 z-10 w-32", showPath && "hidden")}
       />
+      {showPath ? (
+        <div className="pointer-events-auto absolute bottom-12 left-4 z-30 flex items-center gap-2">
+          <button type="button" onClick={() => void pathTrade("BUY")} className="h-9 rounded-md bg-bull/20 px-3 font-mono text-xs text-bull ring-1 ring-bull/40">
+            купить{aim && aim.end > aim.last ? ` → ${formatPrice(aim.end, aim.end > 50 ? 2 : 5)}` : ""}
+          </button>
+          <button type="button" onClick={() => void pathTrade("SELL")} className="h-9 rounded-md bg-bear/20 px-3 font-mono text-xs text-bear ring-1 ring-bear/40">
+            продать{aim && aim.end < aim.last ? ` → ${formatPrice(aim.end, aim.end > 50 ? 2 : 5)}` : ""}
+          </button>
+          {pathNote ? <span className="font-mono text-[11px] text-[#f0d7a8]">{pathNote}</span> : null}
+        </div>
+      ) : null}
       {showPath ? null : (
       <div className="pointer-events-none absolute bottom-1 left-1 z-20 flex flex-col items-center">
         <WalkingMascot kind={mascotKind} />
