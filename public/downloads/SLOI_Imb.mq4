@@ -5,9 +5,9 @@
 //| Магия 220828, стол и Lead не трогает.                            |
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
-#property version   "1.02"
+#property version   "1.03"
 #property strict
-#property description "SLOI Imb 1.02: на графике рисует дыру и ближний край"
+#property description "SLOI Imb 1.03: дыра на графике яркая, подпись слева, текст про эту пару"
 
 input string WatchList      = "EURUSD,GBPUSD,USDJPY,USDCHF,AUDUSD,USDCAD,NZDUSD,EURGBP,EURJPY,GBPJPY,EURAUD,GBPCAD,GBPAUD,XAUUSD,XAGUSD";
 input string BrokerSuffix   = ".cs";
@@ -103,6 +103,7 @@ int OnInit()
    ParseWatch();
    EventSetTimer(2);
    ChartSetInteger(0, CHART_EVENT_MOUSE_MOVE, true);
+   ChartSetInteger(0, CHART_FOREGROUND, false);
    return(INIT_SUCCEEDED);
   }
 
@@ -272,6 +273,16 @@ bool Sweep(string s, int tf, int dir, double &stop)
    return(true);
   }
 
+bool Here(string s)
+  {
+   return(Naked(s) == Naked(Symbol()));
+  }
+
+void Say(string s, string text)
+  {
+   if(Here(s)) g_note = Naked(Symbol()) + " " + text;
+  }
+
 void Try(int i)
   {
    string s = g_sym[i];
@@ -281,7 +292,7 @@ void Try(int i)
    g_bar[i] = bar;
    if(MarketInfo(s, MODE_SPREAD) > MaxSpreadPoints)
      {
-      g_note = Naked(s) + " спред шире лимита";
+      Say(s, "спред шире лимита");
       return;
      }
    if(Have(s) >= 0) return;
@@ -292,13 +303,13 @@ void Try(int i)
    int fromBar = 0;
    if(!NearestEdge(s, tf, dir, edge, zLo, zHi, fromBar))
      {
-      g_note = Naked(s) + " открытой дыры нет";
+      Say(s, "открытой дыры нет");
       return;
      }
    double stop = 0;
    if(!Sweep(s, tf, dir, stop))
      {
-      g_note = Naked(s) + (dir > 0 ? " дыра сверху, жду снятие минимума" : " дыра снизу, жду снятие максимума");
+      Say(s, dir > 0 ? "дыра сверху, жду снятие минимума" : "дыра снизу, жду снятие максимума");
       return;
      }
    double px = (dir > 0 ? MarketInfo(s, MODE_ASK) : MarketInfo(s, MODE_BID));
@@ -309,28 +320,28 @@ void Try(int i)
    double risk = MathAbs(px - stop);
    if(reward < PipOf(s) * 2.0)
      {
-      g_note = Naked(s) + " край ближе спреда";
+      Say(s, "край ближе спреда");
       return;
      }
    if(!g_noStop && risk > reward)
      {
-      g_note = Naked(s) + " прокол шире пути до края, пропуск";
+      Say(s, "прокол шире пути до края, пропуск");
       return;
      }
    if(dir > 0 && edge <= px) return;
    if(dir < 0 && edge >= px) return;
    if(!g_auto)
      {
-      g_note = Naked(s) + " сигнал есть, авто выкл";
+      Say(s, "сигнал есть, авто выкл");
       return;
      }
    double sl = g_noStop ? 0 : stop;
    int cmd = (dir > 0 ? OP_BUY : OP_SELL);
    int ticket = OrderSend(s, cmd, LotOf(s), px, SlippagePoints, sl, edge, "SLOI imb", Magic, 0, clrNONE);
    if(ticket < 0)
-      g_note = Naked(s) + " ошибка " + IntegerToString(GetLastError());
+      Say(s, "ошибка " + IntegerToString(GetLastError()));
    else
-      g_note = Naked(s) + (dir > 0 ? " покупка к краю " : " продажа к краю ") + DoubleToStr(edge, dg);
+      Say(s, (dir > 0 ? "покупка к краю " : "продажа к краю ") + DoubleToStr(edge, dg));
   }
 
 bool Hit(int cx, int cy, int x, int y, int w, int h)
@@ -409,20 +420,25 @@ void DrawZone()
   {
    string s = Symbol();
    int tf = Tf();
+   ChartSetInteger(0, CHART_FOREGROUND, false);
    int dir = 0;
    double edge = 0;
    double zLo = 0;
    double zHi = 0;
    int fromBar = 0;
+   int dg = (int)MarketInfo(s, MODE_DIGITS);
    if(iClose(s, tf, 1) <= 0 || !NearestEdge(s, tf, dir, edge, zLo, zHi, fromBar))
      {
       WipeZone();
+      g_note = Naked(s) + " открытой дыры на этом графике нет";
       return;
      }
    datetime t1 = iTime(s, tf, fromBar);
-   datetime t2 = iTime(s, tf, 0);
-   if(t1 <= 0) t1 = t2;
-   color c = (dir > 0 ? C'8a3a3a' : C'1d6b45');
+   int step = PeriodSeconds(tf);
+   if(step <= 0) step = 3600;
+   datetime t2 = iTime(s, tf, 0) + step * 6;
+   if(t1 <= 0) t1 = iTime(s, tf, 0);
+   color c = (dir > 0 ? clrTomato : clrDeepSkyBlue);
    string n = Q + "zone";
    if(ObjectFind(0, n) < 0)
      {
@@ -435,9 +451,10 @@ void DrawZone()
    ObjectSet(n, OBJPROP_PRICE2, zLo);
    ObjectSet(n, OBJPROP_COLOR, c);
    ObjectSet(n, OBJPROP_STYLE, STYLE_SOLID);
-   ObjectSet(n, OBJPROP_WIDTH, 2);
-   ObjectSet(n, OBJPROP_BACK, true);
-   ObjectSetInteger(0, n, OBJPROP_FILL, true);
+   ObjectSet(n, OBJPROP_WIDTH, 3);
+   ObjectSet(n, OBJPROP_BACK, false);
+   ObjectSetInteger(0, n, OBJPROP_FILL, false);
+   ObjectSet(n, OBJPROP_SELECTABLE, false);
    string e = Q + "edge";
    if(ObjectFind(0, e) < 0)
      {
@@ -446,18 +463,23 @@ void DrawZone()
      }
    ObjectSet(e, OBJPROP_PRICE1, edge);
    ObjectSet(e, OBJPROP_COLOR, clrGold);
-   ObjectSet(e, OBJPROP_WIDTH, 2);
+   ObjectSet(e, OBJPROP_WIDTH, 3);
+   ObjectSet(e, OBJPROP_STYLE, STYLE_SOLID);
    ObjectSet(e, OBJPROP_BACK, false);
    string lab = Q + "lab";
+   double mid = (zLo + zHi) * 0.5;
    if(ObjectFind(0, lab) < 0)
      {
-      if(!ObjectCreate(0, lab, OBJ_TEXT, 0, t2, edge))
-         ObjectCreate(lab, OBJ_TEXT, 0, t2, edge);
+      if(!ObjectCreate(0, lab, OBJ_TEXT, 0, t1, mid))
+         ObjectCreate(lab, OBJ_TEXT, 0, t1, mid);
      }
-   ObjectSet(lab, OBJPROP_TIME1, t2);
-   ObjectSet(lab, OBJPROP_PRICE1, edge);
-   ObjectSetText(lab, " ИМБ край", 10, "Arial", clrGold);
+   ObjectSet(lab, OBJPROP_TIME1, t1);
+   ObjectSet(lab, OBJPROP_PRICE1, mid);
+   ObjectSetText(lab, "ИМБ  край " + DoubleToStr(edge, dg), 12, "Arial", clrGold);
    ObjectSet(lab, OBJPROP_BACK, false);
+   ObjectSetInteger(0, lab, OBJPROP_ANCHOR, ANCHOR_LEFT);
+   g_note = Naked(s) + " дыра " + DoubleToStr(zLo, dg) + " – " + DoubleToStr(zHi, dg);
+   ChartRedraw(0);
   }
 
 void OnTimer()
