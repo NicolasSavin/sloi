@@ -5,9 +5,9 @@
 //| тейк на следующей ликвидности. Магия 220829.                     |
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
-#property version   "1.00"
+#property version   "1.01"
 #property strict
-#property description "SLOI Liq 1.00: к ближайшей ликвидности, вместо стопа зеркало"
+#property description "SLOI Liq 1.01: съём считается, только если свеча закрылась против хода"
 
 input string WatchList       = "EURUSD,GBPUSD,USDJPY,USDCHF,AUDUSD,USDCAD,NZDUSD,EURGBP,EURJPY,GBPJPY,EURAUD,GBPCAD,GBPAUD,XAUUSD,XAGUSD";
 input string BrokerSuffix    = ".cs";
@@ -230,6 +230,7 @@ void OpenFirst(int i)
       Say(s, "спред шире лимита");
       return;
      }
+   double op = iOpen(s, tf, 1);
    double prev = iClose(s, tf, 2);
    double cl = iClose(s, tf, 1);
    double hi = iHigh(s, tf, 1);
@@ -241,12 +242,12 @@ void OpenFirst(int i)
       if(IsSwingLow(s, tf, p))
         {
          double v = iLow(s, tf, p);
-         if(lo < v && cl > v && v < prev && (sweptLo == 0 || v > sweptLo)) sweptLo = v;
+         if(lo < v && cl > v && cl > op && v < prev && (sweptLo == 0 || v > sweptLo)) sweptLo = v;
         }
       if(IsSwingHigh(s, tf, p))
         {
          double v = iHigh(s, tf, p);
-         if(hi > v && cl < v && v > prev && (sweptHi == 0 || v < sweptHi)) sweptHi = v;
+         if(hi > v && cl < v && cl < op && v > prev && (sweptHi == 0 || v < sweptHi)) sweptHi = v;
         }
      }
    int dir = 0;
