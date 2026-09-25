@@ -1958,11 +1958,50 @@ function drawForecast(
   ctx.arc(x1, y1, 5, 0, Math.PI * 2);
   ctx.fillStyle = dir >= 0 ? "#d8ffe8" : "#ffd0c8";
   ctx.fill();
-  const word = dir > 0 ? "вероятный ход вверх" : dir < 0 ? "вероятный ход вниз" : "вероятный ход без направления";
-  ctx.font = "700 16px IBM Plex Sans, sans-serif";
+  const why =
+    (order?.action === "long" || order?.action === "short" ? order.because : "") ||
+    snap.boxVector?.because ||
+    setup?.thesis ||
+    "Ясного края нет. Это карта, не приказ.";
+  const next =
+    order?.action === "long" || order?.action === "short"
+      ? order.therefore
+      : dir > 0
+        ? "Ждём ход вверх к ближайшей цели. Приказа на вход нет."
+        : dir < 0
+          ? "Ждём ход вниз к ближайшей цели. Приказа на вход нет."
+          : "Направления нет. Вход не ставим.";
+  const title = dir > 0 ? "Ждём ход вверх" : dir < 0 ? "Ждём ход вниз" : "Ждём, направления нет";
+  const lines = wrapNote(`${title}. ${why} ${next}`, 46).slice(0, 7);
+  const boxW = 430;
+  const boxH = 28 + lines.length * 22;
+  ctx.fillStyle = "rgba(8,6,4,0.82)";
+  ctx.strokeStyle = "rgba(240,215,168,0.55)";
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.roundRect(14, 72, boxW, boxH, 10);
+  ctx.fill();
+  ctx.stroke();
+  ctx.font = "600 15px IBM Plex Sans, sans-serif";
   ctx.fillStyle = "#f6efe2";
-  ctx.fillText(word, Math.max(12, x0 + 8), Math.min(y0, y1) - 14);
+  ctx.textAlign = "left";
+  lines.forEach((line, i) => ctx.fillText(line, 28, 98 + i * 22));
   ctx.restore();
+}
+
+function wrapNote(text: string, max: number) {
+  const words = text.replace(/\s+/g, " ").trim().split(" ");
+  const lines: string[] = [];
+  let cur = "";
+  for (const w of words) {
+    const next = cur ? `${cur} ${w}` : w;
+    if (next.length > max && cur) {
+      lines.push(cur);
+      cur = w;
+    } else cur = next;
+  }
+  if (cur) lines.push(cur);
+  return lines;
 }
 
 class SmcPrimitive implements ISeriesPrimitive<Time> {
