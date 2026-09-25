@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.37"
+#property version   "5.38"
 #property strict
-#property description "SLOI 5.35: приказ с сайта при развороте открывает замок, а не стоп"
+#property description "SLOI 5.38: кнопка БЕЗ СТОПА. Тейк остаётся, стоп и замок не закрывают"
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -40,6 +40,7 @@ input bool    FixForeign      = false;
 input string  ForeignTag      = "WS";
 input bool    AlertsOn        = true;
 input bool    VirtualPendings = true; // виртуал: отложка, стоп и тейк. Сдвиг со стола.
+input bool    NoStop          = false; // true = не закрывать по стопу, ждать тейк
 input bool    HostFeed        = true;  // true на каждом терминале с CD-чартами, один ключ сайта
 input bool    UseClusterDelta = true; // CD только с открытых чартов (не весь WatchList)
 input string  CdVolume        = "ClusterDelta_#Volumes";
@@ -97,6 +98,7 @@ int    g_maxSp;
 double g_skew;
 bool   g_alerts;
 bool   g_virt;
+bool   g_noStop;
 bool   g_cd;
 bool   g_host;
 bool   g_leader = false;
@@ -159,12 +161,14 @@ int OnInit()
    g_skew   = MaxSkewPct;
    g_alerts = AlertsOn;
    g_virt   = VirtualPendings;
+   g_noStop = NoStop;
    g_cd     = UseClusterDelta;
    g_host   = HostFeed;
    g_holdMin = MinHoldMinutes;
    Wipe();
    ParseWatch();
    EventSetTimer(1);
+   if(g_noStop) ClearStops();
    ChartSetInteger(0, CHART_FOREGROUND, false);
    ChartSetInteger(0, CHART_EVENT_MOUSE_MOVE, true);
    g_ready = true;
@@ -291,7 +295,7 @@ void ManageSiteLock()
       double bid = BidOf(s);
       double ask = AskOf(s);
       bool disaster = (dir > 0 && bid <= g_webStop[idx]) || (dir < 0 && ask >= g_webStop[idx]);
-      if(disaster)
+      if(!g_noStop && disaster)
         {
          CloseTicket(webTicket);
          CloseTicket(lockTicket);
@@ -336,7 +340,7 @@ void ManageSiteLock()
          g_webOn[idx] = 0;
          continue;
         }
-      if(webTicket > 0 && lockTicket < 0 && g_webHedgeTp[idx] == 0)
+      if(!g_noStop && webTicket > 0 && lockTicket < 0 && g_webHedgeTp[idx] == 0)
         {
          double span = MathAbs(g_webEntry[idx] - g_webStop[idx]);
          double trigger = g_webEntry[idx] - dir * span * 0.45;
@@ -423,6 +427,7 @@ string HitPanel(int cx, int cy)
    if(HitBox(cx, cy, x + 410, y + 36, 90, 22)) return(P+"b_mart");
    if(HitBox(cx, cy, x + 506, y + 36, 90, 22)) return(P+"b_ok");
    if(HitBox(cx, cy, x + 600, y + 36, 88, 22)) return(P+"b_virt");
+   if(HitBox(cx, cy, x + 694, y + 36, 110, 22)) return(P+"b_nostop");
    if(HitBox(cx, cy, x + 50, y + 132, 100, 24)) return(P+"b_buy");
    if(HitBox(cx, cy, x + 158, y + 132, 100, 24)) return(P+"b_sell");
    if(HitBox(cx, cy, x + 266, y + 132, 150, 24)) return(P+"b_cp");
@@ -467,6 +472,14 @@ void DoBtn(string sparam)
      }
    if(sparam == P+"b_alrt") { g_alerts = !g_alerts; DrawDesk(true); return; }
    if(sparam == P+"b_virt") { g_virt = !g_virt; DrawDesk(true); return; }
+   if(sparam == P+"b_nostop")
+     {
+      g_noStop = !g_noStop;
+      if(g_noStop) ClearStops();
+      Print("SLOI ", (g_noStop ? "без стопа, ждём тейк" : "стоп снова стоит"));
+      DrawDesk(true);
+      return;
+     }
    if(sparam == P+"b_risk") { g_riskOn = !g_riskOn; g_seeded = false; DrawDesk(true); return; }
    if(sparam == P+"b_mart") { g_mart = !g_mart; DrawDesk(true); return; }
    if(sparam == P+"b_ok")   { ApplyEdits(); g_seeded = false; DrawDesk(true); return; }
@@ -987,14 +1000,15 @@ double TakeAway(string s, int dir, double px, double tp)
 int SendOrder(string s, int cmd, double lots, double px, double sl, double tp, string cmt, color clr)
   {
    int dir = (cmd == OP_BUY || cmd == OP_BUYLIMIT || cmd == OP_BUYSTOP) ? 1 : -1;
-   sl = StopAway(s, dir, px, sl);
+   if(g_noStop) sl = 0;
+   else sl = StopAway(s, dir, px, sl);
    tp = TakeAway(s, dir, px, tp);
-   double keepSL = sl;
+   double keepSL = g_noStop ? 0 : sl;
    double keepTP = tp;
-   if(g_virt)
+   if(g_virt || g_noStop)
      {
       sl = 0;
-      tp = 0;
+      if(g_virt) tp = 0;
      }
    int slip = SlipFor(s);
    int ticket = OrderSend(s, cmd, lots, px, slip, sl, tp, cmt, Magic, 0, clr);
@@ -1026,7 +1040,7 @@ int SendOrder(string s, int cmd, double lots, double px, double sl, double tp, s
             Alert("SLOI ", s, " ошибка ", err, " спред ", SpreadPt(s), "п  slip ", slip);
         }
      }
-   if(ticket > 0 && g_virt) SetVirt(s, keepSL, keepTP);
+   if(ticket > 0 && (g_virt || g_noStop)) SetVirt(s, keepSL, keepTP);
    return(ticket);
   }
 
@@ -1106,7 +1120,11 @@ void AlignVirt(int idx, int dir, double stop, double target)
    int digits = DigitsOf(s);
    double pt = PointOf(s) * 2.0;
    bool moved = false;
-   if(stop > 0 && MathAbs(g_vSL[idx] - stop) > pt)
+   if(g_noStop)
+     {
+      if(g_vSL[idx] != 0) { g_vSL[idx] = 0; moved = true; }
+     }
+   else if(stop > 0 && MathAbs(g_vSL[idx] - stop) > pt)
      {
       g_vSL[idx] = NormalizeDouble(stop, digits);
       moved = true;
@@ -1136,10 +1154,15 @@ void DrawVirtLines()
      }
    int idx = IdxOf(Symbol());
    if(idx < 0) return;
-   if(g_vSL[idx] > 0)
+   if(g_vSL[idx] > 0 && !g_noStop)
      {
       Hln("vsl", g_vSL[idx], C_SEL);
       Tag("vsl_t", iTime(Symbol(), g_tf, 0), g_vSL[idx], "ВИРТ СТОП", C_SEL);
+     }
+   else
+     {
+      ObjectDelete(0, P + "vsl");
+      ObjectDelete(0, P + "vsl_t");
      }
    if(g_vTP[idx] > 0)
      {
@@ -1151,6 +1174,12 @@ void DrawVirtLines()
 void ManageVirtBook()
   {
    if(!g_virt) return;
+   if(g_noStop)
+     {
+      for(int z = 0; z < g_n; z++) g_vSL[z] = 0;
+      DrawVirtLines();
+      return;
+     }
    for(int i = OrdersTotal() - 1; i >= 0; i--)
      {
       if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
@@ -1266,7 +1295,7 @@ void ScaleOut()
       else Alert("SLOI лот мал для половины, тяну ", s);
       g_half[idx] = 1;
       g_tp1[idx] = tp1;
-      g_vSL[idx] = be;
+      if(!g_noStop) g_vSL[idx] = be;
       g_vTP[idx] = tp2;
      }
   }
@@ -2567,6 +2596,7 @@ double LotFor(string s, double entry, double stop)
 
 void ManageBE()
   {
+   if(g_noStop) return;
    for(int i = OrdersTotal() - 1; i >= 0; i--)
      {
       if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
@@ -2729,6 +2759,23 @@ void ApplySiteCommands()
       else if(kind == "BUY") ManualTradeSym(a, 1, forceTp);
       else if(kind == "SELL") ManualTradeSym(a, -1, forceTp);
       Print("SLOI CMD ", cid, " ", kind, " ", a);
+     }
+  }
+
+void ClearStops()
+  {
+   for(int z = 0; z < g_n; z++) g_vSL[z] = 0;
+   ObjectDelete(0, P + "vsl");
+   ObjectDelete(0, P + "vsl_t");
+   for(int i = OrdersTotal() - 1; i >= 0; i--)
+     {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
+      if(OrderMagicNumber() != Magic) continue;
+      int type = OrderType();
+      if(type != OP_BUY && type != OP_SELL) continue;
+      if(OrderStopLoss() == 0) continue;
+      if(!OrderModify(OrderTicket(), OrderOpenPrice(), 0, OrderTakeProfit(), 0, C_GOLD))
+         Print("SLOI снять стоп ", OrderSymbol(), " ", GetLastError());
      }
   }
 
@@ -3042,6 +3089,7 @@ void DrawDesk(bool force)
 
    Btn("b_mart", x + 410, y + 36, 90, 22, g_mart ? "МАРТ ВКЛ" : "МАРТ ВЫКЛ", g_mart ? C_WAIT : C_OFF);
    Btn("b_virt", x + 600, y + 36, 88, 22, g_virt ? "ВИРТ ВКЛ" : "БРОКЕР", g_virt ? C_BUY : C_WAIT);
+   Btn("b_nostop", x + 694, y + 36, 110, 22, g_noStop ? "БЕЗ СТОПА" : "СТОП ЕСТЬ", g_noStop ? C_SEL : C_BUY);
    Btn("b_ok", x + 506, y + 36, 90, 22, "ПРИМЕНИТЬ", C_GOLD);
 
    Lab("l_fx", x + 14, y + 62, "FX", C_DIM, 8);
@@ -3080,7 +3128,7 @@ void DrawDesk(bool force)
    Lab("h7", hx+530, hy, "ВЕРДИКТ", C_DIM, 8);
    Lab("h8", hx+700, hy, "ЛОТ", C_DIM, 8);
 
-   string cmt = "SLOI DESK | лента "+g_feedNote+" | авто "+(g_auto?"ВКЛ":"ВЫКЛ")+" | "+(g_virt?"виртуал SL/TP":"брокер SL/TP")+" | макс спред "+IntegerToString(g_maxSp)+"п\n";
+   string cmt = "SLOI DESK | лента "+g_feedNote+" | авто "+(g_auto?"ВКЛ":"ВЫКЛ")+" | "+(g_noStop?"БЕЗ СТОПА, только тейк":(g_virt?"виртуал SL/TP":"брокер SL/TP"))+" | макс спред "+IntegerToString(g_maxSp)+"п\n";
    cmt += "СИМВОЛ     СПРЕД  СТРУКТ   ВХОД        СТОП        ЦЕЛЬ        ВЕРДИКТ\n";
 
    for(int i = 0; i < g_n; i++)
