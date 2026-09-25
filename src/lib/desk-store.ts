@@ -32,6 +32,7 @@ interface DeskState {
   spreads: Record<string, number>;
   quoteSource: "broker" | "yahoo";
   fitGen: number;
+  showPath: boolean;
   setSymbol: (id: string) => void;
   setTimeframe: (tf: Timeframe) => void;
   setAutoAnalyze: (on: boolean) => void;
@@ -43,6 +44,7 @@ interface DeskState {
   setSpread: (id: string, spread: number) => void;
   setQuoteSource: (src: "broker" | "yahoo") => void;
   requestFit: () => void;
+  togglePath: () => void;
 }
 
 const ALLOWED = new Set(SYMBOLS.map((s) => s.id));
@@ -76,6 +78,7 @@ export const useDeskStore = create<DeskState>()(
       spreads: Object.fromEntries(SYMBOLS.map((s) => [s.id, s.spread])),
       quoteSource: "broker",
       fitGen: 0,
+      showPath: false,
       setSymbol: (id) => set({ symbol: id }),
       setTimeframe: (tf) => set({ timeframe: tf }),
       setAutoAnalyze: (on) => set({ autoAnalyze: on }),
@@ -87,6 +90,7 @@ export const useDeskStore = create<DeskState>()(
       setSpread: (id, spread) => set((s) => ({ spreads: { ...s.spreads, [id]: spread } })),
       setQuoteSource: (src) => set({ quoteSource: src }),
       requestFit: () => set((s) => ({ fitGen: s.fitGen + 1 })),
+      togglePath: () => set((s) => ({ showPath: !s.showPath })),
     }),
     {
       name: "sloi-desk-smc",

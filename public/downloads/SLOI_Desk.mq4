@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.29"
+#property version   "5.30"
 #property strict
-#property description "SLOI 5.29: книга BookMap на золоте и евро — цель и запрет входа в защитника"
+#property description "SLOI 5.30: виртуальный стоп не ближе трёх спредов, иначе сделка умирает сразу"
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -165,7 +165,7 @@ int OnInit()
       GlobalVariableSet("SLOI_LEAD_CH", (double)ChartID());
       g_leader = true;
       g_auto = AutoTrade;
-      Print("SLOI 5.29 торгует ЭТОТ график ", ChartSymbol(0), " авто ", (g_auto ? "ВКЛ" : "ВЫКЛ"), ". Книга BookMap — только золото и евро");
+      Print("SLOI 5.30 торгует ЭТОТ график ", ChartSymbol(0), " авто ", (g_auto ? "ВКЛ" : "ВЫКЛ"), ". Книга BookMap — только золото и евро");
      }
    else
      {
@@ -1021,6 +1021,18 @@ void ManageVirtBook()
       if(idx < 0) continue;
       string s = OrderSymbol();
       double sl = g_vSL[idx];
+      double spr = SpreadPr(s);
+      double open = OrderOpenPrice();
+      if(type == OP_BUY && sl > 0 && open - sl < spr * 3.0)
+        {
+         sl = open - spr * 4.0;
+         g_vSL[idx] = sl;
+        }
+      if(type == OP_SELL && sl > 0 && sl - open < spr * 3.0)
+        {
+         sl = open + spr * 4.0;
+         g_vSL[idx] = sl;
+        }
       if(type == OP_BUY && sl > 0 && BidOf(s) <= sl)
         {
          Alert("SLOI вирт стоп ", s);
@@ -1986,7 +1998,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 5.29\n";
+   body += "EA 5.30\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();

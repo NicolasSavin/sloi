@@ -735,8 +735,10 @@ function clipTp1(entry: number, stop: number, targets: number[], dir: 1 | -1) {
 function preciseTouch(zone: Zone, dir: 1 | -1, price: number, atr: number) {
   const inside = price <= zone.top && price >= zone.bottom;
   const entry = dir === 1 ? (inside ? price : zone.top) : inside ? price : zone.bottom;
-  const pad = Math.max(atr * 0.22, Math.abs(entry) * 0.00025);
-  const stop = dir === 1 ? zone.bottom - pad : zone.top + pad;
+  const pad = Math.max(atr * 0.35, Math.abs(entry) * 0.00045);
+  const stopRaw = dir === 1 ? zone.bottom - pad : zone.top + pad;
+  const minRisk = Math.max(atr * 0.7, Math.abs(entry) * 0.0009);
+  const stop = dir === 1 ? Math.min(stopRaw, entry - minRisk) : Math.max(stopRaw, entry + minRisk);
   return { entry, stop };
 }
 

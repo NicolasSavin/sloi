@@ -15,6 +15,8 @@ export function ChartHud({ boxRef }: { boxRef: RefObject<HTMLDivElement | null> 
   const setTimeframe = useDeskStore((s) => s.setTimeframe);
   const quoteSource = useDeskStore((s) => s.quoteSource);
   const setQuoteSource = useDeskStore((s) => s.setQuoteSource);
+  const togglePath = useDeskStore((s) => s.togglePath);
+  const showPath = useDeskStore((s) => s.showPath);
   const toggleOverlay = useDeskStore((s) => s.toggleOverlay);
   const overlays = useDeskStore((s) => s.overlays);
   const requestFit = useDeskStore((s) => s.requestFit);
@@ -70,6 +72,12 @@ export function ChartHud({ boxRef }: { boxRef: RefObject<HTMLDivElement | null> 
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (e.key === "Pause" || e.code === "Pause") {
+        e.preventDefault();
+        e.stopPropagation();
+        togglePath();
+        return;
+      }
       if (e.key === "F1") {
         e.preventDefault();
         e.stopPropagation();
@@ -105,7 +113,7 @@ export function ChartHud({ boxRef }: { boxRef: RefObject<HTMLDivElement | null> 
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [toggle, toggleOverlay]);
+  }, [toggle, toggleOverlay, togglePath]);
 
   return (
     <div className="pointer-events-none absolute inset-x-0 top-0 z-40 flex items-start justify-between gap-2 p-2">
@@ -184,6 +192,17 @@ export function ChartHud({ boxRef }: { boxRef: RefObject<HTMLDivElement | null> 
           title="Подогнать цену и время"
         >
           масштаб
+        </button>
+        <button
+          type="button"
+          onClick={() => togglePath()}
+          className={cn(
+            "inline-flex h-8 items-center rounded-md px-2 font-mono text-[11px] backdrop-blur-sm",
+            showPath ? "bg-gold/20 text-gold" : "bg-bg/80 text-muted hover:text-fg",
+          )}
+          title="Pause — спрятать разметку и показать вероятный ход"
+        >
+          Pause
         </button>
         <button
           type="button"

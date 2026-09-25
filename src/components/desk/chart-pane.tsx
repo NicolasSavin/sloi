@@ -1895,6 +1895,76 @@ function drawHeatDock(
   }
 }
 
+function drawForecast(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  chart: IChartApi,
+  series: ISeriesApi<"Candlestick">,
+  candles: Candle[],
+  snap: SmcSnapshot | null,
+  setup: LocalSetup | null,
+  order: Advice | null,
+) {
+  const last = candles.at(-1);
+  if (!last || !snap) return;
+  const ts = chart.timeScale();
+  const x0 = ts.timeToCoordinate(last.time as UTCTimestamp);
+  const y0 = series.priceToCoordinate(last.close);
+  if (x0 == null || y0 == null) return;
+  let dir = 0;
+  if (order?.action === "long") dir = 1;
+  else if (order?.action === "short") dir = -1;
+  else if (snap.boxVector?.dir === "up") dir = 1;
+  else if (snap.boxVector?.dir === "down") dir = -1;
+  else if (snap.bias === "bullish") dir = 1;
+  else if (snap.bias === "bearish") dir = -1;
+  const atr = snap.atr > 0 ? snap.atr : Math.max(last.high - last.low, last.close * 0.001);
+  const tgt = setup?.targets?.[0];
+  const magnet = snap.boxVector?.magnet ?? null;
+  let end = last.close + (dir || 1) * atr * 1.4;
+  if (dir > 0) {
+    const ups = [tgt, magnet].filter((v): v is number => v != null && v > last.close + atr * 0.2);
+    if (ups.length) end = Math.min(...ups);
+  } else if (dir < 0) {
+    const dns = [tgt, magnet].filter((v): v is number => v != null && v < last.close - atr * 0.2);
+    if (dns.length) end = Math.max(...dns);
+  } else if (magnet != null) {
+    end = magnet;
+    dir = end >= last.close ? 1 : -1;
+  }
+  const y1 = series.priceToCoordinate(end);
+  const yDip = series.priceToCoordinate(last.close - dir * atr * 0.18);
+  if (y1 == null) return;
+  const x1 = Math.min(width - 78, x0 + Math.max(160, (width - x0) * 0.42));
+  const midY = yDip ?? (y0 + y1) / 2;
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(x0, y0);
+  ctx.bezierCurveTo(x0 + 36, midY, x1 - 28, y1, x1, y1);
+  ctx.lineTo(x1, y1 + (dir >= 0 ? 18 : -18));
+  ctx.bezierCurveTo(x1 - 28, (y0 + y1) / 2, x0 + 36, y0, x0, y0);
+  ctx.closePath();
+  ctx.fillStyle = dir >= 0 ? "rgba(60,220,130,0.16)" : "rgba(255,90,70,0.16)";
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x0, y0);
+  ctx.bezierCurveTo(x0 + 36, midY, x1 - 28, y1, x1, y1);
+  ctx.strokeStyle = dir >= 0 ? "#7dffc0" : "#ff8a7a";
+  ctx.lineWidth = 3.2;
+  ctx.setLineDash([9, 6]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.arc(x1, y1, 5, 0, Math.PI * 2);
+  ctx.fillStyle = dir >= 0 ? "#d8ffe8" : "#ffd0c8";
+  ctx.fill();
+  const word = dir > 0 ? "вероятный ход вверх" : dir < 0 ? "вероятный ход вниз" : "вероятный ход без направления";
+  ctx.font = "700 16px IBM Plex Sans, sans-serif";
+  ctx.fillStyle = "#f6efe2";
+  ctx.fillText(word, Math.max(12, x0 + 8), Math.min(y0, y1) - 14);
+  ctx.restore();
+}
+
 class SmcPrimitive implements ISeriesPrimitive<Time> {
   chart: IChartApi | null = null;
   series: ISeriesApi<"Candlestick"> | null = null;
@@ -1914,6 +1984,7 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
     hoverPt: { x: number; y: number } | null;
     hoverBar: Candle | null;
     marks: SignalHit[];
+    path: boolean;
   } = {
     zones: [],
     overlays: {
@@ -1942,6 +2013,7 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
     hoverPt: null,
     hoverBar: null,
     marks: [],
+    path: false,
   };
 
   private unsub: (() => void) | null = null;
@@ -1988,6 +2060,10 @@ class SmcPrimitive implements ISeriesPrimitive<Time> {
             const w = scope.mediaSize.width;
             const h = scope.mediaSize.height;
             ctx.clearRect(0, 0, w, h);
+            if (p.path) {
+              if (z === "top") drawForecast(ctx, w, chart, series, p.candles, p.snap, p.setup, p.order);
+              return;
+            }
             const hover = p.hoverBar != null;
             if (z === "bottom") {
               ctx.globalAlpha = hover ? 0.5 : 1;
@@ -2062,6 +2138,8 @@ export function ChartPane({
   const setupRef = useRef(setup);
   const marksRef = useRef(marks);
   const pair = useDeskStore((s) => s.symbol);
+  const showPath = useDeskStore((s) => s.showPath);
+  const pathRef = useRef(showPath);
   const fitGen = useDeskStore((s) => s.fitGen);
   const pairRef = useRef(pair);
   const fittedKey = useRef("");
@@ -2079,6 +2157,7 @@ export function ChartPane({
   setupRef.current = setup;
   marksRef.current = marks;
   pairRef.current = pair;
+  pathRef.current = showPath;
   overlaysRef.current = overlays;
   candlesRef.current = candles;
   bookRef.current = book;
@@ -2229,6 +2308,7 @@ export function ChartPane({
             hoverPt: hoverPtRef.current,
             hoverBar: hoverBarRef.current,
             marks: marksRef.current,
+            path: pathRef.current,
           };
           prim.refresh();
         }
@@ -2522,7 +2602,7 @@ export function ChartPane({
             ]
           : []),
       ];
-      markersRef.current?.setMarkers(markers);
+      markersRef.current?.setMarkers(showPath ? [] : markers);
       const prim = primitiveRef.current;
       if (prim) {
         prim.payload = {
@@ -2538,15 +2618,16 @@ export function ChartPane({
           hoverPt: hoverPtRef.current,
           hoverBar: hoverBarRef.current,
           marks: marksRef.current,
+          path: showPath,
         };
         prim.refresh();
       }
-      if (profileRef.current) drawProfile(profileRef.current, series, snap, overlays.profile);
+      if (profileRef.current) drawProfile(profileRef.current, series, snap, showPath ? false : overlays.profile);
       } catch {
         /* overlay must not blank candles */
       }
     });
-  }, [snap, overlays, ready, order, setup, pair, book]);
+  }, [snap, overlays, ready, order, setup, pair, book, showPath]);
 
   const mascotKind: "bull" | "bear" =
     order?.action === "long" || snap?.boxVector?.dir === "up"
@@ -2568,14 +2649,16 @@ export function ChartPane({
       />
       <canvas
         ref={profileRef}
-        className="pointer-events-none absolute top-0 right-14 bottom-8 z-10 w-32"
+        className={cn("pointer-events-none absolute top-0 right-14 bottom-8 z-10 w-32", showPath && "hidden")}
       />
+      {showPath ? null : (
       <div className="pointer-events-none absolute bottom-1 left-1 z-20 flex flex-col items-center">
         <WalkingMascot kind={mascotKind} />
         <span className="-mt-3 font-mono text-[10px] text-[#e8c070]">
           {mascotKind === "bull" ? "бык-трейдер" : "медведь-трейдер"}
         </span>
       </div>
+      )}
     </div>
   );
 }
