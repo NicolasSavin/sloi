@@ -5,9 +5,9 @@
 //| тейк на следующей ликвидности. Магия 220829.                     |
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
-#property version   "1.02"
+#property version   "1.03"
 #property strict
-#property description "SLOI Liq 1.02: ближайшая ликвидность рисуется всегда, не только у сделки"
+#property description "SLOI Liq 1.03: съём — это хвост за уровень и закрытие обратно. Цвет свечи не важен"
 
 input string WatchList       = "EURUSD,GBPUSD,USDJPY,USDCHF,AUDUSD,USDCAD,NZDUSD,EURGBP,EURJPY,GBPJPY,EURAUD,GBPCAD,GBPAUD,XAUUSD,XAGUSD";
 input string BrokerSuffix    = ".cs";
@@ -232,7 +232,6 @@ void OpenFirst(int i)
       Say(s, "спред шире лимита");
       return;
      }
-   double op = iOpen(s, tf, 1);
    double prev = iClose(s, tf, 2);
    double cl = iClose(s, tf, 1);
    double hi = iHigh(s, tf, 1);
@@ -244,12 +243,12 @@ void OpenFirst(int i)
       if(IsSwingLow(s, tf, p))
         {
          double v = iLow(s, tf, p);
-         if(lo < v && cl > v && cl > op && v < prev && (sweptLo == 0 || v > sweptLo)) sweptLo = v;
+         if(lo < v && cl > v && v < prev && (sweptLo == 0 || v > sweptLo)) sweptLo = v;
         }
       if(IsSwingHigh(s, tf, p))
         {
          double v = iHigh(s, tf, p);
-         if(hi > v && cl < v && cl < op && v > prev && (sweptHi == 0 || v < sweptHi)) sweptHi = v;
+         if(hi > v && cl < v && v > prev && (sweptHi == 0 || v < sweptHi)) sweptHi = v;
         }
      }
    int dir = 0;
@@ -376,15 +375,14 @@ void Draw()
    double px = iClose(s, tf, 1);
    double hi = NearestHigh(s, tf, px);
    double lo = NearestLow(s, tf, px);
-   double op = iOpen(s, tf, 1);
    double bh = iHigh(s, tf, 1);
    double bl = iLow(s, tf, 1);
    double bc = iClose(s, tf, 1);
    string why = "съёма не было";
-   if(hi > 0 && bh > hi && bc < hi && bc < op) why = "максимум снят, свеча вниз, это продажа";
-   else if(hi > 0 && bh > hi) why = "максимум задели, свеча не вниз, не считается";
-   else if(lo > 0 && bl < lo && bc > lo && bc > op) why = "минимум снят, свеча вверх, это покупка";
-   else if(lo > 0 && bl < lo) why = "минимум задели, свеча не вверх, не считается";
+   if(hi > 0 && bh > hi && bc < hi) why = "максимум снят и закрылись обратно";
+   else if(hi > 0 && bh > hi) why = "максимум пробили и закрылись выше";
+   else if(lo > 0 && bl < lo && bc > lo) why = "минимум снят и закрылись обратно";
+   else if(lo > 0 && bl < lo) why = "минимум пробили и закрылись ниже";
    Line("up", hi, clrGold, " ликвидность сверху");
    Line("dn", lo, clrDeepSkyBlue, " ликвидность снизу");
    double tp = 0;
