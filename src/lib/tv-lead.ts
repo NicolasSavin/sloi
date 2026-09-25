@@ -1,7 +1,5 @@
 export type TvCandle = { open: number; close: number };
 
-const cache = { at: 0, map: new Map<string, TvCandle>() };
-
 function place(id: string): { scan: "forex" | "cfd" | "crypto"; ticker: string } | null {
   if (id === "XAUUSD") return { scan: "cfd", ticker: "TVC:GOLD" };
   if (id === "XAGUSD") return { scan: "cfd", ticker: "TVC:SILVER" };
@@ -20,9 +18,12 @@ export function minLeadPct(id: string) {
   return 0.004;
 }
 
-/** 5-minute TradingView candle. One request per market group, cached for a minute. */
-export async function tvCandles(ids: string[]): Promise<Map<string, TvCandle>> {
-  if (Date.now() - cache.at < 60_000 && cache.map.size) return cache.map;
+const caches = new Map<number, { at: number; map: Map<string, TvCandle> }>();
+
+/** TradingView candle, 5 or 15 minutes. One request per market group. */
+export async function tvCandles(ids: string[], minutes: 5 | 15 = 5): Promise<Map<string, TvCandle>> {
+  const hit = caches.get(minutes);
+  if (hit && Date.now() - hit.at < 60_000 && hit.map.size) return hit.map;
   const groups = new Map<string, { id: string; ticker: string }[]>();
   for (const id of ids) {
     const p = place(id);
@@ -40,27 +41,41 @@ export async function tvCandles(ids: string[]): Promise<Map<string, TvCandle>> {
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             symbols: { tickers: list.map((x) => x.ticker) },
-            columns: ["close|5", "open|5"],
+            columns: [`close|${minutes}`, `open|${minutes}`],
           }),
           signal: AbortSignal.timeout(4000),
         });
         if (!res.ok) return;
         const data = (await res.json()) as { data?: { s: string; d: number[] }[] };
         for (const row of data.data ?? []) {
-          const hit = list.find((x) => x.ticker === row.s);
+          const found = list.find((x) => x.ticker === row.s);
           const close = row.d?.[0];
           const open = row.d?.[1];
-          if (!hit || !close || !open) continue;
-          map.set(hit.id, { open, close });
+          if (!found || !close || !open) continue;
+          map.set(found.id, { open, close });
         }
       } catch {
-        /* TV is a hint, the desk still runs */
+        /* TV is a hint */
       }
     }),
   );
-  if (map.size) {
-    cache.at = Date.now();
-    cache.map = map;
+  if (map.size) caches.set(minutes, { at: Date.now(), map });
+  return map.size ? map : (hit?.map ?? map);
+}
+
+export const LEAD_SYMBOLS = [
+  "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD", "NZDUSD",
+  "EURGBP", "EURJPY", "GBPJPY", "AUDJPY", "CADJPY", "NZDJPY", "EURCHF", "EURAUD", "GBPAUD",
+  "XAUUSD", "XAGUSD", "XTIUSD", "XBRUSD",
+];
+
+export async function renderTv15() {
+  const map = await tvCandles(LEAD_SYMBOLS, 15);
+  const lines = ["# SLOI TV15 open close"];
+  for (const id of LEAD_SYMBOLS) {
+    const c = map.get(id);
+    if (!c) continue;
+    lines.push(`${id} ${c.open} ${c.close}`);
   }
-  return map.size ? map : cache.map;
+  return `${lines.join("\n")}\n`;
 }

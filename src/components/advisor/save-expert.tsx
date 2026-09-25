@@ -54,6 +54,13 @@ export function SaveExpert({ settings, className }: { settings: EaSettings; clas
         >
           Сов хозяина (CD)
         </a>
+        <a
+          href="/downloads/SLOI_Lead.mq4"
+          download="SLOI_Lead.mq4"
+          className="inline-flex h-11 items-center gap-2 rounded-sm px-4 text-sm font-medium shadow-[var(--shadow-border)]"
+        >
+          Сов 15 минут
+        </a>
         <Button type="button" variant="ghost" onClick={() => { setWhich("follow"); void copyNow(); setOpen(true); }}>
           Копировать код
         </Button>

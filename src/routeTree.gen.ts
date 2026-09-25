@@ -28,6 +28,7 @@ import { Route as ApiBrokerRouteImport } from './routes/api/broker'
 import { Route as ApiEaDotmq4RouteImport } from './routes/api/ea[.]mq4'
 import { Route as ApiSignalsDottxtRouteImport } from './routes/api/signals[.]txt'
 import { Route as ApiTelegramRouteImport } from './routes/api/telegram'
+import { Route as ApiTv15DottxtRouteImport } from './routes/api/tv15[.]txt'
 import { Route as ApiVoiceRouteImport } from './routes/api/voice'
 import { Route as NewsIndexRouteImport } from './routes/news/index'
 import { Route as NewsSlugRouteImport } from './routes/news/$slug'
@@ -127,6 +128,11 @@ const ApiTelegramRoute = ApiTelegramRouteImport.update({
   path: '/api/telegram',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiTv15DottxtRoute = ApiTv15DottxtRouteImport.update({
+  id: '/api/tv15.txt',
+  path: '/api/tv15.txt',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiVoiceRoute = ApiVoiceRouteImport.update({
   id: '/api/voice',
   path: '/api/voice',
@@ -163,6 +169,7 @@ export interface FileRoutesByFullPath {
   '/api/ea.mq4': typeof ApiEaDotmq4Route
   '/api/signals.txt': typeof ApiSignalsDottxtRoute
   '/api/telegram': typeof ApiTelegramRoute
+  '/api/tv15.txt': typeof ApiTv15DottxtRoute
   '/api/voice': typeof ApiVoiceRoute
   '/news/$slug': typeof NewsSlugRoute
   '/news/': typeof NewsIndexRoute
@@ -187,6 +194,7 @@ export interface FileRoutesByTo {
   '/api/ea.mq4': typeof ApiEaDotmq4Route
   '/api/signals.txt': typeof ApiSignalsDottxtRoute
   '/api/telegram': typeof ApiTelegramRoute
+  '/api/tv15.txt': typeof ApiTv15DottxtRoute
   '/api/voice': typeof ApiVoiceRoute
   '/news/$slug': typeof NewsSlugRoute
   '/news': typeof NewsIndexRoute
@@ -212,6 +220,7 @@ export interface FileRoutesById {
   '/api/ea.mq4': typeof ApiEaDotmq4Route
   '/api/signals.txt': typeof ApiSignalsDottxtRoute
   '/api/telegram': typeof ApiTelegramRoute
+  '/api/tv15.txt': typeof ApiTv15DottxtRoute
   '/api/voice': typeof ApiVoiceRoute
   '/news/$slug': typeof NewsSlugRoute
   '/news/': typeof NewsIndexRoute
@@ -238,6 +247,7 @@ export interface FileRouteTypes {
     | '/api/ea.mq4'
     | '/api/signals.txt'
     | '/api/telegram'
+    | '/api/tv15.txt'
     | '/api/voice'
     | '/news/$slug'
     | '/news/'
@@ -262,6 +272,7 @@ export interface FileRouteTypes {
     | '/api/ea.mq4'
     | '/api/signals.txt'
     | '/api/telegram'
+    | '/api/tv15.txt'
     | '/api/voice'
     | '/news/$slug'
     | '/news'
@@ -286,6 +297,7 @@ export interface FileRouteTypes {
     | '/api/ea.mq4'
     | '/api/signals.txt'
     | '/api/telegram'
+    | '/api/tv15.txt'
     | '/api/voice'
     | '/news/$slug'
     | '/news/'
@@ -311,6 +323,7 @@ export interface RootRouteChildren {
   ApiEaDotmq4Route: typeof ApiEaDotmq4Route
   ApiSignalsDottxtRoute: typeof ApiSignalsDottxtRoute
   ApiTelegramRoute: typeof ApiTelegramRoute
+  ApiTv15DottxtRoute: typeof ApiTv15DottxtRoute
   ApiVoiceRoute: typeof ApiVoiceRoute
   NewsSlugRoute: typeof NewsSlugRoute
   NewsIndexRoute: typeof NewsIndexRoute
@@ -451,6 +464,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiTelegramRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/tv15.txt': {
+      id: '/api/tv15.txt'
+      path: '/api/tv15.txt'
+      fullPath: '/api/tv15.txt'
+      preLoaderRoute: typeof ApiTv15DottxtRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/voice': {
       id: '/api/voice'
       path: '/api/voice'
@@ -495,6 +515,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiEaDotmq4Route: ApiEaDotmq4Route,
   ApiSignalsDottxtRoute: ApiSignalsDottxtRoute,
   ApiTelegramRoute: ApiTelegramRoute,
+  ApiTv15DottxtRoute: ApiTv15DottxtRoute,
   ApiVoiceRoute: ApiVoiceRoute,
   NewsSlugRoute: NewsSlugRoute,
   NewsIndexRoute: NewsIndexRoute,
