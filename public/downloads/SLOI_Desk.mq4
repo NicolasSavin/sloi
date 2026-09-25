@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.32"
+#property version   "5.33"
 #property strict
 #property description "SLOI 5.31: ручная покупка с сайта ставит тейк в цену прогноза и не затирает его"
 
@@ -106,7 +106,9 @@ datetime g_tapeAt = 0;
 datetime g_uiAt = 0;
 datetime g_clickAt = 0;
 uint     g_uiMs = 0;
-uint     g_clickMs = 0;
+string g_qSym = "";
+int    g_qDir = 0;
+double g_qTp = 0;
 string g_feedNote = "нет ленты";
 #define TICKKEEP 20
 double   g_mids[MAXSYM][TICKKEEP];
@@ -166,7 +168,7 @@ int OnInit()
       GlobalVariableSet("SLOI_LEAD_CH", (double)ChartID());
       g_leader = true;
       g_auto = AutoTrade;
-      Print("SLOI 5.31 торгует ЭТОТ график ", ChartSymbol(0), " авто ", (g_auto ? "ВКЛ" : "ВЫКЛ"), ". Книга BookMap — только золото и евро");
+      Print("SLOI 5.33 торгует ЭТОТ график ", ChartSymbol(0), " авто ", (g_auto ? "ВКЛ" : "ВЫКЛ"), ". Книга BookMap — только золото и евро");
      }
    else
      {
@@ -228,6 +230,7 @@ void OnTick()
 void OnTimer()
   {
    if(!g_ready) return;
+   FlushTrade();
    SampleMids();
    if(TradeHere)
      {
@@ -334,8 +337,8 @@ void DoBtn(string sparam)
    if(sparam == P+"b_mart") { g_mart = !g_mart; DrawDesk(true); return; }
    if(sparam == P+"b_ok")   { ApplyEdits(); g_seeded = false; DrawDesk(true); return; }
    if(sparam == P+"b_ws")   { CloseForeignAll(); DrawDesk(true); return; }
-   if(sparam == P+"b_buy")  { ManualTrade(1);  DrawDesk(true); return; }
-   if(sparam == P+"b_sell") { ManualTrade(-1); DrawDesk(true); return; }
+   if(sparam == P+"b_buy")  { QueueTrade(Symbol(), 1, 0); return; }
+   if(sparam == P+"b_sell") { QueueTrade(Symbol(), -1, 0); return; }
    if(sparam == P+"b_cp")   { CloseMine(false); DrawDesk(true); return; }
    if(sparam == P+"b_ca")   { CloseMine(true);  DrawDesk(true); return; }
    if(StringFind(sparam, P+"g") == 0)
@@ -1999,7 +2002,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 5.32\n";
+   body += "EA 5.33\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();
@@ -2455,10 +2458,28 @@ void ManageBE()
      }
   }
 
+void QueueTrade(string s, int dir, double tp)
+  {
+   g_qSym = s;
+   g_qDir = dir;
+   g_qTp = tp;
+   Alert("SLOI ", (dir > 0 ? "КУПИТЬ " : "ПРОДАТЬ "), s, " — открою через секунду");
+   Print("SLOI очередь ", (dir > 0 ? "BUY " : "SELL "), s);
+  }
+
+void FlushTrade()
+  {
+   if(g_qDir == 0 || StringLen(g_qSym) < 3) return;
+   string s = g_qSym;
+   int dir = g_qDir;
+   double tp = g_qTp;
+   g_qDir = 0;
+   ManualTradeSym(s, dir, tp);
+  }
+
 void ManualTrade(int dir)
   {
-   Alert("SLOI ", (dir > 0 ? "КУПИТЬ " : "ПРОДАТЬ "), ChartSymbol(0));
-   ManualTradeSym(Symbol(), dir);
+   QueueTrade(Symbol(), dir, 0);
   }
 
 void ManualTradeSym(string s, int dir, double forceTp = 0)
