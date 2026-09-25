@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.31"
+#property version   "5.32"
 #property strict
 #property description "SLOI 5.31: ручная покупка с сайта ставит тейк в цену прогноза и не затирает его"
 
@@ -1999,7 +1999,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 5.31\n";
+   body += "EA 5.32\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();
@@ -2457,6 +2457,7 @@ void ManageBE()
 
 void ManualTrade(int dir)
   {
+   Alert("SLOI ", (dir > 0 ? "КУПИТЬ " : "ПРОДАТЬ "), ChartSymbol(0));
    ManualTradeSym(Symbol(), dir);
   }
 

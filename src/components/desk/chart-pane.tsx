@@ -2692,18 +2692,19 @@ export function ChartPane({
       setPathNote("прогноза нет");
       return;
     }
-    const sideOk = kind === "BUY" ? now.end > now.last : now.end < now.last;
-    if (!sideOk) {
-      setPathNote(kind === "BUY" ? "прогноз вниз — покупке этот тейк не ставим" : "прогноз вверх — продаже этот тейк не ставим");
-      return;
-    }
+    const dist = Math.max(Math.abs(now.end - now.last), Math.abs(now.last) * 0.0004);
+    const tp = kind === "BUY" ? now.last + dist : now.last - dist;
     const key = readDeskKey();
     if (!key) {
-      setPathNote("нет ключа стола");
+      setPathNote("нет ключа на сайте — в кабинете откройте стол");
       return;
     }
-    const r = await deskCommandFn({ data: { key, kind, symbol: pair, tp: now.end } });
-    setPathNote(r.ok ? `тейк на конце прогноза` : (r.error ?? "не ушло"));
+    const r = await deskCommandFn({ data: { key, kind, symbol: pair, tp } });
+    setPathNote(
+      r.ok
+        ? "приказ ушёл. В советнике должен быть тот же ключ, иначе терминал его не увидит"
+        : (r.error ?? "не ушло"),
+    );
   };
 
   const mascotKind: "bull" | "bear" =
