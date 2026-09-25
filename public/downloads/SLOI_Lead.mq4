@@ -4,7 +4,7 @@
 //| Один график, все пары. Магия другая, стол SLOI_Desk не трогает.  |
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
-#property version   "1.01"
+#property version   "1.02"
 #property strict
 
 input string TvUrl            = "https://sloi-kohl.vercel.app/api/tv15.txt";
@@ -160,6 +160,57 @@ void Pull()
    g_note = (StringFind(g_feed, "EURUSD") >= 0 ? "TV 15 ок" : "пустая лента");
   }
 
+double AvgVol(string s, int tf, int from)
+  {
+   double sum = 0;
+   int k = 0;
+   for(int b = from; b < from + 12; b++)
+     {
+      double v = iVolume(s, tf, b);
+      if(v <= 0) continue;
+      sum += v;
+      k++;
+     }
+   if(k == 0) return(0);
+   return(sum / k);
+  }
+
+void CloseMine(string s)
+  {
+   for(int i = OrdersTotal() - 1; i >= 0; i--)
+     {
+      if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
+      if(OrderMagicNumber() != Magic || OrderSymbol() != s) continue;
+      if(OrderType() != OP_BUY && OrderType() != OP_SELL) continue;
+      double px = (OrderType() == OP_BUY) ? MarketInfo(s, MODE_BID) : MarketInfo(s, MODE_ASK);
+      if(!OrderClose(OrderTicket(), OrderLots(), px, SlippagePoints, clrYellow))
+         Print("SLOI lead close ", s, " ", GetLastError());
+     }
+  }
+
+void Guard(int i)
+  {
+   string s = g_sym[i];
+   if(CountMine(s) == 0) return;
+   int tf = PeriodOf();
+   double avg = AvgVol(s, tf, 1);
+   if(avg <= 0 || iVolume(s, tf, 0) < avg) return;
+   double o = iOpen(s, tf, 0);
+   double bid = MarketInfo(s, MODE_BID);
+   double ask = MarketInfo(s, MODE_ASK);
+   if(o <= 0 || bid <= 0 || ask <= 0) return;
+   for(int k = OrdersTotal() - 1; k >= 0; k--)
+     {
+      if(!OrderSelect(k, SELECT_BY_POS, MODE_TRADES)) continue;
+      if(OrderMagicNumber() != Magic || OrderSymbol() != s) continue;
+      bool against = (OrderType() == OP_SELL && bid > o) || (OrderType() == OP_BUY && ask < o);
+      if(!against) continue;
+      CloseMine(s);
+      Alert("SLOI lead объём против ", s);
+      return;
+     }
+  }
+
 void Remember(int i)
   {
    double op, cl;
@@ -192,6 +243,8 @@ void AtBirth(int i)
    bool tvUp = (cl > op);
    bool siteUp = (brC > brO);
    bool siteDown = (brC < brO);
+   double avg = AvgVol(s, tf, 2);
+   if(avg <= 0 || iVolume(s, tf, 1) < avg * 1.2) return;
    int dir = 0;
    if(tvDown && siteUp) dir = -1;
    else if(tvUp && siteDown) dir = 1;
@@ -219,6 +272,7 @@ void Trade()
      {
       datetime bar = iTime(g_sym[i], tf, 0);
       if(bar <= 0) continue;
+      Guard(i);
       if(g_bar[i] == 0)
         {
          g_bar[i] = bar;
@@ -238,6 +292,6 @@ void OnTimer()
   {
    Pull();
    Trade();
-   Comment("SLOI Lead 1.01  M", WorkTF, "  ", g_note, "  пар ", g_n, "\n",
-           "Вход только при рождении свечи, по уже закрытой. Середину свечи не торгуем.");
+   Comment("SLOI Lead 1.02  M", WorkTF, "  ", g_note, "  пар ", g_n, "\n",
+           "Вход на новой свече, только если закрытая была с объёмом. Сильный объём против — выход.");
   }
