@@ -5,9 +5,9 @@
 //| Магия 220828, стол и Lead не трогает.                            |
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
-#property version   "1.01"
+#property version   "1.02"
 #property strict
-#property description "SLOI Imb 1.01: стандартный FVG или пачка свечей как одна дыра. Все пары с одного графика"
+#property description "SLOI Imb 1.02: на графике рисует дыру и ближний край"
 
 input string WatchList      = "EURUSD,GBPUSD,USDJPY,USDCHF,AUDUSD,USDCAD,NZDUSD,EURGBP,EURJPY,GBPJPY,EURAUD,GBPCAD,GBPAUD,XAUUSD,XAGUSD";
 input string BrokerSuffix   = ".cs";
@@ -151,10 +151,13 @@ bool Untouched(string s, int tf, int born, int dir, double edge)
    return(true);
   }
 
-bool NearestEdge(string s, int tf, int &dir, double &edge)
+bool NearestEdge(string s, int tf, int &dir, double &edge, double &zLo, double &zHi, int &fromBar)
   {
    dir = 0;
    edge = 0;
+   zLo = 0;
+   zHi = 0;
+   fromBar = 0;
    double px = iClose(s, tf, 1);
    double gapMin = MinGap(s);
    int born[40];
@@ -194,9 +197,10 @@ bool NearestEdge(string s, int tf, int &dir, double &edge)
      {
       if(used[i]) continue;
       int d = side[i];
-      double zBot = bot[i];
-      double zTop = top[i];
+      double lo = bot[i];
+      double hi = top[i];
       int newest = born[i];
+      int oldest = born[i] + 2;
       used[i] = true;
       if(g_pack)
         {
@@ -207,19 +211,19 @@ bool NearestEdge(string s, int tf, int &dir, double &edge)
             for(int j = 0; j < n; j++)
               {
                if(used[j] || side[j] != d) continue;
-               if(MathAbs(born[j] - newest) > 2 && (born[j] < newest - 2 || born[j] > newest + 6)) continue;
-               bool touch = !(top[j] < zBot || bot[j] > zTop);
+               bool touch = !(top[j] < lo || bot[j] > hi);
                bool next = (MathAbs(born[j] - newest) <= 2);
                if(!touch && !next) continue;
                used[j] = true;
-               if(bot[j] < zBot) zBot = bot[j];
-               if(top[j] > zTop) zTop = top[j];
+               if(bot[j] < lo) lo = bot[j];
+               if(top[j] > hi) hi = top[j];
                if(born[j] < newest) newest = born[j];
+               if(born[j] + 2 > oldest) oldest = born[j] + 2;
                grew = true;
               }
            }
         }
-      double near = (d > 0 ? zBot : zTop);
+      double near = (d > 0 ? lo : hi);
       if(d > 0 && px >= near) continue;
       if(d < 0 && px <= near) continue;
       if(!Untouched(s, tf, newest, d, near)) continue;
@@ -229,6 +233,9 @@ bool NearestEdge(string s, int tf, int &dir, double &edge)
          best = dist;
          dir = d;
          edge = near;
+         zLo = lo;
+         zHi = hi;
+         fromBar = oldest;
         }
      }
    return(dir != 0);
@@ -280,7 +287,10 @@ void Try(int i)
    if(Have(s) >= 0) return;
    int dir = 0;
    double edge = 0;
-   if(!NearestEdge(s, tf, dir, edge))
+   double zLo = 0;
+   double zHi = 0;
+   int fromBar = 0;
+   if(!NearestEdge(s, tf, dir, edge, zLo, zHi, fromBar))
      {
       g_note = Naked(s) + " открытой дыры нет";
       return;
@@ -388,8 +398,71 @@ void OnChartEvent(const int id, const long &lparam, const double &dparam, const 
      }
   }
 
+void WipeZone()
+  {
+   ObjectDelete(0, Q + "zone");
+   ObjectDelete(0, Q + "edge");
+   ObjectDelete(0, Q + "lab");
+  }
+
+void DrawZone()
+  {
+   string s = Symbol();
+   int tf = Tf();
+   int dir = 0;
+   double edge = 0;
+   double zLo = 0;
+   double zHi = 0;
+   int fromBar = 0;
+   if(iClose(s, tf, 1) <= 0 || !NearestEdge(s, tf, dir, edge, zLo, zHi, fromBar))
+     {
+      WipeZone();
+      return;
+     }
+   datetime t1 = iTime(s, tf, fromBar);
+   datetime t2 = iTime(s, tf, 0);
+   if(t1 <= 0) t1 = t2;
+   color c = (dir > 0 ? C'8a3a3a' : C'1d6b45');
+   string n = Q + "zone";
+   if(ObjectFind(0, n) < 0)
+     {
+      if(!ObjectCreate(0, n, OBJ_RECTANGLE, 0, t1, zHi, t2, zLo))
+         ObjectCreate(n, OBJ_RECTANGLE, 0, t1, zHi, t2, zLo);
+     }
+   ObjectSet(n, OBJPROP_TIME1, t1);
+   ObjectSet(n, OBJPROP_PRICE1, zHi);
+   ObjectSet(n, OBJPROP_TIME2, t2);
+   ObjectSet(n, OBJPROP_PRICE2, zLo);
+   ObjectSet(n, OBJPROP_COLOR, c);
+   ObjectSet(n, OBJPROP_STYLE, STYLE_SOLID);
+   ObjectSet(n, OBJPROP_WIDTH, 2);
+   ObjectSet(n, OBJPROP_BACK, true);
+   ObjectSetInteger(0, n, OBJPROP_FILL, true);
+   string e = Q + "edge";
+   if(ObjectFind(0, e) < 0)
+     {
+      if(!ObjectCreate(0, e, OBJ_HLINE, 0, 0, edge))
+         ObjectCreate(e, OBJ_HLINE, 0, 0, edge);
+     }
+   ObjectSet(e, OBJPROP_PRICE1, edge);
+   ObjectSet(e, OBJPROP_COLOR, clrGold);
+   ObjectSet(e, OBJPROP_WIDTH, 2);
+   ObjectSet(e, OBJPROP_BACK, false);
+   string lab = Q + "lab";
+   if(ObjectFind(0, lab) < 0)
+     {
+      if(!ObjectCreate(0, lab, OBJ_TEXT, 0, t2, edge))
+         ObjectCreate(lab, OBJ_TEXT, 0, t2, edge);
+     }
+   ObjectSet(lab, OBJPROP_TIME1, t2);
+   ObjectSet(lab, OBJPROP_PRICE1, edge);
+   ObjectSetText(lab, " ИМБ край", 10, "Arial", clrGold);
+   ObjectSet(lab, OBJPROP_BACK, false);
+  }
+
 void OnTimer()
   {
    for(int i = 0; i < g_n; i++) Try(i);
+   DrawZone();
    Paint();
   }
