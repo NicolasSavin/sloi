@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.33"
+#property version   "5.34"
 #property strict
 #property description "SLOI 5.31: ручная покупка с сайта ставит тейк в цену прогноза и не затирает его"
 
@@ -108,7 +108,8 @@ datetime g_clickAt = 0;
 uint     g_uiMs = 0;
 string g_qSym = "";
 int    g_qDir = 0;
-double g_qTp = 0;
+int    g_sendErr = 0;
+int    g_qTry = 0;
 string g_feedNote = "нет ленты";
 #define TICKKEEP 20
 double   g_mids[MAXSYM][TICKKEEP];
@@ -168,7 +169,7 @@ int OnInit()
       GlobalVariableSet("SLOI_LEAD_CH", (double)ChartID());
       g_leader = true;
       g_auto = AutoTrade;
-      Print("SLOI 5.33 торгует ЭТОТ график ", ChartSymbol(0), " авто ", (g_auto ? "ВКЛ" : "ВЫКЛ"), ". Книга BookMap — только золото и евро");
+      Print("SLOI 5.34 торгует ЭТОТ график ", ChartSymbol(0), " авто ", (g_auto ? "ВКЛ" : "ВЫКЛ"), ". Книга BookMap — только золото и евро");
      }
    else
      {
@@ -224,6 +225,7 @@ void SampleMids()
 void OnTick()
   {
    if(!g_ready) return;
+   FlushTrade();
    SampleMids();
    SweepVirtPendings();
   }
@@ -337,8 +339,8 @@ void DoBtn(string sparam)
    if(sparam == P+"b_mart") { g_mart = !g_mart; DrawDesk(true); return; }
    if(sparam == P+"b_ok")   { ApplyEdits(); g_seeded = false; DrawDesk(true); return; }
    if(sparam == P+"b_ws")   { CloseForeignAll(); DrawDesk(true); return; }
-   if(sparam == P+"b_buy")  { QueueTrade(Symbol(), 1, 0); return; }
-   if(sparam == P+"b_sell") { QueueTrade(Symbol(), -1, 0); return; }
+   if(sparam == P+"b_buy")  { TryTrade(Symbol(), 1, 0); return; }
+   if(sparam == P+"b_sell") { TryTrade(Symbol(), -1, 0); return; }
    if(sparam == P+"b_cp")   { CloseMine(false); DrawDesk(true); return; }
    if(sparam == P+"b_ca")   { CloseMine(true);  DrawDesk(true); return; }
    if(StringFind(sparam, P+"g") == 0)
@@ -886,8 +888,10 @@ int SendOrder(string s, int cmd, double lots, double px, double sl, double tp, s
         }
       if(ticket < 0)
         {
+         g_sendErr = err;
          Print("SLOI ", s, " err ", err);
-         Alert("SLOI ", s, " ошибка ", err, " спред ", SpreadPt(s), "п  slip ", slip);
+         if(err != 146)
+            Alert("SLOI ", s, " ошибка ", err, " спред ", SpreadPt(s), "п  slip ", slip);
         }
      }
    if(ticket > 0 && g_virt) SetVirt(s, keepSL, keepTP);
@@ -2002,7 +2006,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 5.33\n";
+   body += "EA 5.34\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();
@@ -2458,13 +2462,24 @@ void ManageBE()
      }
   }
 
+void TryTrade(string s, int dir, double tp)
+  {
+   int ticket = ManualTradeSym(s, dir, tp);
+   if(ticket > 0) { g_qTry = 0; return; }
+   if(g_sendErr == 146 && g_qTry < 3)
+     {
+      g_qTry++;
+      g_qSym = s;
+      g_qDir = dir;
+      g_qTp = tp;
+      return;
+     }
+   g_qTry = 0;
+  }
+
 void QueueTrade(string s, int dir, double tp)
   {
-   g_qSym = s;
-   g_qDir = dir;
-   g_qTp = tp;
-   Alert("SLOI ", (dir > 0 ? "КУПИТЬ " : "ПРОДАТЬ "), s, " — открою через секунду");
-   Print("SLOI очередь ", (dir > 0 ? "BUY " : "SELL "), s);
+   TryTrade(s, dir, tp);
   }
 
 void FlushTrade()
@@ -2474,15 +2489,15 @@ void FlushTrade()
    int dir = g_qDir;
    double tp = g_qTp;
    g_qDir = 0;
-   ManualTradeSym(s, dir, tp);
+   TryTrade(s, dir, tp);
   }
 
 void ManualTrade(int dir)
   {
-   QueueTrade(Symbol(), dir, 0);
+   TryTrade(Symbol(), dir, 0);
   }
 
-void ManualTradeSym(string s, int dir, double forceTp = 0)
+int ManualTradeSym(string s, int dir, double forceTp = 0)
   {
    SymbolSelect(s, true);
    RefreshRates();
@@ -2494,7 +2509,7 @@ void ManualTradeSym(string s, int dir, double forceTp = 0)
       for(int i = 0; i < g_n; i++)
          if(Naked(g_sym[i]) == Naked(s)) { s = g_sym[i]; px = dir > 0 ? AskOf(s) : BidOf(s); break; }
      }
-   if(px <= 0) { Print("SLOI ручной: нет котировки ", s); return; }
+   if(px <= 0) { Print("SLOI ручной: нет котировки ", s); return(0); }
    int d = 0;
    double entry = 0, stop = 0, target = 0, siteLast = 0, skewCap = 0;
    string verdict, why;
@@ -2512,6 +2527,7 @@ void ManualTradeSym(string s, int dir, double forceTp = 0)
       if(ix >= 0) g_lockTp[ix] = tp;
      }
    if(ticket > 0) Alert("SLOI сайт ", (dir > 0 ? "КУПИТЬ " : "ПРОДАТЬ "), s, " #", ticket);
+   return(ticket);
   }
 
 void CloseByNaked(string naked)
