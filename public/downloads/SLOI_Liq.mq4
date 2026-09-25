@@ -5,9 +5,9 @@
 //| тейк на следующей ликвидности. Магия 220829.                     |
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
-#property version   "1.01"
+#property version   "1.02"
 #property strict
-#property description "SLOI Liq 1.01: съём считается, только если свеча закрылась против хода"
+#property description "SLOI Liq 1.02: ближайшая ликвидность рисуется всегда, не только у сделки"
 
 input string WatchList       = "EURUSD,GBPUSD,USDJPY,USDCHF,AUDUSD,USDCAD,NZDUSD,EURGBP,EURJPY,GBPJPY,EURAUD,GBPCAD,GBPAUD,XAUUSD,XAGUSD";
 input string BrokerSuffix    = ".cs";
@@ -102,6 +102,8 @@ int OnInit()
    EventSetTimer(2);
    ChartSetInteger(0, CHART_EVENT_MOUSE_MOVE, true);
    ChartSetInteger(0, CHART_FOREGROUND, false);
+   Draw();
+   Paint();
    return(INIT_SUCCEEDED);
   }
 
@@ -354,7 +356,7 @@ void Line(string id, double price, color c, string text)
    ObjectSet(n, OBJPROP_COLOR, c);
    ObjectSet(n, OBJPROP_WIDTH, 2);
    ObjectSet(n, OBJPROP_BACK, false);
-   datetime t = iTime(Symbol(), Tf(), 0);
+   datetime t = iTime(Symbol(), Tf(), 6);
    if(ObjectFind(0, lab) < 0)
      {
       if(!ObjectCreate(0, lab, OBJ_TEXT, 0, t, price))
@@ -369,6 +371,22 @@ void Line(string id, double price, color c, string text)
 void Draw()
   {
    string s = Symbol();
+   int tf = Tf();
+   int dg = (int)MarketInfo(s, MODE_DIGITS);
+   double px = iClose(s, tf, 1);
+   double hi = NearestHigh(s, tf, px);
+   double lo = NearestLow(s, tf, px);
+   double op = iOpen(s, tf, 1);
+   double bh = iHigh(s, tf, 1);
+   double bl = iLow(s, tf, 1);
+   double bc = iClose(s, tf, 1);
+   string why = "съёма не было";
+   if(hi > 0 && bh > hi && bc < hi && bc < op) why = "максимум снят, свеча вниз, это продажа";
+   else if(hi > 0 && bh > hi) why = "максимум задели, свеча не вниз, не считается";
+   else if(lo > 0 && bl < lo && bc > lo && bc > op) why = "минимум снят, свеча вверх, это покупка";
+   else if(lo > 0 && bl < lo) why = "минимум задели, свеча не вверх, не считается";
+   Line("up", hi, clrGold, " ликвидность сверху");
+   Line("dn", lo, clrDeepSkyBlue, " ликвидность снизу");
    double tp = 0;
    double mtp = 0;
    for(int i = OrdersTotal() - 1; i >= 0; i--)
@@ -378,12 +396,16 @@ void Draw()
       if(StringFind(OrderComment(), "liq m") >= 0) mtp = OrderTakeProfit();
       else tp = OrderTakeProfit();
      }
-   Line("tp", tp, clrGold, " ликвидность");
-   Line("mtp", mtp, clrDeepSkyBlue, " зеркало");
+   Line("tp", tp, clrLime, " тейк");
+   Line("mtp", mtp, clrOrange, " зеркало");
    double inv = 0;
    if(GlobalVariableCheck(Gv("LIQINV", s)) && HaveDir(s, 0) >= 0)
       inv = GlobalVariableGet(Gv("LIQINV", s));
    Line("inv", inv, clrTomato, " хвост");
+   g_note = Naked(s) + " сверху " + (hi > 0 ? DoubleToStr(hi, dg) : "нет")
+          + ", снизу " + (lo > 0 ? DoubleToStr(lo, dg) : "нет")
+          + ". " + why;
+   ChartSetInteger(0, CHART_FOREGROUND, false);
    ChartRedraw(0);
   }
 
