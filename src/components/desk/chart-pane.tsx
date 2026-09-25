@@ -18,7 +18,7 @@ import type { SignalHit } from "@/lib/dispatch-store";
 import type { LocalSetup, SmcSnapshot, Zone } from "@/lib/smc/engine";
 import { deltaOf } from "@/lib/smc/flow";
 import { CD_FUT, nodeForecast, type VolumeNode } from "@/lib/smc/micro";
-import { liveCdCharts } from "@/lib/broker-tape";
+import { liveCdCharts, brokerMid } from "@/lib/broker-tape";
 import { WalkingMascot } from "@/components/desk/walking-mascot";
 import { cn, formatPrice } from "@/lib/utils";
 import { deskCommandFn } from "@/lib/desk-api";
@@ -2193,6 +2193,7 @@ export function ChartPane({
   const setupRef = useRef(setup);
   const marksRef = useRef(marks);
   const pair = useDeskStore((s) => s.symbol);
+  const quoteSource = useDeskStore((s) => s.quoteSource);
   const showPath = useDeskStore((s) => s.showPath);
   const pathRef = useRef(showPath);
   const fitGen = useDeskStore((s) => s.fitGen);
@@ -2714,8 +2715,25 @@ export function ChartPane({
         ? "bear"
         : "bull";
 
+  const yahoo = candles.at(-1)?.close ?? 0;
+  const mid = brokerMid(pair);
+  const gap = mid != null && yahoo > 0 ? ((mid - yahoo) / yahoo) * 100 : null;
+  const gapLine =
+    quoteSource === "broker"
+      ? "Свечи как в терминале. Разницу с Yahoo советник берёт в расчёт: покупка, когда брокер дешевле, продажа, когда дороже."
+      : gap == null
+        ? "Жду цену брокера, чтобы сравнить с Yahoo."
+        : gap < -0.01
+          ? `Брокер дешевле Yahoo на ${Math.abs(gap).toFixed(3)}%. Покупка здесь лучше, чем на графике.`
+          : gap > 0.01
+            ? `Брокер дороже Yahoo на ${gap.toFixed(3)}%. Продажа здесь лучше, чем на графике.`
+            : "Yahoo и брокер рядом. Расхождения нет.";
+
   return (
     <div className={cn("relative overflow-hidden bg-bg", className)}>
+      <div className="pointer-events-none absolute top-12 left-1/2 z-30 max-w-[36rem] -translate-x-1/2 rounded-md bg-bg/80 px-3 py-1 text-center font-mono text-[11px] text-[#f0d7a8]">
+        {gapLine}
+      </div>
       <div
         ref={hostRef}
         className="absolute inset-0"

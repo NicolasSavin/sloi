@@ -362,10 +362,15 @@ export function brokerMid(id: string, tenant = "legacy"): number | null {
   return (t.bid + t.ask) / 2;
 }
 
-export function brokerSkewPct(id: string, site: number, tenant = "legacy"): number | null {
+export function brokerGapPct(id: string, site: number, tenant = "legacy"): number | null {
   const mid = brokerMid(id, tenant);
   if (mid == null || site <= 0) return null;
-  return (Math.abs(mid - site) / site) * 100;
+  return ((mid - site) / site) * 100;
+}
+
+export function brokerSkewPct(id: string, site: number, tenant = "legacy"): number | null {
+  const gap = brokerGapPct(id, site, tenant);
+  return gap == null ? null : Math.abs(gap);
 }
 
 export function liveBook(id: string): BrokerBook | null {

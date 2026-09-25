@@ -763,7 +763,7 @@ export async function renderSignalFeed(_tenant?: string) {
 }
 
 async function formatSignalFeed(digest: DailyDigest) {
-  const { brokerSkewPct } = await import("@/lib/broker-tape");
+  const { brokerGapPct } = await import("@/lib/broker-tape");
   const { skewLimit, fillMode, sessionAllows } = await import("@/lib/execution");
   const { sessionNow } = await import("@/lib/sessions");
   const { isHeld } = await import("@/lib/signal-hold");
@@ -773,8 +773,11 @@ async function formatSignalFeed(digest: DailyDigest) {
     let side = m.advice.action === "long" ? "BUY" : m.advice.action === "short" ? "SELL" : "WAIT";
     const last = m.lastClose;
     const cap = skewLimit(m.spec.id);
-    const skew = brokerSkewPct(m.spec.id, last);
-    if (skew != null && skew > cap && side !== "WAIT") side = "WAIT";
+    const gap = brokerGapPct(m.spec.id, last);
+    const broken = gap != null && Math.abs(gap) > cap * 4;
+    const richBuy = gap != null && side === "BUY" && gap > cap;
+    const cheapSell = gap != null && side === "SELL" && gap < -cap;
+    if (broken || richBuy || cheapSell) side = "WAIT";
     const e = m.setup.entry ?? 0;
     const s = m.setup.stop ?? 0;
     const t = m.setup.targets[0] ?? 0;

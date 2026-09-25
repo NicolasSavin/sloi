@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.35"
+#property version   "5.36"
 #property strict
 #property description "SLOI 5.35: приказ с сайта при развороте открывает замок, а не стоп"
 
@@ -175,7 +175,7 @@ int OnInit()
       GlobalVariableSet("SLOI_LEAD_CH", (double)ChartID());
       g_leader = true;
       g_auto = AutoTrade;
-      Print("SLOI 5.35 торгует ЭТОТ график ", ChartSymbol(0), " авто ", (g_auto ? "ВКЛ" : "ВЫКЛ"), ". Книга BookMap — только золото и евро");
+      Print("SLOI 5.36 торгует ЭТОТ график ", ChartSymbol(0), " авто ", (g_auto ? "ВКЛ" : "ВЫКЛ"), ". Книга BookMap — только золото и евро");
      }
    else
      {
@@ -2140,7 +2140,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 5.35\n";
+   body += "EA 5.36\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();
@@ -2261,20 +2261,26 @@ void Scan(int idx, string &bias, string &verdict, string &why,
    if(siteLast <= 0 && entry > 0) siteLast = entry;
    if(siteLast > 0 && mid > 0)
      {
-      double skew = MathAbs(mid - siteLast) / siteLast * 100.0;
-      bias = DoubleToStr(skew, 2) + "%";
+      double gap = (mid - siteLast) / siteLast * 100.0;
+      double skew = MathAbs(gap);
+      bias = DoubleToStr(gap, 2) + "%";
       double limSkew = SkewCap(Naked(s), skewFeed);
-      if(dir != 0 && skew > limSkew)
+      int was = dir;
+      bool against = (was > 0 && gap > limSkew) || (was < 0 && gap < -limSkew);
+      bool broken = (skew > limSkew * 4.0);
+      if(was != 0 && (against || broken))
         {
-         if(lim == 0)
+         if(lim == 0 || broken)
            {
             dir = 0;
             verdict = "КОТИР";
-            why = bias+" > "+DoubleToStr(limSkew, 2)+"%";
+            why = broken ? "ленты разошлись "+bias : (was > 0 ? "брокер дороже "+bias : "брокер дешевле "+bias);
             return;
            }
          why = "лимит, сверка "+bias;
         }
+      else if(was != 0 && skew > limSkew * 0.25)
+         why = (gap < 0 ? "брокер дешевле Yahoo " : "брокер дороже Yahoo ") + bias;
       if(dir == 0)
         {
          why = "ждет "+bias;
