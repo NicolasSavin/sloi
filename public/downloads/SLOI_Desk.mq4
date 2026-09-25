@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.34"
+#property version   "5.35"
 #property strict
-#property description "SLOI 5.31: ручная покупка с сайта ставит тейк в цену прогноза и не затирает его"
+#property description "SLOI 5.35: приказ с сайта при развороте открывает замок, а не стоп"
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -66,6 +66,12 @@ int      g_lim[MAXSYM];
 double   g_vSL[MAXSYM];
 double   g_vTP[MAXSYM];
 double   g_lockTp[MAXSYM];
+int      g_webOn[MAXSYM];
+int      g_webDir[MAXSYM];
+double   g_webEntry[MAXSYM];
+double   g_webTp[MAXSYM];
+double   g_webStop[MAXSYM];
+double   g_webHedgeTp[MAXSYM];
 double   g_tp1[MAXSYM];
 int      g_half[MAXSYM];
 
@@ -169,7 +175,7 @@ int OnInit()
       GlobalVariableSet("SLOI_LEAD_CH", (double)ChartID());
       g_leader = true;
       g_auto = AutoTrade;
-      Print("SLOI 5.34 торгует ЭТОТ график ", ChartSymbol(0), " авто ", (g_auto ? "ВКЛ" : "ВЫКЛ"), ". Книга BookMap — только золото и евро");
+      Print("SLOI 5.35 торгует ЭТОТ график ", ChartSymbol(0), " авто ", (g_auto ? "ВКЛ" : "ВЫКЛ"), ". Книга BookMap — только золото и евро");
      }
    else
      {
@@ -222,10 +228,136 @@ void SampleMids()
      }
   }
 
+void CloseTicket(int ticket)
+  {
+   if(ticket < 0) return;
+   if(!OrderSelect(ticket, SELECT_BY_TICKET, MODE_TRADES)) return;
+   if(OrderCloseTime() > 0) return;
+   CloseOne();
+  }
+
+void ManageSiteLock()
+  {
+   for(int idx = 0; idx < g_n; idx++)
+     {
+      string s = g_sym[idx];
+      int webTicket = -1;
+      int lockTicket = -1;
+      int webType = -1;
+      double webOpen = 0;
+      double webLots = 0;
+      for(int i = OrdersTotal() - 1; i >= 0; i--)
+        {
+         if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
+         if(OrderMagicNumber() != Magic) continue;
+         if(Naked(OrderSymbol()) != Naked(s)) continue;
+         int ty = OrderType();
+         if(ty != OP_BUY && ty != OP_SELL) continue;
+         if(StringFind(OrderComment(), "SLOI web") == 0)
+           {
+            webTicket = OrderTicket();
+            webType = ty;
+            webOpen = OrderOpenPrice();
+            webLots = OrderLots();
+           }
+         if(StringFind(OrderComment(), "SLOI lock") == 0)
+            lockTicket = OrderTicket();
+        }
+      if(webTicket < 0 && lockTicket < 0)
+        {
+         g_webOn[idx] = 0;
+         continue;
+        }
+      if(g_webOn[idx] == 0 && webTicket > 0)
+        {
+         g_webDir[idx] = (webType == OP_BUY ? 1 : -1);
+         g_webEntry[idx] = webOpen;
+         double dist = MathAbs(g_webTp[idx] - webOpen);
+         if(dist <= SpreadPr(s) * 3.0) dist = MathMax(SpreadPr(s) * 8.0, webOpen * 0.0015);
+         g_webTp[idx] = webOpen + g_webDir[idx] * dist;
+         g_webStop[idx] = webOpen - g_webDir[idx] * dist;
+         g_webOn[idx] = 1;
+        }
+      if(lockTicket > 0 && g_webHedgeTp[idx] == 0 && OrderSelect(lockTicket, SELECT_BY_TICKET, MODE_TRADES))
+        {
+         double ho = OrderOpenPrice();
+         int hd = (OrderType() == OP_BUY ? 1 : -1);
+         double reward = MathAbs(g_webTp[idx] - g_webEntry[idx]);
+         if(reward <= SpreadPr(s)) reward = MathAbs(g_webEntry[idx] - g_webStop[idx]);
+         g_webHedgeTp[idx] = ho + hd * reward;
+        }
+      int dir = g_webDir[idx];
+      if(dir == 0) continue;
+      double bid = BidOf(s);
+      double ask = AskOf(s);
+      bool disaster = (dir > 0 && bid <= g_webStop[idx]) || (dir < 0 && ask >= g_webStop[idx]);
+      if(disaster)
+        {
+         CloseTicket(webTicket);
+         CloseTicket(lockTicket);
+         Alert("SLOI замок закрыт как стоп ", s);
+         g_webOn[idx] = 0;
+         g_webHedgeTp[idx] = 0;
+         continue;
+        }
+      if(lockTicket > 0 && g_webHedgeTp[idx] > 0)
+        {
+         if(OrderSelect(lockTicket, SELECT_BY_TICKET, MODE_TRADES))
+           {
+            bool hBuy = (OrderType() == OP_BUY);
+            double hp = hBuy ? BidOf(s) : AskOf(s);
+            bool hHit = hBuy ? (hp >= g_webHedgeTp[idx]) : (hp <= g_webHedgeTp[idx]);
+            if(hHit)
+              {
+               CloseTicket(lockTicket);
+               Alert("SLOI встречный в плюс ", s);
+               lockTicket = -1;
+              }
+           }
+        }
+      if(webTicket > 0 && lockTicket > 0)
+        {
+         bool back = (dir > 0 && bid >= g_webEntry[idx]) || (dir < 0 && ask <= g_webEntry[idx]);
+         if(back)
+           {
+            CloseTicket(webTicket);
+            CloseTicket(lockTicket);
+            Alert("SLOI замок снят, цена вернулась ", s);
+            g_webOn[idx] = 0;
+            g_webHedgeTp[idx] = 0;
+            continue;
+           }
+        }
+      bool tpHit = (dir > 0 && bid >= g_webTp[idx]) || (dir < 0 && ask <= g_webTp[idx]);
+      if(webTicket > 0 && lockTicket < 0 && tpHit)
+        {
+         CloseTicket(webTicket);
+         Alert("SLOI тейк с сайта ", s);
+         g_webOn[idx] = 0;
+         continue;
+        }
+      if(webTicket > 0 && lockTicket < 0 && g_webHedgeTp[idx] == 0)
+        {
+         double span = MathAbs(g_webEntry[idx] - g_webStop[idx]);
+         double trigger = g_webEntry[idx] - dir * span * 0.45;
+         bool against = (dir > 0 && bid <= trigger) || (dir < 0 && ask >= trigger);
+         if(!against) continue;
+         int hcmd = (dir > 0 ? OP_SELL : OP_BUY);
+         double hpx = (dir > 0 ? BidOf(s) : AskOf(s));
+         double reward = MathAbs(g_webTp[idx] - g_webEntry[idx]);
+         g_webHedgeTp[idx] = (dir > 0 ? hpx - reward : hpx + reward);
+         int ht = SendOrder(s, hcmd, webLots, hpx, 0, g_webHedgeTp[idx], "SLOI lock", dir > 0 ? C_SEL : C_BUY);
+         if(ht > 0) Alert("SLOI замок ", s, " встречный открыт");
+         else g_webHedgeTp[idx] = 0;
+        }
+     }
+  }
+
 void OnTick()
   {
    if(!g_ready) return;
    FlushTrade();
+   ManageSiteLock();
    SampleMids();
    SweepVirtPendings();
   }
@@ -1023,6 +1155,7 @@ void ManageVirtBook()
      {
       if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
       if(OrderMagicNumber() != Magic) continue;
+      if(StringFind(OrderComment(), "SLOI web") == 0 || StringFind(OrderComment(), "SLOI lock") == 0) continue;
       int type = OrderType();
       if(type != OP_BUY && type != OP_SELL) continue;
       int idx = IdxOf(OrderSymbol());
@@ -1094,6 +1227,7 @@ void ScaleOut()
      {
       if(!OrderSelect(i, SELECT_BY_POS, MODE_TRADES)) continue;
       if(OrderMagicNumber() != Magic) continue;
+      if(StringFind(OrderComment(), "SLOI web") == 0 || StringFind(OrderComment(), "SLOI lock") == 0) continue;
       int type = OrderType();
       if(type != OP_BUY && type != OP_SELL) continue;
       int idx = IdxOf(OrderSymbol());
@@ -2006,7 +2140,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 5.34\n";
+   body += "EA 5.35\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();
@@ -2519,12 +2653,26 @@ int ManualTradeSym(string s, int dir, double forceTp = 0)
    double sl = (stop > 0 ? NormalizeDouble(stop, DigitsOf(s)) : 0);
    double tp = (target > 0 ? NormalizeDouble(target, DigitsOf(s)) : 0);
    if(forceTp > 0 && ((dir > 0 && forceTp > px) || (dir < 0 && forceTp < px)))
+     {
       tp = NormalizeDouble(forceTp, DigitsOf(s));
-   int ticket = SendOrder(s, cmd, lots, px, sl, tp, "SLOI site", dir > 0 ? C_BUY : C_SEL);
+      double dist = MathAbs(tp - px);
+      sl = NormalizeDouble(dir > 0 ? px - dist : px + dist, DigitsOf(s));
+     }
+   string cmt = (forceTp > 0 ? "SLOI web" : "SLOI site");
+   int ticket = SendOrder(s, cmd, lots, px, sl, tp, cmt, dir > 0 ? C_BUY : C_SEL);
    if(ticket > 0 && forceTp > 0)
      {
       int ix = IdxOf(s);
-      if(ix >= 0) g_lockTp[ix] = tp;
+      if(ix >= 0)
+        {
+         g_lockTp[ix] = tp;
+         g_webOn[ix] = 1;
+         g_webDir[ix] = dir;
+         g_webEntry[ix] = px;
+         g_webTp[ix] = tp;
+         g_webStop[ix] = sl;
+         g_webHedgeTp[ix] = 0;
+        }
      }
    if(ticket > 0) Alert("SLOI сайт ", (dir > 0 ? "КУПИТЬ " : "ПРОДАТЬ "), s, " #", ticket);
    return(ticket);
