@@ -763,12 +763,14 @@ export async function renderSignalFeed(_tenant?: string) {
 }
 
 async function formatSignalFeed(digest: DailyDigest) {
-  const { brokerGapPct } = await import("@/lib/broker-tape");
+  const { brokerGapPct, brokerDriftPct } = await import("@/lib/broker-tape");
   const { skewLimit, fillMode, sessionAllows } = await import("@/lib/execution");
   const { sessionNow } = await import("@/lib/sessions");
   const { isHeld } = await import("@/lib/signal-hold");
+  const { tvCandles, minLeadPct } = await import("@/lib/tv-lead");
   const session = sessionNow();
-  const lines = [`# SLOI v2 H1`, `# ${new Date().toISOString()}`, `# last=Yahoo  SKEW=макс%  MODE=LIMIT|MARKET  TF=60`];
+  const leads = await tvCandles(digest.markets.map((m) => m.spec.id));
+  const lines = [`# SLOI v2 H1`, `# ${new Date().toISOString()}`, `# last=Yahoo  SKEW=макс%  MODE=LIMIT|MARKET|LEAD  TF=60`];
   for (const m of digest.markets) {
     let side = m.advice.action === "long" ? "BUY" : m.advice.action === "short" ? "SELL" : "WAIT";
     const last = m.lastClose;
@@ -778,9 +780,40 @@ async function formatSignalFeed(digest: DailyDigest) {
     const richBuy = gap != null && side === "BUY" && gap > cap;
     const cheapSell = gap != null && side === "SELL" && gap < -cap;
     if (broken || richBuy || cheapSell) side = "WAIT";
-    const e = m.setup.entry ?? 0;
-    const s = m.setup.stop ?? 0;
-    const t = m.setup.targets[0] ?? 0;
+    const e0 = m.setup.entry ?? 0;
+    const s0 = m.setup.stop ?? 0;
+    const t0 = m.setup.targets[0] ?? 0;
+    let e = e0;
+    let s = s0;
+    let t = t0;
+    let lead = false;
+    const tv = leads.get(m.spec.id);
+    const floor = minLeadPct(m.spec.id);
+    if (!broken && tv && tv.open > 0 && side === "WAIT") {
+      const tvCh = ((tv.close - tv.open) / tv.open) * 100;
+      const drift = brokerDriftPct(m.spec.id);
+      const hourCh = m.lastOpen > 0 ? ((last - m.lastOpen) / m.lastOpen) * 100 : 0;
+      const siteCh = drift != null && Math.abs(drift) >= floor ? drift : hourCh;
+      const tvDown = tvCh <= -floor;
+      const tvUp = tvCh >= floor;
+      const siteUp = siteCh >= floor;
+      const siteDown = siteCh <= -floor;
+      if (tvDown && siteUp) {
+        const dist = Math.max(Math.abs(tv.open - tv.close), last * (floor / 100));
+        side = "SELL";
+        e = last;
+        s = last + dist * 1.2;
+        t = tv.close < last ? tv.close : last - dist;
+        lead = true;
+      } else if (tvUp && siteDown) {
+        const dist = Math.max(Math.abs(tv.close - tv.open), last * (floor / 100));
+        side = "BUY";
+        e = last;
+        s = last - dist * 1.2;
+        t = tv.close > last ? tv.close : last + dist;
+        lead = true;
+      }
+    }
     let mode =
       side === "WAIT" ? "WAIT" : fillMode(side === "BUY" ? "long" : "short", last, e, s, t);
     if (mode === "LATE") {
@@ -791,6 +824,7 @@ async function formatSignalFeed(digest: DailyDigest) {
       const away = Math.abs(last - e);
       if (risk > 0 && away > risk * 0.35) mode = "LIMIT";
     }
+    if (lead) mode = "LEAD";
     lines.push(`${m.spec.id} ${side} ${e} ${s} ${t} ${last} SKEW ${cap} MODE ${mode}`);
   }
   return `${lines.join("\n")}\n`;

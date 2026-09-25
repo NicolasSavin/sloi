@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.36"
+#property version   "5.37"
 #property strict
 #property description "SLOI 5.35: приказ с сайта при развороте открывает замок, а не стоп"
 
@@ -175,7 +175,7 @@ int OnInit()
       GlobalVariableSet("SLOI_LEAD_CH", (double)ChartID());
       g_leader = true;
       g_auto = AutoTrade;
-      Print("SLOI 5.36 торгует ЭТОТ график ", ChartSymbol(0), " авто ", (g_auto ? "ВКЛ" : "ВЫКЛ"), ". Книга BookMap — только золото и евро");
+      Print("SLOI 5.37 торгует ЭТОТ график ", ChartSymbol(0), " авто ", (g_auto ? "ВКЛ" : "ВЫКЛ"), ". Книга BookMap — только золото и евро");
      }
    else
      {
@@ -2140,7 +2140,7 @@ void PushTape()
      }
    string body = "# SLOI broker\n";
    if(g_host) body += "HOST 1\n";
-   body += "EA 5.36\n";
+   body += "EA 5.37\n";
    string srv = AccountServer();
    StringReplace(srv, " ", "_");
    string cur = AccountCurrency();
@@ -2217,13 +2217,15 @@ void ReadSite(string naked, int &dir, double &entry, double &stop, double &targe
          target = StringToDouble(p[4]);
         }
       if(k >= 6) siteLast = StringToDouble(p[5]);
+      bool lead = false;
       for(int t = 6; t < k - 1; t++)
         {
          if(p[t] == "SKEW") skewCap = StringToDouble(p[t + 1]);
          if(p[t] == "MODE" && p[t + 1] == "LIMIT") lim = 1;
+         if(p[t] == "MODE" && p[t + 1] == "LEAD") lead = true;
         }
-      if(side == "BUY") { dir = 1; verdict = "ЛОНГ"; why = "сайт"; return; }
-      if(side == "SELL") { dir = -1; verdict = "ШОРТ"; why = "сайт"; return; }
+      if(side == "BUY") { dir = 1; verdict = "ЛОНГ"; why = lead ? "TV вверх, сайт вниз" : "сайт"; return; }
+      if(side == "SELL") { dir = -1; verdict = "ШОРТ"; why = lead ? "TV вниз, сайт вверх" : "сайт"; return; }
       dir = 0; verdict = "ЖДАТЬ"; why = "сайт ждёт";
       return;
      }

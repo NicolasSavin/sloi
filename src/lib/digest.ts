@@ -10,6 +10,7 @@ import { formatPrice } from "@/lib/utils";
 export interface DigestMarket {
   spec: SymbolSpec;
   lastClose: number;
+  lastOpen: number;
   lastHigh: number;
   lastLow: number;
   changePct: number;
@@ -146,6 +147,7 @@ export function toDigestMarket(spec: SymbolSpec, snap: SmcSnapshot, spread?: num
   return {
     spec,
     lastClose: snap.lastClose,
+    lastOpen: last?.open ?? snap.lastClose,
     lastHigh: last?.high ?? snap.lastClose,
     lastLow: last?.low ?? snap.lastClose,
     changePct: snap.lastChangePct,

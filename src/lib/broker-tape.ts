@@ -355,6 +355,22 @@ export function ingestBrokerTape(text: string, tenant = "legacy") {
   return r.account;
 }
 
+export function brokerDriftPct(id: string): number | null {
+  const now = Date.now();
+  for (const roomItem of rooms().values()) {
+    const rows = roomItem.tape.get(id);
+    if (!rows || rows.length < 4) continue;
+    const fresh = rows.filter((p) => now - p.t < 8 * 60_000);
+    if (fresh.length < 4) continue;
+    const last = fresh[fresh.length - 1]!;
+    if (now - last.t > 90_000) continue;
+    const old = [...fresh].reverse().find((p) => last.t - p.t >= 3 * 60_000) ?? fresh[0]!;
+    if (last.t - old.t < 2 * 60_000 || old.mid <= 0) continue;
+    return ((last.mid - old.mid) / old.mid) * 100;
+  }
+  return null;
+}
+
 export function brokerMid(id: string, tenant = "legacy"): number | null {
   const t = room(tenant).ticks.get(id);
   if (!t) return null;
