@@ -750,18 +750,62 @@ export async function ownLevels(symbol: string): Promise<{ side: "buy" | "sell";
     const payload = await loadPayload(symbol, "1h", false);
     if (payload.candles.length < 20) return null;
     const snap = analyzeMarket(payload.candles, null, payload.trades, { symbol: spec.id, kind: spec.kind });
-    const entry = snap.localSetup.entry;
-    const stop = snap.localSetup.stop;
-    const target = snap.localSetup.targets[0] ?? null;
-    if (entry == null || stop == null || target == null) return null;
-    const side: "buy" | "sell" = target > entry ? "buy" : "sell";
-    if (side === "buy" && !(stop < entry && entry < target)) return null;
-    if (side === "sell" && !(target < entry && entry < stop)) return null;
     const n = (v: number) => Number(v.toFixed(spec.decimals));
-    return { side, entry: n(entry), stop: n(stop), target: n(target) };
+    const ready = fromSetup(snap.localSetup.entry, snap.localSetup.stop, snap.localSetup.targets[0] ?? null);
+    if (ready) return { side: ready.side, entry: n(ready.entry), stop: n(ready.stop), target: n(ready.target) };
+    const loose = fromMap(snap);
+    if (!loose) return null;
+    return { side: loose.side, entry: n(loose.entry), stop: n(loose.stop), target: n(loose.target) };
   } catch {
     return null;
   }
+}
+
+function fromSetup(entry: number | null, stop: number | null, target: number | null) {
+  if (entry == null || stop == null || target == null) return null;
+  const side: "buy" | "sell" = target > entry ? "buy" : "sell";
+  if (side === "buy" && !(stop < entry && entry < target)) return null;
+  if (side === "sell" && !(target < entry && entry < stop)) return null;
+  return { side, entry, stop, target };
+}
+
+function fromMap(snap: {
+  lastClose: number;
+  atr: number;
+  trend: "up" | "down" | "range";
+  bias: "bullish" | "bearish" | "range";
+  premiumDiscount: "premium" | "discount" | "equilibrium";
+  dealingRange: { high: number; low: number };
+  swings: { price: number; type: "high" | "low" }[];
+  liquidity: { price: number; side: "buy" | "sell"; swept: boolean }[];
+}) {
+  const px = snap.lastClose;
+  if (!(px > 0)) return null;
+  const atr = Math.max(snap.atr, px * 0.0015);
+  const above = snap.liquidity
+    .filter((l) => l.side === "buy" && !l.swept && l.price > px + atr * 0.2)
+    .sort((a, b) => a.price - b.price)[0];
+  const below = snap.liquidity
+    .filter((l) => l.side === "sell" && !l.swept && l.price < px - atr * 0.2)
+    .sort((a, b) => b.price - a.price)[0];
+  let side: "buy" | "sell";
+  if (snap.trend === "up" || snap.bias === "bullish" || snap.premiumDiscount === "discount") side = "buy";
+  else if (snap.trend === "down" || snap.bias === "bearish" || snap.premiumDiscount === "premium") side = "sell";
+  else side = (above?.price ?? px + atr) - px <= px - (below?.price ?? px - atr) ? "buy" : "sell";
+  const lows = snap.swings.filter((s) => s.type === "low").map((s) => s.price);
+  const highs = snap.swings.filter((s) => s.type === "high").map((s) => s.price);
+  if (side === "buy") {
+    const target = above?.price ?? (snap.dealingRange.high > px + atr * 0.4 ? snap.dealingRange.high : px + atr * 1.6);
+    const swing = lows.filter((p) => p < px).sort((a, b) => b - a)[0];
+    const stop = Math.min(swing ?? px - atr, px - atr * 0.8);
+    if (!(stop < px && px < target)) return null;
+    return { side, entry: px, stop, target };
+  }
+  const target = below?.price ?? (snap.dealingRange.low < px - atr * 0.4 ? snap.dealingRange.low : px - atr * 1.6);
+  const swing = highs.filter((p) => p > px).sort((a, b) => a - b)[0];
+  const stop = Math.max(swing ?? px + atr, px + atr * 0.8);
+  if (!(target < px && px < stop)) return null;
+  return { side, entry: px, stop, target };
 }
 
 export async function renderSignalFeed(_tenant?: string) {
