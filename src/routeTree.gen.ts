@@ -28,6 +28,7 @@ import { Route as ApiArchiveDotjsonRouteImport } from './routes/api/archive[.]js
 import { Route as ApiBrokerRouteImport } from './routes/api/broker'
 import { Route as ApiEaDotmq4RouteImport } from './routes/api/ea[.]mq4'
 import { Route as ApiSignalsDottxtRouteImport } from './routes/api/signals[.]txt'
+import { Route as ApiSketchesRouteImport } from './routes/api/sketches'
 import { Route as ApiTelegramRouteImport } from './routes/api/telegram'
 import { Route as ApiTv15DottxtRouteImport } from './routes/api/tv15[.]txt'
 import { Route as ApiVoiceRouteImport } from './routes/api/voice'
@@ -129,6 +130,11 @@ const ApiSignalsDottxtRoute = ApiSignalsDottxtRouteImport.update({
   path: '/api/signals.txt',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSketchesRoute = ApiSketchesRouteImport.update({
+  id: '/api/sketches',
+  path: '/api/sketches',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiTelegramRoute = ApiTelegramRouteImport.update({
   id: '/api/telegram',
   path: '/api/telegram',
@@ -175,6 +181,7 @@ export interface FileRoutesByFullPath {
   '/api/broker': typeof ApiBrokerRoute
   '/api/ea.mq4': typeof ApiEaDotmq4Route
   '/api/signals.txt': typeof ApiSignalsDottxtRoute
+  '/api/sketches': typeof ApiSketchesRoute
   '/api/telegram': typeof ApiTelegramRoute
   '/api/tv15.txt': typeof ApiTv15DottxtRoute
   '/api/voice': typeof ApiVoiceRoute
@@ -201,6 +208,7 @@ export interface FileRoutesByTo {
   '/api/broker': typeof ApiBrokerRoute
   '/api/ea.mq4': typeof ApiEaDotmq4Route
   '/api/signals.txt': typeof ApiSignalsDottxtRoute
+  '/api/sketches': typeof ApiSketchesRoute
   '/api/telegram': typeof ApiTelegramRoute
   '/api/tv15.txt': typeof ApiTv15DottxtRoute
   '/api/voice': typeof ApiVoiceRoute
@@ -228,6 +236,7 @@ export interface FileRoutesById {
   '/api/broker': typeof ApiBrokerRoute
   '/api/ea.mq4': typeof ApiEaDotmq4Route
   '/api/signals.txt': typeof ApiSignalsDottxtRoute
+  '/api/sketches': typeof ApiSketchesRoute
   '/api/telegram': typeof ApiTelegramRoute
   '/api/tv15.txt': typeof ApiTv15DottxtRoute
   '/api/voice': typeof ApiVoiceRoute
@@ -256,6 +265,7 @@ export interface FileRouteTypes {
     | '/api/broker'
     | '/api/ea.mq4'
     | '/api/signals.txt'
+    | '/api/sketches'
     | '/api/telegram'
     | '/api/tv15.txt'
     | '/api/voice'
@@ -282,6 +292,7 @@ export interface FileRouteTypes {
     | '/api/broker'
     | '/api/ea.mq4'
     | '/api/signals.txt'
+    | '/api/sketches'
     | '/api/telegram'
     | '/api/tv15.txt'
     | '/api/voice'
@@ -308,6 +319,7 @@ export interface FileRouteTypes {
     | '/api/broker'
     | '/api/ea.mq4'
     | '/api/signals.txt'
+    | '/api/sketches'
     | '/api/telegram'
     | '/api/tv15.txt'
     | '/api/voice'
@@ -335,6 +347,7 @@ export interface RootRouteChildren {
   ApiBrokerRoute: typeof ApiBrokerRoute
   ApiEaDotmq4Route: typeof ApiEaDotmq4Route
   ApiSignalsDottxtRoute: typeof ApiSignalsDottxtRoute
+  ApiSketchesRoute: typeof ApiSketchesRoute
   ApiTelegramRoute: typeof ApiTelegramRoute
   ApiTv15DottxtRoute: typeof ApiTv15DottxtRoute
   ApiVoiceRoute: typeof ApiVoiceRoute
@@ -477,6 +490,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSignalsDottxtRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/sketches': {
+      id: '/api/sketches'
+      path: '/api/sketches'
+      fullPath: '/api/sketches'
+      preLoaderRoute: typeof ApiSketchesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/telegram': {
       id: '/api/telegram'
       path: '/api/telegram'
@@ -535,6 +555,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiBrokerRoute: ApiBrokerRoute,
   ApiEaDotmq4Route: ApiEaDotmq4Route,
   ApiSignalsDottxtRoute: ApiSignalsDottxtRoute,
+  ApiSketchesRoute: ApiSketchesRoute,
   ApiTelegramRoute: ApiTelegramRoute,
   ApiTv15DottxtRoute: ApiTv15DottxtRoute,
   ApiVoiceRoute: ApiVoiceRoute,

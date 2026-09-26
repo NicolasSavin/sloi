@@ -8,6 +8,7 @@ export const Route = createFileRoute("/sketch")({
 });
 
 const STORE = "sloi-sketch-feed-v2";
+const TOKENS = "sloi-sketch-tokens";
 
 interface SavedNote {
   id: string;
@@ -17,49 +18,93 @@ interface SavedNote {
   at: number;
 }
 
+interface RemoteNote {
+  id: string;
+  instrument: string;
+  notes: string;
+  image: string;
+  at: number;
+}
+
+function readTokens(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(TOKENS);
+    const data = raw ? (JSON.parse(raw) as Record<string, string>) : {};
+    return data && typeof data === "object" ? data : {};
+  } catch {
+    return {};
+  }
+}
+
+function toNote(row: RemoteNote): SavedNote | null {
+  const piece = retellSketch(row.notes, row.instrument);
+  if (!piece || !row.image) return null;
+  return { id: row.id, instrument: row.instrument, image: row.image, piece, at: row.at };
+}
+
+async function publishLocalDrafts(): Promise<SavedNote[]> {
+  try {
+    const raw = localStorage.getItem(STORE);
+    if (!raw) return [];
+    const data = JSON.parse(raw) as SavedNote[];
+    if (!Array.isArray(data)) return [];
+    const tokens = readTokens();
+    const out: SavedNote[] = [];
+    for (const note of data) {
+      const text = note.piece?.original;
+      if (!note.image || !text) continue;
+      const res = await fetch("/api/sketches", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instrument: note.instrument, notes: text, image: note.image }),
+      });
+      const saved = (await res.json()) as { id?: string; token?: string; at?: number };
+      if (!res.ok || !saved.id || !saved.token) continue;
+      tokens[saved.id] = saved.token;
+      const piece = retellSketch(text, note.instrument);
+      if (!piece) continue;
+      out.push({ id: saved.id, instrument: note.instrument, image: note.image, piece, at: saved.at ?? note.at });
+    }
+    localStorage.setItem(TOKENS, JSON.stringify(tokens));
+    if (out.length) localStorage.removeItem(STORE);
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 function SketchPage() {
   const [instrument, setInstrument] = useState("");
   const [notes, setNotes] = useState("");
   const [image, setImage] = useState<string | null>(null);
   const [feed, setFeed] = useState<SavedNote[]>([]);
+  const [own, setOwn] = useState<Record<string, string>>({});
   const [miss, setMiss] = useState("");
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORE);
-      if (saved) {
-        const data = JSON.parse(saved) as SavedNote[];
-        if (Array.isArray(data) && data.length) {
-          setFeed(data.filter((n) => n.image && n.piece));
-        }
-      } else {
-        const old = localStorage.getItem("sloi-sketch-v1");
-        if (old) {
-          const draft = JSON.parse(old) as { instrument?: string; notes?: string };
-          if (draft.instrument) setInstrument(draft.instrument);
-          if (draft.notes) setNotes(draft.notes);
-        }
-      }
-    } catch {
-      /* ignore a broken feed */
-    }
-    setReady(true);
-  }, []);
-
-  function remember(next: SavedNote[]) {
-    setFeed(next);
-    const slim = next.slice(0, 12);
-    try {
-      localStorage.setItem(STORE, JSON.stringify(slim));
-    } catch {
+    const mine = readTokens();
+    setOwn(mine);
+    void (async () => {
       try {
-        localStorage.setItem(STORE, JSON.stringify(slim.slice(0, 4)));
+        const res = await fetch("/api/sketches");
+        const body = (await res.json()) as { notes?: RemoteNote[] };
+        const remote = (Array.isArray(body.notes) ? body.notes : []).map(toNote).filter((n): n is SavedNote => Boolean(n));
+        if (remote.length) {
+          setFeed(remote);
+        } else {
+          const pushed = await publishLocalDrafts();
+          if (pushed.length) {
+            setFeed(pushed);
+            setOwn(readTokens());
+          }
+        }
       } catch {
-        setMiss("Заметка есть на странице, но браузер не смог сохранить все картинки. Не закрывайте вкладку.");
+        setMiss("Лента сайта сейчас не открылась.");
       }
-    }
-  }
+      setReady(true);
+    })();
+  }, []);
 
   function onFile(file: File | undefined) {
     if (!file) return;
@@ -73,31 +118,54 @@ function SketchPage() {
     });
   }
 
-  function publish() {
+  async function publish() {
     const piece = retellSketch(notes, instrument);
     if (!piece) {
       setMiss("Напишите своими словами, что видите. Пары фраз хватит.");
       return;
     }
     if (!image) {
-      setMiss("Сначала скиньте график.");
+      setMiss("Сначала скиньте график. В заметку идёт и картинка с пометками, и текст.");
       return;
     }
-    const note: SavedNote = {
-      id: `${Date.now()}`,
-      instrument: instrument.trim(),
-      image,
-      piece,
-      at: Date.now(),
-    };
-    remember([note, ...feed]);
+    const res = await fetch("/api/sketches", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ instrument, notes, image }),
+    });
+    const saved = (await res.json()) as { id?: string; token?: string; at?: number; error?: string };
+    if (!res.ok || !saved.id || !saved.token) {
+      setMiss("На сайт не сохранилось. Проверьте картинку и текст.");
+      return;
+    }
+    const nextOwn = { ...own, [saved.id]: saved.token };
+    localStorage.setItem(TOKENS, JSON.stringify(nextOwn));
+    setOwn(nextOwn);
+    setFeed((prev) => [
+      { id: saved.id!, instrument: instrument.trim(), image, piece, at: saved.at ?? Date.now() },
+      ...prev,
+    ]);
     setNotes("");
     setImage(null);
     setMiss("");
   }
 
-  function remove(id: string) {
-    remember(feed.filter((n) => n.id !== id));
+  async function remove(id: string) {
+    const token = own[id];
+    if (!token) {
+      setMiss("Чужую заметку убрать нельзя.");
+      return;
+    }
+    const res = await fetch("/api/sketches", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, token }),
+    });
+    if (!res.ok) {
+      setMiss("Не удалось убрать.");
+      return;
+    }
+    setFeed((prev) => prev.filter((n) => n.id !== id));
   }
 
   return (
@@ -107,7 +175,7 @@ function SketchPage() {
         <p className="text-xs tracking-[0.22em] text-accent">ЗАМЕТКА</p>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight">Свой график, своими словами</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted">
-          Одна заметка не затирает другую. Скиньте график, напишите текст и нажмите «Добавить заметку». Форма очистится, и так же добавляется следующая. Все остаются в ленте ниже.
+          Смотреть ленту может любой. Добавить тоже может любой: в заметку входит график с тем, что на нём написано и нарисовано, и текст под ним. Чужую запись убрать нельзя.
         </p>
 
         <div className="mt-6 grid gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:grid-cols-2">
@@ -134,8 +202,8 @@ function SketchPage() {
             </button>
             <p className="text-xs text-muted">
               {ready && feed.length
-                ? `В ленте уже ${feed.length}. Для следующей снова скиньте график и напишите новый текст.`
-                : "После кнопки эта форма освободится под следующую заметку."}
+                ? `На сайте уже ${feed.length}. Их видит каждый, кто открыл эту страницу.`
+                : "После кнопки заметка появится здесь и у всех остальных."}
             </p>
             {miss ? <p className="text-sm text-rose-300">{miss}</p> : null}
           </div>
@@ -143,7 +211,7 @@ function SketchPage() {
 
         <div className="mt-8 flex flex-col gap-8">
           {feed.map((note) => (
-            <Spread key={note.id} note={note} onRemove={() => remove(note.id)} />
+            <Spread key={note.id} note={note} onRemove={own[note.id] ? () => void remove(note.id) : undefined} />
           ))}
         </div>
       </main>
@@ -156,7 +224,7 @@ function shrinkImage(file: File): Promise<string> {
     const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => {
-      const max = 1100;
+      const max = 960;
       const scale = Math.min(1, max / Math.max(img.width, 1));
       const canvas = document.createElement("canvas");
       canvas.width = Math.max(1, Math.round(img.width * scale));
@@ -168,7 +236,7 @@ function shrinkImage(file: File): Promise<string> {
       }
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       URL.revokeObjectURL(url);
-      resolve(canvas.toDataURL("image/jpeg", 0.72));
+      resolve(canvas.toDataURL("image/jpeg", 0.62));
     };
     img.onerror = () => resolve(url);
     img.src = url;
@@ -196,7 +264,7 @@ function SketchMascots({ mood }: { mood: SketchPiece["mood"] }) {
   );
 }
 
-function Spread({ note, onRemove }: { note: SavedNote; onRemove: () => void }) {
+function Spread({ note, onRemove }: { note: SavedNote; onRemove?: () => void }) {
   const { image, instrument } = note;
   const piece = retellSketch(note.piece.original, instrument) ?? note.piece;
   const when = new Intl.DateTimeFormat("ru-RU", {
@@ -242,9 +310,11 @@ function Spread({ note, onRemove }: { note: SavedNote; onRemove: () => void }) {
             {piece.original}
           </blockquote>
           <p className="mt-4 text-xs text-zinc-500">Пересказ только ваших слов. Это не приказ диспетчера.</p>
-          <button type="button" onClick={onRemove} className="mt-3 text-xs text-zinc-500 underline-offset-2 hover:text-rose-300 hover:underline">
-            Убрать эту заметку
-          </button>
+          {onRemove ? (
+            <button type="button" onClick={onRemove} className="mt-3 text-xs text-zinc-500 underline-offset-2 hover:text-rose-300 hover:underline">
+              Убрать эту заметку
+            </button>
+          ) : null}
         </div>
       </div>
     </article>

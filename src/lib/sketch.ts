@@ -168,7 +168,7 @@ function narrate(bits: string[], name: string, raw: string, mood: SketchMood): {
   const place = name ? `по ${name}` : "с этого графика";
   const clean = bits.map((b) => b.replace(/[.!?]+$/, ""));
   const lead = polish(
-    `Заметка ${place} собрана не из подписи индикатора, а из слов рядом с графиком. ${clean.join(". ")}`,
+    `Заметка ${place} состоит из двух частей: графика, как он нарисован, со стрелками, зонами и подписями, и слов рядом с ним. ${clean.join(". ")}`,
   );
   const paragraphs = clean.map((b, i) => {
     const step = clean.length === 1 ? "Если разложить эту фразу" : i === 0 ? "Сначала так" : i === clean.length - 1 ? "И в конце так" : "Дальше так";
