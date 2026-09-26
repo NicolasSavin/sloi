@@ -741,21 +741,38 @@ async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }
 }
 
 /** Desk's own entry, stop and nearest-liquidity target when the chart has no prices. */
-export async function ownLevels(symbol: string): Promise<{ side: "buy" | "sell"; entry: number; stop: number; target: number } | null> {
+export async function ownLevels(
+  symbol: string,
+  hint?: { side?: "buy" | "sell"; target?: number | null },
+): Promise<{ side: "buy" | "sell"; entry: number; stop: number; target: number } | null> {
   const { SYMBOLS } = await import("./symbols");
   const spec = SYMBOLS.find((s) => s.id === symbol);
   if (!spec) return null;
   try {
     const { analyzeMarket } = await import("@/lib/smc/engine");
+    const { graphicBreak } = await import("@/lib/smc/patterns");
     const payload = await loadPayload(symbol, "1h", false);
     if (payload.candles.length < 20) return null;
     const snap = analyzeMarket(payload.candles, null, payload.trades, { symbol: spec.id, kind: spec.kind });
     const n = (v: number) => Number(v.toFixed(spec.decimals));
+    const drawn = graphicBreak(payload.candles, snap.swings, snap.atr);
     const ready = fromSetup(snap.localSetup.entry, snap.localSetup.stop, snap.localSetup.targets[0] ?? null);
-    if (ready) return { side: ready.side, entry: n(ready.entry), stop: n(ready.stop), target: n(ready.target) };
-    const loose = fromMap(snap);
-    if (!loose) return null;
-    return { side: loose.side, entry: n(loose.entry), stop: n(loose.stop), target: n(loose.target) };
+    const base = drawn
+      ? { side: drawn.side, entry: drawn.entry, stop: drawn.stop, target: drawn.target }
+      : ready ?? fromMap(snap);
+    if (!base) return null;
+    const side = hint?.side ?? base.side;
+    let target = base.target;
+    if (hint?.target != null && ((side === "buy" && hint.target > base.entry) || (side === "sell" && hint.target < base.entry))) {
+      target = hint.target;
+    }
+    const plan = fromSetup(base.entry, base.stop, target);
+    if (!plan || plan.side !== side) {
+      const flipped = fromSetup(base.entry, base.stop, target);
+      if (!flipped) return null;
+      return { side: flipped.side, entry: n(flipped.entry), stop: n(flipped.stop), target: n(flipped.target) };
+    }
+    return { side, entry: n(plan.entry), stop: n(plan.stop), target: n(plan.target) };
   } catch {
     return null;
   }

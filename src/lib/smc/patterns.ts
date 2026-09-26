@@ -301,6 +301,53 @@ function flagPennant(candles: Candle[], swings: Swing[], atr: number): PatternHi
   return null;
 }
 
+/** Break of a narrowing wedge or a two-touch slope. Entry is the line, stop the far edge, target the base. */
+export function graphicBreak(
+  candles: Candle[],
+  swings: Swing[],
+  atr: number,
+): { name: string; side: "buy" | "sell"; entry: number; stop: number; target: number } | null {
+  if (candles.length < 12 || swings.length < 4 || !(atr > 0)) return null;
+  const last = candles.at(-1)!;
+  const highs = swings.filter((s) => s.type === "high").slice(-2);
+  const lows = swings.filter((s) => s.type === "low").slice(-2);
+  if (highs.length < 2 || lows.length < 2) return null;
+  const h1 = highs[0]!;
+  const h2 = highs[1]!;
+  const l1 = lows[0]!;
+  const l2 = lows[1]!;
+  const width1 = Math.abs(h1.price - l1.price);
+  const width2 = Math.abs(h2.price - l2.price);
+  const narrow = width2 < width1 * 0.92 && width2 > atr * 0.25;
+  const rising = l2.price > l1.price + atr * 0.05 && h2.price > h1.price - atr * 0.2;
+  const falling = h2.price < h1.price - atr * 0.05 && l2.price < l1.price + atr * 0.2;
+  if (narrow && rising) {
+    const entry = last.close < l2.price ? last.close : l2.price;
+    const stop = Math.max(h1.price, h2.price) + atr * 0.2;
+    const target = Math.min(l1.price, l2.price);
+    if (stop > entry && entry > target + atr * 0.25) return { name: "клин", side: "sell", entry, stop, target };
+  }
+  if (narrow && falling) {
+    const entry = last.close > h2.price ? last.close : h2.price;
+    const stop = Math.min(l1.price, l2.price) - atr * 0.2;
+    const target = Math.max(h1.price, h2.price);
+    if (target > entry && entry > stop + atr * 0.25) return { name: "клин", side: "buy", entry, stop, target };
+  }
+  if (h2.price < h1.price - atr * 0.15 && last.close < h2.price) {
+    const entry = last.close;
+    const stop = h1.price + atr * 0.15;
+    const target = entry - Math.max(h1.price - h2.price, atr);
+    if (stop > entry && entry > target) return { name: "наклонная", side: "sell", entry, stop, target };
+  }
+  if (l2.price > l1.price + atr * 0.15 && last.close > l2.price) {
+    const entry = last.close;
+    const stop = l1.price - atr * 0.15;
+    const target = entry + Math.max(l2.price - l1.price, atr);
+    if (target > entry && entry > stop) return { name: "наклонная", side: "buy", entry, stop, target };
+  }
+  return null;
+}
+
 function wolfeWave(swings: Swing[], atr: number): PatternHit | null {
   const seq = lastAlt(swings, 5);
   if (!seq) return null;

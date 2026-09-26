@@ -11,18 +11,38 @@ const CHART_EYE = `Ты смотришь скриншот рыночного г�
 Не выдумывай цены и фигуры, которых на графике нет. Пять-восемь предложений.
 Если на графике подписаны вход, стоп и тейк, последней строкой добавь ровно так, числа только с картинки:
 ПРИКАЗ EURUSD BUY ENTRY 1.0850 STOP 1.0820 TP 1.0910
-BUY — если тейк выше входа. SELL — если тейк ниже входа. Тикер латиницей, как на графике. Если одной из трёх цен нет, строку ПРИКАЗ не пиши и числа не выдумывай. Подпись вроде «тейк у ликвидности» сама по себе ещё не цена.`;
+BUY — если тейк выше входа. SELL — если тейк ниже входа. Тикер латиницей, как на графике. Если одной из трёх цен нет, строку ПРИКАЗ не пиши и числа не выдумывай.
+Если нарисован клин, флаг, вымпел или наклонная, скажи, пробита ли линия и в какую сторону.
+Если подписано «Тейк» без цифры, посмотри, на какую цену правой шкалы указывает подпись, и последними строками добавь только то, что реально видно:
+ПРОБОЙ SELL
+ТЕЙК 0.99049
+ПРОБОЙ BUY — если пробой вверх. Цифру тейка бери со шкалы, не из головы. Если шкалу не прочитать, строку ТЕЙК не пиши.`;
+
+function chartHint(text: string) {
+  const side = /ПРОБОЙ\s+SELL|пробой[^\n]{0,40}вниз|клин[^\n]{0,40}вниз/i.test(text)
+    ? ("sell" as const)
+    : /ПРОБОЙ\s+BUY|пробой[^\n]{0,40}вверх/i.test(text)
+      ? ("buy" as const)
+      : undefined;
+  const mark = text.match(/ТЕЙК\s+([0-9]+(?:[.,][0-9]+)?)/i);
+  const target = mark ? Number(mark[1]!.replace(",", ".")) : null;
+  return { side, target: target != null && Number.isFinite(target) ? target : null };
+}
 
 async function withDeskLevels(text: string, instrument: string) {
   if (parsePlan(text)) return text;
   const symbol = guessSymbol(instrument, text);
   if (!symbol) return `${text}\nИнструмент не назван, поэтому стол сам уровни не ставит.`;
-  const levels = await ownLevels(symbol);
+  const hint = chartHint(text);
+  const levels = await ownLevels(symbol, hint);
   if (!levels) {
-    return `${text}\nНа картинке не было входа, стопа и тейка. Стол тоже не нашёл зону, где есть все три, и приказ не собрал.`;
+    return `${text}\nНа картинке не было входа, стопа и тейка. Стол тоже не нашёл пробой наклонной или зону, и приказ не собрал.`;
   }
   const side = levels.side === "buy" ? "BUY" : "SELL";
-  return `${text}\nНа картинке не было готовых цен. Стол поставил их сам: вход у своей зоны, стоп за экстремумом, тейк у ближайшей ликвидности.\nПРИКАЗ ${symbol} ${side} ENTRY ${levels.entry} STOP ${levels.stop} TP ${levels.target} СТОЛ`;
+  const how = /клин|наклон|флаг|вымпел|пробой/i.test(text)
+    ? "Это пробой клина или наклонной: вход за линией, стоп за противоположный край, тейк — основание фигуры или цена, на которую указывает подпись."
+    : "На картинке не было готовых цен. Стол поставил их сам: вход у своей зоны, стоп за экстремумом, тейк у ближайшей ликвидности.";
+  return `${text}\n${how}\nПРИКАЗ ${symbol} ${side} ENTRY ${levels.entry} STOP ${levels.stop} TP ${levels.target} СТОЛ`;
 }
 
 async function notesFromChart(typed: string, image: string, instrument: string) {
@@ -44,7 +64,7 @@ export const Route = createFileRoute("/api/sketches")({
       GET: async ({ request }) => {
         const fill = new URL(request.url).searchParams.get("fill");
         if (fill) {
-          const levels = await ownLevels(fill.toUpperCase());
+          const levels = await ownLevels(fill.toUpperCase(), chartHint(new URL(request.url).searchParams.get("text") ?? ""));
           if (!levels) return Response.json({ plan: null });
           return Response.json({
             plan: {

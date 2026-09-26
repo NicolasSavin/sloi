@@ -202,6 +202,7 @@ function narrate(bits: string[], name: string, raw: string, mood: SketchMood): {
 
 export function guessSymbol(instrument: string, text: string) {
   const names: [RegExp, string][] = [
+    [/австрал[^.]{0,24}канад|канад[^.]{0,24}австрал/i, "AUDCAD"],
     [/серебр/i, "XAGUSD"],
     [/золот/i, "XAUUSD"],
     [/брент/i, "XBRUSD"],
@@ -218,7 +219,7 @@ export function guessSymbol(instrument: string, text: string) {
     [/новозеланд/i, "NZDUSD"],
   ];
   const blob = `${instrument} ${text}`.toUpperCase();
-  const tick = blob.match(/\b(XAUUSD|XAGUSD|EURUSD|GBPUSD|USDJPY|USDCHF|AUDUSD|USDCAD|NZDUSD|EURGBP|EURJPY|GBPJPY|AUDJPY|CADJPY|NZDJPY|EURCHF|EURAUD|GBPAUD|XTIUSD|XBRUSD|XNGUSD|ETHUSD|LTCUSD|BCHUSD|BTCUSD|XRPUSD|TONUSD)\b/);
+  const tick = blob.match(/\b(XAUUSD|XAGUSD|EURUSD|GBPUSD|USDJPY|USDCHF|AUDUSD|USDCAD|NZDUSD|EURGBP|EURJPY|GBPJPY|AUDJPY|CADJPY|NZDJPY|EURCHF|EURAUD|GBPAUD|AUDCAD|XTIUSD|XBRUSD|XNGUSD|ETHUSD|LTCUSD|BCHUSD|BTCUSD|XRPUSD|TONUSD)\b/);
   if (tick) return tick[1]!;
   const raw = `${instrument} ${text}`;
   for (const [re, id] of names) if (re.test(raw)) return id;

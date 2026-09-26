@@ -19,6 +19,7 @@ export const SYMBOLS: SymbolSpec[] = [
   { id: "EURCHF", label: "EUR/CHF", kind: "fx", decimals: 5, yahoo: "EURCHF=X", spread: 0.00016, pip: 0.0001 },
   { id: "EURAUD", label: "EUR/AUD", kind: "fx", decimals: 5, yahoo: "EURAUD=X", spread: 0.00022, pip: 0.0001 },
   { id: "GBPAUD", label: "GBP/AUD", kind: "fx", decimals: 5, yahoo: "GBPAUD=X", spread: 0.00028, pip: 0.0001 },
+  { id: "AUDCAD", label: "AUD/CAD", kind: "fx", decimals: 5, yahoo: "AUDCAD=X", spread: 0.00018, pip: 0.0001 },
   { id: "XTIUSD", label: "Нефть WTI", kind: "energy", decimals: 2, yahoo: "CL=F", futuresYahoo: "CL=F", optionsYahoo: "USO", spread: 0.04, pip: 0.01 },
   { id: "XBRUSD", label: "Нефть Brent", kind: "energy", decimals: 2, yahoo: "BZ=F", futuresYahoo: "BZ=F", optionsYahoo: "BNO", spread: 0.04, pip: 0.01 },
   { id: "XNGUSD", label: "Газ Henry Hub", kind: "energy", decimals: 3, yahoo: "NG=F", futuresYahoo: "NG=F", spread: 0.02, pip: 0.001 },

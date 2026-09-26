@@ -340,7 +340,7 @@ function DeskFill({ instrument, text }: { instrument: string; text: string }) {
   useEffect(() => {
     if (!symbol) return;
     let stop = false;
-    fetch(`/api/sketches?fill=${symbol}`)
+    fetch(`/api/sketches?fill=${symbol}&text=${encodeURIComponent(text.slice(0, 500))}`)
       .then((r) => r.json())
       .then((body: { plan?: ChartPlan | null }) => {
         if (stop) return;
