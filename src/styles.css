@@ -597,7 +597,10 @@
   .poster-draw,
   .poster-pulse,
   .poster-scan,
-  .on-air-dot {
+  .on-air-dot,
+  .sketch-photo,
+  .sketch-mascot,
+  .sketch-shimmer {
     animation: none !important;
   }
 }
@@ -617,6 +620,37 @@
   55% {
     transform: translateY(-4px) scale(0.96);
   }
+}
+
+.sketch-photo {
+  transform-origin: center center;
+  animation: sketch-drift 16s ease-in-out infinite alternate;
+  will-change: transform;
+}
+@keyframes sketch-drift {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.04);
+  }
+}
+.sketch-mascot {
+  display: inline-block;
+  font-size: 2.6rem;
+  line-height: 1;
+  filter: drop-shadow(0 8px 10px rgba(0, 0, 0, 0.6));
+  animation: sloi-mascot-bounce 1.5s ease-in-out infinite;
+  transform-origin: center bottom;
+}
+.sketch-mascot-wave {
+  animation-name: emoji-live;
+  animation-duration: 2.1s;
+}
+.sketch-shimmer {
+  background-image: linear-gradient(100deg, transparent 20%, rgba(255, 236, 190, 0.45) 50%, transparent 80%);
+  background-size: 220% 100%;
+  animation: brand-flow 7s linear infinite;
 }
 .desk-chart:fullscreen {
   width: 100vw !important;

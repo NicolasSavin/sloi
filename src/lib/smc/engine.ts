@@ -70,6 +70,7 @@ export interface Divergence {
   kind: "regular" | "hidden";
   priceTime: number;
   note: string;
+  played?: boolean;
 }
 
 export interface WaveLabel {
@@ -624,21 +625,22 @@ function detectDivergence(candles: Candle[], swings: Swing[]): Divergence[] {
   const closes = candles.map((c) => c.close);
   const r = rsi(closes);
   const out: Divergence[] = [];
-  const highs = swings.filter((s) => s.type === "high").slice(-4);
-  const lows = swings.filter((s) => s.type === "low").slice(-4);
-  if (highs.length >= 2) {
-    const a = highs[highs.length - 2]!;
-    const b = highs[highs.length - 1]!;
+  const highs = swings.filter((s) => s.type === "high").slice(-6);
+  const lows = swings.filter((s) => s.type === "low").slice(-6);
+  for (let i = 1; i < highs.length; i++) {
+    const a = highs[i - 1]!;
+    const b = highs[i]!;
     const ra = r[a.index];
     const rb = r[b.index];
-    if (Number.isFinite(ra) && Number.isFinite(rb) && b.price > a.price && rb! < ra!) {
+    if (!Number.isFinite(ra) || !Number.isFinite(rb)) continue;
+    if (b.price > a.price && rb! < ra!) {
       out.push({
         side: "bear",
         kind: "regular",
         priceTime: b.time,
         note: "Цена выше максимум, RSI ниже. Обычная медвежья дивергенция — импульс вверх слабеет.",
       });
-    } else if (Number.isFinite(ra) && Number.isFinite(rb) && b.price < a.price && rb! > ra!) {
+    } else if (b.price < a.price && rb! > ra!) {
       out.push({
         side: "bear",
         kind: "hidden",
@@ -647,19 +649,20 @@ function detectDivergence(candles: Candle[], swings: Swing[]): Divergence[] {
       });
     }
   }
-  if (lows.length >= 2) {
-    const a = lows[lows.length - 2]!;
-    const b = lows[lows.length - 1]!;
+  for (let i = 1; i < lows.length; i++) {
+    const a = lows[i - 1]!;
+    const b = lows[i]!;
     const ra = r[a.index];
     const rb = r[b.index];
-    if (Number.isFinite(ra) && Number.isFinite(rb) && b.price < a.price && rb! > ra!) {
+    if (!Number.isFinite(ra) || !Number.isFinite(rb)) continue;
+    if (b.price < a.price && rb! > ra!) {
       out.push({
         side: "bull",
         kind: "regular",
         priceTime: b.time,
         note: "Цена ниже минимум, RSI выше. Обычная бычья дивергенция — продажи выдыхаются.",
       });
-    } else if (Number.isFinite(ra) && Number.isFinite(rb) && b.price > a.price && rb! < ra!) {
+    } else if (b.price > a.price && rb! < ra!) {
       out.push({
         side: "bull",
         kind: "hidden",
@@ -669,6 +672,27 @@ function detectDivergence(candles: Candle[], swings: Swing[]): Divergence[] {
     }
   }
   return out;
+}
+
+function markPlayed(divs: Divergence[], candles: Candle[], atr: number): Divergence[] {
+  if (!(atr > 0)) return divs.map((d) => ({ ...d, played: false }));
+  return divs.map((d) => {
+    const i = candles.findIndex((c) => c.time >= d.priceTime);
+    if (i < 0 || i >= candles.length - 1) return { ...d, played: false };
+    let move = 0;
+    const base = candles[i]!.close;
+    for (let j = i + 1; j < candles.length; j++) {
+      const c = candles[j]!;
+      const leg = d.side === "bear" ? base - c.low : c.high - base;
+      if (leg > move) move = leg;
+    }
+    const played = move >= atr;
+    return {
+      ...d,
+      played,
+      note: played ? `${d.note} Ход уже был — этот дивер отработан.` : `${d.note} Ход ещё не был.`,
+    };
+  });
 }
 
 function detectWaves(swings: Swing[]): WaveLabel[] {
@@ -740,6 +764,118 @@ function preciseTouch(zone: Zone, dir: 1 | -1, price: number, atr: number) {
   const minRisk = Math.max(atr * 0.7, Math.abs(entry) * 0.0009);
   const stop = dir === 1 ? Math.min(stopRaw, entry - minRisk) : Math.max(stopRaw, entry + minRisk);
   return { entry, stop };
+}
+
+function placeDivStop(
+  setup: LocalSetup,
+  swings: Swing[],
+  divergences: Divergence[],
+  atr: number,
+): LocalSetup {
+  if (setup.entry == null || setup.stop == null || setup.targets[0] == null) return setup;
+  const side: "long" | "short" = setup.targets[0] > setup.entry ? "long" : "short";
+  const reg = divergences.find(
+    (d) =>
+      !d.played &&
+      d.kind === "regular" &&
+      ((side === "long" && d.side === "bull") || (side === "short" && d.side === "bear")),
+  );
+  if (!reg) return setup;
+  const extreme =
+    side === "long"
+      ? swings.filter((s) => s.type === "low").at(-1)?.price
+      : swings.filter((s) => s.type === "high").at(-1)?.price;
+  if (extreme == null) return setup;
+  const guarded = side === "long" ? extreme - atr * 0.5 : extreme + atr * 0.5;
+  const stop = side === "long" ? Math.min(setup.stop, guarded) : Math.max(setup.stop, guarded);
+  if (side === "long" && stop >= setup.entry) return setup;
+  if (side === "short" && stop <= setup.entry) return setup;
+  return {
+    ...setup,
+    stop,
+    invalidation: "Стоп за экстремумом дивера, не на самом хвосте.",
+    thesis: `${setup.thesis} Стоп отодвинут за экстремум дивера на половину хода, чтобы хвост по уровню его не сбил.`,
+  };
+}
+
+function nearImbalanceEdge(fvgs: Zone[], px: number, side: "long" | "short"): number | null {
+  const open = fvgs.filter((z) => !z.mitigated && z.kind === "fvg");
+  if (side === "long") {
+    const edges = open.map((z) => Math.min(z.top, z.bottom)).filter((lo) => lo > px);
+    return edges.length ? Math.min(...edges) : null;
+  }
+  const edges = open.map((z) => Math.max(z.top, z.bottom)).filter((hi) => hi < px);
+  return edges.length ? Math.max(...edges) : null;
+}
+
+function figureHead(pattern: PatternHit, side: "long" | "short"): number | null {
+  const named = pattern.points.find((p) => p.label === "голова");
+  if (named) return named.price;
+  if (!pattern.points.length) return null;
+  const prices = pattern.points.map((p) => p.price);
+  return side === "long" ? Math.min(...prices) : Math.max(...prices);
+}
+
+function applyChartPack(
+  setup: LocalSetup,
+  patterns: PatternHit[],
+  fvgs: Zone[],
+  liquidity: LiquidityPool[],
+  divergences: Divergence[],
+  atr: number,
+  px: number,
+): LocalSetup {
+  if (setup.entry == null || setup.stop == null || setup.targets[0] == null) return setup;
+  const side: "long" | "short" = setup.targets[0] > setup.entry ? "long" : "short";
+  const figure = patterns.find((p) => /голова|двойн/.test(p.name));
+  const divOk =
+    (side === "long" && divergences.some((d) => !d.played && d.kind === "regular" && d.side === "bull")) ||
+    (side === "short" && divergences.some((d) => !d.played && d.kind === "regular" && d.side === "bear"));
+  if (figure && figure.side !== (side === "long" ? "bull" : "bear")) {
+    return {
+      ...setup,
+      entry: null,
+      stop: null,
+      targets: [],
+      thesis: `${figure.name} смотрит против приказа. Фигуру и дивер не рвём — ордера нет.`,
+      invalidation: "Ждём, когда фигура и дивер встанут в одну сторону.",
+    };
+  }
+  if (!figure || !divOk) return setup;
+  const head = figureHead(figure, side);
+  if (head != null && ((side === "long" && px <= head) || (side === "short" && px >= head))) {
+    return {
+      ...setup,
+      entry: null,
+      stop: null,
+      targets: [],
+      thesis: `Голову ${figure.name} уже сняли. Фигура мертва.`,
+      invalidation: "Без головы плана нет.",
+    };
+  }
+  const edge = nearImbalanceEdge(fvgs, px, side);
+  const bothSwept =
+    liquidity.some((l) => l.side === "sell" && l.swept) && liquidity.some((l) => l.side === "buy" && l.swept);
+  const stop =
+    head == null
+      ? setup.stop
+      : side === "long"
+        ? Math.min(setup.stop, head - atr * 0.5)
+        : Math.max(setup.stop, head + atr * 0.5);
+  const targets =
+    edge == null ? setup.targets : [edge, ...setup.targets.filter((t) => (side === "long" ? t > edge : t < edge))];
+  const magnet =
+    edge == null
+      ? " Имбаланса впереди нет — та же картинка, но слабее. Цель — ближайшая ликвидность."
+      : " Цель — ближний край открытого имбаланса, не весь прямоугольник. Перекрытые дыры целью не ставим.";
+  const swept = bothSwept ? " Стопы сняты с обеих сторон." : "";
+  return {
+    ...setup,
+    stop,
+    targets,
+    thesis: `${figure.name} и дивер в одну сторону.${magnet}${swept} Стоп за головой, не на хвосте.`,
+    invalidation: "Снятие головы отменяет фигуру.",
+  };
 }
 
 function buildSetup(
@@ -821,22 +957,26 @@ function buildSetup(
     const stall = nearestStall(entry, 1, atr, micro.nodes, hvn);
     const far = structural.filter((t) => t > entry + atr * 1.1);
     const stallOk = stall && stall.price - entry >= atr * 1.05;
-    const targets = stallOk
+    const nearLiq = buyLiq.find((l) => !l.swept && l.price > entry + atr * 0.15)?.price;
+    const raw = stallOk
       ? [stall!.price, ...far.filter((t) => t > stall!.price + atr * 0.25)]
       : far.length
         ? far
         : stall
           ? [stall.price, ...far]
           : structural;
+    const targets = nearLiq ? [nearLiq, ...raw.filter((t) => t > nearLiq + atr * 0.1)] : clipTp1(entry, stop, raw, 1);
     return {
-      thesis: stall
-        ? `Лонг от зоны. TP1 — ${stall.from === "hvn" ? "кластер HVN" : "infusion"} ${stall.price.toFixed(last.close > 50 ? 2 : 5)} (остановка объёма CME/профиля).`
-        : pd === "premium"
-          ? "Структура вверх. Лимит в дисконт — цена ещё не в зоне, ордер уже рабочий."
-          : `Лонг от ${zoneName(zone)}. Вход на верхнем крае зоны, не в середине.`,
+      thesis: nearLiq
+        ? `Лонг. Цель — ближайшая ликвидность ${nearLiq.toFixed(last.close > 50 ? 2 : 5)}, не середина.`
+        : stall
+          ? `Лонг от зоны. TP1 — ${stall.from === "hvn" ? "кластер HVN" : "infusion"} ${stall.price.toFixed(last.close > 50 ? 2 : 5)} (остановка объёма CME/профиля).`
+          : pd === "premium"
+            ? "Структура вверх. Лимит в дисконт — цена ещё не в зоне, ордер уже рабочий."
+            : `Лонг от ${zoneName(zone)}. Вход на верхнем крае зоны, не в середине.`,
       entry,
       stop,
-      targets: clipTp1(entry, stop, targets, 1),
+      targets: nearLiq ? targets : clipTp1(entry, stop, targets, 1),
       invalidation: "Закрытие ниже стопа / последнего HL.",
     };
   }
@@ -859,22 +999,26 @@ function buildSetup(
     const stall = nearestStall(entry, -1, atr, micro.nodes, hvn);
     const far = structural.filter((t) => t < entry - atr * 1.1);
     const stallOk = stall && entry - stall.price >= atr * 1.05;
-    const targets = stallOk
+    const nearLiq = sellLiq.find((l) => !l.swept && l.price < entry - atr * 0.15)?.price;
+    const raw = stallOk
       ? [stall!.price, ...far.filter((t) => t < stall!.price - atr * 0.25)]
       : far.length
         ? far
         : stall
           ? [stall.price, ...far]
           : structural;
+    const targets = nearLiq ? [nearLiq, ...raw.filter((t) => t < nearLiq - atr * 0.1)] : clipTp1(entry, stop, raw, -1);
     return {
-      thesis: stall
-        ? `Шорт от зоны. TP1 — ${stall.from === "hvn" ? "кластер HVN" : "infusion"} ${stall.price.toFixed(last.close > 50 ? 2 : 5)} (остановка объёма CME/профиля).`
-        : pd === "discount"
-          ? "Структура вниз. Лимит в премию — цена ещё не в зоне, ордер уже рабочий."
-          : `Шорт от ${zoneName(zone)}. Вход на нижнем крае зоны, не в середине.`,
+      thesis: nearLiq
+        ? `Шорт. Цель — ближайшая ликвидность ${nearLiq.toFixed(last.close > 50 ? 2 : 5)}, не середина.`
+        : stall
+          ? `Шорт от зоны. TP1 — ${stall.from === "hvn" ? "кластер HVN" : "infusion"} ${stall.price.toFixed(last.close > 50 ? 2 : 5)} (остановка объёма CME/профиля).`
+          : pd === "discount"
+            ? "Структура вниз. Лимит в премию — цена ещё не в зоне, ордер уже рабочий."
+            : `Шорт от ${zoneName(zone)}. Вход на нижнем крае зоны, не в середине.`,
       entry,
       stop,
-      targets: clipTp1(entry, stop, targets, -1),
+      targets: nearLiq ? targets : clipTp1(entry, stop, targets, -1),
       invalidation: "Закрытие выше стопа / последнего LH.",
     };
   }
@@ -1200,7 +1344,7 @@ export function analyzeMarket(
   const fvgs = detectFvgs(candles);
   const orderBlocks = detectOrderBlocks(candles, events);
   const liquidity = detectLiquidity(candles, swings, atr);
-  const divergences = detectDivergence(candles, swings);
+  const divergences = markPlayed(detectDivergence(candles, swings), candles, atr);
   const waves = detectWaves(swings);
   const patterns = detectPatterns(swings, atr, candles);
   let flow = buildFlow(candles, swings, atr, opts?.symbol ? liveCumDelta(opts.symbol) : []);
@@ -1376,6 +1520,24 @@ export function analyzeMarket(
 
   const dealingRange = { high: rangeHigh, low: rangeLow, eq };
   flow = locateEdgeDiv(flow, premiumDiscount, last.close, dealingRange, fvgs, liquidity, atr);
+  if (flow.cvdDiv?.to) {
+    const spent = markPlayed(
+      [{ side: flow.cvdDiv.side, kind: "regular", priceTime: flow.cvdDiv.to.time, note: "" }],
+      candles,
+      atr,
+    )[0]?.played;
+    if (spent) {
+      flow = {
+        ...flow,
+        cvdDiv: {
+          ...flow.cvdDiv,
+          played: true,
+          boost: 0,
+          therefore: `${flow.cvdDiv.therefore} Уже отработал — в новый приказ не берём.`,
+        },
+      };
+    }
+  }
   const boxVector = buildBoxVector(last, dealingRange, liquidity, candles);
   const margin = buildMargin(dealingRange, last.close, liquidity);
   const wyckoff = detectWyckoff(candles, swings, liquidity, dealingRange, trend);
@@ -1574,11 +1736,20 @@ export function analyzeMarket(
       micro,
       clusters.hvn,
     );
-    if (!opts?.symbol || built.entry == null || built.stop == null || built.targets[0] == null) return built;
-    const book = bookAdjust(opts.symbol, built.entry, built.stop, built.targets[0]);
+    const guarded = applyChartPack(
+      placeDivStop(built, swings, divergences, atr),
+      patterns,
+      fvgs,
+      liquidity,
+      divergences,
+      atr,
+      last.close,
+    );
+    if (!opts?.symbol || guarded.entry == null || guarded.stop == null || guarded.targets[0] == null) return guarded;
+    const book = bookAdjust(opts.symbol, guarded.entry, guarded.stop, guarded.targets[0]);
     if (book.block) {
       return {
-        ...built,
+        ...guarded,
         entry: null,
         stop: null,
         targets: [],
@@ -1586,14 +1757,14 @@ export function analyzeMarket(
         invalidation: "Книга держит ход. Ждём, пока лимитку снимут или цена отойдёт.",
       };
     }
-    if (book.note && book.target !== built.targets[0]) {
+    if (book.note && book.target !== guarded.targets[0]) {
       return {
-        ...built,
-        targets: [book.target, ...built.targets.filter((t) => t !== built.targets[0])],
-        thesis: `${built.thesis} ${book.note}`,
+        ...guarded,
+        targets: [book.target, ...guarded.targets.filter((t) => t !== guarded.targets[0])],
+        thesis: `${guarded.thesis} ${book.note}`,
       };
     }
-    return built;
+    return guarded;
   })();
   const story = buildStory(
     last,

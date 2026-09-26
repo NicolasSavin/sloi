@@ -21,6 +21,7 @@ import { Route as IdeasRouteImport } from './routes/ideas'
 import { Route as MonitorRouteImport } from './routes/monitor'
 import { Route as RatingRouteImport } from './routes/rating'
 import { Route as ReklamaRouteImport } from './routes/reklama'
+import { Route as SketchRouteImport } from './routes/sketch'
 import { Route as StatsRouteImport } from './routes/stats'
 import { Route as TvRouteImport } from './routes/tv'
 import { Route as ApiArchiveDotjsonRouteImport } from './routes/api/archive[.]json'
@@ -93,6 +94,11 @@ const ReklamaRoute = ReklamaRouteImport.update({
   path: '/reklama',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SketchRoute = SketchRouteImport.update({
+  id: '/sketch',
+  path: '/sketch',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const StatsRoute = StatsRouteImport.update({
   id: '/stats',
   path: '/stats',
@@ -162,6 +168,7 @@ export interface FileRoutesByFullPath {
   '/monitor': typeof MonitorRoute
   '/rating': typeof RatingRoute
   '/reklama': typeof ReklamaRoute
+  '/sketch': typeof SketchRoute
   '/stats': typeof StatsRoute
   '/tv': typeof TvRoute
   '/api/archive.json': typeof ApiArchiveDotjsonRoute
@@ -187,6 +194,7 @@ export interface FileRoutesByTo {
   '/monitor': typeof MonitorRoute
   '/rating': typeof RatingRoute
   '/reklama': typeof ReklamaRoute
+  '/sketch': typeof SketchRoute
   '/stats': typeof StatsRoute
   '/tv': typeof TvRoute
   '/api/archive.json': typeof ApiArchiveDotjsonRoute
@@ -213,6 +221,7 @@ export interface FileRoutesById {
   '/monitor': typeof MonitorRoute
   '/rating': typeof RatingRoute
   '/reklama': typeof ReklamaRoute
+  '/sketch': typeof SketchRoute
   '/stats': typeof StatsRoute
   '/tv': typeof TvRoute
   '/api/archive.json': typeof ApiArchiveDotjsonRoute
@@ -240,6 +249,7 @@ export interface FileRouteTypes {
     | '/monitor'
     | '/rating'
     | '/reklama'
+    | '/sketch'
     | '/stats'
     | '/tv'
     | '/api/archive.json'
@@ -265,6 +275,7 @@ export interface FileRouteTypes {
     | '/monitor'
     | '/rating'
     | '/reklama'
+    | '/sketch'
     | '/stats'
     | '/tv'
     | '/api/archive.json'
@@ -290,6 +301,7 @@ export interface FileRouteTypes {
     | '/monitor'
     | '/rating'
     | '/reklama'
+    | '/sketch'
     | '/stats'
     | '/tv'
     | '/api/archive.json'
@@ -316,6 +328,7 @@ export interface RootRouteChildren {
   MonitorRoute: typeof MonitorRoute
   RatingRoute: typeof RatingRoute
   ReklamaRoute: typeof ReklamaRoute
+  SketchRoute: typeof SketchRoute
   StatsRoute: typeof StatsRoute
   TvRoute: typeof TvRoute
   ApiArchiveDotjsonRoute: typeof ApiArchiveDotjsonRoute
@@ -415,6 +428,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReklamaRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/sketch': {
+      id: '/sketch'
+      path: '/sketch'
+      fullPath: '/sketch'
+      preLoaderRoute: typeof SketchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/stats': {
       id: '/stats'
       path: '/stats'
@@ -508,6 +528,7 @@ const rootRouteChildren: RootRouteChildren = {
   MonitorRoute: MonitorRoute,
   RatingRoute: RatingRoute,
   ReklamaRoute: ReklamaRoute,
+  SketchRoute: SketchRoute,
   StatsRoute: StatsRoute,
   TvRoute: TvRoute,
   ApiArchiveDotjsonRoute: ApiArchiveDotjsonRoute,

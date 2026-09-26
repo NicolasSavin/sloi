@@ -21,6 +21,84 @@ export interface Advice {
   covers: number | null;
 }
 
+function chartLesson(
+  snap: Pick<SmcSnapshot, "dealingRange" | "liquidity" | "fvgs" | "lastClose" | "divergences" | "flow" | "patterns">,
+  side: "long" | "short",
+): { title: string; because: string; therefore: string } | { note: string } {
+  const px = snap.lastClose;
+  const range = snap.dealingRange;
+  if (px == null || !range || !(range.high > range.low)) {
+    return {
+      title: "Ждать закрытия часа",
+      because: "Нет границы полки.",
+      therefore: "Ордер заранее не ставим.",
+    };
+  }
+  const live = (snap.divergences ?? []).filter((d) => !d.played);
+  const cvd = snap.flow?.cvdDiv?.played ? null : snap.flow?.cvdDiv;
+  const bear = live.some((d) => d.kind === "regular" && d.side === "bear") || cvd?.side === "bear";
+  const bull = live.some((d) => d.kind === "regular" && d.side === "bull") || cvd?.side === "bull";
+  const agrees = side === "long" ? bull && !bear : bear && !bull;
+  if (!agrees) {
+    return {
+      title: bear || bull ? "Ждать: дивер против" : "Ждать: дивер не подтвердил",
+      because:
+        bear || bull
+          ? "Дивер отделяет настоящий ход. Сейчас он смотрит в другую сторону."
+          : "Без дивера полка и флаг пустые. Ход не отделён от шума.",
+      therefore: "Ордера нет, пока дивер не встанет по стороне закрытия.",
+    };
+  }
+  const figure = snap.patterns?.find((p) => /голова|двойн/.test(p.name));
+  if (figure && figure.side !== (side === "long" ? "bull" : "bear")) {
+    return {
+      title: "Ждать: фигура против",
+      because: `${figure.name} смотрит не туда, куда дивер.`,
+      therefore: "Фигуру и дивер не рвём. Ордера нет.",
+    };
+  }
+  const head = figure?.points.find((p) => p.label === "голова")?.price;
+  if (head != null && ((side === "long" && px <= head) || (side === "short" && px >= head))) {
+    return {
+      title: "Ждать: голову сняли",
+      because: "Экстремум фигуры уже пробит.",
+      therefore: "План снят. Новую фигуру не дорисовываем на сломанной.",
+    };
+  }
+  const pause = snap.patterns?.some((p) => /флаг|вымпел|треугольник/.test(p.name));
+  const closedOut = side === "long" ? px >= range.high : px <= range.low;
+  const reclaimed =
+    side === "long"
+      ? snap.liquidity?.some((l) => l.side === "sell" && l.swept && px > l.price)
+      : snap.liquidity?.some((l) => l.side === "buy" && l.swept && px < l.price);
+  if (!closedOut && !reclaimed) {
+    return {
+      title: "Ждать: час ещё внутри",
+      because: figure
+        ? `${figure.name} и дивер уже в одну сторону, но час ещё не закрылся за границей. Старое правило не снимаем.`
+        : pause
+          ? "Флаг, вымпел и полка сами по себе не вход. Нужен час, закрытый за границей."
+          : "Полка сама по себе не вход. Нужен час, закрытый за границей, или съём и закрытие обратно.",
+      therefore: "Лимит заранее не вешаем. Фигура без закрытия часа ордер не открывает.",
+    };
+  }
+  const edge = snap.fvgs?.filter((z) => !z.mitigated && z.kind === "fvg").find((z) => {
+    const lo = Math.min(z.top, z.bottom);
+    const hi = Math.max(z.top, z.bottom);
+    return side === "long" ? lo > px : hi < px;
+  });
+  const bothSwept =
+    snap.liquidity?.some((l) => l.side === "sell" && l.swept) &&
+    snap.liquidity?.some((l) => l.side === "buy" && l.swept);
+  const figureNote = figure ? ` ${figure.name} и дивер в одну сторону.` : "";
+  const sweptNote = bothSwept ? " Стопы сняты с обеих сторон, перекрытые дыры целью не ставим." : "";
+  return {
+    note: edge
+      ? `${figureNote} Цель — ближний край открытого имбаланса, не весь прямоугольник.${sweptNote}`
+      : `${figureNote} Имбаланса впереди нет — та же картинка, но слабее.${sweptNote}`,
+  };
+}
+
 function blockUnderPrice(snap: Pick<SmcSnapshot, "orderBlocks" | "localSetup" | "lastClose">): Zone | null {
   const last = snap.lastClose;
   const zones = snap.orderBlocks ?? [];
@@ -97,7 +175,7 @@ export function divOnOrderBlock(
   return empty;
 }
 
-export function advise(snap: Pick<SmcSnapshot, "bias" | "localSetup" | "margin" | "wyckoff" | "patterns" | "auction" | "ivNews" | "micro" | "divergences" | "flow" | "coil" | "lastClose" | "orderBlocks">, spec: SymbolSpec, spread = spec.spread): Advice {
+export function advise(snap: Pick<SmcSnapshot, "bias" | "localSetup" | "margin" | "wyckoff" | "patterns" | "auction" | "ivNews" | "micro" | "divergences" | "flow" | "coil" | "lastClose" | "orderBlocks" | "dealingRange" | "liquidity" | "fvgs">, spec: SymbolSpec, spread = spec.spread): Advice {
   const roundTrip = spread * 2;
   const entry = snap.localSetup.entry;
   const stop = snap.localSetup.stop;
@@ -387,38 +465,31 @@ export function advise(snap: Pick<SmcSnapshot, "bias" | "localSetup" | "margin" 
     : "";
   const fight = snap.patterns?.find((p) => (p.side === "bear" && side === "long") || (p.side === "bull" && side === "short"));
   const patNote = fight ? ` На графике ${fight.name} против — лимит всё равно, рынок нет.` : "";
-  const marginNote =
-    snap.margin?.where === "upper" && side === "long"
-      ? " Цена в верхней марже — лимитка ниже, не рынок."
-      : snap.margin?.where === "lower" && side === "short"
-        ? " Цена в нижней марже — лимитка выше, не рынок."
-        : "";
-  const coilNote =
-    snap.coil?.kind === "coil"
-      ? " Полка у уровня — пробой скорее живой, сжатие не режем."
-      : snap.coil?.kind === "spike"
-        ? " Шпиль без полки — лимит на возврат, не рынок вдогонку."
-        : "";
-  const volNote =
-    cvd && cvd.where === "edge" && ((side === "long" && cvd.side === "bull") || (side === "short" && cvd.side === "bear"))
-      ? ` ${cvd.therefore}`
-      : cvd && cvd.where === "mid"
-        ? " Дивер в середине не считаю."
-        : "";
 
   const blkNote = onBlk.verdict === "confirm" ? ` ${onBlk.therefore}` : "";
-  const volOk = vol.verdict === "confirm" ? ` ${vol.therefore}` : vol.because ? ` ${vol.therefore}` : "";
+  const lesson = chartLesson(snap, side);
+  if ("title" in lesson) {
+    return {
+      action: "wait",
+      title: lesson.title,
+      because: lesson.because,
+      therefore: lesson.therefore,
+      spread,
+      roundTrip,
+      grossRisk,
+      grossReward,
+      netRisk,
+      netReward,
+      netRr,
+      covers,
+    };
+  }
 
   return {
     action: side,
-    title:
-      vol.verdict === "confirm" && vol.title
-        ? vol.title
-        : side === "long"
-          ? "Лимит на покупку в зоне"
-          : "Лимит на продажу в зоне",
-    because: `Вход ${fmt(entry)}, стоп ${fmt(stop)}, цель ${fmt(target)}. Круг ${fmt(roundTrip)}.${vol.verdict === "confirm" ? ` ${vol.because}` : ""}`,
-    therefore: `Чистый RR ${netRr?.toFixed(2)}. Ордер вешаем заранее, пока цена идёт к зоне.${blkNote}${marginNote}${patNote}${infNote}${hidNote}${coilNote}${volNote}${volOk}`,
+    title: side === "long" ? "Час закрылся вверх" : "Час закрылся вниз",
+    because: `Вход ${fmt(entry)}, стоп ${fmt(stop)}, цель ${fmt(target)} — ближайшая ликвидность. Круг ${fmt(roundTrip)}.`,
+    therefore: `Дивер по стороне. Стоп за экстремумом, не на хвосте. Чистый RR ${netRr?.toFixed(2)}.${lesson.note}${blkNote}${patNote}${infNote}${hidNote}`,
     spread,
     roundTrip,
     grossRisk,

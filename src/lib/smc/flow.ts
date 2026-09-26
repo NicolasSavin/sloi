@@ -33,6 +33,7 @@ export interface FlowSnap {
     therefore: string;
     from?: { time: number; price: number };
     to?: { time: number; price: number };
+    played?: boolean;
   } | null;
 }
 

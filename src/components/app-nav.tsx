@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 
 const LINKS = [
   { to: "/", label: "Главная" },
+  { to: "/sketch", label: "Заметка" },
   { to: "/news", label: "Новости" },
   { to: "/calendar", label: "Календарь" },
   { to: "/dispatch", label: "Диспетчер" },
