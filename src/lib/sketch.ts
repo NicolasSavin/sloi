@@ -200,6 +200,31 @@ function narrate(bits: string[], name: string, raw: string, mood: SketchMood): {
   return { lead, paragraphs };
 }
 
+export function guessSymbol(instrument: string, text: string) {
+  const names: [RegExp, string][] = [
+    [/серебр/i, "XAGUSD"],
+    [/золот/i, "XAUUSD"],
+    [/брент/i, "XBRUSD"],
+    [/wti|нефть/i, "XTIUSD"],
+    [/газ/i, "XNGUSD"],
+    [/биткои?н|bitcoin/i, "BTCUSD"],
+    [/эфир|ethereum/i, "ETHUSD"],
+    [/евро\s*доллар|евродоллар/i, "EURUSD"],
+    [/фунт/i, "GBPUSD"],
+    [/йен/i, "USDJPY"],
+    [/австрал/i, "AUDUSD"],
+    [/канад/i, "USDCAD"],
+    [/франк/i, "USDCHF"],
+    [/новозеланд/i, "NZDUSD"],
+  ];
+  const blob = `${instrument} ${text}`.toUpperCase();
+  const tick = blob.match(/\b(XAUUSD|XAGUSD|EURUSD|GBPUSD|USDJPY|USDCHF|AUDUSD|USDCAD|NZDUSD|EURGBP|EURJPY|GBPJPY|AUDJPY|CADJPY|NZDJPY|EURCHF|EURAUD|GBPAUD|XTIUSD|XBRUSD|XNGUSD|ETHUSD|LTCUSD|BCHUSD|BTCUSD|XRPUSD|TONUSD)\b/);
+  if (tick) return tick[1]!;
+  const raw = `${instrument} ${text}`;
+  for (const [re, id] of names) if (re.test(raw)) return id;
+  return "";
+}
+
 export function parsePlan(text: string): ChartPlan | null {
   const m = text.match(/ПРИКАЗ\s+([A-Za-z]{6,10})\s+(BUY|SELL)\s+ENTRY\s+([0-9]+(?:[.,][0-9]+)?)\s+STOP\s+([0-9]+(?:[.,][0-9]+)?)\s+TP\s+([0-9]+(?:[.,][0-9]+)?)(?:\s+СТОЛ)?/i);
   if (!m) return null;

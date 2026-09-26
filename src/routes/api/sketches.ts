@@ -1,8 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { askVision } from "@/lib/ai/plain";
 import { ownLevels } from "@/lib/market/fetch";
-import { parsePlan } from "@/lib/sketch";
-import { SYMBOLS } from "@/lib/market/symbols";
+import { parsePlan, guessSymbol } from "@/lib/sketch";
 import { addSketch, eraseSketch, listSketches } from "@/lib/sketch-store";
 
 const CHART_EYE = `Ты смотришь скриншот рыночного графика. Пиши по-русски и только то, что видно на картинке.
@@ -13,31 +12,6 @@ const CHART_EYE = `Ты смотришь скриншот рыночного г�
 Если на графике подписаны вход, стоп и тейк, последней строкой добавь ровно так, числа только с картинки:
 ПРИКАЗ EURUSD BUY ENTRY 1.0850 STOP 1.0820 TP 1.0910
 BUY — если тейк выше входа. SELL — если тейк ниже входа. Тикер латиницей, как на графике. Если одной из трёх цен нет, строку ПРИКАЗ не пиши и числа не выдумывай. Подпись вроде «тейк у ликвидности» сама по себе ещё не цена.`;
-
-const NAMES: [RegExp, string][] = [
-  [/серебр/i, "XAGUSD"],
-  [/золот/i, "XAUUSD"],
-  [/брент/i, "XBRUSD"],
-  [/wti|нефть/i, "XTIUSD"],
-  [/газ/i, "XNGUSD"],
-  [/биткои?н|bitcoin/i, "BTCUSD"],
-  [/эфир|ethereum/i, "ETHUSD"],
-  [/евро\s*доллар|евродоллар/i, "EURUSD"],
-  [/фунт/i, "GBPUSD"],
-  [/йен/i, "USDJPY"],
-  [/австрал/i, "AUDUSD"],
-  [/канад/i, "USDCAD"],
-  [/франк/i, "USDCHF"],
-  [/новозеланд/i, "NZDUSD"],
-];
-
-function guessSymbol(instrument: string, text: string) {
-  const blob = `${instrument} ${text}`.toUpperCase();
-  for (const spec of SYMBOLS) if (blob.includes(spec.id)) return spec.id;
-  const raw = `${instrument} ${text}`;
-  for (const [re, id] of NAMES) if (re.test(raw)) return id;
-  return "";
-}
 
 async function withDeskLevels(text: string, instrument: string) {
   if (parsePlan(text)) return text;
@@ -67,7 +41,22 @@ async function notesFromChart(typed: string, image: string, instrument: string) 
 export const Route = createFileRoute("/api/sketches")({
   server: {
     handlers: {
-      GET: async () => {
+      GET: async ({ request }) => {
+        const fill = new URL(request.url).searchParams.get("fill");
+        if (fill) {
+          const levels = await ownLevels(fill.toUpperCase());
+          if (!levels) return Response.json({ plan: null });
+          return Response.json({
+            plan: {
+              symbol: fill.toUpperCase(),
+              side: levels.side,
+              entry: levels.entry,
+              stop: levels.stop,
+              target: levels.target,
+              own: true,
+            },
+          });
+        }
         try {
           const notes = await listSketches();
           return Response.json({ notes });

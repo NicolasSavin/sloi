@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { AppNav } from "@/components/app-nav";
 import { deskCommandFn } from "@/lib/desk-api";
 import { readDeskKey } from "@/lib/desk-key";
-import { retellSketch, type ChartPlan, type SketchPiece } from "@/lib/sketch";
+import { guessSymbol, retellSketch, type ChartPlan, type SketchPiece } from "@/lib/sketch";
 
 export const Route = createFileRoute("/sketch")({
   component: SketchPage,
@@ -333,6 +333,41 @@ function ChartOrder({ plan }: { plan: ChartPlan }) {
   );
 }
 
+function DeskFill({ instrument, text }: { instrument: string; text: string }) {
+  const symbol = guessSymbol(instrument, text);
+  const [plan, setPlan] = useState<ChartPlan | null>(null);
+  const [state, setState] = useState(symbol ? "считает" : "нет");
+  useEffect(() => {
+    if (!symbol) return;
+    let stop = false;
+    fetch(`/api/sketches?fill=${symbol}`)
+      .then((r) => r.json())
+      .then((body: { plan?: ChartPlan | null }) => {
+        if (stop) return;
+        if (body.plan) {
+          setPlan(body.plan);
+          setState("есть");
+        } else setState("пусто");
+      })
+      .catch(() => {
+        if (!stop) setState("пусто");
+      });
+    return () => {
+      stop = true;
+    };
+  }, [symbol]);
+  if (plan) return <ChartOrder plan={plan} />;
+  return (
+    <p className="mt-6 text-xs text-zinc-500">
+      {state === "считает"
+        ? "Стол считает вход, стоп и тейк…"
+        : state === "пусто"
+          ? "Стол не нашёл зону, где сразу есть вход, стоп и тейк. Приказа нет."
+          : "Инструмент не назван, стол не знает, чью зону ставить."}
+    </p>
+  );
+}
+
 function Spread({ note, onRemove }: { note: SavedNote; onRemove?: () => void }) {
   const { image, instrument } = note;
   const fresh = retellSketch(note.piece.original, instrument);
@@ -376,7 +411,7 @@ function Spread({ note, onRemove }: { note: SavedNote; onRemove?: () => void }) 
               ))}
             </div>
           ) : null}
-          {piece.plan ? <ChartOrder plan={piece.plan} /> : null}
+          {piece.plan ? <ChartOrder plan={piece.plan} /> : <DeskFill instrument={instrument} text={`${piece.title} ${piece.lead} ${piece.original}`} />}
           <blockquote className="mt-6 border-l-2 border-amber-200/40 pl-3 text-sm italic text-zinc-400">
             {piece.original}
           </blockquote>
