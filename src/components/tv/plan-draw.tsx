@@ -49,20 +49,28 @@ export function PlanDraw({
   const wait = useRef<number | null>(null);
   const drag = useRef<{ src: "user" | "auto"; i: number; end: "a" | "b" | "move"; last: Pt } | null>(null);
 
+  const loaded = useRef("");
+
   useEffect(() => {
     let stopFetch = false;
-    setCandles([]);
-    setEntry(null);
-    setStop(null);
-    setTarget(null);
-    setLines([]);
-    setDraft(null);
+    const key = `${pair}|${minutes}`;
+    const same = loaded.current === key;
+    loaded.current = key;
+    if (!same) {
+      setLines([]);
+      setDraft(null);
+      setEntry(null);
+      setStop(null);
+      setTarget(null);
+      setMarks([]);
+      setStory(null);
+    }
     const standard = ({ 5: "5m", 15: "15m", 60: "1h", 240: "4h", 1440: "1d" } as const)[minutes];
     const load = standard
       ? fetchMarket({ data: { symbol: pair, timeframe: standard } }).then((payload) => payload.candles)
       : fetchCustomBars({ data: { symbol: pair, minutes } }).then((payload) => payload.candles);
     void load.then((rows) => {
-      if (!stopFetch) setCandles(rows.slice(-90));
+      if (!stopFetch) setCandles(rows.slice(-120));
     });
     return () => {
       stopFetch = true;
