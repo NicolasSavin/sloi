@@ -43,6 +43,9 @@ export function PlanDraw({
   const [reading, setReading] = useState(false);
   const [marks, setMarks] = useState<AutoMark[]>([]);
   const [found, setFound] = useState("");
+  const [pick, setPick] = useState<{ src: "user" | "auto"; i: number } | null>(null);
+  const wait = useRef<number | null>(null);
+  const drag = useRef<{ src: "user" | "auto"; i: number; end: "a" | "b" | "move"; last: Pt } | null>(null);
 
   useEffect(() => {
     let stopFetch = false;
@@ -132,6 +135,16 @@ export function PlanDraw({
       level(ctx, w, yOf, entry, "#089981", "вход");
       level(ctx, w, yOf, stop, "#f23645", "стоп");
       level(ctx, w, yOf, target, "#c4a86e", "тейк");
+      const chosen = pick?.src === "user" ? lines[pick.i] : pick?.src === "auto" && marks[pick.i]?.t === "line" ? marks[pick.i] : null;
+      if (chosen && "a" in chosen) {
+        drawLine(ctx, xOf(chosen.a.i), yOf(chosen.a.price), xOf(chosen.b.i), yOf(chosen.b.price), "#ffffff");
+        for (const pt of [chosen.a, chosen.b]) {
+          ctx.fillStyle = "#ffffff";
+          ctx.beginPath();
+          ctx.arc(xOf(pt.i), yOf(pt.price), 5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
       ctx.fillStyle = "#71717a";
       ctx.font = "11px sans-serif";
       ctx.fillText(px(max), w - PAD_R + 8, PAD_Y + 4);
@@ -141,7 +154,7 @@ export function PlanDraw({
     const ro = new ResizeObserver(paint);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [candles, entry, stop, target, lines, marks]);
+  }, [candles, entry, stop, target, lines, marks, pick]);
 
   function at(e: MouseEvent<HTMLCanvasElement>): Pt | null {
     const el = box.current;
@@ -162,10 +175,92 @@ export function PlanDraw({
     return { i: Math.min(candles.length - 1, Math.max(0, i)), price };
   }
 
-  function click(e: MouseEvent<HTMLCanvasElement>) {
-    const p = at(e);
-    if (!p) return;
+  function magnet(raw: Pt): Pt {
+    const el = box.current;
+    if (!el) return raw;
+    const h = el.clientHeight;
+    const { min, max } = span(candles, [
+      entry,
+      stop,
+      target,
+      ...lines.flatMap((l) => [l.a.price, l.b.price]),
+      ...marks.flatMap((m) => (m.t === "h" ? [m.price] : m.t === "zone" ? [m.top, m.bot] : [m.a.price, m.b.price])),
+    ]);
+    const yPer = (h - PAD_Y * 2) / (max - min || 1);
+    let bestI = Math.round(raw.i);
+    let bestP = raw.price;
+    let bestPx = 16;
+    for (let i = Math.max(0, Math.floor(raw.i) - 1); i <= Math.min(candles.length - 1, Math.ceil(raw.i) + 1); i++) {
+      const c = candles[i];
+      if (!c) continue;
+      for (const price of [c.open, c.high, c.low, c.close]) {
+        const d = Math.abs(price - raw.price) * yPer;
+        if (d < bestPx) {
+          bestPx = d;
+          bestP = price;
+          bestI = i;
+        }
+      }
+    }
+    return { i: Math.min(candles.length - 1, Math.max(0, bestI)), price: bestP };
+  }
+
+  function pointPx(p: Pt) {
+    const el = box.current;
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    const { min, max } = span(candles, [
+      entry,
+      stop,
+      target,
+      ...lines.flatMap((l) => [l.a.price, l.b.price]),
+      ...marks.flatMap((m) => (m.t === "h" ? [m.price] : m.t === "zone" ? [m.top, m.bot] : [m.a.price, m.b.price])),
+    ]);
+    const x = r.left + PAD_L + ((r.width - PAD_L - PAD_R) * p.i) / Math.max(candles.length - 1, 1);
+    const y = r.top + PAD_Y + ((max - p.price) / (max - min || 1)) * (r.height - PAD_Y * 2);
+    return { x, y };
+  }
+
+  function lineDist(e: MouseEvent<HTMLCanvasElement>, a: Pt, b: Pt) {
+    const A = pointPx(a);
+    const B = pointPx(b);
+    if (!A || !B) return 99;
+    const dx = B.x - A.x;
+    const dy = B.y - A.y;
+    const len = dx * dx + dy * dy || 1;
+    const t = Math.min(1, Math.max(0, ((e.clientX - A.x) * dx + (e.clientY - A.y) * dy) / len));
+    const x = A.x + dx * t;
+    const y = A.y + dy * t;
+    return Math.hypot(e.clientX - x, e.clientY - y);
+  }
+
+  function nearest(e: MouseEvent<HTMLCanvasElement>) {
+    let best: { src: "user" | "auto"; i: number } | null = null;
+    let dist = 12;
+    lines.forEach((line, i) => {
+      const d = lineDist(e, line.a, line.b);
+      if (d < dist) {
+        dist = d;
+        best = { src: "user", i };
+      }
+    });
+    marks.forEach((m, i) => {
+      if (m.t !== "line") return;
+      const d = lineDist(e, m.a, m.b);
+      if (d < dist) {
+        dist = d;
+        best = { src: "auto", i };
+      }
+    });
+    return best;
+  }
+
+  function place(e: MouseEvent<HTMLCanvasElement>) {
+    const raw = at(e);
+    if (!raw) return;
+    const p = magnet(raw);
     setErr("");
+    setPick(null);
     if (tool === "entry") setEntry(p.price);
     else if (tool === "stop") setStop(p.price);
     else if (tool === "target") setTarget(p.price);
@@ -174,6 +269,72 @@ export function PlanDraw({
       setLines((rows) => [...rows, { a: draft, b: p }]);
       setDraft(null);
     }
+  }
+
+  function click(e: MouseEvent<HTMLCanvasElement>) {
+    if (e.detail > 1) {
+      if (wait.current) window.clearTimeout(wait.current);
+      setPick(nearest(e));
+      return;
+    }
+    if (wait.current) window.clearTimeout(wait.current);
+    wait.current = window.setTimeout(() => place(e), 220);
+  }
+
+  function down(e: MouseEvent<HTMLCanvasElement>) {
+    if (!pick) return;
+    const stroke = pick.src === "user" ? lines[pick.i] : marks[pick.i]?.t === "line" ? marks[pick.i] : null;
+    if (!stroke || !("a" in stroke)) return;
+    const raw = at(e);
+    if (!raw) return;
+    const A = pointPx(stroke.a);
+    const B = pointPx(stroke.b);
+    if (!A || !B) return;
+    const da = Math.hypot(e.clientX - A.x, e.clientY - A.y);
+    const db = Math.hypot(e.clientX - B.x, e.clientY - B.y);
+    const end = da < 12 ? "a" : db < 12 ? "b" : lineDist(e, stroke.a, stroke.b) < 8 ? "move" : null;
+    if (!end) return;
+    drag.current = { ...pick, end, last: magnet(raw) };
+  }
+
+  function move(e: MouseEvent<HTMLCanvasElement>) {
+    const d = drag.current;
+    const raw = at(e);
+    if (!d || !raw) return;
+    const p = magnet(raw);
+    const di = p.i - d.last.i;
+    const dp = p.price - d.last.price;
+    if (d.src === "user") {
+      setLines((rows) =>
+        rows.map((line, i) => {
+          if (i !== d.i) return line;
+          if (d.end === "a") return { ...line, a: p };
+          if (d.end === "b") return { ...line, b: p };
+          return {
+            a: { i: line.a.i + di, price: line.a.price + dp },
+            b: { i: line.b.i + di, price: line.b.price + dp },
+          };
+        }),
+      );
+    } else {
+      setMarks((rows) =>
+        rows.map((m, i) => {
+          if (i !== d.i || m.t !== "line") return m;
+          if (d.end === "a") return { ...m, a: p };
+          if (d.end === "b") return { ...m, b: p };
+          return {
+            ...m,
+            a: { i: m.a.i + di, price: m.a.price + dp },
+            b: { i: m.b.i + di, price: m.b.price + dp },
+          };
+        }),
+      );
+    }
+    drag.current = { ...d, last: p };
+  }
+
+  function up() {
+    drag.current = null;
   }
 
   const drawn = orderOf(entry, stop, target) ?? lineOrder(lines.at(-1) ?? null, candles);
@@ -313,7 +474,7 @@ export function PlanDraw({
         </div>
       </div>
       <div ref={box} className="relative min-h-0 flex-1">
-        <canvas ref={canvas} onClick={click} className="absolute inset-0 cursor-crosshair" />
+        <canvas ref={canvas} onClick={click} onMouseDown={down} onMouseMove={move} onMouseUp={up} onMouseLeave={up} className="absolute inset-0 cursor-crosshair" />
       </div>
       <div className="max-h-56 overflow-auto border-t border-white/10 px-3 py-2">
         <textarea
@@ -339,7 +500,7 @@ export function PlanDraw({
           <p className="mt-1 text-xs text-zinc-400">
             {plan
               ? `${plan.side === "buy" ? "Покупка" : "Продажа"}. Вход ${px(plan.entry)}, стоп ${px(plan.stop)}, тейк ${px(plan.target)}.`
-              : "Линия — два клика. «Как в заметке» пишет текст и собирает приказ так же, как страница «Заметка»."}{" "}
+              : "Линия липнет к свече. Двойной клик открывает концы: их можно перетащить. «Как в заметке» пишет текст и собирает приказ."}{" "}
             {found ? ` Найдено: ${found}.` : ""} {err || note}
           </p>
         )}
