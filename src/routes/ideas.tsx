@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppNav } from "@/components/app-nav";
+import { PlanDraw } from "@/components/tv/plan-draw";
 import { deskCommandFn } from "@/lib/desk-api";
 import { readDeskKey } from "@/lib/desk-key";
 import { PAIR_OPTIONS } from "@/lib/ea-settings";
@@ -21,6 +22,7 @@ function IdeasPage() {
   const [key, setKey] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [draw, setDraw] = useState(false);
 
   useEffect(() => {
     setKey(readDeskKey());
@@ -82,6 +84,28 @@ function IdeasPage() {
     setNote(res.ok ? "Приказ у вашего советника." : res.error);
   }
 
+  async function sendPlan(how: "now" | "limit", plan: { side: "buy" | "sell"; entry: number; stop: number; target: number }) {
+    if (!key) {
+      setNote("Сначала откройте кабинет в этом браузере.");
+      return;
+    }
+    setBusy(true);
+    setNote(how === "now" ? "Рыночный приказ уходит брокеру…" : "Лимитка уходит брокеру…");
+    const res = await deskCommandFn({
+      data: {
+        key,
+        kind: plan.side === "buy" ? "BUY" : "SELL",
+        symbol: pair,
+        entry: plan.entry,
+        stop: plan.stop,
+        tp: plan.target,
+        how,
+      },
+    });
+    setBusy(false);
+    setNote(res.ok ? "План у вашего советника." : res.error);
+  }
+
   return (
     <div className="flex h-screen flex-col bg-[#131722] text-zinc-100">
       <AppNav />
@@ -108,8 +132,12 @@ function IdeasPage() {
           <button type="button" disabled={busy} onClick={() => void send("CLOSE")} className="h-9 rounded-sm bg-[#2a2e39] px-3 text-sm text-zinc-100 disabled:opacity-60">
             Закрыть
           </button>
+          <button type="button" onClick={() => setDraw(true)} className="h-9 rounded-sm bg-amber-100 px-3 text-sm font-semibold text-zinc-900">
+            План
+          </button>
         </div>
-        {note ? <p className="absolute bottom-10 right-3 z-10 rounded bg-black/80 px-3 py-1 text-xs text-amber-100">{note}</p> : null}
+        {note && !draw ? <p className="absolute bottom-10 right-3 z-10 rounded bg-black/80 px-3 py-1 text-xs text-amber-100">{note}</p> : null}
+        {draw ? <PlanDraw pair={pair} busy={busy} note={note} onClose={() => setDraw(false)} onSend={(how, plan) => void sendPlan(how, plan)} /> : null}
       </div>
     </div>
   );
