@@ -178,7 +178,7 @@ function IdeasPage() {
       {full ? null : <AppNav />}
       {full ? null : (
         <div className="flex flex-wrap items-center gap-1 border-b border-white/10 bg-[#131722] px-2 py-1">
-          <button type="button" onClick={() => setDraw(true)} className="h-7 rounded-sm bg-amber-100 px-3 text-xs font-semibold text-zinc-900">
+          <button type="button" onClick={() => setDraw(true)} className="h-9 rounded-sm bg-amber-100 px-4 text-sm font-semibold text-zinc-900">
             Рисовать
           </button>
           <button type="button" onClick={() => setFull(true)} className="h-7 rounded-sm bg-[#2a2e39] px-2 text-xs text-zinc-100">
