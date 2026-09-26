@@ -369,9 +369,17 @@ export function PlanDraw({
     };
     const next: AutoMark[] = [];
     for (const p of snap.patterns.slice(0, 3)) {
-      const pts = p.points.map((pt) => ({ i: at(pt.time), price: pt.price }));
+      const pts = p.points.map((pt) => ({ i: at(pt.time), price: pt.price, label: pt.label }));
+      const color = p.side === "bull" ? "#26a69a" : "#ef5350";
+      if (p.id === "wedge") {
+        const top = pts.filter((pt) => pt.label === "верх");
+        const bot = pts.filter((pt) => pt.label === "низ");
+        if (top.length === 2) next.push({ t: "line", a: top[0]!, b: top[1]!, name: p.name, color });
+        if (bot.length === 2) next.push({ t: "line", a: bot[0]!, b: bot[1]!, name: "", color });
+        continue;
+      }
       for (let i = 1; i < pts.length; i++) {
-        next.push({ t: "line", a: pts[i - 1]!, b: pts[i]!, name: i === 1 ? p.name : "", color: p.side === "bull" ? "#26a69a" : "#ef5350" });
+        next.push({ t: "line", a: pts[i - 1]!, b: pts[i]!, name: i === 1 ? p.name : "", color });
       }
     }
     const highs = snap.swings.filter((s) => s.type === "high").slice(-2);

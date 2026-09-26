@@ -302,6 +302,42 @@ function flagPennant(candles: Candle[], swings: Swing[], atr: number): PatternHi
 }
 
 /** Break of a narrowing wedge or a two-touch slope. Entry is the line, stop the far edge, target the base. */
+function wedge(swings: Swing[], atr: number): PatternHit | null {
+  if (swings.length < 4 || !(atr > 0)) return null;
+  const highs = swings.filter((s) => s.type === "high").slice(-2);
+  const lows = swings.filter((s) => s.type === "low").slice(-2);
+  if (highs.length < 2 || lows.length < 2) return null;
+  const h1 = highs[0]!;
+  const h2 = highs[1]!;
+  const l1 = lows[0]!;
+  const l2 = lows[1]!;
+  const width1 = Math.abs(h1.price - l1.price);
+  const width2 = Math.abs(h2.price - l2.price);
+  const narrow = width2 < width1 * 0.92 && width2 > atr * 0.25;
+  const rising = l2.price > l1.price + atr * 0.05 && h2.price > h1.price - atr * 0.2;
+  const falling = h2.price < h1.price - atr * 0.05 && l2.price < l1.price + atr * 0.2;
+  if (!narrow || (!rising && !falling)) return null;
+  const bear = rising;
+  return {
+    id: "wedge",
+    family: "graphic",
+    name: bear ? "восходящий клин" : "нисходящий клин",
+    side: bear ? "bear" : "bull",
+    points: [
+      { time: h1.time, price: h1.price, label: "верх" },
+      { time: h2.time, price: h2.price, label: "верх" },
+      { time: l1.time, price: l1.price, label: "низ" },
+      { time: l2.time, price: l2.price, label: "низ" },
+    ],
+    because: bear
+      ? "Обе границы вверх, коридор уже — покупатель выдыхается"
+      : "Обе границы вниз, коридор уже — продавец выдыхается",
+    therefore: bear
+      ? "Ждать пробой нижней границы. Пока цена внутри клина, это не шорт."
+      : "Ждать пробой верхней границы. Пока цена внутри клина, это не лонг.",
+  };
+}
+
 export function graphicBreak(
   candles: Candle[],
   swings: Swing[],
@@ -405,6 +441,7 @@ function wolfeWave(swings: Swing[], atr: number): PatternHit | null {
 
 export function detectPatterns(swings: Swing[], atr: number, candles: Candle[]): PatternHit[] {
   const found = [
+    wedge(swings, atr),
     wolfeWave(swings, atr),
     headShoulders(swings),
     doubleTopBottom(swings, atr),
