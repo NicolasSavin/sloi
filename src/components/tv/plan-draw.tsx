@@ -26,7 +26,7 @@ export function PlanDraw({
   const box = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [candles, setCandles] = useState<Candle[]>([]);
-  const [tool, setTool] = useState<Tool>("entry");
+  const [tool, setTool] = useState<Tool>("line");
   const [entry, setEntry] = useState<number | null>(null);
   const [stop, setStop] = useState<number | null>(null);
   const [target, setTarget] = useState<number | null>(null);
@@ -133,7 +133,7 @@ export function PlanDraw({
     }
   }
 
-  const plan = orderOf(entry, stop, target);
+  const plan = orderOf(entry, stop, target) ?? lineOrder(lines.at(-1) ?? null, candles);
 
   function send(how: "now" | "limit") {
     if (!plan) {
@@ -171,8 +171,8 @@ export function PlanDraw({
       </div>
       <p className="border-t border-white/10 px-3 py-2 text-xs text-zinc-400">
         {plan
-          ? `${plan.side === "buy" ? "Покупка" : "Продажа"}. Вход ${px(plan.entry)}, стоп ${px(plan.stop)}, тейк ${px(plan.target)}.`
-          : "Клик по графику ставит цену выбранной кнопки. Линия — два клика, она для разметки и в приказ сама не входит."}{" "}
+          ? `${plan.side === "buy" ? "Покупка" : "Продажа"}. Вход ${px(plan.entry)}, стоп ${px(plan.stop)}, тейк ${px(plan.target)}. Это тот же приказ, что стол собрал бы со снимка: вход на линии, стоп за край, тейк по ходу.`
+          : "Линия — два клика по наклонной, как на снимке. Вход встанет на ней. Или кликните Вход, Стоп и Тейк по цене."}{" "}
         {err || note}
       </p>
     </div>
@@ -239,5 +239,28 @@ function orderOf(entry: number | null, stop: number | null, target: number | nul
   if (entry == null || stop == null || target == null) return null;
   if (stop < entry && entry < target) return { side: "buy" as const, entry, stop, target };
   if (target < entry && entry < stop) return { side: "sell" as const, entry, stop, target };
+  return null;
+}
+
+function lineOrder(line: Stroke | null, candles: Candle[]) {
+  if (!line || candles.length < 5) return null;
+  const last = candles.length - 1;
+  const spanI = line.b.i - line.a.i || 1;
+  const entry = line.a.price + ((last - line.a.i) / spanI) * (line.b.price - line.a.price);
+  const from = Math.max(0, Math.floor(Math.min(line.a.i, line.b.i)));
+  const slice = candles.slice(from);
+  if (!slice.length || !Number.isFinite(entry)) return null;
+  const hi = Math.max(...slice.map((c) => c.high));
+  const lo = Math.min(...slice.map((c) => c.low));
+  const height = Math.max(hi - lo, Math.abs(line.a.price - line.b.price));
+  if (line.b.price <= line.a.price) {
+    const stop = Math.max(hi, line.a.price, line.b.price);
+    const target = entry - height;
+    if (stop > entry && entry > target) return { side: "sell" as const, entry, stop, target };
+  } else {
+    const stop = Math.min(lo, line.a.price, line.b.price);
+    const target = entry + height;
+    if (target > entry && entry > stop) return { side: "buy" as const, entry, stop, target };
+  }
   return null;
 }

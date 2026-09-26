@@ -111,7 +111,12 @@ function IdeasPage() {
       <AppNav />
       <div className="relative min-h-0 flex-1">
         <div ref={host} className="absolute inset-0" />
-        <div className="absolute right-3 top-2 z-10 flex items-center gap-1 rounded-md bg-[#131722] p-1 shadow-[0_8px_24px_rgba(0,0,0,0.45)]">
+        <div className="absolute left-3 top-2 z-10">
+          <button type="button" onClick={() => setDraw(true)} className="h-10 rounded-sm bg-amber-100 px-4 text-sm font-semibold text-zinc-900 shadow-[0_8px_24px_rgba(0,0,0,0.45)]">
+            Нарисовать план
+          </button>
+        </div>
+        <div className="absolute right-3 top-2 z-10 flex max-w-[70vw] flex-wrap items-center justify-end gap-1 rounded-md bg-[#131722] p-1 shadow-[0_8px_24px_rgba(0,0,0,0.45)]">
           <select
             value={pair}
             onChange={(e) => void navigate({ to: "/ideas", search: { pair: e.target.value } })}
@@ -131,9 +136,6 @@ function IdeasPage() {
           </button>
           <button type="button" disabled={busy} onClick={() => void send("CLOSE")} className="h-9 rounded-sm bg-[#2a2e39] px-3 text-sm text-zinc-100 disabled:opacity-60">
             Закрыть
-          </button>
-          <button type="button" onClick={() => setDraw(true)} className="h-9 rounded-sm bg-amber-100 px-3 text-sm font-semibold text-zinc-900">
-            План
           </button>
         </div>
         {note && !draw ? <p className="absolute bottom-10 right-3 z-10 rounded bg-black/80 px-3 py-1 text-xs text-amber-100">{note}</p> : null}
