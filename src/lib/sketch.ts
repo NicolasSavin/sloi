@@ -1,5 +1,12 @@
 export type SketchMood = "bull" | "bear" | "mixed" | "calm";
 
+export interface WhaleRead {
+  does: string;
+  wants: string;
+  because: string;
+  therefore: string;
+}
+
 export interface SketchPiece {
   kicker: string;
   title: string;
@@ -8,6 +15,7 @@ export interface SketchPiece {
   levels: string[];
   original: string;
   mood: SketchMood;
+  whale: WhaleRead;
 }
 
 function tidy(raw: string): string {
@@ -66,6 +74,60 @@ function headline(instrument: string, text: string): string {
   return fig ? `${name}: ${fig}, ${way}` : `${name}: ${way}`;
 }
 
+function whaleOf(text: string, mood: SketchMood): WhaleRead {
+  const has = (re: RegExp) => re.test(text);
+  const does: string[] = [];
+  if (has(/стоп/i)) does.push("снимает стопы, потому что без них набирать некого");
+  if (has(/флаг/i)) does.push("держит паузу во флаге и не отдаёт направление шеста");
+  if (has(/перевёрнут|пгип/i)) does.push("собирает перевёрнутую голову и плечи у дна");
+  else if (has(/голов/i)) does.push("раздаёт через голову и плечи");
+  if (has(/имбаланс|дыр|fvg/i) && has(/заполн|перекры|частичн/i)) {
+    does.push("дыры уже закрыл хотя бы частично и обратно в них не целится");
+  } else if (has(/имбаланс|дыр|fvg/i)) {
+    does.push("ведёт цену к имбалансу, а не мимо него");
+  }
+  if (has(/дивер/i) && has(/отработ/i)) does.push("старый дивер уже отработал, живым оставляет тот, чей ход ещё не был");
+  else if (has(/дивер/i)) does.push("смотрит на дивер, который ещё не сходил");
+  if (!does.length) {
+    does.push(
+      mood === "bull"
+        ? "не продаёт этот откат и оставляет дорогу вверх"
+        : mood === "bear"
+          ? "не покупает отскок и оставляет дорогу вниз"
+          : mood === "mixed"
+            ? "сначала забирает топливо с одной стороны, потом разворачивает"
+            : "сторону ещё не выбрал и цену не ведёт",
+    );
+  }
+  const wants =
+    mood === "mixed"
+      ? "Сначала добрать стопы или край дыры снизу, и уже оттуда развернуть ход в сторону живого дивера."
+      : mood === "bull"
+        ? "Продолжить ход вверх. Старая закрытая дыра ему больше не нужна."
+        : mood === "bear"
+          ? "Продолжить ход вниз, к ближайшей ликвидности, а не обратно в фигуру."
+          : "Дождаться закрытия часа. Без стороны ему некуда вести цену.";
+  const because = has(/стоп/i)
+    ? "Стопы под уровнем для него топливо. Пока их не сняли, настоящего набора нет."
+    : has(/дивер/i)
+      ? "Дивер отделяет ход от шума. Тот, после которого цена уже сходила, больше её не двигает."
+      : has(/имбаланс|дыр|fvg/i)
+        ? "Открытая дыра тянет цену к ближнему краю. Частично закрытая уже не магнит."
+        : "Он идёт туда, где стоит чужая ликвидность. Красивая фигура сама по себе его не двигает.";
+  const therefore =
+    mood === "mixed"
+      ? "Пока площадка снизу не взята, ход вверх рано. После съёма стопов или частичного закрытия дыры вероятнее разворот туда, куда смотрит дивер."
+      : mood === "bull" || mood === "bear"
+        ? "Следствие не раньше закрытия часа за границей фигуры. Пока свеча внутри, это ещё не его ход."
+        : "Следствия пока нет: крупняк ничего не показал.";
+  return {
+    does: polish(does.join(", ")),
+    wants,
+    because,
+    therefore,
+  };
+}
+
 function levelsOf(text: string): string[] {
   const found = text.match(/\d+[.,]\d+|\d{2,}/g) ?? [];
   const uniq: string[] = [];
@@ -99,5 +161,6 @@ export function retellSketch(raw: string, instrument: string): SketchPiece | nul
     levels: levelsOf(original),
     original,
     mood: moodOf(original),
+    whale: whaleOf(original, moodOf(original)),
   };
 }
