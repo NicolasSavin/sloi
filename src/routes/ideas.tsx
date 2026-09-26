@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppNav } from "@/components/app-nav";
 import { MinuteChart } from "@/components/tv/minute-chart";
+import { PlanDraw } from "@/components/tv/plan-draw";
 import { deskCommandFn } from "@/lib/desk-api";
 import { readDeskKey } from "@/lib/desk-key";
 import { PAIR_OPTIONS } from "@/lib/ea-settings";
@@ -52,6 +53,7 @@ function IdeasPage() {
   const [key, setKey] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [draw, setDraw] = useState(false);
   const [full, setFull] = useState(false);
   const screen = useRef<HTMLDivElement>(null);
   const [interval, setInterval] = useState("60");
@@ -128,8 +130,6 @@ function IdeasPage() {
       hide_legend: false,
       withdateranges: true,
       details: false,
-      disabled_features: ["right_toolbar", "header_screenshot"],
-      enabled_features: ["hide_right_toolbar"],
       save_image: true,
       studies: ["Volume@tv-basicstudies", "Volume Delta@tv-basicstudies"],
       support_host: "https://www.tradingview.com",
@@ -151,11 +151,36 @@ function IdeasPage() {
     setNote(res.ok ? "Приказ у вашего советника." : res.error);
   }
 
+  async function sendPlan(how: "now" | "limit", plan: { side: "buy" | "sell"; entry: number; stop: number; target: number }) {
+    if (!key) {
+      setNote("Сначала откройте кабинет в этом браузере.");
+      return;
+    }
+    setBusy(true);
+    setNote(how === "now" ? "Рыночный приказ уходит брокеру…" : "Лимитка уходит брокеру…");
+    const res = await deskCommandFn({
+      data: {
+        key,
+        kind: plan.side === "buy" ? "BUY" : "SELL",
+        symbol: pair,
+        entry: plan.entry,
+        stop: plan.stop,
+        tp: plan.target,
+        how,
+      },
+    });
+    setBusy(false);
+    setNote(res.ok ? "План у вашего советника." : res.error);
+  }
+
   return (
     <div className="flex h-screen flex-col bg-[#131722] text-zinc-100">
       {full ? null : <AppNav />}
       {full ? null : (
         <div className="flex flex-wrap items-center gap-1 border-b border-white/10 bg-[#131722] px-2 py-1">
+          <button type="button" onClick={() => setDraw(true)} className="h-7 rounded-sm bg-amber-100 px-3 text-xs font-semibold text-zinc-900">
+            Рисовать
+          </button>
           <button type="button" onClick={() => setFull(true)} className="h-7 rounded-sm bg-[#2a2e39] px-2 text-xs text-zinc-100">
             F8 весь экран
           </button>
@@ -220,7 +245,10 @@ function IdeasPage() {
             Выйти
           </button>
         ) : null}
-        {note ? <p className="absolute bottom-10 right-3 z-10 rounded bg-black/80 px-3 py-1 text-xs text-amber-100">{note}</p> : null}
+        {note && !draw ? <p className="absolute bottom-10 right-3 z-10 rounded bg-black/80 px-3 py-1 text-xs text-amber-100">{note}</p> : null}
+        <div className={draw ? "absolute inset-0 z-20" : "hidden"}>
+          <PlanDraw pair={pair} minutes={barMinutes} busy={busy} note={note} onClose={() => setDraw(false)} onSend={(how, plan) => void sendPlan(how, plan)} />
+        </div>
       </div>
     </div>
   );
