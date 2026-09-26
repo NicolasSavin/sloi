@@ -141,26 +141,64 @@ function levelsOf(text: string): string[] {
   return uniq;
 }
 
+function gloss(bit: string): string {
+  const b = bit.toLowerCase();
+  if (/дивер/.test(b) && /вверх|ввысь|лонг|рост/.test(b)) {
+    return "Дивер здесь не против роста. Он как раз смотрит вверх, и этот ход ещё не отработан.";
+  }
+  if (/дивер/.test(b) && /вниз|шорт|паден/.test(b)) {
+    return "Дивер здесь подтверждает спуск, а не отскок против него.";
+  }
+  if (/дивер/.test(b) && /отработ/.test(b)) {
+    return "Отработанный дивер уже сделал своё. В зачёт идёт только тот, после которого цена ещё не сходила.";
+  }
+  if (/дивер/.test(b)) return "Дивер в этом разборе отделяет ход от шума. Без него фигура ещё пустая.";
+  if (/стоп/.test(b)) return "Стопы здесь не помеха, а топливо. Пока их не сняли, крупняку не на чем набирать.";
+  if (/частичн|заполн|перекры/.test(b)) return "Дыру не нужно закрывать целиком. Хватит края, и после этого она уже не магнит.";
+  if (/флаг/.test(b)) return "Флаг сам по себе ещё не вход. Это пауза, сторона появится после выхода из него.";
+  if (/голов/.test(b)) return "Фигура задаёт сторону, но жива она, только пока не снята голова.";
+  if (/вверх|наверх|ввысь|лонг/.test(b)) return "Рост назван вероятным, но он стоит после условия, а не вместо него.";
+  if (/вниз|спуск|шорт|паден/.test(b)) return "Спуск здесь — дорога к месту, а не обещание, что цена упадёт без остановки.";
+  return "Это не новая идея сбоку, а часть того же разбора.";
+}
+
+function narrate(bits: string[], name: string, mood: SketchMood): { lead: string; paragraphs: string[] } {
+  const place = name ? `по ${name}` : "с этого графика";
+  const clean = bits.map((b) => b.replace(/[.!?]+$/, ""));
+  const lead = polish(
+    `Заметка ${place} собрана не из подписи индикатора, а из слов рядом с графиком. ${clean.join(". ")}`,
+  );
+  const paragraphs = clean.map((b, i) => {
+    const step = clean.length === 1 ? "Если разложить эту фразу" : i === 0 ? "Сначала так" : i === clean.length - 1 ? "И в конце так" : "Дальше так";
+    return polish(`${step}: ${b.charAt(0).toLowerCase()}${b.slice(1)}. ${gloss(b)}`);
+  });
+  const order =
+    mood === "mixed"
+      ? "Порядок из этих слов такой. Сначала крупный забирает то, что лежит снизу: стопы или край дыры. Потом уже ход в сторону дивера, который ещё не отработал. Покупать до этого касания значит перепутать дорогу и цель."
+      : mood === "bull"
+        ? "Из этих слов следует рост, но не с любого места. Крупный не отдаёт направление, пока час не выйдет из фигуры в его сторону. До закрытия это чтение, не приказ."
+        : mood === "bear"
+          ? "Из этих слов следует спуск, но не из середины. Крупный ведёт цену к ликвидности, и час должен закрыться за границей. Пока свеча внутри, шорт был бы догадкой."
+          : "Сторона в словах ещё не названа. Крупный в таком месте ничего не показывает, и ордера из заметки не следует.";
+  paragraphs.push(order);
+  return { lead, paragraphs };
+}
+
 /** Journalistic retelling. Uses only the author's words. Adds no prices and no new scenario. */
 export function retellSketch(raw: string, instrument: string): SketchPiece | null {
   const original = tidy(raw);
   if (original.length < 8) return null;
-  const sentences = sentencesOf(original).map(polish);
   const name = instrument.trim();
-  const leadBits = sentences.slice(0, 2);
-  const rest = sentences.slice(2);
-  const named = name && leadBits.join(" ").toLowerCase().includes(name.toLowerCase());
-  const where = name && !named ? `На графике ${name} ` : "На графике ";
-  const body = leadBits.join(" ");
-  const lead = named ? body : `${where}${body.charAt(0).toLowerCase()}${body.slice(1)}`;
+  const mood = moodOf(original);
+  const told = narrate(sentencesOf(original), name, mood);
   return {
     kicker: name ? name.toUpperCase() : "ЗАМЕТКА С ГРАФИКА",
     title: headline(name, original),
-    lead: polish(lead),
-    paragraphs: rest,
+    lead: told.lead,
+    paragraphs: told.paragraphs,
     levels: levelsOf(original),
     original,
-    mood: moodOf(original),
-    whale: whaleOf(original, moodOf(original)),
+    mood,
+    whale: whaleOf(original, mood),
   };
 }

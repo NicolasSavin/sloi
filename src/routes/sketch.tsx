@@ -7,26 +7,59 @@ export const Route = createFileRoute("/sketch")({
   component: SketchPage,
 });
 
-const STORE = "sloi-sketch-v1";
+const STORE = "sloi-sketch-feed-v2";
+
+interface SavedNote {
+  id: string;
+  instrument: string;
+  image: string;
+  piece: SketchPiece;
+  at: number;
+}
 
 function SketchPage() {
   const [instrument, setInstrument] = useState("");
   const [notes, setNotes] = useState("");
   const [image, setImage] = useState<string | null>(null);
-  const [piece, setPiece] = useState<SketchPiece | null>(null);
+  const [feed, setFeed] = useState<SavedNote[]>([]);
   const [miss, setMiss] = useState("");
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORE);
-      if (!saved) return;
-      const data = JSON.parse(saved) as { instrument?: string; notes?: string };
-      if (data.instrument) setInstrument(data.instrument);
-      if (data.notes) setNotes(data.notes);
+      if (saved) {
+        const data = JSON.parse(saved) as SavedNote[];
+        if (Array.isArray(data) && data.length) {
+          setFeed(data.filter((n) => n.image && n.piece));
+        }
+      } else {
+        const old = localStorage.getItem("sloi-sketch-v1");
+        if (old) {
+          const draft = JSON.parse(old) as { instrument?: string; notes?: string };
+          if (draft.instrument) setInstrument(draft.instrument);
+          if (draft.notes) setNotes(draft.notes);
+        }
+      }
     } catch {
-      /* ignore a broken draft */
+      /* ignore a broken feed */
     }
+    setReady(true);
   }, []);
+
+  function remember(next: SavedNote[]) {
+    setFeed(next);
+    const slim = next.slice(0, 12);
+    try {
+      localStorage.setItem(STORE, JSON.stringify(slim));
+    } catch {
+      try {
+        localStorage.setItem(STORE, JSON.stringify(slim.slice(0, 4)));
+      } catch {
+        setMiss("Заметка есть на странице, но браузер не смог сохранить все картинки. Не закрывайте вкладку.");
+      }
+    }
+  }
 
   function onFile(file: File | undefined) {
     if (!file) return;
@@ -34,33 +67,37 @@ function SketchPage() {
       setMiss("Нужна картинка графика.");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setImage(typeof reader.result === "string" ? reader.result : null);
+    void shrinkImage(file).then((url) => {
+      setImage(url);
       setMiss("");
-    };
-    reader.readAsDataURL(file);
+    });
   }
 
   function publish() {
-    const next = retellSketch(notes, instrument);
-    if (!next) {
-      setPiece(null);
+    const piece = retellSketch(notes, instrument);
+    if (!piece) {
       setMiss("Напишите своими словами, что видите. Пары фраз хватит.");
       return;
     }
     if (!image) {
-      setPiece(null);
       setMiss("Сначала скиньте график.");
       return;
     }
+    const note: SavedNote = {
+      id: `${Date.now()}`,
+      instrument: instrument.trim(),
+      image,
+      piece,
+      at: Date.now(),
+    };
+    remember([note, ...feed]);
+    setNotes("");
+    setImage(null);
     setMiss("");
-    setPiece(next);
-    try {
-      localStorage.setItem(STORE, JSON.stringify({ instrument, notes }));
-    } catch {
-      /* quota */
-    }
+  }
+
+  function remove(id: string) {
+    remember(feed.filter((n) => n.id !== id));
   }
 
   return (
@@ -70,18 +107,13 @@ function SketchPage() {
         <p className="text-xs tracking-[0.22em] text-accent">ЗАМЕТКА</p>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight">Свой график, своими словами</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted">
-          Скиньте картинку и набросайте, что к чему. Стол перескажет это колонкой и поставит график в рамку. Новых цен и чужого сценария не добавит.
+          Одна заметка не затирает другую. Скиньте график, напишите текст и нажмите «Добавить заметку». Форма очистится, и так же добавляется следующая. Все остаются в ленте ниже.
         </p>
 
         <div className="mt-6 grid gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:grid-cols-2">
-          <label className="flex min-h-40 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-amber-200/30 bg-black/30 px-4 text-center text-sm text-muted">
-            <input
-              type="file"
-              accept="image/*"
-              className="sr-only"
-              onChange={(e) => onFile(e.target.files?.[0])}
-            />
-            {image ? "График выбран. Нажмите, чтобы заменить." : "Скинуть график"}
+          <label className="flex min-h-40 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed border-amber-200/30 bg-black/30 px-4 text-center text-sm text-muted">
+            <input type="file" accept="image/*" className="sr-only" onChange={(e) => onFile(e.target.files?.[0])} />
+            {image ? <img src={image} alt="" className="max-h-36 w-full object-contain" /> : "Скинуть график"}
           </label>
           <div className="flex flex-col gap-3">
             <input
@@ -98,16 +130,49 @@ function SketchPage() {
               className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm outline-none focus:border-amber-200/40"
             />
             <button type="button" onClick={publish} className="btn-metal h-11 rounded-sm text-sm font-medium text-accent-fg">
-              Оформить
+              Добавить заметку
             </button>
+            <p className="text-xs text-muted">
+              {ready && feed.length
+                ? `В ленте уже ${feed.length}. Для следующей снова скиньте график и напишите новый текст.`
+                : "После кнопки эта форма освободится под следующую заметку."}
+            </p>
             {miss ? <p className="text-sm text-rose-300">{miss}</p> : null}
           </div>
         </div>
 
-        {piece && image ? <Spread image={image} piece={piece} instrument={instrument} /> : null}
+        <div className="mt-8 flex flex-col gap-8">
+          {feed.map((note) => (
+            <Spread key={note.id} note={note} onRemove={() => remove(note.id)} />
+          ))}
+        </div>
       </main>
     </div>
   );
+}
+
+function shrinkImage(file: File): Promise<string> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const max = 1100;
+      const scale = Math.min(1, max / Math.max(img.width, 1));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(img.width * scale));
+      canvas.height = Math.max(1, Math.round(img.height * scale));
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        resolve(url);
+        return;
+      }
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL("image/jpeg", 0.72));
+    };
+    img.onerror = () => resolve(url);
+    img.src = url;
+  });
 }
 
 function SketchMascots({ mood }: { mood: SketchPiece["mood"] }) {
@@ -131,8 +196,14 @@ function SketchMascots({ mood }: { mood: SketchPiece["mood"] }) {
   );
 }
 
-function Spread({ image, piece, instrument }: { image: string; piece: SketchPiece; instrument: string }) {
-  const when = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" }).format(new Date());
+function Spread({ note, onRemove }: { note: SavedNote; onRemove: () => void }) {
+  const { piece, image, instrument } = note;
+  const when = new Intl.DateTimeFormat("ru-RU", {
+    day: "numeric",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(note.at);
   return (
     <article className="mt-8 overflow-hidden rounded-3xl border border-amber-200/25 bg-gradient-to-b from-zinc-900 via-[#120e09] to-black shadow-[0_40px_90px_rgba(0,0,0,0.45)]">
       <div className="grid gap-0 lg:grid-cols-[1.2fr_0.8fr]">
@@ -189,6 +260,9 @@ function Spread({ image, piece, instrument }: { image: string; piece: SketchPiec
             {piece.original}
           </blockquote>
           <p className="mt-4 text-xs text-zinc-500">Пересказ только ваших слов. Это не приказ диспетчера.</p>
+          <button type="button" onClick={onRemove} className="mt-3 text-xs text-zinc-500 underline-offset-2 hover:text-rose-300 hover:underline">
+            Убрать эту заметку
+          </button>
         </div>
       </div>
     </article>
