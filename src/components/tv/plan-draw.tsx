@@ -6,6 +6,10 @@ import { retellSketch, type SketchPiece } from "@/lib/sketch";
 type Tool = "entry" | "stop" | "target" | "line";
 type Pt = { i: number; price: number };
 type Stroke = { a: Pt; b: Pt };
+type AutoMark =
+  | { t: "zone"; a: number; b: number; top: number; bot: number; name: string; color: string }
+  | { t: "h"; price: number; name: string; color: string }
+  | { t: "line"; a: Pt; b: Pt; name: string; color: string };
 
 const PAD_L = 12;
 const PAD_R = 72;
@@ -37,6 +41,8 @@ export function PlanDraw({
   const [words, setWords] = useState("");
   const [story, setStory] = useState<SketchPiece | null>(null);
   const [reading, setReading] = useState(false);
+  const [marks, setMarks] = useState<AutoMark[]>([]);
+  const [found, setFound] = useState("");
 
   useEffect(() => {
     let stopFetch = false;
@@ -78,7 +84,14 @@ export function PlanDraw({
         ctx.fillText("Свечи ещё грузятся…", 24, 36);
         return;
       }
-      const { min, max } = span(candles, [entry, stop, target, ...lines.flatMap((l) => [l.a.price, l.b.price])]);
+      const extra = [
+        entry,
+        stop,
+        target,
+        ...lines.flatMap((l) => [l.a.price, l.b.price]),
+        ...marks.flatMap((m) => (m.t === "h" ? [m.price] : m.t === "zone" ? [m.top, m.bot] : [m.a.price, m.b.price])),
+      ];
+      const { min, max } = span(candles, extra);
       const xOf = (i: number) => PAD_L + ((w - PAD_L - PAD_R) * i) / Math.max(candles.length - 1, 1);
       const yOf = (p: number) => PAD_Y + ((max - p) / (max - min || 1)) * (h - PAD_Y * 2);
       const slot = (w - PAD_L - PAD_R) / candles.length;
@@ -95,6 +108,26 @@ export function PlanDraw({
         const bot = yOf(Math.min(c.open, c.close));
         ctx.fillRect(x - Math.max(slot * 0.32, 1.5), top, Math.max(slot * 0.64, 3), Math.max(bot - top, 1));
       });
+      for (const m of marks) {
+        if (m.t === "zone") {
+          const x1 = xOf(Math.min(m.a, m.b));
+          const x2 = xOf(Math.max(m.a, m.b));
+          ctx.fillStyle = m.color;
+          ctx.fillRect(x1, yOf(m.top), Math.max(x2 - x1, 8), yOf(m.bot) - yOf(m.top));
+          ctx.fillStyle = "#e4e4e7";
+          ctx.font = "11px sans-serif";
+          ctx.fillText(m.name, x1 + 4, yOf(m.top) + 12);
+        } else if (m.t === "line") {
+          drawLine(ctx, xOf(m.a.i), yOf(m.a.price), xOf(m.b.i), yOf(m.b.price), m.color);
+          if (m.name) {
+            ctx.fillStyle = m.color;
+            ctx.font = "12px sans-serif";
+            ctx.fillText(m.name, xOf(m.b.i) + 4, yOf(m.b.price));
+          }
+        } else {
+          level(ctx, w, yOf, m.price, m.color, m.name);
+        }
+      }
       for (const line of lines) drawLine(ctx, xOf(line.a.i), yOf(line.a.price), xOf(line.b.i), yOf(line.b.price), "#f0d7a8");
       level(ctx, w, yOf, entry, "#089981", "вход");
       level(ctx, w, yOf, stop, "#f23645", "стоп");
@@ -108,7 +141,7 @@ export function PlanDraw({
     const ro = new ResizeObserver(paint);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [candles, entry, stop, target, lines]);
+  }, [candles, entry, stop, target, lines, marks]);
 
   function at(e: MouseEvent<HTMLCanvasElement>): Pt | null {
     const el = box.current;
@@ -116,7 +149,13 @@ export function PlanDraw({
     const r = el.getBoundingClientRect();
     const w = r.width;
     const h = r.height;
-    const { min, max } = span(candles, [entry, stop, target, ...lines.flatMap((l) => [l.a.price, l.b.price])]);
+    const { min, max } = span(candles, [
+      entry,
+      stop,
+      target,
+      ...lines.flatMap((l) => [l.a.price, l.b.price]),
+      ...marks.flatMap((m) => (m.t === "h" ? [m.price] : m.t === "zone" ? [m.top, m.bot] : [m.a.price, m.b.price])),
+    ]);
     const i = ((e.clientX - r.left - PAD_L) / (w - PAD_L - PAD_R)) * (candles.length - 1);
     const price = max - ((e.clientY - r.top - PAD_Y) / (h - PAD_Y * 2)) * (max - min);
     if (!Number.isFinite(price)) return null;
@@ -141,6 +180,73 @@ export function PlanDraw({
   const plan = story?.plan
     ? { side: story.plan.side, entry: story.plan.entry, stop: story.plan.stop, target: story.plan.target }
     : drawn;
+
+  async function findPattern() {
+    if (candles.length < 20) {
+      setErr("Свечей ещё мало.");
+      return;
+    }
+    const { analyzeMarket } = await import("@/lib/smc/engine");
+    const snap = analyzeMarket(candles, null, undefined, { symbol: pair });
+    const at = (time: number) => {
+      let best = 0;
+      let dist = Infinity;
+      candles.forEach((c, i) => {
+        const d = Math.abs(c.time - time);
+        if (d < dist) {
+          dist = d;
+          best = i;
+        }
+      });
+      return best;
+    };
+    const next: AutoMark[] = [];
+    for (const p of snap.patterns.slice(0, 3)) {
+      const pts = p.points.map((pt) => ({ i: at(pt.time), price: pt.price }));
+      for (let i = 1; i < pts.length; i++) {
+        next.push({ t: "line", a: pts[i - 1]!, b: pts[i]!, name: i === 1 ? p.name : "", color: p.side === "bull" ? "#26a69a" : "#ef5350" });
+      }
+    }
+    const highs = snap.swings.filter((s) => s.type === "high").slice(-2);
+    const lows = snap.swings.filter((s) => s.type === "low").slice(-2);
+    if (highs.length === 2) {
+      next.push({
+        t: "line",
+        a: { i: highs[0]!.index, price: highs[0]!.price },
+        b: { i: highs[1]!.index, price: highs[1]!.price },
+        name: "наклонная",
+        color: "#7dd3fc",
+      });
+    }
+    if (lows.length === 2) {
+      next.push({
+        t: "line",
+        a: { i: lows[0]!.index, price: lows[0]!.price },
+        b: { i: lows[1]!.index, price: lows[1]!.price },
+        name: "наклонная",
+        color: "#7dd3fc",
+      });
+    }
+    for (const z of [...snap.fvgs, ...snap.orderBlocks].filter((z) => !z.mitigated).slice(-4)) {
+      next.push({
+        t: "zone",
+        a: at(z.startTime),
+        b: Math.max(at(z.endTime), candles.length - 1),
+        top: z.top,
+        bot: z.bottom,
+        name: z.kind === "fvg" ? "имбаланс" : "ордерблок",
+        color: z.kind === "fvg" ? "rgba(56,189,248,0.22)" : "rgba(168,85,247,0.22)",
+      });
+    }
+    next.push({ t: "h", price: snap.dealingRange.high, name: "уровень", color: "#d4d4d8" });
+    next.push({ t: "h", price: snap.dealingRange.low, name: "уровень", color: "#d4d4d8" });
+    for (const l of snap.liquidity.filter((l) => !l.swept).slice(-4)) {
+      next.push({ t: "h", price: l.price, name: "ликвидность", color: l.side === "buy" ? "#fbbf24" : "#fb7185" });
+    }
+    setMarks(next);
+    setFound(snap.patterns[0] ? snap.patterns.map((p) => p.name).slice(0, 3).join(", ") : "фигуры на часе нет, зоны и уровни нанесены");
+    setErr("");
+  }
 
   function send(how: "now" | "limit") {
     if (!plan) {
@@ -188,8 +294,8 @@ export function PlanDraw({
         <Tool name="Стоп" on={tool === "stop"} click={() => setTool("stop")} />
         <Tool name="Тейк" on={tool === "target"} click={() => setTool("target")} />
         <Tool name="Линия" on={tool === "line"} click={() => setTool("line")} />
-        <button type="button" onClick={() => { setLines([]); setDraft(null); }} className="h-8 rounded-sm px-2 text-xs text-zinc-400">
-          Стереть линии
+        <button type="button" onClick={() => void findPattern()} className="h-8 rounded-sm bg-sky-200 px-2 text-xs font-semibold text-zinc-900">
+          Найти паттерн
         </button>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <button type="button" disabled={busy || reading} onClick={() => void asNote()} className="h-8 rounded-sm bg-amber-100 px-3 text-sm font-semibold text-zinc-900 disabled:opacity-60">
@@ -234,7 +340,7 @@ export function PlanDraw({
             {plan
               ? `${plan.side === "buy" ? "Покупка" : "Продажа"}. Вход ${px(plan.entry)}, стоп ${px(plan.stop)}, тейк ${px(plan.target)}.`
               : "Линия — два клика. «Как в заметке» пишет текст и собирает приказ так же, как страница «Заметка»."}{" "}
-            {err || note}
+            {found ? ` Найдено: ${found}.` : ""} {err || note}
           </p>
         )}
         {story && (err || note) ? <p className="mt-1 text-xs text-amber-100">{err || note}</p> : null}
