@@ -316,7 +316,10 @@ function ChartOrder({ plan }: { plan: ChartPlan }) {
         {plan.symbol} {plan.side === "buy" ? "покупка" : "продажа"}. Вход {px(plan.entry)}, стоп {px(plan.stop)}, тейк {px(plan.target)}.
       </p>
       <p className="mt-2 text-xs leading-relaxed text-zinc-400">
-        Это подписи с картинки. Советник чуть поправит их на спред. Кнопку видит только браузер, где уже открыт ваш кабинет. Поле для чужого ключа нет.
+        {plan.own
+          ? "На картинке готовых цен не было. Это уровни самого стола: вход у зоны, стоп за экстремумом, тейк у ближайшей ликвидности. Советник ещё чуть поправит их на спред."
+          : "Это подписи с картинки. Советник чуть поправит их на спред."}{" "}
+        Кнопку видит только браузер, где уже открыт ваш кабинет.
       </p>
       {key ? (
         <button type="button" disabled={busy} onClick={() => void send()} className="btn-metal mt-3 h-10 rounded-sm px-4 text-sm font-medium text-accent-fg disabled:opacity-60">

@@ -13,6 +13,7 @@ export interface ChartPlan {
   entry: number;
   stop: number;
   target: number;
+  own: boolean;
 }
 
 export interface SketchPiece {
@@ -200,7 +201,7 @@ function narrate(bits: string[], name: string, raw: string, mood: SketchMood): {
 }
 
 export function parsePlan(text: string): ChartPlan | null {
-  const m = text.match(/ПРИКАЗ\s+([A-Za-z]{6,10})\s+(BUY|SELL)\s+ENTRY\s+([0-9]+(?:[.,][0-9]+)?)\s+STOP\s+([0-9]+(?:[.,][0-9]+)?)\s+TP\s+([0-9]+(?:[.,][0-9]+)?)/i);
+  const m = text.match(/ПРИКАЗ\s+([A-Za-z]{6,10})\s+(BUY|SELL)\s+ENTRY\s+([0-9]+(?:[.,][0-9]+)?)\s+STOP\s+([0-9]+(?:[.,][0-9]+)?)\s+TP\s+([0-9]+(?:[.,][0-9]+)?)(?:\s+СТОЛ)?/i);
   if (!m) return null;
   const num = (s: string) => Number(s.replace(",", "."));
   const plan: ChartPlan = {
@@ -209,6 +210,7 @@ export function parsePlan(text: string): ChartPlan | null {
     entry: num(m[3]!),
     stop: num(m[4]!),
     target: num(m[5]!),
+    own: /ПРИКАЗ\s+[A-Za-z]{6,10}\s+(?:BUY|SELL)\s+ENTRY\s+\S+\s+STOP\s+\S+\s+TP\s+\S+\s+СТОЛ/i.test(text),
   };
   if (![plan.entry, plan.stop, plan.target].every((n) => Number.isFinite(n) && n > 0)) return null;
   if (plan.side === "buy" && !(plan.stop < plan.entry && plan.entry < plan.target)) return null;
@@ -217,7 +219,7 @@ export function parsePlan(text: string): ChartPlan | null {
 }
 
 export function stripPlan(text: string) {
-  return text.replace(/\n?ПРИКАЗ\s+[A-Za-z]{6,10}\s+(?:BUY|SELL)\s+ENTRY\s+\S+\s+STOP\s+\S+\s+TP\s+\S+\s*/gi, "\n").trim();
+  return text.replace(/\n?ПРИКАЗ\s+[A-Za-z]{6,10}\s+(?:BUY|SELL)\s+ENTRY\s+\S+\s+STOP\s+\S+\s+TP\s+\S+(?:\s+СТОЛ)?\s*/gi, "\n").trim();
 }
 export function retellSketch(raw: string, instrument: string): SketchPiece | null {
   const original = tidy(raw);

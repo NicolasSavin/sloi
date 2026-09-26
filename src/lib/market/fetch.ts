@@ -740,6 +740,30 @@ async function assembleDigest(): Promise<{ digest: DailyDigest; source: string }
   return packed;
 }
 
+/** Desk's own entry, stop and nearest-liquidity target when the chart has no prices. */
+export async function ownLevels(symbol: string): Promise<{ side: "buy" | "sell"; entry: number; stop: number; target: number } | null> {
+  const { SYMBOLS } = await import("./symbols");
+  const spec = SYMBOLS.find((s) => s.id === symbol);
+  if (!spec) return null;
+  try {
+    const { analyzeMarket } = await import("@/lib/smc/engine");
+    const payload = await loadPayload(symbol, "1h", false);
+    if (payload.candles.length < 20) return null;
+    const snap = analyzeMarket(payload.candles, null, payload.trades, { symbol: spec.id, kind: spec.kind });
+    const entry = snap.localSetup.entry;
+    const stop = snap.localSetup.stop;
+    const target = snap.localSetup.targets[0] ?? null;
+    if (entry == null || stop == null || target == null) return null;
+    const side: "buy" | "sell" = target > entry ? "buy" : "sell";
+    if (side === "buy" && !(stop < entry && entry < target)) return null;
+    if (side === "sell" && !(target < entry && entry < stop)) return null;
+    const n = (v: number) => Number(v.toFixed(spec.decimals));
+    return { side, entry: n(entry), stop: n(stop), target: n(target) };
+  } catch {
+    return null;
+  }
+}
+
 export async function renderSignalFeed(_tenant?: string) {
   if (feedCache && Date.now() - feedCache.at < 90_000) return feedCache.text;
   if (digestCache && Date.now() - digestCache.at < 180_000) {
