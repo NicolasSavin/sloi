@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { Download } from "lucide-react";
 import { BRAND, DOMAIN, EA_FILE } from "@/lib/brand";
@@ -23,8 +24,18 @@ const LINKS = [
 
 export function AppNav() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const [open, setOpen] = useState(false);
   return (
-    <header className="nav-metal sticky top-0 z-20 backdrop-blur-md">
+    <>
+      <div className="fixed inset-x-0 top-0 z-40 h-3" onMouseEnter={() => setOpen(true)} />
+      <header
+        className={cn(
+          "nav-metal fixed inset-x-0 top-0 z-50 backdrop-blur-md transition-transform duration-200",
+          open ? "translate-y-0" : "-translate-y-full",
+        )}
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+      >
       <div className="flex items-center gap-3 overflow-x-auto px-3 py-3 sm:px-5">
         <Link to="/" className="flex shrink-0 items-baseline gap-2">
           <span className="font-mono text-sm tracking-[0.22em] text-accent drop-shadow-[0_0_12px_rgba(240,215,168,0.55)]">{BRAND}</span>
@@ -58,5 +69,6 @@ export function AppNav() {
         </a>
       </div>
     </header>
+    </>
   );
 }
