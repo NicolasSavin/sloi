@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { fetchMarket } from "@/lib/market/fetch";
 import type { Candle } from "@/lib/market/types";
+import { retellSketch, type SketchPiece } from "@/lib/sketch";
 
 type Tool = "entry" | "stop" | "target" | "line";
 type Pt = { i: number; price: number };
@@ -33,6 +34,9 @@ export function PlanDraw({
   const [lines, setLines] = useState<Stroke[]>([]);
   const [draft, setDraft] = useState<Pt | null>(null);
   const [err, setErr] = useState("");
+  const [words, setWords] = useState("");
+  const [story, setStory] = useState<SketchPiece | null>(null);
+  const [reading, setReading] = useState(false);
 
   useEffect(() => {
     let stopFetch = false;
@@ -133,7 +137,10 @@ export function PlanDraw({
     }
   }
 
-  const plan = orderOf(entry, stop, target) ?? lineOrder(lines.at(-1) ?? null, candles);
+  const drawn = orderOf(entry, stop, target) ?? lineOrder(lines.at(-1) ?? null, candles);
+  const plan = story?.plan
+    ? { side: story.plan.side, entry: story.plan.entry, stop: story.plan.stop, target: story.plan.target }
+    : drawn;
 
   function send(how: "now" | "limit") {
     if (!plan) {
@@ -141,6 +148,36 @@ export function PlanDraw({
       return;
     }
     onSend(how, plan);
+  }
+
+  async function asNote() {
+    const cv = canvas.current;
+    if (!cv || candles.length < 2) {
+      setErr("Сначала дождитесь свечей.");
+      return;
+    }
+    setReading(true);
+    setErr("");
+    setStory(null);
+    const image = shotOf(cv);
+    const notes = [words.trim(), caption(pair, lines, entry, stop, target, drawn)].filter(Boolean).join("\n");
+    const res = await fetch("/api/sketches", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ instrument: pair, notes, image }),
+    });
+    const saved = (await res.json()) as { notes?: string; instrument?: string; error?: string };
+    setReading(false);
+    if (!res.ok || !saved.notes) {
+      setErr(saved.error || "Разбор не вышел. Напишите пару слов или проверьте ключ модели.");
+      return;
+    }
+    const piece = retellSketch(saved.notes, saved.instrument || pair);
+    if (!piece) {
+      setErr("Текст не собрался.");
+      return;
+    }
+    setStory(piece);
   }
 
   return (
@@ -155,10 +192,13 @@ export function PlanDraw({
           Стереть линии
         </button>
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          <button type="button" disabled={busy} onClick={() => send("now")} className="h-8 rounded-sm bg-[#089981] px-3 text-sm font-semibold text-white disabled:opacity-60">
+          <button type="button" disabled={busy || reading} onClick={() => void asNote()} className="h-8 rounded-sm bg-amber-100 px-3 text-sm font-semibold text-zinc-900 disabled:opacity-60">
+            {reading ? "Смотрю график…" : "Как в заметке"}
+          </button>
+          <button type="button" disabled={busy || reading} onClick={() => send("now")} className="h-8 rounded-sm bg-[#089981] px-3 text-sm font-semibold text-white disabled:opacity-60">
             Сразу
           </button>
-          <button type="button" disabled={busy} onClick={() => send("limit")} className="h-8 rounded-sm border border-amber-200/40 px-3 text-sm text-amber-100 disabled:opacity-60">
+          <button type="button" disabled={busy || reading} onClick={() => send("limit")} className="h-8 rounded-sm border border-amber-200/40 px-3 text-sm text-amber-100 disabled:opacity-60">
             Лимитом
           </button>
           <button type="button" onClick={onClose} className="h-8 rounded-sm bg-[#2a2e39] px-3 text-sm">
@@ -169,12 +209,36 @@ export function PlanDraw({
       <div ref={box} className="relative min-h-0 flex-1">
         <canvas ref={canvas} onClick={click} className="absolute inset-0 cursor-crosshair" />
       </div>
-      <p className="border-t border-white/10 px-3 py-2 text-xs text-zinc-400">
-        {plan
-          ? `${plan.side === "buy" ? "Покупка" : "Продажа"}. Вход ${px(plan.entry)}, стоп ${px(plan.stop)}, тейк ${px(plan.target)}. Это тот же приказ, что стол собрал бы со снимка: вход на линии, стоп за край, тейк по ходу.`
-          : "Линия — два клика по наклонной, как на снимке. Вход встанет на ней. Или кликните Вход, Стоп и Тейк по цене."}{" "}
-        {err || note}
-      </p>
+      <div className="max-h-56 overflow-auto border-t border-white/10 px-3 py-2">
+        <textarea
+          value={words}
+          onChange={(e) => setWords(e.target.value)}
+          rows={2}
+          placeholder="Свои слова, как в заметке. Можно пустым: тогда текст соберётся с графика. Например: вход по пробою шеи головы и плеч."
+          className="w-full rounded-sm border border-white/10 bg-black/40 px-2 py-1 text-sm outline-none"
+        />
+        {story ? (
+          <div className="mt-2 text-sm text-zinc-200">
+            <p className="text-[11px] tracking-[0.18em] text-amber-100/80">{story.kicker}</p>
+            <p className="mt-1 font-semibold">{story.title}</p>
+            <p className="mt-1 leading-relaxed">{story.lead}</p>
+            {story.paragraphs.map((p) => (
+              <p key={p} className="mt-1 text-xs leading-relaxed text-zinc-400">
+                {p}
+              </p>
+            ))}
+            <p className="mt-1 text-xs text-zinc-500">Заметка также появилась на странице «Заметка». Приказ уходит только по кнопке Сразу или Лимитом.</p>
+          </div>
+        ) : (
+          <p className="mt-1 text-xs text-zinc-400">
+            {plan
+              ? `${plan.side === "buy" ? "Покупка" : "Продажа"}. Вход ${px(plan.entry)}, стоп ${px(plan.stop)}, тейк ${px(plan.target)}.`
+              : "Линия — два клика. «Как в заметке» пишет текст и собирает приказ так же, как страница «Заметка»."}{" "}
+            {err || note}
+          </p>
+        )}
+        {story && (err || note) ? <p className="mt-1 text-xs text-amber-100">{err || note}</p> : null}
+      </div>
     </div>
   );
 }
@@ -233,6 +297,38 @@ function drawLine(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: num
   ctx.lineTo(x2, y2);
   ctx.stroke();
   ctx.lineWidth = 1;
+}
+
+function caption(
+  pair: string,
+  lines: Stroke[],
+  entry: number | null,
+  stop: number | null,
+  target: number | null,
+  plan: { side: "buy" | "sell"; entry: number; stop: number; target: number } | null,
+) {
+  const rows = [`Часовой график ${pair}. Нарисовано здесь, не снимок.`];
+  lines.forEach((line, i) => {
+    rows.push(`Наклонная ${i + 1}: от ${px(line.a.price)} к ${px(line.b.price)}.`);
+  });
+  if (entry != null) rows.push(`ВХОД ${entry}`);
+  if (stop != null) rows.push(`СТОП ${stop}`);
+  if (target != null) rows.push(`ТЕЙК ${target}`);
+  if (plan) rows.push(`ПРОБОЙ ${plan.side === "buy" ? "BUY" : "SELL"}`);
+  if (lines.length >= 2) rows.push("Две наклонные, это клин или канал.");
+  return rows.join("\n");
+}
+
+function shotOf(cv: HTMLCanvasElement) {
+  const max = 960;
+  const scale = Math.min(1, max / Math.max(cv.width, 1));
+  const out = document.createElement("canvas");
+  out.width = Math.max(1, Math.round(cv.width * scale));
+  out.height = Math.max(1, Math.round(cv.height * scale));
+  const ctx = out.getContext("2d");
+  if (!ctx) return cv.toDataURL("image/jpeg", 0.62);
+  ctx.drawImage(cv, 0, 0, out.width, out.height);
+  return out.toDataURL("image/jpeg", 0.62);
 }
 
 function orderOf(entry: number | null, stop: number | null, target: number | null) {
