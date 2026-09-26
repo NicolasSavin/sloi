@@ -750,12 +750,12 @@ export async function ownLevels(
   if (!spec) return null;
   try {
     const { analyzeMarket } = await import("@/lib/smc/engine");
-    const { graphicBreak } = await import("@/lib/smc/patterns");
+    const { graphicBreak, patternOrder } = await import("@/lib/smc/patterns");
     const payload = await loadPayload(symbol, "1h", false);
     if (payload.candles.length < 20) return null;
     const snap = analyzeMarket(payload.candles, null, payload.trades, { symbol: spec.id, kind: spec.kind });
     const n = (v: number) => Number(v.toFixed(spec.decimals));
-    const drawn = graphicBreak(payload.candles, snap.swings, snap.atr);
+    const drawn = patternOrder(payload.candles, snap.swings, snap.atr) ?? graphicBreak(payload.candles, snap.swings, snap.atr);
     const ready = fromSetup(snap.localSetup.entry, snap.localSetup.stop, snap.localSetup.targets[0] ?? null);
     const base = drawn
       ? { side: drawn.side, entry: drawn.entry, stop: drawn.stop, target: drawn.target }

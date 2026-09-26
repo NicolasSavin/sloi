@@ -416,6 +416,134 @@ export function detectPatterns(swings: Swing[], atr: number, candles: Candle[]):
   });
 }
 
+type FigOrder = { name: string; side: "buy" | "sell"; entry: number; stop: number; target: number };
+
+function lowBetween(swings: Swing[], a: number, b: number) {
+  const lo = Math.min(a, b);
+  const hi = Math.max(a, b);
+  return swings.filter((s) => s.type === "low" && s.time >= lo && s.time <= hi).sort((x, y) => x.price - y.price)[0] ?? null;
+}
+
+function highBetween(swings: Swing[], a: number, b: number) {
+  const lo = Math.min(a, b);
+  const hi = Math.max(a, b);
+  return swings.filter((s) => s.type === "high" && s.time >= lo && s.time <= hi).sort((x, y) => y.price - x.price)[0] ?? null;
+}
+
+function atPrice(last: number, line: number, side: "buy" | "sell") {
+  if (side === "sell") return last < line ? last : line;
+  return last > line ? last : line;
+}
+
+/** Neckline break, flag, triangle or harmonic D. Entry on the trigger, stop beyond the figure, target its height. */
+export function patternOrder(candles: Candle[], swings: Swing[], atr: number): FigOrder | null {
+  if (candles.length < 16 || !(atr > 0)) return null;
+  const last = candles.at(-1)!.close;
+  const hits = detectPatterns(swings, atr, candles);
+  for (const p of hits) {
+    const pt = (label: string) => p.points.find((x) => x.label === label);
+    if (p.id === "hs") {
+      const head = pt("голова");
+      const right = pt("ПП");
+      if (!head || !right) continue;
+      const neck = lowBetween(swings, head.time, right.time)?.price;
+      if (neck == null || !(head.price > neck)) continue;
+      const entry = atPrice(last, neck, "sell");
+      const stop = head.price + atr * 0.15;
+      const target = neck - (head.price - neck);
+      if (stop > entry && entry > target) return { name: p.name, side: "sell", entry, stop, target };
+    }
+    if (p.id === "ihs") {
+      const head = pt("голова");
+      const right = pt("ПП");
+      if (!head || !right) continue;
+      const neck = highBetween(swings, head.time, right.time)?.price;
+      if (neck == null || !(neck > head.price)) continue;
+      const entry = atPrice(last, neck, "buy");
+      const stop = head.price - atr * 0.15;
+      const target = neck + (neck - head.price);
+      if (target > entry && entry > stop) return { name: p.name, side: "buy", entry, stop, target };
+    }
+    if (p.id === "dt") {
+      const [a, b] = p.points;
+      if (!a || !b) continue;
+      const neck = lowBetween(swings, a.time, b.time)?.price;
+      const top = Math.max(a.price, b.price);
+      if (neck == null || !(top > neck)) continue;
+      const entry = atPrice(last, neck, "sell");
+      const stop = top + atr * 0.15;
+      const target = neck - (top - neck);
+      if (stop > entry && entry > target) return { name: p.name, side: "sell", entry, stop, target };
+    }
+    if (p.id === "db") {
+      const [a, b] = p.points;
+      if (!a || !b) continue;
+      const neck = highBetween(swings, a.time, b.time)?.price;
+      const bot = Math.min(a.price, b.price);
+      if (neck == null || !(neck > bot)) continue;
+      const entry = atPrice(last, neck, "buy");
+      const stop = bot - atr * 0.15;
+      const target = neck + (neck - bot);
+      if (target > entry && entry > stop) return { name: p.name, side: "buy", entry, stop, target };
+    }
+    if (p.id === "flag" || p.id === "pennant") {
+      const pole = pt("шест");
+      if (!pole) continue;
+      const cons = candles.slice(-7, -1);
+      if (cons.length < 4) continue;
+      const hi = Math.max(...cons.map((c) => c.high));
+      const lo = Math.min(...cons.map((c) => c.low));
+      const height = Math.abs(last - pole.price);
+      if (p.side === "bull") {
+        const entry = atPrice(last, hi, "buy");
+        const stop = lo - atr * 0.1;
+        const target = entry + Math.max(height, atr);
+        if (target > entry && entry > stop) return { name: p.name, side: "buy", entry, stop, target };
+      } else {
+        const entry = atPrice(last, lo, "sell");
+        const stop = hi + atr * 0.1;
+        const target = entry - Math.max(height, atr);
+        if (stop > entry && entry > target) return { name: p.name, side: "sell", entry, stop, target };
+      }
+    }
+    if (p.id === "tri") {
+      const h = pt("H");
+      const l = pt("L");
+      if (!h || !l || !(h.price > l.price)) continue;
+      if (last > h.price) {
+        const entry = last;
+        const stop = l.price - atr * 0.1;
+        const target = entry + (h.price - l.price);
+        if (target > entry && entry > stop) return { name: p.name, side: "buy", entry, stop, target };
+      }
+      if (last < l.price) {
+        const entry = last;
+        const stop = h.price + atr * 0.1;
+        const target = entry - (h.price - l.price);
+        if (stop > entry && entry > target) return { name: p.name, side: "sell", entry, stop, target };
+      }
+    }
+    if (p.family === "harmonic") {
+      const d = pt("D") ?? p.points.at(-1);
+      const c = pt("C");
+      const x = pt("X") ?? pt("A");
+      if (!d || !c || !x) continue;
+      if (Math.abs(last - d.price) > atr * 1.1) continue;
+      if (p.side === "bull" && c.price > d.price) {
+        const entry = d.price;
+        const stop = Math.min(x.price, d.price) - atr * 0.2;
+        if (c.price > entry && entry > stop) return { name: p.name, side: "buy", entry, stop, target: c.price };
+      }
+      if (p.side === "bear" && c.price < d.price) {
+        const entry = d.price;
+        const stop = Math.max(x.price, d.price) + atr * 0.2;
+        if (stop > entry && entry > c.price) return { name: p.name, side: "sell", entry, stop, target: c.price };
+      }
+    }
+  }
+  return null;
+}
+
 export function detectWyckoff(
   candles: Candle[],
   swings: Swing[],
