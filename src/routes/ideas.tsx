@@ -94,6 +94,9 @@ function IdeasPage() {
   useEffect(() => {
     const root = host.current;
     if (!root) return;
+    const key = native ? `${symbol}|${interval}` : "custom";
+    if (root.dataset.built === key && (native ? root.childElementCount > 0 : true)) return;
+    root.dataset.built = key;
     if (!native) {
       root.replaceChildren();
       return;
@@ -136,7 +139,6 @@ function IdeasPage() {
     });
     box.append(pane, copy, script);
     root.append(box);
-    return () => root.replaceChildren();
   }, [symbol, interval, native]);
 
   async function send(kind: "BUY" | "SELL" | "CLOSE") {
@@ -246,9 +248,11 @@ function IdeasPage() {
           </button>
         ) : null}
         {note && !draw ? <p className="absolute bottom-10 right-3 z-10 rounded bg-black/80 px-3 py-1 text-xs text-amber-100">{note}</p> : null}
-        <div className={draw ? "absolute inset-0 z-20" : "hidden"}>
-          <PlanDraw pair={pair} minutes={barMinutes} busy={busy} note={note} onClose={() => setDraw(false)} onSend={(how, plan) => void sendPlan(how, plan)} />
-        </div>
+        {draw ? (
+          <div className="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 shadow-[0_-12px_40px_rgba(0,0,0,0.45)]">
+            <PlanDraw pair={pair} minutes={barMinutes} busy={busy} note={note} onClose={() => setDraw(false)} onSend={(how, plan) => void sendPlan(how, plan)} />
+          </div>
+        ) : null}
       </div>
     </div>
   );

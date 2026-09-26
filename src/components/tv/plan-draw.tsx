@@ -470,8 +470,8 @@ export function PlanDraw({
   }
 
   return (
-    <div className="absolute inset-0 z-20 flex flex-col bg-[#0e1116]">
-      <div className="flex flex-wrap items-center gap-2 border-b border-white/10 px-3 py-2">
+    <div className="flex max-h-[42vh] flex-col bg-[#131722]/95">
+      <div className="flex flex-wrap items-center gap-2 px-3 py-2">
         <span className="text-xs tracking-[0.16em] text-amber-100/80">{pair}</span>
         <Tool name="Вход" on={tool === "entry"} click={() => setTool("entry")} />
         <Tool name="Стоп" on={tool === "stop"} click={() => setTool("stop")} />
@@ -495,8 +495,8 @@ export function PlanDraw({
           </button>
         </div>
       </div>
-      <div ref={box} className="relative min-h-0 flex-1">
-        <canvas ref={canvas} onClick={click} onMouseDown={down} onMouseMove={move} onMouseUp={up} onMouseLeave={up} className="absolute inset-0 cursor-crosshair" />
+      <div ref={box} className="pointer-events-none fixed -left-[2400px] top-0 h-[420px] w-[800px]">
+        <canvas ref={canvas} onClick={click} onMouseDown={down} onMouseMove={move} onMouseUp={up} onMouseLeave={up} className="h-full w-full" />
       </div>
       <div className="max-h-56 overflow-auto border-t border-white/10 px-3 py-2">
         <textarea
@@ -526,7 +526,7 @@ export function PlanDraw({
           <p className="mt-1 text-xs text-zinc-400">
             {plan
               ? `${plan.side === "buy" ? "Покупка" : "Продажа"}. Вход ${px(plan.entry)}, стоп ${px(plan.stop)}, тейк ${px(plan.target)}.`
-              : "Рисуйте на графике. Линия липнет к свече. Кнопка «Снимок» сама делает фото и по нему собирает идею и приказ."}{" "}
+              : "График TradingView не трогаю. «Найти паттерн» ищет фигуру, «Сразу» и «Лимитом» отдают приказ."}{" "}
             {found ? ` Найдено: ${found}.` : ""} {err || note}
           </p>
         )}
