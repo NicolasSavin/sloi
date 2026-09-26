@@ -10,6 +10,7 @@ const CmdIn = z.object({
   tp: z.number().finite().optional(),
   entry: z.number().finite().optional(),
   stop: z.number().finite().optional(),
+  how: z.enum(["now", "limit"]).optional(),
 });
 
 export const createDeskFn = createServerFn({ method: "POST" }).handler(async () => {
@@ -49,7 +50,7 @@ export const deskCommandFn = createServerFn({ method: "POST" })
       }
       payload = sym;
       if (data.entry != null && data.entry > 0 && data.stop != null && data.stop > 0 && data.tp != null && data.tp > 0) {
-        payload = `${sym} ENTRY ${data.entry} STOP ${data.stop} TP ${data.tp}`;
+        payload = `${sym} ENTRY ${data.entry} STOP ${data.stop} TP ${data.tp}${data.how === "now" ? " HOW NOW" : data.how === "limit" ? " HOW LIMIT" : ""}`;
       } else if (data.tp != null && data.tp > 0) payload = `${sym} TP ${data.tp}`;
     }
     const id = await enqueueCommand(desk.id, data.kind, payload);

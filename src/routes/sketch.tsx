@@ -290,11 +290,11 @@ function ChartOrder({ plan }: { plan: ChartPlan }) {
   useEffect(() => {
     setKey(readDeskKey());
   }, []);
-  async function send() {
+  async function send(how: "now" | "limit") {
     const deskKey = readDeskKey();
     if (!deskKey) return;
     setBusy(true);
-    setNote("Отдаю советнику…");
+    setNote(how === "now" ? "Отдаю рыночный вход…" : "Ставлю лимитку на вход…");
     const res = await deskCommandFn({
       data: {
         key: deskKey,
@@ -303,10 +303,11 @@ function ChartOrder({ plan }: { plan: ChartPlan }) {
         entry: plan.entry,
         stop: plan.stop,
         tp: plan.target,
+        how,
       },
     });
     setBusy(false);
-    setNote(res.ok ? "Приказ ушёл в ваш стол. Чужой браузер его отправить не может." : res.error);
+    setNote(res.ok ? (how === "now" ? "Рыночный приказ ушёл в ваш стол." : "Лимитка ушла в ваш стол. Пока цена не на входе, сделки нет.") : res.error);
   }
   const px = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 5 });
   return (
@@ -317,14 +318,19 @@ function ChartOrder({ plan }: { plan: ChartPlan }) {
       </p>
       <p className="mt-2 text-xs leading-relaxed text-zinc-400">
         {plan.own
-          ? "Вход только в момент пробоя. Пока линия цела, советник держит стоп-заявку на ней и не открывает сделку раньше. Если пробой уже прошёл, цену не догоняет."
-          : "Это подписи с картинки. Советник чуть поправит их на спред."}{" "}
+          ? "Сразу — вход по рынку в эту секунду. Лимитом — заявка на цене входа, сделка откроется только когда цена туда придёт. Если это пробой, заявка сработает на линии, не раньше."
+          : "Сразу — по текущей цене. Лимитом — заявка на подписанном входе."}{" "}
         Кнопку видит только браузер, где уже открыт ваш кабинет.
       </p>
       {key ? (
-        <button type="button" disabled={busy} onClick={() => void send()} className="btn-metal mt-3 h-10 rounded-sm px-4 text-sm font-medium text-accent-fg disabled:opacity-60">
-          Отдать советнику
-        </button>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button type="button" disabled={busy} onClick={() => void send("now")} className="btn-metal h-10 rounded-sm px-4 text-sm font-medium text-accent-fg disabled:opacity-60">
+            Сразу
+          </button>
+          <button type="button" disabled={busy} onClick={() => void send("limit")} className="h-10 rounded-sm border border-amber-200/40 px-4 text-sm text-amber-100 disabled:opacity-60">
+            Лимитом
+          </button>
+        </div>
       ) : (
         <p className="mt-3 text-xs text-zinc-500">Отдать приказ может только хозяин стола.</p>
       )}
