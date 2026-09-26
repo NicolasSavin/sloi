@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type MouseEvent } from "react";
-import { fetchMarket } from "@/lib/market/fetch";
-import type { Candle, Timeframe } from "@/lib/market/types";
+import { fetchCustomBars, fetchMarket } from "@/lib/market/fetch";
+import type { Candle } from "@/lib/market/types";
 import { retellSketch, type SketchPiece } from "@/lib/sketch";
 
 type Tool = "entry" | "stop" | "target" | "line";
@@ -17,14 +17,14 @@ const PAD_Y = 16;
 
 export function PlanDraw({
   pair,
-  timeframe = "1h",
+  minutes = 60,
   busy,
   note,
   onClose,
   onSend,
 }: {
   pair: string;
-  timeframe?: Timeframe;
+  minutes?: number;
   busy: boolean;
   note: string;
   onClose: () => void;
@@ -57,13 +57,17 @@ export function PlanDraw({
     setTarget(null);
     setLines([]);
     setDraft(null);
-    void fetchMarket({ data: { symbol: pair, timeframe } }).then((payload) => {
-      if (!stopFetch) setCandles(payload.candles.slice(-90));
+    const standard = ({ 5: "5m", 15: "15m", 60: "1h", 240: "4h", 1440: "1d" } as const)[minutes];
+    const load = standard
+      ? fetchMarket({ data: { symbol: pair, timeframe: standard } }).then((payload) => payload.candles)
+      : fetchCustomBars({ data: { symbol: pair, minutes } }).then((payload) => payload.candles);
+    void load.then((rows) => {
+      if (!stopFetch) setCandles(rows.slice(-90));
     });
     return () => {
       stopFetch = true;
     };
-  }, [pair, timeframe]);
+  }, [pair, minutes]);
 
   useEffect(() => {
     const el = box.current;

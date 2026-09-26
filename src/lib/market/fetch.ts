@@ -418,6 +418,74 @@ export const fetchMarket = createServerFn({ method: "POST" })
     return loadPayload(data.symbol, data.timeframe);
   });
 
+function yahooForMinutes(minutes: number) {
+  const known: Record<number, { interval: string; range: string }> = {
+    1: { interval: "1m", range: "5d" },
+    2: { interval: "2m", range: "10d" },
+    5: { interval: "5m", range: "20d" },
+    15: { interval: "15m", range: "30d" },
+    30: { interval: "30m", range: "60d" },
+    60: { interval: "60m", range: "3mo" },
+    90: { interval: "90m", range: "6mo" },
+  };
+  if (known[minutes]) return known[minutes];
+  if (minutes % 60 === 0) return { interval: "60m", range: "6mo" };
+  if (minutes % 30 === 0) return { interval: "30m", range: "60d" };
+  if (minutes % 15 === 0) return { interval: "15m", range: "30d" };
+  if (minutes % 5 === 0) return { interval: "5m", range: "20d" };
+  return minutes <= 180 ? { interval: "1m", range: "5d" } : { interval: "60m", range: "6mo" };
+}
+
+function rowsFromYahoo(raw: any): Candle[] {
+  const result = raw?.chart?.result?.[0];
+  const q = result?.indicators?.quote?.[0];
+  if (!result?.timestamp || !q) return [];
+  const rows: Candle[] = [];
+  for (let i = 0; i < result.timestamp.length; i++) {
+    const open = q.open?.[i];
+    const high = q.high?.[i];
+    const low = q.low?.[i];
+    const close = q.close?.[i];
+    if (![open, high, low, close].every((n: number) => Number.isFinite(n))) continue;
+    rows.push({ time: result.timestamp[i], open, high, low, close, volume: q.volume?.[i] || 0 });
+  }
+  return rows;
+}
+
+function packBars(rows: Candle[], stepSec: number): Candle[] {
+  const bucket = new Map<number, Candle[]>();
+  for (const c of rows) {
+    const key = Math.floor(c.time / stepSec) * stepSec;
+    const arr = bucket.get(key) ?? [];
+    arr.push(c);
+    bucket.set(key, arr);
+  }
+  return [...bucket.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([time, arr]) => ({
+      time,
+      open: arr[0]!.open,
+      high: Math.max(...arr.map((x) => x.high)),
+      low: Math.min(...arr.map((x) => x.low)),
+      close: arr[arr.length - 1]!.close,
+      volume: arr.reduce((s, x) => s + x.volume, 0),
+    }));
+}
+
+export const fetchCustomBars = createServerFn({ method: "POST" })
+  .validator((input: unknown) => z.object({ symbol: z.string(), minutes: z.number().int().min(1).max(10080) }).parse(input))
+  .handler(async ({ data }) => {
+    const spec = getSymbol(data.symbol);
+    if (!spec) return { candles: [] as Candle[] };
+    const q = yahooForMinutes(data.minutes);
+    const raw = await getJson(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(spec.yahoo)}?interval=${q.interval}&range=${q.range}&includePrePost=false`,
+      8000,
+    );
+    const packed = packBars(rowsFromYahoo(raw), data.minutes * 60);
+    return { candles: packed.slice(-120) };
+  });
+
 async function lastMove(yahoo: string) {
   const closes =
     (await getJson(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahoo)}?interval=1d&range=5d&includePrePost=false`, 3000))

@@ -2,11 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppNav } from "@/components/app-nav";
 import { PlanDraw } from "@/components/tv/plan-draw";
+import { MinuteChart } from "@/components/tv/minute-chart";
 import { deskCommandFn } from "@/lib/desk-api";
 import { readDeskKey } from "@/lib/desk-key";
 import { PAIR_OPTIONS } from "@/lib/ea-settings";
 import { tvSymbol } from "@/lib/tradingview";
-import type { Timeframe } from "@/lib/market/types";
 
 const FRAMES: [string, string][] = [
   ["1", "1м"],
@@ -28,15 +28,14 @@ const FRAMES: [string, string][] = [
   ["M", "М"],
 ];
 
-function planFrame(interval: string): Timeframe {
-  if (interval === "D" || interval === "W" || interval === "M") return "1d";
+const TV_INTERVALS = new Set(["1", "3", "5", "15", "30", "60", "120", "180", "240", "D", "W", "M"]);
+
+function minutesOf(interval: string) {
+  if (interval === "D") return 1440;
+  if (interval === "W") return 10080;
+  if (interval === "M") return 43200;
   const n = Number(interval);
-  if (!Number.isFinite(n)) return "1h";
-  if (n <= 10) return "5m";
-  if (n <= 45) return "15m";
-  if (n < 240) return "1h";
-  if (n < 1440) return "4h";
-  return "1d";
+  return Number.isFinite(n) && n > 0 ? n : 60;
 }
 
 export const Route = createFileRoute("/ideas")({
@@ -56,7 +55,9 @@ function IdeasPage() {
   const [busy, setBusy] = useState(false);
   const [draw, setDraw] = useState(false);
   const [interval, setInterval] = useState("60");
-  const [minutes, setMinutes] = useState("");
+  const [typed, setTyped] = useState("");
+  const native = TV_INTERVALS.has(interval);
+  const barMinutes = minutesOf(interval);
 
   useEffect(() => {
     setKey(readDeskKey());
@@ -65,6 +66,10 @@ function IdeasPage() {
   useEffect(() => {
     const root = host.current;
     if (!root) return;
+    if (!native) {
+      root.replaceChildren();
+      return;
+    }
     root.replaceChildren();
     const box = document.createElement("div");
     box.className = "tradingview-widget-container";
@@ -104,7 +109,7 @@ function IdeasPage() {
     box.append(pane, copy, script);
     root.append(box);
     return () => root.replaceChildren();
-  }, [symbol, interval]);
+  }, [symbol, interval, native]);
 
   async function send(kind: "BUY" | "SELL" | "CLOSE") {
     if (!key) {
@@ -145,6 +150,7 @@ function IdeasPage() {
       <AppNav />
       <div className="relative min-h-0 flex-1">
         <div ref={host} className="absolute inset-0" />
+        {!native ? <MinuteChart pair={pair} minutes={barMinutes} /> : null}
         <div className="absolute left-3 top-2 z-10">
           <button type="button" onClick={() => setDraw(true)} className="h-10 rounded-sm bg-amber-100 px-4 text-sm font-semibold text-zinc-900 shadow-[0_8px_24px_rgba(0,0,0,0.45)]">
             Нарисовать план
@@ -165,13 +171,13 @@ function IdeasPage() {
             className="flex items-center gap-1"
             onSubmit={(e) => {
               e.preventDefault();
-              const n = Math.round(Number(minutes.replace(",", ".")));
+              const n = Math.round(Number(typed.replace(",", ".")));
               if (n >= 1 && n <= 1440) setInterval(String(n));
             }}
           >
             <input
-              value={minutes}
-              onChange={(e) => setMinutes(e.target.value)}
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
               inputMode="numeric"
               placeholder="мин"
               className="h-7 w-14 rounded-sm bg-[#1e222d] px-2 text-xs outline-none"
@@ -204,7 +210,7 @@ function IdeasPage() {
           </button>
         </div>
         {note && !draw ? <p className="absolute bottom-10 right-3 z-10 rounded bg-black/80 px-3 py-1 text-xs text-amber-100">{note}</p> : null}
-        {draw ? <PlanDraw pair={pair} timeframe={planFrame(interval)} busy={busy} note={note} onClose={() => setDraw(false)} onSend={(how, plan) => void sendPlan(how, plan)} /> : null}
+        {draw ? <PlanDraw pair={pair} minutes={barMinutes} busy={busy} note={note} onClose={() => setDraw(false)} onSend={(how, plan) => void sendPlan(how, plan)} /> : null}
       </div>
     </div>
   );
