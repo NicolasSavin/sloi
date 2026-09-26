@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.10.24",
+    d: "2026-09-26",
+    items: [
+      "На странице TradingView вместе с объёмом, MACD и RSI всегда открывается встроенная дельта объёма. Чужой скрипт Volume Divergence окно TradingView на сайт не пускает",
+    ],
+  },
+  {
     v: "1.10.23",
     d: "2026-09-26",
     items: [

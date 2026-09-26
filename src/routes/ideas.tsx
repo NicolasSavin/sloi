@@ -64,7 +64,7 @@ function IdeasPage() {
       withdateranges: true,
       details: true,
       save_image: true,
-      studies: ["Volume@tv-basicstudies", "MACD@tv-basicstudies", "RSI@tv-basicstudies"],
+      studies: ["Volume@tv-basicstudies", "Volume Delta@tv-basicstudies", "MACD@tv-basicstudies", "RSI@tv-basicstudies"],
       support_host: "https://www.tradingview.com",
     });
     box.append(pane, copy, script);
