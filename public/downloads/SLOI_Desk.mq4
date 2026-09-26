@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.39"
+#property version   "5.40"
 #property strict
-#property description "SLOI 5.39: приказ с графика. Вход, стоп и тейк с подписи, поправка на спред"
+#property description "SLOI 5.40: пробой фигуры только стоп-заявкой на линии, без входа заранее и без погони"
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -2750,7 +2750,7 @@ int ChartOrder(string naked, int dir, double entry, double stop, double tp)
    if(spr < 0) spr = 0;
    double near = spr * 2.0;
    if(near <= 0) near = PointOf(s) * 5.0;
-   int cmd = dir > 0 ? OP_BUYLIMIT : OP_SELLLIMIT;
+   int cmd = dir > 0 ? OP_BUYSTOP : OP_SELLSTOP;
    double px = entry;
    double sl = stop;
    double target = tp;
@@ -2758,7 +2758,7 @@ int ChartOrder(string naked, int dir, double entry, double stop, double tp)
      {
       if(ask > entry + near)
         {
-         Alert("SLOI график: ", s, " цена уже выше входа, не догоняю");
+         Alert("SLOI график: ", s, " пробой уже прошёл, не догоняю");
          return(0);
         }
       if(ask >= entry - near)
@@ -2773,7 +2773,7 @@ int ChartOrder(string naked, int dir, double entry, double stop, double tp)
      {
       if(bid < entry - near)
         {
-         Alert("SLOI график: ", s, " цена уже ниже входа, не догоняю");
+         Alert("SLOI график: ", s, " пробой уже прошёл, не догоняю");
          return(0);
         }
       if(bid <= entry + near)

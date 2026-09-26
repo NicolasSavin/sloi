@@ -322,25 +322,29 @@ export function graphicBreak(
   const rising = l2.price > l1.price + atr * 0.05 && h2.price > h1.price - atr * 0.2;
   const falling = h2.price < h1.price - atr * 0.05 && l2.price < l1.price + atr * 0.2;
   if (narrow && rising) {
-    const entry = last.close < l2.price ? last.close : l2.price;
-    const stop = Math.max(h1.price, h2.price) + atr * 0.2;
-    const target = Math.min(l1.price, l2.price);
-    if (stop > entry && entry > target + atr * 0.25) return { name: "клин", side: "sell", entry, stop, target };
+    if (last.close >= l2.price - atr * 0.35) {
+      const entry = l2.price;
+      const stop = Math.max(h1.price, h2.price) + atr * 0.2;
+      const target = Math.min(l1.price, l2.price);
+      if (stop > entry && entry > target + atr * 0.25) return { name: "клин", side: "sell", entry, stop, target };
+    }
   }
   if (narrow && falling) {
-    const entry = last.close > h2.price ? last.close : h2.price;
-    const stop = Math.min(l1.price, l2.price) - atr * 0.2;
-    const target = Math.max(h1.price, h2.price);
-    if (target > entry && entry > stop + atr * 0.25) return { name: "клин", side: "buy", entry, stop, target };
+    if (last.close <= h2.price + atr * 0.35) {
+      const entry = h2.price;
+      const stop = Math.min(l1.price, l2.price) - atr * 0.2;
+      const target = Math.max(h1.price, h2.price);
+      if (target > entry && entry > stop + atr * 0.25) return { name: "клин", side: "buy", entry, stop, target };
+    }
   }
-  if (h2.price < h1.price - atr * 0.15 && last.close < h2.price) {
-    const entry = last.close;
+  if (h2.price < h1.price - atr * 0.15 && last.close >= h2.price - atr * 0.35) {
+    const entry = h2.price;
     const stop = h1.price + atr * 0.15;
     const target = entry - Math.max(h1.price - h2.price, atr);
     if (stop > entry && entry > target) return { name: "наклонная", side: "sell", entry, stop, target };
   }
-  if (l2.price > l1.price + atr * 0.15 && last.close > l2.price) {
-    const entry = last.close;
+  if (l2.price > l1.price + atr * 0.15 && last.close <= l2.price + atr * 0.35) {
+    const entry = l2.price;
     const stop = l1.price - atr * 0.15;
     const target = entry + Math.max(l2.price - l1.price, atr);
     if (target > entry && entry > stop) return { name: "наклонная", side: "buy", entry, stop, target };
@@ -430,9 +434,13 @@ function highBetween(swings: Swing[], a: number, b: number) {
   return swings.filter((s) => s.type === "high" && s.time >= lo && s.time <= hi).sort((x, y) => y.price - x.price)[0] ?? null;
 }
 
-function atPrice(last: number, line: number, side: "buy" | "sell") {
-  if (side === "sell") return last < line ? last : line;
-  return last > line ? last : line;
+function atPrice(last: number, line: number, side: "buy" | "sell", atr: number): number | null {
+  if (side === "sell") {
+    if (last < line - atr * 0.35) return null;
+    return line;
+  }
+  if (last > line + atr * 0.35) return null;
+  return line;
 }
 
 /** Neckline break, flag, triangle or harmonic D. Entry on the trigger, stop beyond the figure, target its height. */
@@ -448,10 +456,10 @@ export function patternOrder(candles: Candle[], swings: Swing[], atr: number): F
       if (!head || !right) continue;
       const neck = lowBetween(swings, head.time, right.time)?.price;
       if (neck == null || !(head.price > neck)) continue;
-      const entry = atPrice(last, neck, "sell");
+      const entry = atPrice(last, neck, "sell", atr);
       const stop = head.price + atr * 0.15;
       const target = neck - (head.price - neck);
-      if (stop > entry && entry > target) return { name: p.name, side: "sell", entry, stop, target };
+      if (entry != null && stop > entry && entry > target) return { name: p.name, side: "sell", entry, stop, target };
     }
     if (p.id === "ihs") {
       const head = pt("голова");
@@ -459,10 +467,10 @@ export function patternOrder(candles: Candle[], swings: Swing[], atr: number): F
       if (!head || !right) continue;
       const neck = highBetween(swings, head.time, right.time)?.price;
       if (neck == null || !(neck > head.price)) continue;
-      const entry = atPrice(last, neck, "buy");
+      const entry = atPrice(last, neck, "buy", atr);
       const stop = head.price - atr * 0.15;
       const target = neck + (neck - head.price);
-      if (target > entry && entry > stop) return { name: p.name, side: "buy", entry, stop, target };
+      if (entry != null && target > entry && entry > stop) return { name: p.name, side: "buy", entry, stop, target };
     }
     if (p.id === "dt") {
       const [a, b] = p.points;
@@ -470,10 +478,10 @@ export function patternOrder(candles: Candle[], swings: Swing[], atr: number): F
       const neck = lowBetween(swings, a.time, b.time)?.price;
       const top = Math.max(a.price, b.price);
       if (neck == null || !(top > neck)) continue;
-      const entry = atPrice(last, neck, "sell");
+      const entry = atPrice(last, neck, "sell", atr);
       const stop = top + atr * 0.15;
       const target = neck - (top - neck);
-      if (stop > entry && entry > target) return { name: p.name, side: "sell", entry, stop, target };
+      if (entry != null && stop > entry && entry > target) return { name: p.name, side: "sell", entry, stop, target };
     }
     if (p.id === "db") {
       const [a, b] = p.points;
@@ -481,10 +489,10 @@ export function patternOrder(candles: Candle[], swings: Swing[], atr: number): F
       const neck = highBetween(swings, a.time, b.time)?.price;
       const bot = Math.min(a.price, b.price);
       if (neck == null || !(neck > bot)) continue;
-      const entry = atPrice(last, neck, "buy");
+      const entry = atPrice(last, neck, "buy", atr);
       const stop = bot - atr * 0.15;
       const target = neck + (neck - bot);
-      if (target > entry && entry > stop) return { name: p.name, side: "buy", entry, stop, target };
+      if (entry != null && target > entry && entry > stop) return { name: p.name, side: "buy", entry, stop, target };
     }
     if (p.id === "flag" || p.id === "pennant") {
       const pole = pt("шест");
@@ -495,15 +503,15 @@ export function patternOrder(candles: Candle[], swings: Swing[], atr: number): F
       const lo = Math.min(...cons.map((c) => c.low));
       const height = Math.abs(last - pole.price);
       if (p.side === "bull") {
-        const entry = atPrice(last, hi, "buy");
+        const entry = atPrice(last, hi, "buy", atr);
         const stop = lo - atr * 0.1;
-        const target = entry + Math.max(height, atr);
-        if (target > entry && entry > stop) return { name: p.name, side: "buy", entry, stop, target };
+        const target = (entry ?? hi) + Math.max(height, atr);
+        if (entry != null && target > entry && entry > stop) return { name: p.name, side: "buy", entry, stop, target };
       } else {
-        const entry = atPrice(last, lo, "sell");
+        const entry = atPrice(last, lo, "sell", atr);
         const stop = hi + atr * 0.1;
-        const target = entry - Math.max(height, atr);
-        if (stop > entry && entry > target) return { name: p.name, side: "sell", entry, stop, target };
+        const target = (entry ?? lo) - Math.max(height, atr);
+        if (entry != null && stop > entry && entry > target) return { name: p.name, side: "sell", entry, stop, target };
       }
     }
     if (p.id === "tri") {
@@ -511,16 +519,16 @@ export function patternOrder(candles: Candle[], swings: Swing[], atr: number): F
       const l = pt("L");
       if (!h || !l || !(h.price > l.price)) continue;
       if (last > h.price) {
-        const entry = last;
+        const entry = atPrice(last, h.price, "buy", atr);
         const stop = l.price - atr * 0.1;
-        const target = entry + (h.price - l.price);
-        if (target > entry && entry > stop) return { name: p.name, side: "buy", entry, stop, target };
+        const target = (entry ?? h.price) + (h.price - l.price);
+        if (entry != null && target > entry && entry > stop) return { name: p.name, side: "buy", entry, stop, target };
       }
       if (last < l.price) {
-        const entry = last;
+        const entry = atPrice(last, l.price, "sell", atr);
         const stop = h.price + atr * 0.1;
-        const target = entry - (h.price - l.price);
-        if (stop > entry && entry > target) return { name: p.name, side: "sell", entry, stop, target };
+        const target = (entry ?? l.price) - (h.price - l.price);
+        if (entry != null && stop > entry && entry > target) return { name: p.name, side: "sell", entry, stop, target };
       }
     }
     if (p.family === "harmonic") {
