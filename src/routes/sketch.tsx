@@ -197,7 +197,8 @@ function SketchMascots({ mood }: { mood: SketchPiece["mood"] }) {
 }
 
 function Spread({ note, onRemove }: { note: SavedNote; onRemove: () => void }) {
-  const { piece, image, instrument } = note;
+  const { image, instrument } = note;
+  const piece = retellSketch(note.piece.original, instrument) ?? note.piece;
   const when = new Intl.DateTimeFormat("ru-RU", {
     day: "numeric",
     month: "long",
@@ -237,25 +238,6 @@ function Spread({ note, onRemove }: { note: SavedNote; onRemove: () => void }) {
               ))}
             </div>
           ) : null}
-          <div className="mt-6 rounded-2xl border border-amber-200/25 bg-black/40 p-4">
-            <p className="text-[11px] tracking-[0.22em] text-accent">КРУПНЫЙ ИГРОК</p>
-            <p className="mt-3 text-sm leading-relaxed text-zinc-100">
-              <span className="text-amber-100/80">Что делает. </span>
-              {piece.whale.does}
-            </p>
-            <p className="mt-2 text-sm leading-relaxed text-zinc-100">
-              <span className="text-amber-100/80">К чему стремится. </span>
-              {piece.whale.wants}
-            </p>
-            <p className="mt-2 text-sm leading-relaxed text-zinc-300">
-              <span className="text-amber-100/80">Почему. </span>
-              {piece.whale.because}
-            </p>
-            <p className="mt-2 text-sm leading-relaxed text-zinc-300">
-              <span className="text-amber-100/80">Что из этого следует. </span>
-              {piece.whale.therefore}
-            </p>
-          </div>
           <blockquote className="mt-6 border-l-2 border-amber-200/40 pl-3 text-sm italic text-zinc-400">
             {piece.original}
           </blockquote>
