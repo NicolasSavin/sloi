@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.10.23",
+    d: "2026-09-26",
+    items: [
+      "На странице TradingView при каждом открытии стоят те же индикаторы, что на их графике: объём, MACD и RSI",
+    ],
+  },
+  {
     v: "1.10.22",
     d: "2026-09-26",
     items: [

@@ -64,7 +64,7 @@ function IdeasPage() {
       withdateranges: true,
       details: true,
       save_image: true,
-      studies: ["STD;RSI", "STD;MACD"],
+      studies: ["Volume@tv-basicstudies", "MACD@tv-basicstudies", "RSI@tv-basicstudies"],
       support_host: "https://www.tradingview.com",
     });
     box.append(pane, copy, script);
