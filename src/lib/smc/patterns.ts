@@ -439,9 +439,119 @@ function wolfeWave(swings: Swing[], atr: number): PatternHit | null {
   };
 }
 
+function cupHandle(swings: Swing[], atr: number): PatternHit | null {
+  if (!(atr > 0)) return null;
+  const highs = swings.filter((s) => s.type === "high");
+  const lows = swings.filter((s) => s.type === "low");
+  if (highs.length >= 2 && lows.length >= 2) {
+    const right = highs.at(-1)!;
+    const left = highs.at(-2)!;
+    const bottom = lows.filter((s) => s.time > left.time && s.time < right.time).sort((a, b) => a.price - b.price)[0];
+    const handle = lows.filter((s) => s.time > right.time).at(-1);
+    if (bottom && handle && Math.abs(left.price - right.price) <= atr * 0.9) {
+      const depth = Math.min(left.price, right.price) - bottom.price;
+      const pull = right.price - handle.price;
+      if (depth > atr * 1.4 && handle.price > bottom.price + depth * 0.35 && pull > atr * 0.15 && pull < depth * 0.62) {
+        return {
+          id: "cup",
+          family: "graphic",
+          name: "чаша с ручкой",
+          side: "bull",
+          points: [
+            { time: left.time, price: left.price, label: "край" },
+            { time: bottom.time, price: bottom.price, label: "дно" },
+            { time: right.time, price: right.price, label: "край" },
+            { time: handle.time, price: handle.price, label: "ручка" },
+          ],
+          because: "Дно круглое, правый край рядом с левым, ручка мелкая и дно не обновляет",
+          therefore: "Лонг только после выхода выше края. Пока ручка не пробита вверх, чаша не работает.",
+        };
+      }
+    }
+  }
+  if (lows.length >= 2 && highs.length >= 2) {
+    const right = lows.at(-1)!;
+    const left = lows.at(-2)!;
+    const top = highs.filter((s) => s.time > left.time && s.time < right.time).sort((a, b) => b.price - a.price)[0];
+    const handle = highs.filter((s) => s.time > right.time).at(-1);
+    if (top && handle && Math.abs(left.price - right.price) <= atr * 0.9) {
+      const depth = top.price - Math.max(left.price, right.price);
+      const pull = handle.price - right.price;
+      if (depth > atr * 1.4 && handle.price < top.price - depth * 0.35 && pull > atr * 0.15 && pull < depth * 0.62) {
+        return {
+          id: "icup",
+          family: "graphic",
+          name: "перевёрнутая чаша с ручкой",
+          side: "bear",
+          points: [
+            { time: left.time, price: left.price, label: "край" },
+            { time: top.time, price: top.price, label: "верх" },
+            { time: right.time, price: right.price, label: "край" },
+            { time: handle.time, price: handle.price, label: "ручка" },
+          ],
+          because: "Верх круглый, края рядом, ручка короткая и верх не обновляет",
+          therefore: "Шорт только после ухода ниже края. Пока ручка не пробита вниз, фигура не работает.",
+        };
+      }
+    }
+  }
+  return null;
+}
+
+function dragon(swings: Swing[], atr: number): PatternHit | null {
+  if (!(atr > 0)) return null;
+  const lows = swings.filter((s) => s.type === "low");
+  const highs = swings.filter((s) => s.type === "high");
+  if (lows.length >= 2) {
+    const foot1 = lows.at(-2)!;
+    const foot2 = lows.at(-1)!;
+    const hump = highs.filter((s) => s.time > foot1.time && s.time < foot2.time).sort((a, b) => b.price - a.price)[0];
+    const lift = foot2.price - foot1.price;
+    if (hump && lift >= -atr * 0.2 && lift <= atr * 1.1 && hump.price > Math.max(foot1.price, foot2.price) + atr * 0.7) {
+      return {
+        id: "dragon",
+        family: "graphic",
+        name: "дракон",
+        side: "bull",
+        points: [
+          { time: foot1.time, price: foot1.price, label: "лапа" },
+          { time: hump.time, price: hump.price, label: "горб" },
+          { time: foot2.time, price: foot2.price, label: "лапа" },
+        ],
+        because: "Две лапы, вторая не ниже первой, между ними горб",
+        therefore: "Лонг после пробоя горба. Стоп за вторую лапу. Пока горб цел, дракон не полетел.",
+      };
+    }
+  }
+  if (highs.length >= 2) {
+    const head1 = highs.at(-2)!;
+    const head2 = highs.at(-1)!;
+    const belly = lows.filter((s) => s.time > head1.time && s.time < head2.time).sort((a, b) => a.price - b.price)[0];
+    const drop = head1.price - head2.price;
+    if (belly && drop >= -atr * 0.2 && drop <= atr * 1.1 && belly.price < Math.min(head1.price, head2.price) - atr * 0.7) {
+      return {
+        id: "idragon",
+        family: "graphic",
+        name: "медвежий дракон",
+        side: "bear",
+        points: [
+          { time: head1.time, price: head1.price, label: "голова" },
+          { time: belly.time, price: belly.price, label: "брюхо" },
+          { time: head2.time, price: head2.price, label: "голова" },
+        ],
+        because: "Две головы, вторая не выше первой, между ними впадина",
+        therefore: "Шорт после пробоя впадины. Стоп за вторую голову. Пока впадина цела, фигуры нет.",
+      };
+    }
+  }
+  return null;
+}
+
 export function detectPatterns(swings: Swing[], atr: number, candles: Candle[]): PatternHit[] {
   const found = [
     wedge(swings, atr),
+    cupHandle(swings, atr),
+    dragon(swings, atr),
     wolfeWave(swings, atr),
     headShoulders(swings),
     doubleTopBottom(swings, atr),
@@ -530,6 +640,41 @@ export function patternOrder(candles: Candle[], swings: Swing[], atr: number): F
       const stop = bot - atr * 0.15;
       const target = neck + (neck - bot);
       if (entry != null && target > entry && entry > stop) return { name: p.name, side: "buy", entry, stop, target };
+    }
+    if (p.id === "cup" || p.id === "icup") {
+      const rim = p.points.filter((x) => x.label === "край");
+      const handle = pt("ручка");
+      const deep = pt("дно") ?? pt("верх");
+      const edge = rim[1] ?? rim[0];
+      if (!handle || !deep || !edge) continue;
+      if (p.id === "cup") {
+        const entry = atPrice(last, edge.price, "buy", atr);
+        const stop = handle.price - atr * 0.15;
+        const target = edge.price + Math.max(edge.price - deep.price, atr);
+        if (entry != null && target > entry && entry > stop) return { name: p.name, side: "buy", entry, stop, target };
+      } else {
+        const entry = atPrice(last, edge.price, "sell", atr);
+        const stop = handle.price + atr * 0.15;
+        const target = edge.price - Math.max(deep.price - edge.price, atr);
+        if (entry != null && stop > entry && entry > target) return { name: p.name, side: "sell", entry, stop, target };
+      }
+    }
+    if (p.id === "dragon" || p.id === "idragon") {
+      const hump = pt("горб") ?? pt("брюхо");
+      const feet = p.points.filter((x) => x.label === "лапа" || x.label === "голова");
+      const lastFoot = feet.at(-1);
+      if (!hump || !lastFoot) continue;
+      if (p.id === "dragon") {
+        const entry = atPrice(last, hump.price, "buy", atr);
+        const stop = lastFoot.price - atr * 0.15;
+        const target = hump.price + Math.max(hump.price - lastFoot.price, atr);
+        if (entry != null && target > entry && entry > stop) return { name: p.name, side: "buy", entry, stop, target };
+      } else {
+        const entry = atPrice(last, hump.price, "sell", atr);
+        const stop = lastFoot.price + atr * 0.15;
+        const target = hump.price - Math.max(lastFoot.price - hump.price, atr);
+        if (entry != null && stop > entry && entry > target) return { name: p.name, side: "sell", entry, stop, target };
+      }
     }
     if (p.id === "flag" || p.id === "pennant") {
       const pole = pt("шест");
