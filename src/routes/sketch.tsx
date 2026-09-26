@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { AppNav } from "@/components/app-nav";
 import { deskCommandFn } from "@/lib/desk-api";
-import { readDeskKey, writeDeskKey } from "@/lib/desk-key";
+import { readDeskKey } from "@/lib/desk-key";
 import { retellSketch, type ChartPlan, type SketchPiece } from "@/lib/sketch";
 
 export const Route = createFileRoute("/sketch")({
@@ -291,12 +291,8 @@ function ChartOrder({ plan }: { plan: ChartPlan }) {
     setKey(readDeskKey());
   }, []);
   async function send() {
-    const deskKey = key.trim();
-    if (!deskKey) {
-      setNote("Нужен ключ стола из кабинета. Советник без него приказ не увидит.");
-      return;
-    }
-    writeDeskKey(deskKey);
+    const deskKey = readDeskKey();
+    if (!deskKey) return;
     setBusy(true);
     setNote("Отдаю советнику…");
     const res = await deskCommandFn({
@@ -310,7 +306,7 @@ function ChartOrder({ plan }: { plan: ChartPlan }) {
       },
     });
     setBusy(false);
-    setNote(res.ok ? "Приказ ушёл. Советник сам сдвинет уровни на спред и не будет догонять, если цена уже ушла." : res.error);
+    setNote(res.ok ? "Приказ ушёл в ваш стол. Чужой браузер его отправить не может." : res.error);
   }
   const px = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 5 });
   return (
@@ -320,17 +316,15 @@ function ChartOrder({ plan }: { plan: ChartPlan }) {
         {plan.symbol} {plan.side === "buy" ? "покупка" : "продажа"}. Вход {px(plan.entry)}, стоп {px(plan.stop)}, тейк {px(plan.target)}.
       </p>
       <p className="mt-2 text-xs leading-relaxed text-zinc-400">
-        Это подписи с картинки. Советник возьмёт их и чуть поправит: если цена уже у входа, войдёт по рынку и сдвинет стоп с тейком на ту же разницу. Если до входа ещё есть место, поставит лимитку. Далеко не догоняет. Стоп не оставит внутри спреда.
+        Это подписи с картинки. Советник чуть поправит их на спред. Кнопку видит только браузер, где уже открыт ваш кабинет. Поле для чужого ключа нет.
       </p>
-      <input
-        value={key}
-        onChange={(e) => setKey(e.target.value)}
-        placeholder="Ключ стола, если кабинет на этом браузере ещё не открывали"
-        className="mt-3 h-10 w-full rounded-lg border border-white/10 bg-black/40 px-3 text-xs outline-none focus:border-amber-200/40"
-      />
-      <button type="button" disabled={busy} onClick={() => void send()} className="btn-metal mt-3 h-10 rounded-sm px-4 text-sm font-medium text-accent-fg disabled:opacity-60">
-        Отдать советнику
-      </button>
+      {key ? (
+        <button type="button" disabled={busy} onClick={() => void send()} className="btn-metal mt-3 h-10 rounded-sm px-4 text-sm font-medium text-accent-fg disabled:opacity-60">
+          Отдать советнику
+        </button>
+      ) : (
+        <p className="mt-3 text-xs text-zinc-500">Отдать приказ может только хозяин стола.</p>
+      )}
       {note ? <p className="mt-2 text-xs text-amber-100/80">{note}</p> : null}
     </div>
   );
@@ -338,7 +332,8 @@ function ChartOrder({ plan }: { plan: ChartPlan }) {
 
 function Spread({ note, onRemove }: { note: SavedNote; onRemove?: () => void }) {
   const { image, instrument } = note;
-  const piece = retellSketch(note.piece.original, instrument) ?? note.piece;
+  const fresh = retellSketch(note.piece.original, instrument);
+  const piece = fresh ? { ...fresh, plan: fresh.plan ?? note.piece.plan ?? null } : note.piece;
   const when = new Intl.DateTimeFormat("ru-RU", {
     day: "numeric",
     month: "long",
