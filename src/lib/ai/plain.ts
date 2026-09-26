@@ -109,22 +109,16 @@ export async function askVision(
       models: ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-flash-latest"],
     },
     {
-      label: "Llama",
+      label: "Qwen",
       key: asGroq(process.env.GROQ_API_KEY) || asGroq(process.env.GROK_API_KEY),
       url: "https://api.groq.com/openai/v1/chat/completions",
-      models: ["meta-llama/llama-4-scout-17b-16e-instruct", "llama-3.2-11b-vision-preview"],
+      models: ["qwen/qwen3.8-27b", "qwen/qwen3.6-27b"],
     },
     {
       label: "GPT",
       key: process.env.OPENAI_API_KEY,
       url: "https://api.openai.com/v1/chat/completions",
       models: ["gpt-4o-mini"],
-    },
-    {
-      label: "Grok",
-      key: [process.env.XAI_API_KEY, process.env.GROK_API_KEY].find((k) => k?.startsWith("xai-")),
-      url: "https://api.x.ai/v1/chat/completions",
-      models: ["grok-2-vision-1212", "grok-4"],
     },
   ];
   const errors: string[] = [];

@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.10.8",
+    d: "2026-09-26",
+    items: [
+      "Заметка читает фото через Qwen на Groq. Старая Llama для картинок на Groq уже снята, поэтому была ошибка 404",
+    ],
+  },
+  {
     v: "1.10.7",
     d: "2026-09-26",
     items: [
