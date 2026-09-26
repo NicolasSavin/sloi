@@ -14,6 +14,7 @@ export interface ChartPlan {
   stop: number;
   target: number;
   own: boolean;
+  how: "now" | "limit" | null;
 }
 
 export interface SketchPiece {
@@ -227,7 +228,7 @@ export function guessSymbol(instrument: string, text: string) {
 }
 
 export function parsePlan(text: string): ChartPlan | null {
-  const m = text.match(/ПРИКАЗ\s+([A-Za-z]{6,10})\s+(BUY|SELL)\s+ENTRY\s+([0-9]+(?:[.,][0-9]+)?)\s+STOP\s+([0-9]+(?:[.,][0-9]+)?)\s+TP\s+([0-9]+(?:[.,][0-9]+)?)(?:\s+СТОЛ)?/i);
+  const m = text.match(/ПРИКАЗ\s+([A-Za-z]{6,10})\s+(BUY|SELL)\s+ENTRY\s+([0-9]+(?:[.,][0-9]+)?)\s+STOP\s+([0-9]+(?:[.,][0-9]+)?)\s+TP\s+([0-9]+(?:[.,][0-9]+)?)(?:\s+СТОЛ)?(?:\s+КАК\s+(NOW|LIMIT))?/i);
   if (!m) return null;
   const num = (s: string) => Number(s.replace(",", "."));
   const plan: ChartPlan = {
@@ -237,6 +238,7 @@ export function parsePlan(text: string): ChartPlan | null {
     stop: num(m[4]!),
     target: num(m[5]!),
     own: /ПРИКАЗ\s+[A-Za-z]{6,10}\s+(?:BUY|SELL)\s+ENTRY\s+\S+\s+STOP\s+\S+\s+TP\s+\S+\s+СТОЛ/i.test(text),
+    how: m[6]?.toUpperCase() === "NOW" ? "now" : m[6]?.toUpperCase() === "LIMIT" ? "limit" : null,
   };
   if (![plan.entry, plan.stop, plan.target].every((n) => Number.isFinite(n) && n > 0)) return null;
   if (plan.side === "buy" && !(plan.stop < plan.entry && plan.entry < plan.target)) return null;
@@ -245,7 +247,7 @@ export function parsePlan(text: string): ChartPlan | null {
 }
 
 export function stripPlan(text: string) {
-  return text.replace(/\n?ПРИКАЗ\s+[A-Za-z]{6,10}\s+(?:BUY|SELL)\s+ENTRY\s+\S+\s+STOP\s+\S+\s+TP\s+\S+(?:\s+СТОЛ)?\s*/gi, "\n").trim();
+  return text.replace(/\n?ПРИКАЗ\s+[A-Za-z]{6,10}\s+(?:BUY|SELL)\s+ENTRY\s+\S+\s+STOP\s+\S+\s+TP\s+\S+(?:\s+СТОЛ)?(?:\s+КАК\s+(?:NOW|LIMIT))?\s*/gi, "\n").trim();
 }
 export function retellSketch(raw: string, instrument: string): SketchPiece | null {
   const original = tidy(raw);

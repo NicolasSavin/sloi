@@ -13,36 +13,78 @@ const CHART_EYE = `Ты смотришь скриншот рыночного г�
 ПРИКАЗ EURUSD BUY ENTRY 1.0850 STOP 1.0820 TP 1.0910
 BUY — если тейк выше входа. SELL — если тейк ниже входа. Тикер латиницей, как на графике. Если одной из трёх цен нет, строку ПРИКАЗ не пиши и числа не выдумывай.
 Если нарисован клин, флаг, вымпел или наклонная, скажи, пробита ли линия и в какую сторону.
-Если подписано «Тейк» без цифры, посмотри, на какую цену правой шкалы указывает подпись, и последними строками добавь только то, что реально видно:
-ПРОБОЙ SELL
+Если подпись «Вход», «Стоп» или «Тейк» без цифры внутри, прочитай цену по правой шкале, куда она указывает, и добавь только видимые строки:
+ВХОД 0.99300
+СТОП 0.99600
 ТЕЙК 0.99049
-ПРОБОЙ BUY — если пробой вверх. Цифру тейка бери со шкалы, не из головы. Если шкалу не прочитать, строку ТЕЙК не пиши.`;
+ПРОБОЙ SELL
+ПРОБОЙ BUY — если пробой вверх.
+Если на графике написано «сразу» или «по рынку», добавь КАК NOW. Если написано «лимит» или «отложка», добавь КАК LIMIT. Если такого слова нет, строку КАК не пиши.`;
 
 function chartHint(text: string) {
+  const num = (re: RegExp) => {
+    const m = text.match(re);
+    if (!m?.[1]) return null;
+    const n = Number(m[1].replace(",", "."));
+    return Number.isFinite(n) && n > 0 ? n : null;
+  };
   const side = /ПРОБОЙ\s+SELL|пробой[^\n]{0,40}вниз|клин[^\n]{0,40}вниз/i.test(text)
     ? ("sell" as const)
     : /ПРОБОЙ\s+BUY|пробой[^\n]{0,40}вверх/i.test(text)
       ? ("buy" as const)
       : undefined;
-  const mark = text.match(/ТЕЙК\s+([0-9]+(?:[.,][0-9]+)?)/i);
-  const target = mark ? Number(mark[1]!.replace(",", ".")) : null;
-  return { side, target: target != null && Number.isFinite(target) ? target : null };
+  const how = /КАК\s+NOW/i.test(text) ? ("now" as const) : /КАК\s+LIMIT/i.test(text) ? ("limit" as const) : null;
+  return {
+    side,
+    entry: num(/ВХОД\s+([0-9]+(?:[.,][0-9]+)?)/i),
+    stop: num(/СТОП\s+([0-9]+(?:[.,][0-9]+)?)/i),
+    target: num(/ТЕЙК\s+([0-9]+(?:[.,][0-9]+)?)/i),
+    how,
+  };
+}
+
+function howWord(how: "now" | "limit" | null) {
+  if (how === "now") return " КАК NOW";
+  if (how === "limit") return " КАК LIMIT";
+  return "";
 }
 
 async function withDeskLevels(text: string, instrument: string) {
-  if (parsePlan(text)) return text;
+  const marks = chartHint(text);
+  const drawn = parsePlan(text);
+  if (drawn) {
+    if (marks.how && !/ПРИКАЗ[^\n]*КАК\s+(?:NOW|LIMIT)/i.test(text)) {
+      return text.replace(/ПРИКАЗ[^\n]*/, (line) => `${line}${howWord(marks.how)}`);
+    }
+    return text;
+  }
   const symbol = guessSymbol(instrument, text);
   if (!symbol) return `${text}\nИнструмент не назван, поэтому стол сам уровни не ставит.`;
-  const hint = chartHint(text);
-  const levels = await ownLevels(symbol, hint);
-  if (!levels) {
-    return `${text}\nНа картинке не было входа, стопа и тейка. Стол тоже не нашёл пробой наклонной или зону, и приказ не собрал.`;
+  const levels = await ownLevels(symbol, { side: marks.side, target: marks.target });
+  if (!levels && (marks.entry == null || marks.stop == null || marks.target == null)) {
+    return `${text}\nС графика не прочитались вход, стоп и тейк, и стол тоже не собрал приказ.`;
   }
-  const side = levels.side === "buy" ? "BUY" : "SELL";
-  const how = /клин|наклон|флаг|вымпел|пробой|голова|плеч|двойн|треугольник|gartley|bat|butterfly|crab|abcd|вульф|паттерн/i.test(text)
-    ? "Вход только на пробое: пока линия или шея цела, это стоп-заявка на ней. До пробоя сделка не открывается, после пробоя цену не догоняем. Тейк — высота фигуры или подпись на шкале."
-    : "На картинке не было готовых цен. Стол поставил их сам: вход у своей зоны, стоп за экстремумом, тейк у ближайшей ликвидности.";
-  return `${text}\n${how}\nПРИКАЗ ${symbol} ${side} ENTRY ${levels.entry} STOP ${levels.stop} TP ${levels.target} СТОЛ`;
+  const entry = marks.entry ?? levels?.entry ?? null;
+  const stop = marks.stop ?? levels?.stop ?? null;
+  const target = marks.target ?? levels?.target ?? null;
+  const side = marks.side ?? levels?.side;
+  if (entry == null || stop == null || target == null || !side) {
+    return `${text}\nНа графике не хватило цен, стол не стал додумывать сторону.`;
+  }
+  const buyOk = side === "buy" && stop < entry && entry < target;
+  const sellOk = side === "sell" && target < entry && entry < stop;
+  if (!buyOk && !sellOk) {
+    return `${text}\nЦены с графика не сходятся: тейк или стоп не с той стороны входа. Приказ не собрал.`;
+  }
+  const fromChart = marks.entry != null || marks.stop != null || marks.target != null;
+  const verb = side === "buy" ? "BUY" : "SELL";
+  const how = fromChart
+    ? "Цены взяты с графика, со шкалы, куда смотрят подписи. Стол дописал только то, чего на картинке не было."
+    : /клин|наклон|флаг|вымпел|пробой|голова|плеч|двойн|треугольник|паттерн/i.test(text)
+      ? "На графике не было цен. Вход на линии пробоя, стоп за край фигуры, тейк на её высоту."
+      : "На графике не было цен. Стол поставил вход, стоп и тейк сам.";
+  const own = fromChart ? "" : " СТОЛ";
+  return `${text}\n${how}\nПРИКАЗ ${symbol} ${verb} ENTRY ${entry} STOP ${stop} TP ${target}${own}${howWord(marks.how)}`;
 }
 
 async function notesFromChart(typed: string, image: string, instrument: string) {
@@ -64,18 +106,26 @@ export const Route = createFileRoute("/api/sketches")({
       GET: async ({ request }) => {
         const fill = new URL(request.url).searchParams.get("fill");
         if (fill) {
-          const levels = await ownLevels(fill.toUpperCase(), chartHint(new URL(request.url).searchParams.get("text") ?? ""));
-          if (!levels) return Response.json({ plan: null });
-          return Response.json({
-            plan: {
-              symbol: fill.toUpperCase(),
-              side: levels.side,
-              entry: levels.entry,
-              stop: levels.stop,
-              target: levels.target,
-              own: true,
-            },
-          });
+          const text = new URL(request.url).searchParams.get("text") ?? "";
+          const marks = chartHint(text);
+          const levels = await ownLevels(fill.toUpperCase(), { side: marks.side, target: marks.target });
+          const entry = marks.entry ?? levels?.entry ?? null;
+          const stop = marks.stop ?? levels?.stop ?? null;
+          const target = marks.target ?? levels?.target ?? null;
+          const side = marks.side ?? levels?.side;
+          if (entry == null || stop == null || target == null || !side) return Response.json({ plan: null });
+          const plan = {
+            symbol: fill.toUpperCase(),
+            side,
+            entry,
+            stop,
+            target,
+            own: marks.entry == null && marks.stop == null && marks.target == null,
+            how: marks.how,
+          };
+          const ok = side === "buy" ? stop < entry && entry < target : target < entry && entry < stop;
+          if (!ok) return Response.json({ plan: null });
+          return Response.json({ plan });
         }
         try {
           const notes = await listSketches();

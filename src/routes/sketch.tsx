@@ -317,18 +317,22 @@ function ChartOrder({ plan }: { plan: ChartPlan }) {
         {plan.symbol} {plan.side === "buy" ? "покупка" : "продажа"}. Вход {px(plan.entry)}, стоп {px(plan.stop)}, тейк {px(plan.target)}.
       </p>
       <p className="mt-2 text-xs leading-relaxed text-zinc-400">
-        {plan.own
-          ? "Сразу — вход по рынку в эту секунду. Лимитом — заявка на цене входа, сделка откроется только когда цена туда придёт. Если это пробой, заявка сработает на линии, не раньше."
-          : "Сразу — по текущей цене. Лимитом — заявка на подписанном входе."}{" "}
+        {plan.how === "now"
+          ? "На графике написано войти сразу."
+          : plan.how === "limit"
+            ? "На графике написано лимитом."
+            : plan.own
+              ? "На графике способа входа не было. Сразу — по рынку. Лимитом — заявка на цене входа."
+              : "Цены взяты с графика. Сразу — по рынку. Лимитом — заявка на подписанном входе."}{" "}
         Кнопку видит только браузер, где уже открыт ваш кабинет.
       </p>
       {key ? (
         <div className="mt-3 flex flex-wrap gap-2">
-          <button type="button" disabled={busy} onClick={() => void send("now")} className="btn-metal h-10 rounded-sm px-4 text-sm font-medium text-accent-fg disabled:opacity-60">
-            Сразу
+          <button type="button" disabled={busy} onClick={() => void send("now")} className={`h-10 rounded-sm px-4 text-sm font-medium disabled:opacity-60 ${plan.how === "limit" ? "border border-amber-200/40 text-amber-100" : "btn-metal text-accent-fg"}`}>
+            {plan.how === "now" ? "Сразу, как на графике" : "Сразу"}
           </button>
-          <button type="button" disabled={busy} onClick={() => void send("limit")} className="h-10 rounded-sm border border-amber-200/40 px-4 text-sm text-amber-100 disabled:opacity-60">
-            Лимитом
+          <button type="button" disabled={busy} onClick={() => void send("limit")} className={`h-10 rounded-sm px-4 text-sm disabled:opacity-60 ${plan.how === "limit" ? "btn-metal font-medium text-accent-fg" : "border border-amber-200/40 text-amber-100"}`}>
+            {plan.how === "limit" ? "Лимитом, как на графике" : "Лимитом"}
           </button>
         </div>
       ) : (
