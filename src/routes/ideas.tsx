@@ -153,7 +153,7 @@ function IdeasPage() {
         {!native ? <MinuteChart pair={pair} minutes={barMinutes} /> : null}
         <div className="absolute left-3 top-2 z-10">
           <button type="button" onClick={() => setDraw(true)} className="h-10 rounded-sm bg-amber-100 px-4 text-sm font-semibold text-zinc-900 shadow-[0_8px_24px_rgba(0,0,0,0.45)]">
-            Нарисовать план
+            Рисовать
           </button>
         </div>
         <div className="absolute left-3 top-14 z-10 flex max-w-[78vw] flex-wrap items-center gap-1 rounded-md bg-[#131722]/95 p-1 shadow-[0_8px_24px_rgba(0,0,0,0.45)]">

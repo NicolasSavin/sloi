@@ -464,7 +464,7 @@ export function PlanDraw({
   return (
     <div className="absolute inset-0 z-20 flex flex-col bg-[#0e1116]">
       <div className="flex flex-wrap items-center gap-2 border-b border-white/10 px-3 py-2">
-        <span className="text-xs tracking-[0.16em] text-amber-100/80">ПЛАН {pair}</span>
+        <span className="text-xs tracking-[0.16em] text-amber-100/80">{pair}</span>
         <Tool name="Вход" on={tool === "entry"} click={() => setTool("entry")} />
         <Tool name="Стоп" on={tool === "stop"} click={() => setTool("stop")} />
         <Tool name="Тейк" on={tool === "target"} click={() => setTool("target")} />
@@ -474,7 +474,7 @@ export function PlanDraw({
         </button>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <button type="button" disabled={busy || reading} onClick={() => void asNote()} className="h-8 rounded-sm bg-amber-100 px-3 text-sm font-semibold text-zinc-900 disabled:opacity-60">
-            {reading ? "Смотрю график…" : "Как в заметке"}
+            {reading ? "Снимаю…" : "Снимок"}
           </button>
           <button type="button" disabled={busy || reading} onClick={() => send("now")} className="h-8 rounded-sm bg-[#089981] px-3 text-sm font-semibold text-white disabled:opacity-60">
             Сразу
@@ -508,13 +508,17 @@ export function PlanDraw({
                 {p}
               </p>
             ))}
-            <p className="mt-1 text-xs text-zinc-500">Заметка также появилась на странице «Заметка». Приказ уходит только по кнопке Сразу или Лимитом.</p>
+            <p className="mt-1 text-xs text-zinc-500">
+              {story.plan
+                ? `Приказ собран: ${story.plan.side === "buy" ? "покупка" : "продажа"}, вход ${px(story.plan.entry)}, стоп ${px(story.plan.stop)}, тейк ${px(story.plan.target)}. На график он уйдёт по кнопке Сразу или Лимитом.`
+                : "Идея есть, а трёх цен стол на снимке не увидел. Приказа нет."}
+            </p>
           </div>
         ) : (
           <p className="mt-1 text-xs text-zinc-400">
             {plan
               ? `${plan.side === "buy" ? "Покупка" : "Продажа"}. Вход ${px(plan.entry)}, стоп ${px(plan.stop)}, тейк ${px(plan.target)}.`
-              : "Линия липнет к свече. Двойной клик открывает концы: их можно перетащить. «Как в заметке» пишет текст и собирает приказ."}{" "}
+              : "Рисуйте на графике. Линия липнет к свече. Кнопка «Снимок» сама делает фото и по нему собирает идею и приказ."}{" "}
             {found ? ` Найдено: ${found}.` : ""} {err || note}
           </p>
         )}
