@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { AppNav } from "@/components/app-nav";
-import { retellSketch, type SketchPiece } from "@/lib/sketch";
+import { deskCommandFn } from "@/lib/desk-api";
+import { readDeskKey, writeDeskKey } from "@/lib/desk-key";
+import { retellSketch, type ChartPlan, type SketchPiece } from "@/lib/sketch";
 
 export const Route = createFileRoute("/sketch")({
   component: SketchPage,
@@ -281,6 +283,59 @@ function SketchMascots({ mood }: { mood: SketchPiece["mood"] }) {
   );
 }
 
+function ChartOrder({ plan }: { plan: ChartPlan }) {
+  const [key, setKey] = useState("");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    setKey(readDeskKey());
+  }, []);
+  async function send() {
+    const deskKey = key.trim();
+    if (!deskKey) {
+      setNote("Нужен ключ стола из кабинета. Советник без него приказ не увидит.");
+      return;
+    }
+    writeDeskKey(deskKey);
+    setBusy(true);
+    setNote("Отдаю советнику…");
+    const res = await deskCommandFn({
+      data: {
+        key: deskKey,
+        kind: plan.side === "buy" ? "BUY" : "SELL",
+        symbol: plan.symbol,
+        entry: plan.entry,
+        stop: plan.stop,
+        tp: plan.target,
+      },
+    });
+    setBusy(false);
+    setNote(res.ok ? "Приказ ушёл. Советник сам сдвинет уровни на спред и не будет догонять, если цена уже ушла." : res.error);
+  }
+  const px = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 5 });
+  return (
+    <div className="mt-6 rounded-2xl border border-amber-200/30 bg-black/40 p-4">
+      <p className="text-[11px] tracking-[0.22em] text-accent">ПРИКАЗ С ГРАФИКА</p>
+      <p className="mt-2 text-sm text-zinc-100">
+        {plan.symbol} {plan.side === "buy" ? "покупка" : "продажа"}. Вход {px(plan.entry)}, стоп {px(plan.stop)}, тейк {px(plan.target)}.
+      </p>
+      <p className="mt-2 text-xs leading-relaxed text-zinc-400">
+        Это подписи с картинки. Советник возьмёт их и чуть поправит: если цена уже у входа, войдёт по рынку и сдвинет стоп с тейком на ту же разницу. Если до входа ещё есть место, поставит лимитку. Далеко не догоняет. Стоп не оставит внутри спреда.
+      </p>
+      <input
+        value={key}
+        onChange={(e) => setKey(e.target.value)}
+        placeholder="Ключ стола, если кабинет на этом браузере ещё не открывали"
+        className="mt-3 h-10 w-full rounded-lg border border-white/10 bg-black/40 px-3 text-xs outline-none focus:border-amber-200/40"
+      />
+      <button type="button" disabled={busy} onClick={() => void send()} className="btn-metal mt-3 h-10 rounded-sm px-4 text-sm font-medium text-accent-fg disabled:opacity-60">
+        Отдать советнику
+      </button>
+      {note ? <p className="mt-2 text-xs text-amber-100/80">{note}</p> : null}
+    </div>
+  );
+}
+
 function Spread({ note, onRemove }: { note: SavedNote; onRemove?: () => void }) {
   const { image, instrument } = note;
   const piece = retellSketch(note.piece.original, instrument) ?? note.piece;
@@ -323,6 +378,7 @@ function Spread({ note, onRemove }: { note: SavedNote; onRemove?: () => void }) 
               ))}
             </div>
           ) : null}
+          {piece.plan ? <ChartOrder plan={piece.plan} /> : null}
           <blockquote className="mt-6 border-l-2 border-amber-200/40 pl-3 text-sm italic text-zinc-400">
             {piece.original}
           </blockquote>

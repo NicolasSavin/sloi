@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.38"
+#property version   "5.39"
 #property strict
-#property description "SLOI 5.38: кнопка БЕЗ СТОПА. Тейк остаётся, стоп и замок не закрывают"
+#property description "SLOI 5.39: приказ с графика. Вход, стоп и тейк с подписи, поправка на спред"
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -2730,6 +2730,67 @@ void CloseByNaked(string naked)
    Alert("SLOI сайт закрыть ", naked, " ", n);
   }
 
+int ChartOrder(string naked, int dir, double entry, double stop, double tp)
+  {
+   if(entry <= 0 || stop <= 0 || tp <= 0) return(0);
+   string s = naked;
+   SymbolSelect(s, true);
+   RefreshRates();
+   double pxLive = dir > 0 ? AskOf(s) : BidOf(s);
+   if(pxLive <= 0)
+     {
+      for(int i = 0; i < g_n; i++)
+         if(Naked(g_sym[i]) == Naked(naked)) { s = g_sym[i]; pxLive = dir > 0 ? AskOf(s) : BidOf(s); break; }
+     }
+   if(pxLive <= 0) { Alert("SLOI график: нет котировки ", naked); return(0); }
+   RefreshRates();
+   double ask = AskOf(s);
+   double bid = BidOf(s);
+   double spr = ask - bid;
+   if(spr < 0) spr = 0;
+   double near = spr * 2.0;
+   if(near <= 0) near = PointOf(s) * 5.0;
+   int cmd = dir > 0 ? OP_BUYLIMIT : OP_SELLLIMIT;
+   double px = entry;
+   double sl = stop;
+   double target = tp;
+   if(dir > 0)
+     {
+      if(ask > entry + near)
+        {
+         Alert("SLOI график: ", s, " цена уже выше входа, не догоняю");
+         return(0);
+        }
+      if(ask >= entry - near)
+        {
+         cmd = OP_BUY;
+         px = ask;
+         sl = stop + (ask - entry);
+         target = tp + (ask - entry);
+        }
+     }
+   else
+     {
+      if(bid < entry - near)
+        {
+         Alert("SLOI график: ", s, " цена уже ниже входа, не догоняю");
+         return(0);
+        }
+      if(bid <= entry + near)
+        {
+         cmd = OP_SELL;
+         px = bid;
+         sl = stop - (entry - bid);
+         target = tp - (entry - bid);
+        }
+     }
+   double lots = LotFor(s, px, sl);
+   int ticket = SendOrder(s, cmd, lots, px, sl, target, "SLOI chart", dir > 0 ? C_BUY : C_SEL);
+   if(ticket > 0) Alert("SLOI график ", (dir > 0 ? "ПОКУПКА " : "ПРОДАЖА "), s, " #", ticket);
+   else Print("SLOI график ", s, " err ", GetLastError());
+   return(ticket);
+  }
+
 void ApplySiteCommands()
   {
    if(StringLen(g_key) < 8) return;
@@ -2749,13 +2810,21 @@ void ApplySiteCommands()
       string kind = p[2];
       string a = (k >= 4 ? p[3] : "");
       double forceTp = 0;
+      double chartEntry = 0;
+      double chartStop = 0;
       for(int t = 4; t < k - 1; t++)
+        {
          if(p[t] == "TP") forceTp = StringToDouble(p[t + 1]);
+         else if(p[t] == "ENTRY") chartEntry = StringToDouble(p[t + 1]);
+         else if(p[t] == "STOP") chartStop = StringToDouble(p[t + 1]);
+        }
       if(kind == "PAUSE") g_auto = false;
       else if(kind == "RESUME") g_auto = true;
       else if(kind == "CLOSE_ALL") CloseMine(true);
       else if(kind == "CLOSE_PROFIT") CloseMine(false);
       else if(kind == "CLOSE") CloseByNaked(a);
+      else if((kind == "BUY" || kind == "SELL") && chartEntry > 0 && chartStop > 0 && forceTp > 0)
+         ChartOrder(a, kind == "BUY" ? 1 : -1, chartEntry, chartStop, forceTp);
       else if(kind == "BUY") ManualTradeSym(a, 1, forceTp);
       else if(kind == "SELL") ManualTradeSym(a, -1, forceTp);
       Print("SLOI CMD ", cid, " ", kind, " ", a);

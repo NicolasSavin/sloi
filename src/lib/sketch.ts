@@ -7,6 +7,14 @@ export interface WhaleRead {
   therefore: string;
 }
 
+export interface ChartPlan {
+  symbol: string;
+  side: "buy" | "sell";
+  entry: number;
+  stop: number;
+  target: number;
+}
+
 export interface SketchPiece {
   kicker: string;
   title: string;
@@ -16,6 +24,7 @@ export interface SketchPiece {
   original: string;
   mood: SketchMood;
   whale: WhaleRead;
+  plan: ChartPlan | null;
 }
 
 function tidy(raw: string): string {
@@ -190,21 +199,45 @@ function narrate(bits: string[], name: string, raw: string, mood: SketchMood): {
   return { lead, paragraphs };
 }
 
-/** Journalistic retelling. Uses only the author's words. Adds no prices and no new scenario. */
+export function parsePlan(text: string): ChartPlan | null {
+  const m = text.match(/ПРИКАЗ\s+([A-Za-z]{6,10})\s+(BUY|SELL)\s+ENTRY\s+([0-9]+(?:[.,][0-9]+)?)\s+STOP\s+([0-9]+(?:[.,][0-9]+)?)\s+TP\s+([0-9]+(?:[.,][0-9]+)?)/i);
+  if (!m) return null;
+  const num = (s: string) => Number(s.replace(",", "."));
+  const plan: ChartPlan = {
+    symbol: m[1]!.toUpperCase(),
+    side: m[2]!.toLowerCase() === "sell" ? "sell" : "buy",
+    entry: num(m[3]!),
+    stop: num(m[4]!),
+    target: num(m[5]!),
+  };
+  if (![plan.entry, plan.stop, plan.target].every((n) => Number.isFinite(n) && n > 0)) return null;
+  if (plan.side === "buy" && !(plan.stop < plan.entry && plan.entry < plan.target)) return null;
+  if (plan.side === "sell" && !(plan.target < plan.entry && plan.entry < plan.stop)) return null;
+  return plan;
+}
+
+export function stripPlan(text: string) {
+  return text.replace(/\n?ПРИКАЗ\s+[A-Za-z]{6,10}\s+(?:BUY|SELL)\s+ENTRY\s+\S+\s+STOP\s+\S+\s+TP\s+\S+\s*/gi, "\n").trim();
+}
 export function retellSketch(raw: string, instrument: string): SketchPiece | null {
   const original = tidy(raw);
   if (original.length < 8) return null;
-  const name = instrument.trim();
-  const mood = moodOf(original);
-  const told = narrate(sentencesOf(original), name, original, mood);
+  const plan = parsePlan(original);
+  const clean = stripPlan(original);
+  if (clean.length < 8 && !plan) return null;
+  const spoken = clean.length >= 8 ? clean : `На графике ${plan!.symbol} подписан ${plan!.side === "buy" ? "лонг" : "шорт"}.`;
+  const name = instrument.trim() || plan?.symbol || "";
+  const mood = moodOf(spoken);
+  const told = narrate(sentencesOf(spoken), name, spoken, mood);
   return {
     kicker: name ? name.toUpperCase() : "ЗАМЕТКА С ГРАФИКА",
-    title: headline(name, original),
+    title: headline(name, spoken),
     lead: told.lead,
     paragraphs: told.paragraphs,
-    levels: levelsOf(original),
-    original,
+    levels: levelsOf(spoken),
+    original: clean.length >= 8 ? clean : spoken,
     mood,
-    whale: whaleOf(original, mood),
+    whale: whaleOf(spoken, mood),
+    plan,
   };
 }
