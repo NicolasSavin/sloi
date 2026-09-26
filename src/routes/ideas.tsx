@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppNav } from "@/components/app-nav";
-import { PlanDraw } from "@/components/tv/plan-draw";
 import { MinuteChart } from "@/components/tv/minute-chart";
 import { deskCommandFn } from "@/lib/desk-api";
 import { readDeskKey } from "@/lib/desk-key";
@@ -53,7 +52,6 @@ function IdeasPage() {
   const [key, setKey] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
-  const [draw, setDraw] = useState(false);
   const [full, setFull] = useState(false);
   const screen = useRef<HTMLDivElement>(null);
   const [interval, setInterval] = useState("60");
@@ -129,7 +127,9 @@ function IdeasPage() {
       hide_side_toolbar: false,
       hide_legend: false,
       withdateranges: true,
-      details: true,
+      details: false,
+      disabled_features: ["right_toolbar", "header_screenshot"],
+      enabled_features: ["hide_right_toolbar"],
       save_image: true,
       studies: ["Volume@tv-basicstudies", "Volume Delta@tv-basicstudies"],
       support_host: "https://www.tradingview.com",
@@ -151,48 +151,14 @@ function IdeasPage() {
     setNote(res.ok ? "Приказ у вашего советника." : res.error);
   }
 
-  async function sendPlan(how: "now" | "limit", plan: { side: "buy" | "sell"; entry: number; stop: number; target: number }) {
-    if (!key) {
-      setNote("Сначала откройте кабинет в этом браузере.");
-      return;
-    }
-    setBusy(true);
-    setNote(how === "now" ? "Рыночный приказ уходит брокеру…" : "Лимитка уходит брокеру…");
-    const res = await deskCommandFn({
-      data: {
-        key,
-        kind: plan.side === "buy" ? "BUY" : "SELL",
-        symbol: pair,
-        entry: plan.entry,
-        stop: plan.stop,
-        tp: plan.target,
-        how,
-      },
-    });
-    setBusy(false);
-    setNote(res.ok ? "План у вашего советника." : res.error);
-  }
-
   return (
     <div className="flex h-screen flex-col bg-[#131722] text-zinc-100">
       {full ? null : <AppNav />}
-      <div ref={screen} className="relative min-h-0 flex-1 bg-[#131722]">
-        <div ref={host} className="absolute inset-0" />
-        {full ? (
-          <button type="button" onClick={() => setFull(false)} className="absolute right-3 top-2 z-30 h-8 rounded-sm bg-black/70 px-3 text-xs text-zinc-200">
-            Выйти
-          </button>
-        ) : null}
-        {!native ? <MinuteChart pair={pair} minutes={barMinutes} /> : null}
-        <div className={full ? "hidden" : "absolute left-3 top-2 z-10"}>
-          <button type="button" onClick={() => setDraw(true)} className="h-10 rounded-sm bg-amber-100 px-4 text-sm font-semibold text-zinc-900 shadow-[0_8px_24px_rgba(0,0,0,0.45)]">
-            Рисовать
-          </button>
-          <button type="button" onClick={() => setFull(true)} className="mt-2 h-8 rounded-sm bg-[#2a2e39] px-3 text-xs text-zinc-100">
+      {full ? null : (
+        <div className="flex flex-wrap items-center gap-1 border-b border-white/10 bg-[#131722] px-2 py-1">
+          <button type="button" onClick={() => setFull(true)} className="h-7 rounded-sm bg-[#2a2e39] px-2 text-xs text-zinc-100">
             F8 весь экран
           </button>
-        </div>
-        <div className={full ? "hidden" : "absolute left-3 top-14 z-10 flex max-w-[78vw] flex-wrap items-center gap-1 rounded-md bg-[#131722]/95 p-1 shadow-[0_8px_24px_rgba(0,0,0,0.45)]"}>
           {FRAMES.map(([id, name]) => (
             <button
               key={id}
@@ -222,33 +188,39 @@ function IdeasPage() {
               Свой
             </button>
           </form>
+          <div className="ml-auto flex flex-wrap items-center gap-1">
+            <select
+              value={pair}
+              onChange={(e) => void navigate({ to: "/ideas", search: { pair: e.target.value } })}
+              className="h-7 rounded-sm bg-[#1e222d] px-2 text-xs text-zinc-100"
+            >
+              {PAIR_OPTIONS.map((id) => (
+                <option key={id} value={id}>
+                  {id}
+                </option>
+              ))}
+            </select>
+            <button type="button" disabled={busy} onClick={() => void send("SELL")} className="h-7 rounded-sm bg-[#f23645] px-3 text-xs font-semibold text-white disabled:opacity-60">
+              Продать
+            </button>
+            <button type="button" disabled={busy} onClick={() => void send("BUY")} className="h-7 rounded-sm bg-[#089981] px-3 text-xs font-semibold text-white disabled:opacity-60">
+              Купить
+            </button>
+            <button type="button" disabled={busy} onClick={() => void send("CLOSE")} className="h-7 rounded-sm bg-[#2a2e39] px-3 text-xs text-zinc-100 disabled:opacity-60">
+              Закрыть
+            </button>
+          </div>
         </div>
-        <div className={full ? "hidden" : "absolute right-3 top-2 z-10 flex max-w-[70vw] flex-wrap items-center justify-end gap-1 rounded-md bg-[#131722] p-1 shadow-[0_8px_24px_rgba(0,0,0,0.45)]"}>
-          <select
-            value={pair}
-            onChange={(e) => void navigate({ to: "/ideas", search: { pair: e.target.value } })}
-            className="h-9 rounded-sm bg-[#1e222d] px-2 text-xs text-zinc-100"
-          >
-            {PAIR_OPTIONS.map((id) => (
-              <option key={id} value={id}>
-                {id}
-              </option>
-            ))}
-          </select>
-          <button type="button" disabled={busy} onClick={() => void send("SELL")} className="h-9 rounded-sm bg-[#f23645] px-3 text-sm font-semibold text-white disabled:opacity-60">
-            Продать
+      )}
+      <div ref={screen} className="relative min-h-0 flex-1 bg-[#131722]">
+        <div ref={host} className="absolute inset-0" />
+        {!native ? <MinuteChart pair={pair} minutes={barMinutes} /> : null}
+        {full ? (
+          <button type="button" onClick={() => setFull(false)} className="absolute right-3 top-2 z-30 h-8 rounded-sm bg-black/70 px-3 text-xs text-zinc-200">
+            Выйти
           </button>
-          <button type="button" disabled={busy} onClick={() => void send("BUY")} className="h-9 rounded-sm bg-[#089981] px-3 text-sm font-semibold text-white disabled:opacity-60">
-            Купить
-          </button>
-          <button type="button" disabled={busy} onClick={() => void send("CLOSE")} className="h-9 rounded-sm bg-[#2a2e39] px-3 text-sm text-zinc-100 disabled:opacity-60">
-            Закрыть
-          </button>
-        </div>
-        {note && !draw ? <p className="absolute bottom-10 right-3 z-10 rounded bg-black/80 px-3 py-1 text-xs text-amber-100">{note}</p> : null}
-        <div className={draw ? "absolute inset-0 z-20" : "hidden"}>
-          <PlanDraw pair={pair} minutes={barMinutes} busy={busy} note={note} onClose={() => setDraw(false)} onSend={(how, plan) => void sendPlan(how, plan)} />
-        </div>
+        ) : null}
+        {note ? <p className="absolute bottom-10 right-3 z-10 rounded bg-black/80 px-3 py-1 text-xs text-amber-100">{note}</p> : null}
       </div>
     </div>
   );
