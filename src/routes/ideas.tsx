@@ -1,19 +1,30 @@
-import { useEffect, useRef } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useRef, useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppNav } from "@/components/app-nav";
+import { deskCommandFn } from "@/lib/desk-api";
+import { readDeskKey } from "@/lib/desk-key";
+import { PAIR_OPTIONS } from "@/lib/ea-settings";
 import { tvSymbol } from "@/lib/tradingview";
 
 export const Route = createFileRoute("/ideas")({
   validateSearch: (s: Record<string, unknown>) => ({
-    pair: typeof s.pair === "string" ? s.pair : "EURUSD",
+    pair: typeof s.pair === "string" && PAIR_OPTIONS.includes(s.pair as (typeof PAIR_OPTIONS)[number]) ? s.pair : "EURUSD",
   }),
   component: IdeasPage,
 });
 
 function IdeasPage() {
   const { pair } = Route.useSearch();
+  const navigate = useNavigate();
   const symbol = tvSymbol(pair);
   const host = useRef<HTMLDivElement>(null);
+  const [key, setKey] = useState("");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    setKey(readDeskKey());
+  }, []);
 
   useEffect(() => {
     const root = host.current;
@@ -59,10 +70,47 @@ function IdeasPage() {
     return () => root.replaceChildren();
   }, [symbol]);
 
+  async function send(kind: "BUY" | "SELL" | "CLOSE") {
+    if (!key) {
+      setNote("Сначала откройте кабинет в этом браузере.");
+      return;
+    }
+    setBusy(true);
+    setNote(kind === "BUY" ? "Покупка уходит брокеру…" : kind === "SELL" ? "Продажа уходит брокеру…" : "Закрываю пару у брокера…");
+    const res = await deskCommandFn({ data: { key, kind, symbol: pair } });
+    setBusy(false);
+    setNote(res.ok ? "Приказ у вашего советника." : res.error);
+  }
+
   return (
     <div className="flex h-screen flex-col bg-[#131722] text-zinc-100">
       <AppNav />
-      <div ref={host} className="min-h-0 flex-1" />
+      <div className="relative min-h-0 flex-1">
+        <div ref={host} className="absolute inset-0" />
+        <div className="absolute right-3 top-2 z-10 flex items-center gap-1 rounded-md bg-[#131722] p-1 shadow-[0_8px_24px_rgba(0,0,0,0.45)]">
+          <select
+            value={pair}
+            onChange={(e) => void navigate({ to: "/ideas", search: { pair: e.target.value } })}
+            className="h-9 rounded-sm bg-[#1e222d] px-2 text-xs text-zinc-100"
+          >
+            {PAIR_OPTIONS.map((id) => (
+              <option key={id} value={id}>
+                {id}
+              </option>
+            ))}
+          </select>
+          <button type="button" disabled={busy} onClick={() => void send("SELL")} className="h-9 rounded-sm bg-[#f23645] px-3 text-sm font-semibold text-white disabled:opacity-60">
+            Продать
+          </button>
+          <button type="button" disabled={busy} onClick={() => void send("BUY")} className="h-9 rounded-sm bg-[#089981] px-3 text-sm font-semibold text-white disabled:opacity-60">
+            Купить
+          </button>
+          <button type="button" disabled={busy} onClick={() => void send("CLOSE")} className="h-9 rounded-sm bg-[#2a2e39] px-3 text-sm text-zinc-100 disabled:opacity-60">
+            Закрыть
+          </button>
+        </div>
+        {note ? <p className="absolute bottom-10 right-3 z-10 rounded bg-black/80 px-3 py-1 text-xs text-amber-100">{note}</p> : null}
+      </div>
     </div>
   );
 }

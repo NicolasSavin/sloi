@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.10.20",
+    d: "2026-09-26",
+    items: [
+      "На графике TradingView кнопки Купить, Продать и Закрыть наши: приказ уходит советнику и вашему брокеру, не в TradingView",
+    ],
+  },
+  {
     v: "1.10.19",
     d: "2026-09-26",
     items: [
