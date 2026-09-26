@@ -80,6 +80,7 @@ function SketchPage() {
   const [feed, setFeed] = useState<SavedNote[]>([]);
   const [own, setOwn] = useState<Record<string, string>>({});
   const [miss, setMiss] = useState("");
+  const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -119,30 +120,46 @@ function SketchPage() {
   }
 
   async function publish() {
-    const piece = retellSketch(notes, instrument);
-    if (!piece) {
-      setMiss("Напишите своими словами, что видите. Пары фраз хватит.");
-      return;
-    }
     if (!image) {
-      setMiss("Сначала скиньте график. В заметку идёт и картинка с пометками, и текст.");
+      setMiss("Сначала скиньте график. Статья может собраться с самой картинки.");
       return;
     }
+    setBusy(true);
+    setMiss(notes.trim() ? "Смотрю, что нарисовано на графике…" : "Текста нет. Собираю статью с фото…");
     const res = await fetch("/api/sketches", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ instrument, notes, image }),
     });
-    const saved = (await res.json()) as { id?: string; token?: string; at?: number; error?: string };
-    if (!res.ok || !saved.id || !saved.token) {
-      setMiss("На сайт не сохранилось. Проверьте картинку и текст.");
+    const saved = (await res.json()) as {
+      id?: string;
+      token?: string;
+      at?: number;
+      notes?: string;
+      instrument?: string;
+      error?: string;
+    };
+    setBusy(false);
+    if (!res.ok || !saved.id || !saved.token || !saved.notes) {
+      setMiss(saved.error || "График не разобрался. Напишите пару слов или проверьте ключ модели.");
+      return;
+    }
+    const piece = retellSketch(saved.notes, saved.instrument || instrument);
+    if (!piece) {
+      setMiss("С картинки не вышло текста.");
       return;
     }
     const nextOwn = { ...own, [saved.id]: saved.token };
     localStorage.setItem(TOKENS, JSON.stringify(nextOwn));
     setOwn(nextOwn);
     setFeed((prev) => [
-      { id: saved.id!, instrument: instrument.trim(), image, piece, at: saved.at ?? Date.now() },
+      {
+        id: saved.id!,
+        instrument: (saved.instrument || instrument).trim(),
+        image,
+        piece,
+        at: saved.at ?? Date.now(),
+      },
       ...prev,
     ]);
     setNotes("");
@@ -175,7 +192,7 @@ function SketchPage() {
         <p className="text-xs tracking-[0.22em] text-accent">ЗАМЕТКА</p>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight">Свой график, своими словами</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted">
-          Смотреть ленту может любой. Добавить тоже может любой: в заметку входит график с тем, что на нём написано и нарисовано, и текст под ним. Чужую запись убрать нельзя.
+          Смотреть ленту может любой. Текст можно не писать: статья соберётся с фото, с того, что на графике нарисовано и подписано. Если напишете сами, это встанет рядом.
         </p>
 
         <div className="mt-6 grid gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:grid-cols-2">
@@ -194,10 +211,10 @@ function SketchPage() {
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={6}
-              placeholder="Своими словами: что за фигура, куда дивер, куда цена, чего ждать."
+              placeholder="Можно оставить пустым. Тогда статья будет только с графика."
               className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm outline-none focus:border-amber-200/40"
             />
-            <button type="button" onClick={publish} className="btn-metal h-11 rounded-sm text-sm font-medium text-accent-fg">
+            <button type="button" disabled={busy} onClick={() => void publish()} className="btn-metal h-11 rounded-sm text-sm font-medium text-accent-fg disabled:opacity-60">
               Добавить заметку
             </button>
             <p className="text-xs text-muted">
