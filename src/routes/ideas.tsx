@@ -6,6 +6,38 @@ import { deskCommandFn } from "@/lib/desk-api";
 import { readDeskKey } from "@/lib/desk-key";
 import { PAIR_OPTIONS } from "@/lib/ea-settings";
 import { tvSymbol } from "@/lib/tradingview";
+import type { Timeframe } from "@/lib/market/types";
+
+const FRAMES: [string, string][] = [
+  ["1", "1м"],
+  ["2", "2м"],
+  ["3", "3м"],
+  ["5", "5м"],
+  ["10", "10м"],
+  ["15", "15м"],
+  ["30", "30м"],
+  ["45", "45м"],
+  ["60", "1ч"],
+  ["90", "90м"],
+  ["120", "2ч"],
+  ["180", "3ч"],
+  ["240", "4ч"],
+  ["360", "6ч"],
+  ["D", "Д"],
+  ["W", "Н"],
+  ["M", "М"],
+];
+
+function planFrame(interval: string): Timeframe {
+  if (interval === "D" || interval === "W" || interval === "M") return "1d";
+  const n = Number(interval);
+  if (!Number.isFinite(n)) return "1h";
+  if (n <= 10) return "5m";
+  if (n <= 45) return "15m";
+  if (n < 240) return "1h";
+  if (n < 1440) return "4h";
+  return "1d";
+}
 
 export const Route = createFileRoute("/ideas")({
   validateSearch: (s: Record<string, unknown>) => ({
@@ -23,6 +55,8 @@ function IdeasPage() {
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [draw, setDraw] = useState(false);
+  const [interval, setInterval] = useState("60");
+  const [minutes, setMinutes] = useState("");
 
   useEffect(() => {
     setKey(readDeskKey());
@@ -50,7 +84,7 @@ function IdeasPage() {
     script.innerHTML = JSON.stringify({
       autosize: true,
       symbol,
-      interval: "60",
+      interval,
       timezone: "Asia/Dubai",
       theme: "dark",
       style: "1",
@@ -70,7 +104,7 @@ function IdeasPage() {
     box.append(pane, copy, script);
     root.append(box);
     return () => root.replaceChildren();
-  }, [symbol]);
+  }, [symbol, interval]);
 
   async function send(kind: "BUY" | "SELL" | "CLOSE") {
     if (!key) {
@@ -116,6 +150,37 @@ function IdeasPage() {
             Нарисовать план
           </button>
         </div>
+        <div className="absolute left-3 top-14 z-10 flex max-w-[78vw] flex-wrap items-center gap-1 rounded-md bg-[#131722]/95 p-1 shadow-[0_8px_24px_rgba(0,0,0,0.45)]">
+          {FRAMES.map(([id, name]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setInterval(id)}
+              className={`h-7 rounded-sm px-2 text-xs ${interval === id ? "bg-amber-100 font-semibold text-zinc-900" : "bg-[#1e222d] text-zinc-200"}`}
+            >
+              {name}
+            </button>
+          ))}
+          <form
+            className="flex items-center gap-1"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const n = Math.round(Number(minutes.replace(",", ".")));
+              if (n >= 1 && n <= 1440) setInterval(String(n));
+            }}
+          >
+            <input
+              value={minutes}
+              onChange={(e) => setMinutes(e.target.value)}
+              inputMode="numeric"
+              placeholder="мин"
+              className="h-7 w-14 rounded-sm bg-[#1e222d] px-2 text-xs outline-none"
+            />
+            <button type="submit" className="h-7 rounded-sm bg-[#2a2e39] px-2 text-xs text-zinc-100">
+              Свой
+            </button>
+          </form>
+        </div>
         <div className="absolute right-3 top-2 z-10 flex max-w-[70vw] flex-wrap items-center justify-end gap-1 rounded-md bg-[#131722] p-1 shadow-[0_8px_24px_rgba(0,0,0,0.45)]">
           <select
             value={pair}
@@ -139,7 +204,7 @@ function IdeasPage() {
           </button>
         </div>
         {note && !draw ? <p className="absolute bottom-10 right-3 z-10 rounded bg-black/80 px-3 py-1 text-xs text-amber-100">{note}</p> : null}
-        {draw ? <PlanDraw pair={pair} busy={busy} note={note} onClose={() => setDraw(false)} onSend={(how, plan) => void sendPlan(how, plan)} /> : null}
+        {draw ? <PlanDraw pair={pair} timeframe={planFrame(interval)} busy={busy} note={note} onClose={() => setDraw(false)} onSend={(how, plan) => void sendPlan(how, plan)} /> : null}
       </div>
     </div>
   );

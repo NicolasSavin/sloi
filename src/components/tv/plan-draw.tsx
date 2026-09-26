@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { fetchMarket } from "@/lib/market/fetch";
-import type { Candle } from "@/lib/market/types";
+import type { Candle, Timeframe } from "@/lib/market/types";
 import { retellSketch, type SketchPiece } from "@/lib/sketch";
 
 type Tool = "entry" | "stop" | "target" | "line";
@@ -17,12 +17,14 @@ const PAD_Y = 16;
 
 export function PlanDraw({
   pair,
+  timeframe = "1h",
   busy,
   note,
   onClose,
   onSend,
 }: {
   pair: string;
+  timeframe?: Timeframe;
   busy: boolean;
   note: string;
   onClose: () => void;
@@ -55,13 +57,13 @@ export function PlanDraw({
     setTarget(null);
     setLines([]);
     setDraft(null);
-    void fetchMarket({ data: { symbol: pair, timeframe: "1h" } }).then((payload) => {
+    void fetchMarket({ data: { symbol: pair, timeframe } }).then((payload) => {
       if (!stopFetch) setCandles(payload.candles.slice(-90));
     });
     return () => {
       stopFetch = true;
     };
-  }, [pair]);
+  }, [pair, timeframe]);
 
   useEffect(() => {
     const el = box.current;
