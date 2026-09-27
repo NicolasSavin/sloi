@@ -10,10 +10,13 @@ export type DivHit = {
 
 export function deltaDivergenceOn(candles: Candle[]): DivHit | null {
   if (candles.length < 12) return null;
+  const delta: number[] = [];
   const cvd: number[] = [];
   let acc = 0;
   for (const c of candles) {
-    acc += deltaOf(c);
+    const d = deltaOf(c);
+    delta.push(d);
+    acc += d;
     cvd.push(acc);
   }
   const highs = pivots(
@@ -24,19 +27,35 @@ export function deltaDivergenceOn(candles: Candle[]): DivHit | null {
     candles.map((c) => c.low),
     "low",
   );
-  for (let i = highs.length - 1; i >= 1; i--) {
-    const a = highs[i - 1]!;
-    const b = highs[i]!;
-    if (candles[b]!.high > candles[a]!.high && cvd[b]! < cvd[a]!) return ends(candles, a, b, false, true);
-    if (candles[b]!.high < candles[a]!.high && cvd[b]! > cvd[a]!) return ends(candles, a, b, true, true);
-  }
-  for (let i = lows.length - 1; i >= 1; i--) {
-    const a = lows[i - 1]!;
-    const b = lows[i]!;
-    if (candles[b]!.low < candles[a]!.low && cvd[b]! > cvd[a]!) return ends(candles, a, b, true, false);
-    if (candles[b]!.low > candles[a]!.low && cvd[b]! < cvd[a]!) return ends(candles, a, b, false, false);
+  const fromHighs = pair(candles, highs, cvd, delta, true);
+  const fromLows = pair(candles, lows, cvd, delta, false);
+  if (fromHighs && fromLows) return fromHighs.b.time >= fromLows.b.time ? fromHighs : fromLows;
+  return fromHighs ?? fromLows;
+}
+
+function pair(candles: Candle[], pts: number[], cvd: number[], delta: number[], onHigh: boolean): DivHit | null {
+  for (let i = pts.length - 1; i >= 1; i--) {
+    const b = pts[i]!;
+    for (let j = i - 1; j >= Math.max(0, i - 4); j--) {
+      const a = pts[j]!;
+      if (b - a < 4) continue;
+      const left = onHigh ? candles[a]!.high : candles[a]!.low;
+      const right = onHigh ? candles[b]!.high : candles[b]!.low;
+      const push = leg(delta, a, b);
+      if (onHigh && right > left && (cvd[b]! < cvd[a]! || push < 0)) return ends(candles, a, b, false, true);
+      if (onHigh && right < left && (cvd[b]! > cvd[a]! || push > 0)) return ends(candles, a, b, true, true);
+      if (!onHigh && right < left && (cvd[b]! > cvd[a]! || push > 0)) return ends(candles, a, b, true, false);
+      if (!onHigh && right > left && (cvd[b]! < cvd[a]! || push < 0)) return ends(candles, a, b, false, false);
+    }
   }
   return null;
+}
+
+function leg(delta: number[], from: number, to: number) {
+  let sum = 0;
+  const start = Math.max(from, to - 6);
+  for (let i = start; i <= to; i++) sum += delta[i] ?? 0;
+  return sum;
 }
 
 function ends(candles: Candle[], a: number, b: number, bull: boolean, onHigh: boolean): DivHit {
@@ -52,7 +71,7 @@ function ends(candles: Candle[], a: number, b: number, bull: boolean, onHigh: bo
 
 function pivots(values: number[], kind: "high" | "low") {
   const out: number[] = [];
-  const span = 2;
+  const span = 4;
   for (let i = span; i < values.length - span; i++) {
     let ok = true;
     for (let k = 1; k <= span; k++) {
