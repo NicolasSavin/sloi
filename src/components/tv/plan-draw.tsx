@@ -524,7 +524,7 @@ export function PlanDraw({
   useEffect(() => {
     if (!seek) {
       setMarks([]);
-      setFound("Холст открыт. Линией можно отметить дивер сами, или нажмите «Найти паттерн».");
+      setFound("График открыт. Линия, вход, стоп и тейк ставятся на свечи. Приказ уходит советнику, в заметку — только кнопка «В заметку».");
       return;
     }
     void findPattern();
@@ -551,17 +551,14 @@ export function PlanDraw({
           <Tool name="Тейк" on={tool === "target"} click={() => setTool("target")} />
           <Tool name="Линия" on={tool === "line"} click={() => setTool("line")} />
           <div className="ml-auto flex flex-wrap items-center gap-2">
-            <button type="button" disabled={busy || reading} onClick={() => void asNote()} className="h-8 rounded-sm bg-amber-100 px-3 text-sm font-semibold text-zinc-900 disabled:opacity-60">
-              {reading ? "Снимаю…" : "Снимок"}
+            <button type="button" disabled={busy || reading} onClick={() => void asNote()} className="h-8 rounded-sm bg-[#2a2e39] px-3 text-sm text-zinc-100 disabled:opacity-60">
+              {reading ? "Пишу…" : "В заметку"}
             </button>
             <button type="button" disabled={busy || reading} onClick={() => send("now")} className="h-8 rounded-sm bg-[#089981] px-3 text-sm font-semibold text-white disabled:opacity-60">
-              Сразу
+              Приказ сразу
             </button>
-            <button type="button" disabled={busy || reading} onClick={() => send("limit")} className="h-8 rounded-sm border border-amber-200/40 px-3 text-sm text-amber-100 disabled:opacity-60">
-              Лимитом
-            </button>
-            <button type="button" onClick={onClose} className="h-8 rounded-sm bg-[#2a2e39] px-3 text-sm">
-              Закрыть
+            <button type="button" disabled={busy || reading} onClick={() => send("limit")} className="h-8 rounded-sm bg-amber-100 px-3 text-sm font-semibold text-zinc-900 disabled:opacity-60">
+              Приказ лимитом
             </button>
           </div>
         </div>
@@ -569,7 +566,7 @@ export function PlanDraw({
           value={words}
           onChange={(e) => setWords(e.target.value)}
           rows={1}
-          placeholder="Свои слова к снимку. Можно пустым."
+          placeholder="Текст заметки. На приказ брокеру не влияет."
           className="mt-2 w-full rounded-sm border border-white/10 bg-black/40 px-2 py-1 text-sm outline-none"
         />
         {story ? (
@@ -699,12 +696,21 @@ function paintDelta(
     const b = tip(m.b.i);
     if (!a || !b) continue;
     ctx.strokeStyle = "#d6ff4a";
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.moveTo(a.x, a.y);
     ctx.lineTo(b.x, b.y);
     ctx.stroke();
     ctx.lineWidth = 1;
+    for (const p of [a, b]) {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+      ctx.fillStyle = "#d6ff4a";
+      ctx.fill();
+    }
+    ctx.font = "bold 12px sans-serif";
+    ctx.fillStyle = "#d6ff4a";
+    ctx.fillText(m.name, Math.min(a.x, b.x), paneTop + 28);
   }
 }
 
