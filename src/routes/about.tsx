@@ -9,6 +9,11 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.10.52",
+    d: "2026-09-27",
+    items: ["Кнопка «Меню» убрана. Меню открывается и закрывается клавишей Esc"],
+  },
+  {
     v: "1.10.51",
     d: "2026-09-27",
     items: ["Фон графика снова тёмный, как в TradingView"],

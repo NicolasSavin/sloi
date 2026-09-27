@@ -28,10 +28,10 @@ export function AppNav() {
   const menuBtn = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "F2") {
+      if (e.key === "Escape" || e.key === "F2") {
         e.preventDefault();
         setOpen((v) => !v);
-      } else if (e.key === "Escape") setOpen(false);
+      }
     };
     window.addEventListener("keydown", onKey);
     const onMenu = () => setOpen((v) => !v);
@@ -46,18 +46,9 @@ export function AppNav() {
   }, [open]);
   return (
     <>
-      <button
-        ref={menuBtn}
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="fixed left-3 top-3 z-[400] h-10 rounded-sm bg-amber-300 px-4 text-sm font-bold text-zinc-900 shadow-lg"
-      >
-        {open ? "Закрыть" : "Меню"}
-      </button>
-      {open ? (
-        <button type="button" aria-label="Закрыть меню" onClick={() => setOpen(false)} className="fixed inset-0 z-[290] bg-black/40" />
-      ) : null}
       <header
+        ref={menuBtn}
+        tabIndex={-1}
         className={cn(
           "nav-metal fixed inset-x-0 top-0 z-[300] backdrop-blur-md transition-transform duration-200",
           open ? "translate-y-0" : "-translate-y-full",
