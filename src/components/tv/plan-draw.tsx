@@ -94,7 +94,7 @@ export function PlanDraw({
       const ctx = cv.getContext("2d");
       if (!ctx) return;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.fillStyle = "#131722";
+      ctx.fillStyle = "#2a3448";
       ctx.fillRect(0, 0, w, h);
       if (candles.length < 2) {
         ctx.fillStyle = "#a1a1aa";
@@ -147,6 +147,12 @@ export function PlanDraw({
         }
       }
       for (const line of lines) drawLine(ctx, xOf(line.a.i), yOf(line.a.price), xOf(line.b.i), yOf(line.b.price), "#f0d7a8");
+      if (draft) {
+        ctx.fillStyle = "#f0d7a8";
+        ctx.beginPath();
+        ctx.arc(xOf(draft.i), yOf(draft.price), 5, 0, Math.PI * 2);
+        ctx.fill();
+      }
       level(ctx, w, yOf, entry, "#089981", "вход");
       level(ctx, w, yOf, stop, "#f23645", "стоп");
       level(ctx, w, yOf, target, "#c4a86e", "тейк");
@@ -169,7 +175,7 @@ export function PlanDraw({
     const ro = new ResizeObserver(paint);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [candles, entry, stop, target, lines, marks, pick]);
+  }, [candles, entry, stop, target, lines, marks, pick, draft]);
 
   function at(e: MouseEvent<HTMLCanvasElement>): Pt | null {
     const el = box.current;
@@ -501,8 +507,16 @@ export function PlanDraw({
 
   return (
     <>
-      <div ref={box} className="pointer-events-none fixed -left-[2400px] top-0 h-[420px] w-[800px]">
-        <canvas ref={canvas} className="h-[420px] w-[800px]" />
+      <div ref={box} className="absolute inset-0 z-20 bg-[#2a3448]">
+        <canvas
+          ref={canvas}
+          onClick={click}
+          onMouseDown={down}
+          onMouseMove={move}
+          onMouseUp={up}
+          onMouseLeave={up}
+          className="absolute inset-0 cursor-crosshair"
+        />
       </div>
       <div className="fixed inset-x-0 bottom-0 z-[90] border-t border-white/10 bg-[#131722]/95 px-3 py-2">
         <div className="flex flex-wrap items-center gap-2">

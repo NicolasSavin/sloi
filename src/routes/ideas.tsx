@@ -94,20 +94,18 @@ function IdeasPage() {
   useEffect(() => {
     const root = host.current;
     if (!root) return;
-    const key = native ? `${symbol}|${interval}` : "custom";
+    const key = native ? `${symbol}|${interval}|lite` : "custom";
     if (root.dataset.built === key && (native ? root.childElementCount > 0 : true)) return;
     root.dataset.built = key;
     if (!native) {
       root.replaceChildren();
       return;
     }
-    const w = Math.max(root.clientWidth, 640);
-    const h = Math.max(root.clientHeight, 420);
     root.replaceChildren();
     const box = document.createElement("div");
     box.className = "tradingview-widget-container";
-    box.style.height = `${h}px`;
-    box.style.width = `${w}px`;
+    box.style.height = "100%";
+    box.style.width = "100%";
     const pane = document.createElement("div");
     pane.className = "tradingview-widget-container__widget";
     pane.style.height = "calc(100% - 32px)";
@@ -120,17 +118,15 @@ function IdeasPage() {
     script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
     script.async = true;
     script.innerHTML = JSON.stringify({
-      autosize: false,
-      width: w,
-      height: h,
+      autosize: true,
       symbol,
       interval,
       timezone: "Asia/Dubai",
       theme: "dark",
       style: "1",
       locale: "ru",
-      backgroundColor: "#131722",
-      gridColor: "rgba(242, 242, 242, 0.06)",
+      backgroundColor: "#2a3448",
+      gridColor: "rgba(255, 255, 255, 0.1)",
       allow_symbol_change: true,
       hide_top_toolbar: false,
       hide_side_toolbar: false,
@@ -251,7 +247,7 @@ function IdeasPage() {
           </div>
         </div>
       )}
-      <div ref={screen} className="relative min-h-0 flex-1 bg-[#131722]">
+      <div ref={screen} className="relative min-h-0 flex-1 bg-[#2a3448]">
         <div ref={host} className="absolute inset-0" />
         {!native ? <MinuteChart pair={pair} minutes={barMinutes} /> : null}
         {full ? (
@@ -260,10 +256,10 @@ function IdeasPage() {
           </button>
         ) : null}
         {note && !draw ? <p className="pointer-events-none absolute bottom-10 right-3 z-10 rounded bg-black/80 px-3 py-1 text-xs text-amber-100">{note}</p> : null}
+        {draw ? (
+          <PlanDraw pair={pair} minutes={barMinutes} busy={busy} note={note} onClose={() => setDraw(false)} onSend={(how, plan) => void sendPlan(how, plan)} />
+        ) : null}
       </div>
-      {draw ? (
-        <PlanDraw pair={pair} minutes={barMinutes} busy={busy} note={note} onClose={() => setDraw(false)} onSend={(how, plan) => void sendPlan(how, plan)} />
-      ) : null}
     </div>
   );
 }
