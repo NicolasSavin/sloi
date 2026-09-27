@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { fetchCustomBars, fetchMarket } from "@/lib/market/fetch";
 import type { Candle } from "@/lib/market/types";
 import { retellSketch, type SketchPiece } from "@/lib/sketch";
+import { graphicBreak, patternOrder } from "@/lib/smc/patterns";
 
 type Tool = "entry" | "stop" | "target" | "line";
 type Pt = { i: number; price: number };
@@ -357,78 +358,107 @@ export function PlanDraw({
     : drawn;
 
   async function findPattern() {
-    if (candles.length < 20) {
-      setErr("Свечей ещё мало.");
+    setErr("");
+    setFound("Смотрю свечи…");
+    let rows = candles;
+    if (rows.length < 20) {
+      const standard = ({ 5: "5m", 15: "15m", 60: "1h", 240: "4h", 1440: "1d" } as const)[minutes];
+      try {
+        rows = standard
+          ? (await fetchMarket({ data: { symbol: pair, timeframe: standard } })).candles.slice(-120)
+          : (await fetchCustomBars({ data: { symbol: pair, minutes } })).candles.slice(-120);
+      } catch {
+        setFound("");
+        setErr("Свечи не пришли. Нажмите ещё раз.");
+        return;
+      }
+      setCandles(rows);
+    }
+    if (rows.length < 20) {
+      setFound("");
+      setErr("Свечей ещё мало для фигуры.");
       return;
     }
-    const { analyzeMarket } = await import("@/lib/smc/engine");
-    const snap = analyzeMarket(candles, null, undefined, { symbol: pair });
-    const at = (time: number) => {
-      let best = 0;
-      let dist = Infinity;
-      candles.forEach((c, i) => {
-        const d = Math.abs(c.time - time);
-        if (d < dist) {
-          dist = d;
-          best = i;
+    try {
+      const { analyzeMarket } = await import("@/lib/smc/engine");
+      const snap = analyzeMarket(rows, null, undefined, { symbol: pair });
+      const at = (time: number) => {
+        let best = 0;
+        let dist = Infinity;
+        rows.forEach((c, i) => {
+          const d = Math.abs(c.time - time);
+          if (d < dist) {
+            dist = d;
+            best = i;
+          }
+        });
+        return best;
+      };
+      const next: AutoMark[] = [];
+      for (const p of snap.patterns.slice(0, 3)) {
+        const pts = p.points.map((pt) => ({ i: at(pt.time), price: pt.price, label: pt.label }));
+        const color = p.side === "bull" ? "#26a69a" : "#ef5350";
+        if (p.id === "wedge") {
+          const top = pts.filter((pt) => pt.label === "верх");
+          const bot = pts.filter((pt) => pt.label === "низ");
+          if (top.length === 2) next.push({ t: "line", a: top[0]!, b: top[1]!, name: p.name, color });
+          if (bot.length === 2) next.push({ t: "line", a: bot[0]!, b: bot[1]!, name: "", color });
+          continue;
         }
-      });
-      return best;
-    };
-    const next: AutoMark[] = [];
-    for (const p of snap.patterns.slice(0, 3)) {
-      const pts = p.points.map((pt) => ({ i: at(pt.time), price: pt.price, label: pt.label }));
-      const color = p.side === "bull" ? "#26a69a" : "#ef5350";
-      if (p.id === "wedge") {
-        const top = pts.filter((pt) => pt.label === "верх");
-        const bot = pts.filter((pt) => pt.label === "низ");
-        if (top.length === 2) next.push({ t: "line", a: top[0]!, b: top[1]!, name: p.name, color });
-        if (bot.length === 2) next.push({ t: "line", a: bot[0]!, b: bot[1]!, name: "", color });
-        continue;
+        for (let i = 1; i < pts.length; i++) {
+          next.push({ t: "line", a: pts[i - 1]!, b: pts[i]!, name: i === 1 ? p.name : "", color });
+        }
       }
-      for (let i = 1; i < pts.length; i++) {
-        next.push({ t: "line", a: pts[i - 1]!, b: pts[i]!, name: i === 1 ? p.name : "", color });
+      const highs = snap.swings.filter((s) => s.type === "high").slice(-2);
+      const lows = snap.swings.filter((s) => s.type === "low").slice(-2);
+      if (highs.length === 2) {
+        next.push({
+          t: "line",
+          a: { i: highs[0]!.index, price: highs[0]!.price },
+          b: { i: highs[1]!.index, price: highs[1]!.price },
+          name: "наклонная",
+          color: "#7dd3fc",
+        });
       }
+      if (lows.length === 2) {
+        next.push({
+          t: "line",
+          a: { i: lows[0]!.index, price: lows[0]!.price },
+          b: { i: lows[1]!.index, price: lows[1]!.price },
+          name: "наклонная",
+          color: "#7dd3fc",
+        });
+      }
+      for (const z of [...snap.fvgs, ...snap.orderBlocks].filter((z) => !z.mitigated).slice(-4)) {
+        next.push({
+          t: "zone",
+          a: at(z.startTime),
+          b: Math.max(at(z.endTime), rows.length - 1),
+          top: z.top,
+          bot: z.bottom,
+          name: z.kind === "fvg" ? "имбаланс" : "ордерблок",
+          color: z.kind === "fvg" ? "rgba(56,189,248,0.22)" : "rgba(168,85,247,0.22)",
+        });
+      }
+      next.push({ t: "h", price: snap.dealingRange.high, name: "уровень", color: "#d4d4d8" });
+      next.push({ t: "h", price: snap.dealingRange.low, name: "уровень", color: "#d4d4d8" });
+      for (const l of snap.liquidity.filter((l) => !l.swept).slice(-4)) {
+        next.push({ t: "h", price: l.price, name: "ликвидность", color: l.side === "buy" ? "#fbbf24" : "#fb7185" });
+      }
+      const order = patternOrder(rows, snap.swings, snap.atr) ?? graphicBreak(rows, snap.swings, snap.atr);
+      if (order) {
+        setEntry(order.entry);
+        setStop(order.stop);
+        setTarget(order.target);
+      }
+      setMarks(next);
+      const names = snap.patterns.map((p) => p.name).slice(0, 3);
+      setFound(names.length ? names.join(", ") : order ? order.name : "фигуры нет, на полосе зоны и уровни");
+      setErr("");
+    } catch {
+      setFound("");
+      setErr("Разбор фигуры не вышел. Нажмите ещё раз.");
     }
-    const highs = snap.swings.filter((s) => s.type === "high").slice(-2);
-    const lows = snap.swings.filter((s) => s.type === "low").slice(-2);
-    if (highs.length === 2) {
-      next.push({
-        t: "line",
-        a: { i: highs[0]!.index, price: highs[0]!.price },
-        b: { i: highs[1]!.index, price: highs[1]!.price },
-        name: "наклонная",
-        color: "#7dd3fc",
-      });
-    }
-    if (lows.length === 2) {
-      next.push({
-        t: "line",
-        a: { i: lows[0]!.index, price: lows[0]!.price },
-        b: { i: lows[1]!.index, price: lows[1]!.price },
-        name: "наклонная",
-        color: "#7dd3fc",
-      });
-    }
-    for (const z of [...snap.fvgs, ...snap.orderBlocks].filter((z) => !z.mitigated).slice(-4)) {
-      next.push({
-        t: "zone",
-        a: at(z.startTime),
-        b: Math.max(at(z.endTime), candles.length - 1),
-        top: z.top,
-        bot: z.bottom,
-        name: z.kind === "fvg" ? "имбаланс" : "ордерблок",
-        color: z.kind === "fvg" ? "rgba(56,189,248,0.22)" : "rgba(168,85,247,0.22)",
-      });
-    }
-    next.push({ t: "h", price: snap.dealingRange.high, name: "уровень", color: "#d4d4d8" });
-    next.push({ t: "h", price: snap.dealingRange.low, name: "уровень", color: "#d4d4d8" });
-    for (const l of snap.liquidity.filter((l) => !l.swept).slice(-4)) {
-      next.push({ t: "h", price: l.price, name: "ликвидность", color: l.side === "buy" ? "#fbbf24" : "#fb7185" });
-    }
-    setMarks(next);
-    setFound(snap.patterns[0] ? snap.patterns.map((p) => p.name).slice(0, 3).join(", ") : "фигуры на часе нет, зоны и уровни нанесены");
-    setErr("");
   }
 
   function send(how: "now" | "limit") {
@@ -470,14 +500,22 @@ export function PlanDraw({
   }
 
   return (
-    <div className="flex max-h-[42vh] flex-col bg-[#131722]/95">
+    <div className="flex flex-col bg-[#131722]/95">
       <div className="flex flex-wrap items-center gap-2 px-3 py-2">
         <span className="text-xs tracking-[0.16em] text-amber-100/80">{pair}</span>
         <Tool name="Вход" on={tool === "entry"} click={() => setTool("entry")} />
         <Tool name="Стоп" on={tool === "stop"} click={() => setTool("stop")} />
         <Tool name="Тейк" on={tool === "target"} click={() => setTool("target")} />
         <Tool name="Линия" on={tool === "line"} click={() => setTool("line")} />
-        <button type="button" onClick={() => void findPattern()} className="h-8 rounded-sm bg-sky-200 px-2 text-xs font-semibold text-zinc-900">
+        <button
+          type="button"
+          onPointerDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            void findPattern();
+          }}
+          className="h-8 rounded-sm bg-sky-200 px-2 text-xs font-semibold text-zinc-900"
+        >
           Найти паттерн
         </button>
         <div className="ml-auto flex flex-wrap items-center gap-2">
@@ -495,8 +533,8 @@ export function PlanDraw({
           </button>
         </div>
       </div>
-      <div ref={box} className="pointer-events-none fixed -left-[2400px] top-0 h-[420px] w-[800px]">
-        <canvas ref={canvas} onClick={click} onMouseDown={down} onMouseMove={move} onMouseUp={up} onMouseLeave={up} className="h-full w-full" />
+      <div ref={box} className="relative h-64 w-full border-t border-white/10">
+        <canvas ref={canvas} onClick={click} onMouseDown={down} onMouseMove={move} onMouseUp={up} onMouseLeave={up} className="absolute inset-0 h-full w-full cursor-crosshair" />
       </div>
       <div className="max-h-56 overflow-auto border-t border-white/10 px-3 py-2">
         <textarea
@@ -523,11 +561,10 @@ export function PlanDraw({
             </p>
           </div>
         ) : (
-          <p className="mt-1 text-xs text-zinc-400">
-            {plan
-              ? `${plan.side === "buy" ? "Покупка" : "Продажа"}. Вход ${px(plan.entry)}, стоп ${px(plan.stop)}, тейк ${px(plan.target)}.`
-              : "График TradingView не трогаю. «Найти паттерн» ищет фигуру, «Сразу» и «Лимитом» отдают приказ."}{" "}
-            {found ? ` Найдено: ${found}.` : ""} {err || note}
+          <p className="mt-1 text-sm text-amber-100">
+            {found ? `Найдено: ${found}.` : ""}
+            {plan ? ` ${plan.side === "buy" ? "Покупка" : "Продажа"} ${px(plan.entry)}, стоп ${px(plan.stop)}, тейк ${px(plan.target)}.` : ""}
+            {err ? ` ${err}` : ""}
           </p>
         )}
         {story && (err || note) ? <p className="mt-1 text-xs text-amber-100">{err || note}</p> : null}
