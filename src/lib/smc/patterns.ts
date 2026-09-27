@@ -43,7 +43,7 @@ function doubleTopBottom(swings: Swing[], atr: number): PatternHit | null {
   const highs = swings.filter((s) => s.type === "high").slice(-2);
   const lows = swings.filter((s) => s.type === "low").slice(-2);
   if (highs.length === 2 && Math.abs(highs[0]!.price - highs[1]!.price) <= atr * 0.45) {
-    const valley = swings.filter((s) => s.time > highs[0]!.time && s.time < highs[1]!.time && s.type === "low").at(-1);
+    const valley = swings.filter((s) => s.time > highs[0]!.time && s.time < highs[1]!.time && s.type === "low").sort((a, b) => a.price - b.price)[0];
     return {
       id: "dt",
       family: "graphic",
@@ -51,6 +51,7 @@ function doubleTopBottom(swings: Swing[], atr: number): PatternHit | null {
       side: "bear",
       points: [
         { time: highs[0]!.time, price: highs[0]!.price, label: "T1" },
+        ...(valley ? [{ time: valley.time, price: valley.price, label: "шея" }] : []),
         { time: highs[1]!.time, price: highs[1]!.price, label: "T2" },
       ],
       because: `Два почти равных максимума — крупняк дважды не пустил выше`,
@@ -60,6 +61,7 @@ function doubleTopBottom(swings: Swing[], atr: number): PatternHit | null {
     };
   }
   if (lows.length === 2 && Math.abs(lows[0]!.price - lows[1]!.price) <= atr * 0.45) {
+    const neck = swings.filter((s) => s.time > lows[0]!.time && s.time < lows[1]!.time && s.type === "high").sort((a, b) => b.price - a.price)[0];
     return {
       id: "db",
       family: "graphic",
@@ -67,6 +69,7 @@ function doubleTopBottom(swings: Swing[], atr: number): PatternHit | null {
       side: "bull",
       points: [
         { time: lows[0]!.time, price: lows[0]!.price, label: "B1" },
+        ...(neck ? [{ time: neck.time, price: neck.price, label: "шея" }] : []),
         { time: lows[1]!.time, price: lows[1]!.price, label: "B2" },
       ],
       because: `Два почти равных минимума — стопы под ними уже снимали, ниже не отдали`,
@@ -79,9 +82,15 @@ function doubleTopBottom(swings: Swing[], atr: number): PatternHit | null {
 function headShoulders(swings: Swing[]): PatternHit | null {
   const highs = swings.filter((s) => s.type === "high").slice(-3);
   const lows = swings.filter((s) => s.type === "low").slice(-3);
+  const neckBetween = (from: number, to: number, type: "high" | "low") =>
+    swings
+      .filter((s) => s.type === type && s.time > from && s.time < to)
+      .sort((a, b) => (type === "high" ? b.price - a.price : a.price - b.price))[0];
   if (highs.length === 3) {
     const [l, h, r] = highs;
     if (h!.price > l!.price && h!.price > r!.price && near(l!.price, r!.price, 0.018)) {
+      const n1 = neckBetween(l!.time, h!.time, "low");
+      const n2 = neckBetween(h!.time, r!.time, "low");
       return {
         id: "hs",
         family: "graphic",
@@ -89,7 +98,9 @@ function headShoulders(swings: Swing[]): PatternHit | null {
         side: "bear",
         points: [
           { time: l!.time, price: l!.price, label: "ЛП" },
+          ...(n1 ? [{ time: n1.time, price: n1.price, label: "шея1" }] : []),
           { time: h!.time, price: h!.price, label: "голова" },
+          ...(n2 ? [{ time: n2.time, price: n2.price, label: "шея2" }] : []),
           { time: r!.time, price: r!.price, label: "ПП" },
         ],
         because: "Левое плечо, выше голова, правое плечо ниже — покупатели не смогли обновить максимум",
@@ -100,6 +111,8 @@ function headShoulders(swings: Swing[]): PatternHit | null {
   if (lows.length === 3) {
     const [l, h, r] = lows;
     if (h!.price < l!.price && h!.price < r!.price && near(l!.price, r!.price, 0.018)) {
+      const n1 = neckBetween(l!.time, h!.time, "high");
+      const n2 = neckBetween(h!.time, r!.time, "high");
       return {
         id: "ihs",
         family: "graphic",
@@ -107,7 +120,9 @@ function headShoulders(swings: Swing[]): PatternHit | null {
         side: "bull",
         points: [
           { time: l!.time, price: l!.price, label: "ЛП" },
+          ...(n1 ? [{ time: n1.time, price: n1.price, label: "шея1" }] : []),
           { time: h!.time, price: h!.price, label: "голова" },
+          ...(n2 ? [{ time: n2.time, price: n2.price, label: "шея2" }] : []),
           { time: r!.time, price: r!.price, label: "ПП" },
         ],
         because: "Три минимума, средний самый глубокий — продавцы выдохлись",
@@ -133,8 +148,12 @@ function triangle(swings: Swing[]): PatternHit | null {
       name: "сходящийся треугольник",
       side: "bull",
       points: [
-        { time: highs[2]!.time, price: highs[2]!.price, label: "H" },
-        { time: lows[2]!.time, price: lows[2]!.price, label: "L" },
+        { time: highs[0]!.time, price: highs[0]!.price, label: "верх" },
+        { time: highs[1]!.time, price: highs[1]!.price, label: "верх" },
+        { time: highs[2]!.time, price: highs[2]!.price, label: "верх" },
+        { time: lows[0]!.time, price: lows[0]!.price, label: "низ" },
+        { time: lows[1]!.time, price: lows[1]!.price, label: "низ" },
+        { time: lows[2]!.time, price: lows[2]!.price, label: "низ" },
       ],
       because: "Максимумы ниже, минимумы выше — диапазон сжимается, крупняк не отдаёт край",
       therefore: "Это пауза, не сигнал. Сторона появится после выхода из треугольника, не внутри.",
@@ -147,8 +166,12 @@ function triangle(swings: Swing[]): PatternHit | null {
       name: "расширяющаяся формация",
       side: "bear",
       points: [
-        { time: highs[2]!.time, price: highs[2]!.price, label: "H" },
-        { time: lows[2]!.time, price: lows[2]!.price, label: "L" },
+        { time: highs[0]!.time, price: highs[0]!.price, label: "верх" },
+        { time: highs[1]!.time, price: highs[1]!.price, label: "верх" },
+        { time: highs[2]!.time, price: highs[2]!.price, label: "верх" },
+        { time: lows[0]!.time, price: lows[0]!.price, label: "низ" },
+        { time: lows[1]!.time, price: lows[1]!.price, label: "низ" },
+        { time: lows[2]!.time, price: lows[2]!.price, label: "низ" },
       ],
       because: "Края разъезжаются — рынок нервный, стопы снимают в обе стороны",
       therefore: "Середину не торгуют. Ждут, какой край заберут последним.",

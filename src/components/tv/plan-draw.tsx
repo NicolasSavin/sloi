@@ -104,7 +104,11 @@ export function PlanDraw({
         ...lines.flatMap((l) => [l.a.price, l.b.price]),
         ...marks.flatMap((m) => (m.t === "h" ? [m.price] : m.t === "zone" ? [m.top, m.bot] : [m.a.price, m.b.price])),
       ];
-      const { xOf, yOf, start, rows } = axes(w, h, candles, extra);
+      const first = marks.reduce((min, m) => {
+        if (m.t !== "line") return min;
+        return Math.min(min, m.a.i, m.b.i);
+      }, candles.length);
+      const { xOf, yOf, start, rows } = axes(w, h, candles, extra, first);
       ctx.fillStyle = "#131722";
       ctx.fillRect(0, 0, w, h);
       const slot = (w - LEFT - RIGHT) / Math.max(rows.length, 1);
@@ -122,22 +126,17 @@ export function PlanDraw({
         const bot = yOf(Math.min(c.open, c.close));
         ctx.fillRect(x - Math.max(slot * 0.32, 1.2), top, Math.max(slot * 0.64, 2.4), Math.max(bot - top, 1));
       });
-      let labelRow = 0;
-      const divs = marks.filter((m) => m.t === "line" && m.name.startsWith("дивер"));
       const seen = start + rows.length;
       const inside = (i: number) => i >= start && i < seen;
       for (const m of marks) {
         if (m.t !== "line" || m.name.startsWith("дивер")) continue;
-        if (!inside(m.a.i) || !inside(m.b.i)) continue;
         drawLine(ctx, xOf(m.a.i), yOf(m.a.price), xOf(m.b.i), yOf(m.b.price), m.color);
         dot(ctx, xOf(m.a.i), yOf(m.a.price), m.color);
         dot(ctx, xOf(m.b.i), yOf(m.b.price), m.color);
         if (!m.name) continue;
-        const x = xOf(m.a.i);
-        const y = yOf(m.a.price) - 14 - (labelRow % 3) * 16;
-        labelRow += 1;
-        tag(ctx, x, y, m.name, m.color);
+        tag(ctx, xOf(m.a.i), yOf(m.a.price) - 16, m.name, m.color);
       }
+      const divs = marks.filter((m) => m.t === "line" && m.name.startsWith("дивер"));
       ctx.font = "bold 16px sans-serif";
       ctx.fillStyle = "#d6ff4a";
       ctx.fillText(divs[0]?.t === "line" ? divs[0].name : "дивергенции дельты нет", 16, 26);
@@ -408,16 +407,34 @@ export function PlanDraw({
         const pts = p.points.map((pt) => ({ i: at(pt.time), price: pt.price, label: pt.label }));
         const color = figureColor[n] ?? "#ffb020";
         const onWick = (pt: { i: number; price: number; label: string }) => wick(rows, pt.i, pt.price, pt.label);
-        if (p.id === "wedge") {
-          const top = pts.filter((pt) => pt.label === "верх");
-          const bot = pts.filter((pt) => pt.label === "низ");
-          if (top.length === 2) next.push({ t: "line", a: onWick(top[0]!), b: onWick(top[1]!), name: p.name, color });
-          if (bot.length === 2) next.push({ t: "line", a: onWick(bot[0]!), b: onWick(bot[1]!), name: "", color });
+        const ordered = [...pts].sort((a, b) => a.i - b.i);
+        if (p.id === "wedge" || p.id === "tri" || p.id === "exp") {
+          const top = ordered.filter((pt) => pt.label === "верх");
+          const bot = ordered.filter((pt) => pt.label === "низ");
+          const chain = (side: typeof top, title: string) => {
+            for (let i = 1; i < side.length; i++) {
+              next.push({ t: "line", a: onWick(side[i - 1]!), b: onWick(side[i]!), name: i === 1 ? title : "", color });
+            }
+          };
+          chain(top, p.name);
+          chain(bot, "");
+          if (top.length >= 2 && bot.length >= 2) {
+            next.push({ t: "line", a: onWick(top[0]!), b: onWick(bot[0]!), name: "", color });
+            next.push({ t: "line", a: onWick(top[top.length - 1]!), b: onWick(bot[bot.length - 1]!), name: "", color });
+          }
           return;
         }
-        for (let i = 1; i < pts.length; i++) {
-          next.push({ t: "line", a: onWick(pts[i - 1]!), b: onWick(pts[i]!), name: i === 1 ? p.name : "", color });
+        for (let i = 1; i < ordered.length; i++) {
+          next.push({
+            t: "line",
+            a: onWick(ordered[i - 1]!),
+            b: onWick(ordered[i]!),
+            name: i === 1 ? p.name : ordered[i]!.label,
+            color,
+          });
         }
+        const neck = ordered.filter((pt) => pt.label.startsWith("шея"));
+        if (neck.length === 2) next.push({ t: "line", a: onWick(neck[0]!), b: onWick(neck[1]!), name: "шея", color });
       });
       const divName = deltaDivergence(rows, at, next);
       const order = patternOrder(rows, snap.swings, snap.atr) ?? graphicBreak(rows, snap.swings, snap.atr);
@@ -640,8 +657,9 @@ function wick(rows: Candle[], i: number, price: number, label = ""): Pt {
   return { i: at, price: Math.abs(c.high - price) <= Math.abs(c.low - price) ? c.high : c.low };
 }
 
-function axes(w: number, h: number, candles: Candle[], extra: Array<number | null>) {
-  const start = Math.max(0, candles.length - VIEW);
+function axes(w: number, h: number, candles: Candle[], extra: Array<number | null>, first = candles.length) {
+  const fit = Number.isFinite(first) ? Math.max(0, first - 3) : candles.length;
+  const start = Math.max(0, Math.min(fit, candles.length - 24));
   const rows = candles.slice(start);
   const raw = rows.length ? rows : candles;
   const lo = Math.min(...raw.map((c) => c.low));
