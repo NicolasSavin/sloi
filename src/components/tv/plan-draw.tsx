@@ -12,7 +12,7 @@ type AutoMark =
   | { t: "h"; price: number; name: string; color: string }
   | { t: "line"; a: Pt; b: Pt; name: string; color: string };
 
-const LEFT = 54;
+const LEFT = 12;
 const RIGHT = 70;
 const VIEW = 52;
 
@@ -103,11 +103,24 @@ export function PlanDraw({
         ...lines.flatMap((l) => [l.a.price, l.b.price]),
         ...marks.flatMap((m) => (m.t === "h" ? [m.price] : m.t === "zone" ? [m.top, m.bot] : [m.a.price, m.b.price])),
       ];
-    const { xOf, yOf, priceBottom } = axes(w, h, candles, extra);
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(0, 0, w, priceBottom);
-    ctx.clip();
+      const { xOf, yOf, start, rows } = axes(w, h, candles, extra);
+      ctx.fillStyle = "#131722";
+      ctx.fillRect(0, 0, w, h);
+      const slot = (w - LEFT - RIGHT) / Math.max(rows.length, 1);
+      rows.forEach((c, n) => {
+        const up = c.close >= c.open;
+        ctx.strokeStyle = up ? "#26a69a" : "#ef5350";
+        ctx.fillStyle = ctx.strokeStyle;
+        const x = xOf(start + n);
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x, yOf(c.high));
+        ctx.lineTo(x, yOf(c.low));
+        ctx.stroke();
+        const top = yOf(Math.max(c.open, c.close));
+        const bot = yOf(Math.min(c.open, c.close));
+        ctx.fillRect(x - Math.max(slot * 0.32, 1.2), top, Math.max(slot * 0.64, 2.4), Math.max(bot - top, 1));
+      });
       let labelRow = 0;
       for (const m of marks) {
         if (m.t !== "line") continue;
@@ -138,7 +151,6 @@ export function PlanDraw({
           ctx.fill();
         }
       }
-      ctx.restore();
     };
     paint();
     const ro = new ResizeObserver(paint);
@@ -368,16 +380,17 @@ export function PlanDraw({
       const next: AutoMark[] = [];
       for (const p of snap.patterns.slice(0, 3)) {
         const pts = p.points.map((pt) => ({ i: at(pt.time), price: pt.price, label: pt.label }));
-        const color = p.side === "bull" ? "#7dffa8" : "#ff8a80";
+        const color = p.side === "bull" ? "#7dffa8" : "#ffb4a8";
+        const onWick = (pt: { i: number; price: number }) => wick(rows, pt.i, pt.price);
         if (p.id === "wedge") {
           const top = pts.filter((pt) => pt.label === "верх");
           const bot = pts.filter((pt) => pt.label === "низ");
-          if (top.length === 2) next.push({ t: "line", a: top[0]!, b: top[1]!, name: p.name, color });
-          if (bot.length === 2) next.push({ t: "line", a: bot[0]!, b: bot[1]!, name: "", color });
+          if (top.length === 2) next.push({ t: "line", a: onWick(top[0]!), b: onWick(top[1]!), name: p.name, color });
+          if (bot.length === 2) next.push({ t: "line", a: onWick(bot[0]!), b: onWick(bot[1]!), name: "", color });
           continue;
         }
         for (let i = 1; i < pts.length; i++) {
-          next.push({ t: "line", a: pts[i - 1]!, b: pts[i]!, name: i === 1 ? p.name : "", color });
+          next.push({ t: "line", a: onWick(pts[i - 1]!), b: onWick(pts[i]!), name: i === 1 ? p.name : "", color });
         }
       }
       const order = patternOrder(rows, snap.swings, snap.atr) ?? graphicBreak(rows, snap.swings, snap.atr);
@@ -563,19 +576,26 @@ function tag(ctx: CanvasRenderingContext2D, x: number, y: number, text: string, 
   ctx.fillText(text, left, y - 3);
 }
 
+function wick(rows: Candle[], i: number, price: number): Pt {
+  const at = Math.min(rows.length - 1, Math.max(0, Math.round(i)));
+  const c = rows[at];
+  if (!c) return { i: at, price };
+  return { i: at, price: Math.abs(c.high - price) <= Math.abs(c.low - price) ? c.high : c.low };
+}
+
 function axes(w: number, h: number, candles: Candle[], _extra: Array<number | null>) {
   const start = Math.max(0, candles.length - VIEW);
   const rows = candles.slice(start);
   const { min, max } = span(rows.length ? rows : candles, []);
-  const top = 64;
-  const priceBottom = Math.round(h * 0.47);
-  const plotRight = RIGHT + Math.round(w * 0.05);
+  const top = 28;
+  const bottom = 24;
+  const plotRight = RIGHT;
   const xOf = (i: number) => {
     const local = Math.min(Math.max(i - start, 0), Math.max(rows.length - 1, 0));
     return LEFT + ((w - LEFT - plotRight) * local) / Math.max(rows.length - 1, 1);
   };
-  const yOf = (p: number) => top + ((max - p) / (max - min || 1)) * Math.max(priceBottom - top, 1);
-  return { start, rows, min, max, bottom: h - priceBottom, top, priceBottom, plotRight, xOf, yOf };
+  const yOf = (p: number) => top + ((max - p) / (max - min || 1)) * Math.max(h - top - bottom, 1);
+  return { start, rows, min, max, bottom, top, priceBottom: h - bottom, plotRight, xOf, yOf };
 }
 
 function caption(
