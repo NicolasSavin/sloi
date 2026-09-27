@@ -15,7 +15,7 @@ type AutoMark =
 
 const LEFT = 12;
 const RIGHT = 70;
-const VIEW = 52;
+const VIEW = 80;
 
 export function PlanDraw({
   pair,
@@ -124,12 +124,17 @@ export function PlanDraw({
       });
       let labelRow = 0;
       const divs = marks.filter((m) => m.t === "line" && m.name.startsWith("дивер"));
+      const seen = start + rows.length;
+      const inside = (i: number) => i >= start && i < seen;
       for (const m of marks) {
         if (m.t !== "line" || m.name.startsWith("дивер")) continue;
+        if (!inside(m.a.i) || !inside(m.b.i)) continue;
         drawLine(ctx, xOf(m.a.i), yOf(m.a.price), xOf(m.b.i), yOf(m.b.price), m.color);
+        dot(ctx, xOf(m.a.i), yOf(m.a.price), m.color);
+        dot(ctx, xOf(m.b.i), yOf(m.b.price), m.color);
         if (!m.name) continue;
-        const x = (xOf(m.a.i) + xOf(m.b.i)) / 2;
-        const y = (yOf(m.a.price) + yOf(m.b.price)) / 2 - labelRow * 18;
+        const x = xOf(m.a.i);
+        const y = yOf(m.a.price) - 14 - (labelRow % 3) * 16;
         labelRow += 1;
         tag(ctx, x, y, m.name, m.color);
       }
@@ -137,7 +142,7 @@ export function PlanDraw({
       ctx.fillStyle = "#d6ff4a";
       ctx.fillText(divs[0]?.t === "line" ? divs[0].name : "дивергенции дельты нет", 16, 26);
       for (const m of divs) {
-        if (m.t !== "line") continue;
+        if (m.t !== "line" || !inside(m.a.i) || !inside(m.b.i)) continue;
         ctx.strokeStyle = "#d6ff4a";
         ctx.lineWidth = 3;
         ctx.beginPath();
@@ -588,6 +593,17 @@ function drawLine(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: num
   ctx.lineWidth = 1;
 }
 
+function dot(ctx: CanvasRenderingContext2D, x: number, y: number, color: string) {
+  ctx.beginPath();
+  ctx.arc(x, y, 5, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = "#131722";
+  ctx.stroke();
+  ctx.lineWidth = 1;
+}
+
 function tag(ctx: CanvasRenderingContext2D, x: number, y: number, text: string, color: string) {
   ctx.font = "bold 13px sans-serif";
   const width = ctx.measureText(text).width;
@@ -632,7 +648,7 @@ function axes(w: number, h: number, candles: Candle[], _extra: Array<number | nu
   const bottom = 24;
   const plotRight = RIGHT;
   const xOf = (i: number) => {
-    const local = Math.min(Math.max(i - start, 0), Math.max(rows.length - 1, 0));
+    const local = i - start;
     return LEFT + ((w - LEFT - plotRight) * local) / Math.max(rows.length - 1, 1);
   };
   const yOf = (p: number) => top + ((max - p) / (max - min || 1)) * Math.max(h - top - bottom, 1);
