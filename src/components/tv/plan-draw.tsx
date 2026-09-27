@@ -46,7 +46,6 @@ export function PlanDraw({
   const [reading, setReading] = useState(false);
   const [marks, setMarks] = useState<AutoMark[]>([]);
   const [found, setFound] = useState("");
-  const [cover, setCover] = useState(false);
   const [pick, setPick] = useState<{ src: "user" | "auto"; i: number } | null>(null);
   const wait = useRef<number | null>(null);
   const drag = useRef<{ src: "user" | "auto"; i: number; end: "a" | "b" | "move"; last: Pt } | null>(null);
@@ -170,7 +169,7 @@ export function PlanDraw({
     const ro = new ResizeObserver(paint);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [candles, entry, stop, target, lines, marks, pick, cover]);
+  }, [candles, entry, stop, target, lines, marks, pick]);
 
   function at(e: MouseEvent<HTMLCanvasElement>): Pt | null {
     const el = box.current;
@@ -453,7 +452,6 @@ export function PlanDraw({
         setTarget(order.target);
       }
       setMarks(next);
-      setCover(true);
       const names = snap.patterns.map((p) => p.name).slice(0, 3);
       setFound(names.length ? names.join(", ") : order ? order.name : "фигуры нет, на полосе зоны и уровни");
       setErr("");
@@ -503,19 +501,8 @@ export function PlanDraw({
 
   return (
     <>
-      <div
-        ref={box}
-        className={cover ? "absolute inset-0 z-20 bg-[#131722]" : "pointer-events-none fixed -left-[2400px] top-0 h-[420px] w-[800px]"}
-      >
-        <canvas
-          ref={canvas}
-          onClick={click}
-          onMouseDown={down}
-          onMouseMove={move}
-          onMouseUp={up}
-          onMouseLeave={up}
-          className="absolute inset-0 h-full w-full cursor-crosshair"
-        />
+      <div ref={box} className="pointer-events-none fixed -left-[2400px] top-0 h-[420px] w-[800px]">
+        <canvas ref={canvas} className="h-[420px] w-[800px]" />
       </div>
       <div className="fixed inset-x-0 bottom-0 z-[90] border-t border-white/10 bg-[#131722]/95 px-3 py-2">
         <div className="flex flex-wrap items-center gap-2">
@@ -545,8 +532,8 @@ export function PlanDraw({
             <button type="button" disabled={busy || reading} onClick={() => send("limit")} className="h-8 rounded-sm border border-amber-200/40 px-3 text-sm text-amber-100 disabled:opacity-60">
               Лимитом
             </button>
-            <button type="button" onClick={() => setCover(false)} className="h-8 rounded-sm bg-[#2a2e39] px-3 text-sm">
-              К графику
+            <button type="button" onClick={onClose} className="h-8 rounded-sm bg-[#2a2e39] px-3 text-sm">
+              Закрыть
             </button>
           </div>
         </div>

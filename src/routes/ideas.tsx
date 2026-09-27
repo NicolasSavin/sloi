@@ -101,11 +101,13 @@ function IdeasPage() {
       root.replaceChildren();
       return;
     }
+    const w = Math.max(root.clientWidth, 640);
+    const h = Math.max(root.clientHeight, 420);
     root.replaceChildren();
     const box = document.createElement("div");
     box.className = "tradingview-widget-container";
-    box.style.height = "100%";
-    box.style.width = "100%";
+    box.style.height = `${h}px`;
+    box.style.width = `${w}px`;
     const pane = document.createElement("div");
     pane.className = "tradingview-widget-container__widget";
     pane.style.height = "calc(100% - 32px)";
@@ -118,7 +120,9 @@ function IdeasPage() {
     script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
     script.async = true;
     script.innerHTML = JSON.stringify({
-      autosize: true,
+      autosize: false,
+      width: w,
+      height: h,
       symbol,
       interval,
       timezone: "Asia/Dubai",
@@ -255,11 +259,11 @@ function IdeasPage() {
             Выйти
           </button>
         ) : null}
-        {note && !draw ? <p className="absolute bottom-10 right-3 z-10 rounded bg-black/80 px-3 py-1 text-xs text-amber-100">{note}</p> : null}
-        {draw ? (
-          <PlanDraw pair={pair} minutes={barMinutes} busy={busy} note={note} onClose={() => setDraw(false)} onSend={(how, plan) => void sendPlan(how, plan)} />
-        ) : null}
+        {note && !draw ? <p className="pointer-events-none absolute bottom-10 right-3 z-10 rounded bg-black/80 px-3 py-1 text-xs text-amber-100">{note}</p> : null}
       </div>
+      {draw ? (
+        <PlanDraw pair={pair} minutes={barMinutes} busy={busy} note={note} onClose={() => setDraw(false)} onSend={(how, plan) => void sendPlan(how, plan)} />
+      ) : null}
     </div>
   );
 }
