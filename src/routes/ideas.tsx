@@ -256,12 +256,10 @@ function IdeasPage() {
           </button>
         ) : null}
         {note && !draw ? <p className="absolute bottom-10 right-3 z-10 rounded bg-black/80 px-3 py-1 text-xs text-amber-100">{note}</p> : null}
-      </div>
-      {draw ? (
-        <div className="fixed inset-x-0 bottom-0 z-[90] border-t border-amber-100/40 bg-[#131722] shadow-[0_-12px_40px_rgba(0,0,0,0.45)]">
+        {draw ? (
           <PlanDraw pair={pair} minutes={barMinutes} busy={busy} note={note} onClose={() => setDraw(false)} onSend={(how, plan) => void sendPlan(how, plan)} />
-        </div>
-      ) : null}
+        ) : null}
+      </div>
     </div>
   );
 }

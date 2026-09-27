@@ -46,6 +46,7 @@ export function PlanDraw({
   const [reading, setReading] = useState(false);
   const [marks, setMarks] = useState<AutoMark[]>([]);
   const [found, setFound] = useState("");
+  const [cover, setCover] = useState(false);
   const [pick, setPick] = useState<{ src: "user" | "auto"; i: number } | null>(null);
   const wait = useRef<number | null>(null);
   const drag = useRef<{ src: "user" | "auto"; i: number; end: "a" | "b" | "move"; last: Pt } | null>(null);
@@ -94,7 +95,7 @@ export function PlanDraw({
       const ctx = cv.getContext("2d");
       if (!ctx) return;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.fillStyle = "#0e1116";
+      ctx.fillStyle = "#131722";
       ctx.fillRect(0, 0, w, h);
       if (candles.length < 2) {
         ctx.fillStyle = "#a1a1aa";
@@ -169,7 +170,7 @@ export function PlanDraw({
     const ro = new ResizeObserver(paint);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [candles, entry, stop, target, lines, marks, pick]);
+  }, [candles, entry, stop, target, lines, marks, pick, cover]);
 
   function at(e: MouseEvent<HTMLCanvasElement>): Pt | null {
     const el = box.current;
@@ -452,6 +453,7 @@ export function PlanDraw({
         setTarget(order.target);
       }
       setMarks(next);
+      setCover(true);
       const names = snap.patterns.map((p) => p.name).slice(0, 3);
       setFound(names.length ? names.join(", ") : order ? order.name : "фигуры нет, на полосе зоны и уровни");
       setErr("");
@@ -500,65 +502,65 @@ export function PlanDraw({
   }
 
   return (
-    <div className="flex flex-col bg-[#131722]/95">
-      <div className="flex flex-wrap items-center gap-2 px-3 py-2">
-        <span className="text-xs tracking-[0.16em] text-amber-100/80">{pair}</span>
-        <Tool name="Вход" on={tool === "entry"} click={() => setTool("entry")} />
-        <Tool name="Стоп" on={tool === "stop"} click={() => setTool("stop")} />
-        <Tool name="Тейк" on={tool === "target"} click={() => setTool("target")} />
-        <Tool name="Линия" on={tool === "line"} click={() => setTool("line")} />
-        <button
-          type="button"
-          onPointerDown={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            void findPattern();
-          }}
-          className="h-8 rounded-sm bg-sky-200 px-2 text-xs font-semibold text-zinc-900"
-        >
-          Найти паттерн
-        </button>
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <button type="button" disabled={busy || reading} onClick={() => void asNote()} className="h-8 rounded-sm bg-amber-100 px-3 text-sm font-semibold text-zinc-900 disabled:opacity-60">
-            {reading ? "Снимаю…" : "Снимок"}
+    <>
+      <div
+        ref={box}
+        className={cover ? "absolute inset-0 z-20 bg-[#131722]" : "pointer-events-none fixed -left-[2400px] top-0 h-[420px] w-[800px]"}
+      >
+        <canvas
+          ref={canvas}
+          onClick={click}
+          onMouseDown={down}
+          onMouseMove={move}
+          onMouseUp={up}
+          onMouseLeave={up}
+          className="absolute inset-0 h-full w-full cursor-crosshair"
+        />
+      </div>
+      <div className="fixed inset-x-0 bottom-0 z-[90] border-t border-white/10 bg-[#131722]/95 px-3 py-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs tracking-[0.16em] text-amber-100/80">{pair}</span>
+          <Tool name="Вход" on={tool === "entry"} click={() => setTool("entry")} />
+          <Tool name="Стоп" on={tool === "stop"} click={() => setTool("stop")} />
+          <Tool name="Тейк" on={tool === "target"} click={() => setTool("target")} />
+          <Tool name="Линия" on={tool === "line"} click={() => setTool("line")} />
+          <button
+            type="button"
+            onPointerDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              void findPattern();
+            }}
+            className="h-8 rounded-sm bg-sky-200 px-2 text-xs font-semibold text-zinc-900"
+          >
+            Найти паттерн
           </button>
-          <button type="button" disabled={busy || reading} onClick={() => send("now")} className="h-8 rounded-sm bg-[#089981] px-3 text-sm font-semibold text-white disabled:opacity-60">
-            Сразу
-          </button>
-          <button type="button" disabled={busy || reading} onClick={() => send("limit")} className="h-8 rounded-sm border border-amber-200/40 px-3 text-sm text-amber-100 disabled:opacity-60">
-            Лимитом
-          </button>
-          <button type="button" onClick={onClose} className="h-8 rounded-sm bg-[#2a2e39] px-3 text-sm">
-            К графику
-          </button>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <button type="button" disabled={busy || reading} onClick={() => void asNote()} className="h-8 rounded-sm bg-amber-100 px-3 text-sm font-semibold text-zinc-900 disabled:opacity-60">
+              {reading ? "Снимаю…" : "Снимок"}
+            </button>
+            <button type="button" disabled={busy || reading} onClick={() => send("now")} className="h-8 rounded-sm bg-[#089981] px-3 text-sm font-semibold text-white disabled:opacity-60">
+              Сразу
+            </button>
+            <button type="button" disabled={busy || reading} onClick={() => send("limit")} className="h-8 rounded-sm border border-amber-200/40 px-3 text-sm text-amber-100 disabled:opacity-60">
+              Лимитом
+            </button>
+            <button type="button" onClick={() => setCover(false)} className="h-8 rounded-sm bg-[#2a2e39] px-3 text-sm">
+              К графику
+            </button>
+          </div>
         </div>
-      </div>
-      <div ref={box} className="relative h-64 w-full border-t border-white/10">
-        <canvas ref={canvas} onClick={click} onMouseDown={down} onMouseMove={move} onMouseUp={up} onMouseLeave={up} className="absolute inset-0 h-full w-full cursor-crosshair" />
-      </div>
-      <div className="max-h-56 overflow-auto border-t border-white/10 px-3 py-2">
         <textarea
           value={words}
           onChange={(e) => setWords(e.target.value)}
-          rows={2}
-          placeholder="Свои слова, как в заметке. Можно пустым: тогда текст соберётся с графика. Например: вход по пробою шеи головы и плеч."
-          className="w-full rounded-sm border border-white/10 bg-black/40 px-2 py-1 text-sm outline-none"
+          rows={1}
+          placeholder="Свои слова к снимку. Можно пустым."
+          className="mt-2 w-full rounded-sm border border-white/10 bg-black/40 px-2 py-1 text-sm outline-none"
         />
         {story ? (
           <div className="mt-2 text-sm text-zinc-200">
-            <p className="text-[11px] tracking-[0.18em] text-amber-100/80">{story.kicker}</p>
-            <p className="mt-1 font-semibold">{story.title}</p>
-            <p className="mt-1 leading-relaxed">{story.lead}</p>
-            {story.paragraphs.map((p) => (
-              <p key={p} className="mt-1 text-xs leading-relaxed text-zinc-400">
-                {p}
-              </p>
-            ))}
-            <p className="mt-1 text-xs text-zinc-500">
-              {story.plan
-                ? `Приказ собран: ${story.plan.side === "buy" ? "покупка" : "продажа"}, вход ${px(story.plan.entry)}, стоп ${px(story.plan.stop)}, тейк ${px(story.plan.target)}. На график он уйдёт по кнопке Сразу или Лимитом.`
-                : "Идея есть, а трёх цен стол на снимке не увидел. Приказа нет."}
-            </p>
+            <p className="font-semibold">{story.title}</p>
+            <p className="mt-1 text-xs leading-relaxed text-zinc-400">{story.lead}</p>
           </div>
         ) : (
           <p className="mt-1 text-sm text-amber-100">
@@ -567,9 +569,8 @@ export function PlanDraw({
             {err ? ` ${err}` : ""}
           </p>
         )}
-        {story && (err || note) ? <p className="mt-1 text-xs text-amber-100">{err || note}</p> : null}
       </div>
-    </div>
+    </>
   );
 }
 
