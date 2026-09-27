@@ -94,7 +94,7 @@ function IdeasPage() {
   useEffect(() => {
     const root = host.current;
     if (!root) return;
-    const key = native ? `${symbol}|${interval}|dark` : "custom";
+    const key = native ? `${symbol}|${interval}|vd` : "custom";
     if (root.dataset.built === key && (native ? root.childElementCount > 0 : true)) return;
     root.dataset.built = key;
     if (!native) {
@@ -134,7 +134,12 @@ function IdeasPage() {
       withdateranges: true,
       details: false,
       save_image: true,
-      studies: ["Volume@tv-basicstudies", "Volume Delta@tv-basicstudies"],
+      studies: [
+        "Volume@tv-basicstudies",
+        "Volume Delta@tv-basicstudies",
+        "VolumeDelta@tv-basicstudies",
+        "Cumulative Volume Delta@tv-basicstudies",
+      ],
       support_host: "https://www.tradingview.com",
     });
     box.append(pane, copy, script);
