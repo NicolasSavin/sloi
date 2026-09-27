@@ -436,18 +436,20 @@ export function PlanDraw({
           }
           return;
         }
-        const shape = ordered.map(onWick);
+        const shape = ordered.filter((pt) => pt.label !== "шея").map(onWick);
         if (shape.length >= 3) next.push({ t: "poly", pts: shape, color });
-        for (let i = 1; i < ordered.length; i++) {
-          next.push({
-            t: "line",
-            a: onWick(ordered[i - 1]!),
-            b: onWick(ordered[i]!),
-            name: i === 1 ? p.name : ordered[i]!.label,
-            color,
-          });
+        const body = ordered.filter((pt) => pt.label !== "шея");
+        for (let i = 1; i < body.length; i++) {
+          next.push({ t: "line", a: onWick(body[i - 1]!), b: onWick(body[i]!), name: body[i - 1]!.label, color });
         }
-        const neck = ordered.filter((pt) => pt.label.startsWith("шея"));
+        const last = body.at(-1);
+        if (last) next.push({ t: "line", a: onWick(last), b: onWick(last), name: last.label, color });
+        if (p.id === "dragon" || p.id === "idragon") {
+          const a = body[0];
+          const b = body.at(-1);
+          if (a && b) next.push({ t: "line", a: onWick(a), b: onWick(b), name: "", color });
+        }
+        const neck = ordered.filter((pt) => pt.label === "шея");
         if (neck.length === 2) next.push({ t: "line", a: onWick(neck[0]!), b: onWick(neck[1]!), name: "шея", color });
       });
       const divName = deltaDivergence(rows, at, next);
@@ -664,8 +666,8 @@ function wick(rows: Candle[], i: number, price: number, label = ""): Pt {
   const at = Math.min(rows.length - 1, Math.max(0, Math.round(i)));
   const c = rows[at];
   if (!c) return { i: at, price };
-  const high = new Set(["T1", "T2", "голова", "H", "верх", "горб"]);
-  const low = new Set(["B1", "B2", "L", "низ", "дно", "лапа", "брюхо"]);
+  const high = new Set(["T1", "T2", "H", "верх", "горб", "левая голова", "правая голова"]);
+  const low = new Set(["B1", "B2", "L", "низ", "дно", "лапа", "брюхо", "левая лапа", "правая лапа"]);
   if (high.has(label)) return { i: at, price: c.high };
   if (low.has(label)) return { i: at, price: c.low };
   return { i: at, price: Math.abs(c.high - price) <= Math.abs(c.low - price) ? c.high : c.low };
