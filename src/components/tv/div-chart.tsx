@@ -96,7 +96,7 @@ export function DivChart({ pair, minutes }: { pair: string; minutes: number }) {
       });
       ctx.fillStyle = "#d6ff4a";
       ctx.font = "bold 14px sans-serif";
-      ctx.fillText(line ? line.name : "дивергенции дельты нет", 16, 24);
+      ctx.fillText(line ? `${minutes}м · ${line.name}` : `${minutes}м · дивергенции дельты нет`, 16, 24);
       if (!line) return;
       const ia = nearest(rows, line.a);
       const ib = nearest(rows, line.b);

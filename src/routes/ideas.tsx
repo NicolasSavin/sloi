@@ -30,6 +30,7 @@ function IdeasPage() {
   const [full, setFull] = useState(false);
   const [typed, setTyped] = useState("");
   const [custom, setCustom] = useState<number | null>(null);
+  const [step, setStep] = useState(60);
   const [divOn, setDivOn] = useState(true);
   const screen = useRef<HTMLDivElement>(null);
 
@@ -164,7 +165,7 @@ function IdeasPage() {
             onClick={() => setDivOn((v) => !v)}
             className={`h-7 rounded-sm px-2 text-xs ${divOn ? "bg-[#d6ff4a] font-semibold text-zinc-900" : "bg-[#2a2e39] text-zinc-100"}`}
           >
-            {divOn ? "Скрыть дивер" : "Дивер"}
+            {divOn ? `Скрыть дивер ${step}м` : `Дивер ${step}м`}
           </button>
           <button type="button" onClick={() => setFull(true)} className="h-7 rounded-sm bg-[#2a2e39] px-2 text-xs text-zinc-100">
             F8 весь экран
@@ -175,9 +176,12 @@ function IdeasPage() {
               e.preventDefault();
               const n = Math.round(Number(typed.replace(",", ".")));
               if (n < 1 || n > 1440) return;
+              setStep(n);
+              setDivOn(true);
+              setTyped(String(n));
               if (ON_CHART.has(n)) {
                 setCustom(null);
-                setNote(`${n} мин есть на графике TradingView. Переключите там, линии не сотрутся.`);
+                setNote("");
                 return;
               }
               setCustom(n);
@@ -195,15 +199,17 @@ function IdeasPage() {
               {custom ? `${custom}м` : "Свой"}
             </button>
           </form>
-          {[2, 10, 45, 90].map((n) => (
+          {[15, 2, 10, 45, 90].map((n) => (
             <button
               key={n}
               type="button"
               onClick={() => {
-                setCustom(n);
+                setStep(n);
+                setDivOn(true);
                 setTyped(String(n));
+                setCustom(ON_CHART.has(n) ? null : n);
               }}
-              className={`h-7 rounded-sm px-2 text-xs ${custom === n ? "bg-amber-100 font-semibold text-zinc-900" : "bg-[#1e222d] text-zinc-200"}`}
+              className={`h-7 rounded-sm px-2 text-xs ${step === n ? "bg-amber-100 font-semibold text-zinc-900" : "bg-[#1e222d] text-zinc-200"}`}
             >
               {n}м
             </button>
@@ -242,7 +248,7 @@ function IdeasPage() {
       <div ref={screen} className="relative min-h-0 flex-1 bg-[#131722]">
         <div ref={host} className="absolute inset-0" />
         {custom && !(divOn && !draw) ? <MinuteChart pair={pair} minutes={custom} /> : null}
-        {divOn && !draw ? <DivChart pair={pair} minutes={custom ?? 60} /> : null}
+        {divOn && !draw ? <DivChart pair={pair} minutes={step} /> : null}
         {full ? (
           <button type="button" onClick={() => setFull(false)} className="absolute right-3 top-2 z-30 h-8 rounded-sm bg-black/70 px-3 text-xs text-zinc-200">
             Выйти
@@ -250,7 +256,7 @@ function IdeasPage() {
         ) : null}
         {note && !draw ? <p className="pointer-events-none absolute bottom-10 right-3 z-10 rounded bg-black/80 px-3 py-1 text-xs text-amber-100">{note}</p> : null}
         {draw ? (
-          <PlanDraw pair={pair} minutes={custom ?? 60} busy={busy} note={note} onClose={() => setDraw(false)} onSend={(how, plan) => void sendPlan(how, plan)} />
+          <PlanDraw pair={pair} minutes={step} busy={busy} note={note} onClose={() => setDraw(false)} onSend={(how, plan) => void sendPlan(how, plan)} />
         ) : null}
       </div>
     </div>
