@@ -12,9 +12,10 @@ type AutoMark =
   | { t: "h"; price: number; name: string; color: string }
   | { t: "line"; a: Pt; b: Pt; name: string; color: string };
 
-const PAD_L = 12;
-const PAD_R = 72;
-const PAD_Y = 16;
+const LEFT = 54;
+const RIGHT = 70;
+const TOP = 76;
+const VIEW = 80;
 
 export function PlanDraw({
   pair,
@@ -103,28 +104,16 @@ export function PlanDraw({
         ...lines.flatMap((l) => [l.a.price, l.b.price]),
         ...marks.flatMap((m) => (m.t === "h" ? [m.price] : m.t === "zone" ? [m.top, m.bot] : [m.a.price, m.b.price])),
       ];
-      const { min, max } = span(candles, extra);
-      const xOf = (i: number) => PAD_L + ((w - PAD_L - PAD_R) * i) / Math.max(candles.length - 1, 1);
-      const yOf = (p: number) => PAD_Y + ((max - p) / (max - min || 1)) * (h - PAD_Y * 2);
+      const { xOf, yOf } = axes(w, h, candles, extra);
+      let labelRow = 0;
       for (const m of marks) {
-        if (m.t === "zone") {
-          const x1 = xOf(Math.min(m.a, m.b));
-          const x2 = xOf(Math.max(m.a, m.b));
-          ctx.fillStyle = m.color;
-          ctx.fillRect(x1, yOf(m.top), Math.max(x2 - x1, 8), yOf(m.bot) - yOf(m.top));
-          ctx.fillStyle = "#e4e4e7";
-          ctx.font = "11px sans-serif";
-          ctx.fillText(m.name, x1 + 4, yOf(m.top) + 12);
-        } else if (m.t === "line") {
-          drawLine(ctx, xOf(m.a.i), yOf(m.a.price), xOf(m.b.i), yOf(m.b.price), m.color);
-          if (m.name) {
-            ctx.fillStyle = m.color;
-            ctx.font = "12px sans-serif";
-            ctx.fillText(m.name, xOf(m.b.i) + 4, yOf(m.b.price));
-          }
-        } else {
-          level(ctx, w, yOf, m.price, m.color, m.name);
-        }
+        if (m.t !== "line") continue;
+        drawLine(ctx, xOf(m.a.i), yOf(m.a.price), xOf(m.b.i), yOf(m.b.price), m.color);
+        if (!m.name) continue;
+        const x = (xOf(m.a.i) + xOf(m.b.i)) / 2;
+        const y = (yOf(m.a.price) + yOf(m.b.price)) / 2 - labelRow * 18;
+        labelRow += 1;
+        tag(ctx, x, y, m.name, m.color);
       }
       for (const line of lines) drawLine(ctx, xOf(line.a.i), yOf(line.a.price), xOf(line.b.i), yOf(line.b.price), "#f0d7a8");
       if (draft) {
@@ -157,17 +146,15 @@ export function PlanDraw({
     const el = box.current;
     if (!el || candles.length < 2) return null;
     const r = el.getBoundingClientRect();
-    const w = r.width;
-    const h = r.height;
-    const { min, max } = span(candles, [
+    const { min, max, start, rows, bottom } = axes(r.width, r.height, candles, [
       entry,
       stop,
       target,
       ...lines.flatMap((l) => [l.a.price, l.b.price]),
       ...marks.flatMap((m) => (m.t === "h" ? [m.price] : m.t === "zone" ? [m.top, m.bot] : [m.a.price, m.b.price])),
     ]);
-    const i = ((e.clientX - r.left - PAD_L) / (w - PAD_L - PAD_R)) * (candles.length - 1);
-    const price = max - ((e.clientY - r.top - PAD_Y) / (h - PAD_Y * 2)) * (max - min);
+    const i = start + ((e.clientX - r.left - LEFT) / (r.width - LEFT - RIGHT)) * Math.max(rows.length - 1, 1);
+    const price = max - ((e.clientY - r.top - TOP) / (r.height - TOP - bottom)) * (max - min);
     if (!Number.isFinite(price)) return null;
     return { i: Math.min(candles.length - 1, Math.max(0, i)), price };
   }
@@ -176,14 +163,14 @@ export function PlanDraw({
     const el = box.current;
     if (!el) return raw;
     const h = el.clientHeight;
-    const { min, max } = span(candles, [
+    const { min, max, bottom } = axes(el.clientWidth, h, candles, [
       entry,
       stop,
       target,
       ...lines.flatMap((l) => [l.a.price, l.b.price]),
       ...marks.flatMap((m) => (m.t === "h" ? [m.price] : m.t === "zone" ? [m.top, m.bot] : [m.a.price, m.b.price])),
     ]);
-    const yPer = (h - PAD_Y * 2) / (max - min || 1);
+    const yPer = (h - TOP - bottom) / (max - min || 1);
     let bestI = Math.round(raw.i);
     let bestP = raw.price;
     let bestPx = 16;
@@ -206,16 +193,14 @@ export function PlanDraw({
     const el = box.current;
     if (!el) return null;
     const r = el.getBoundingClientRect();
-    const { min, max } = span(candles, [
+    const { xOf, yOf } = axes(r.width, r.height, candles, [
       entry,
       stop,
       target,
       ...lines.flatMap((l) => [l.a.price, l.b.price]),
       ...marks.flatMap((m) => (m.t === "h" ? [m.price] : m.t === "zone" ? [m.top, m.bot] : [m.a.price, m.b.price])),
     ]);
-    const x = r.left + PAD_L + ((r.width - PAD_L - PAD_R) * p.i) / Math.max(candles.length - 1, 1);
-    const y = r.top + PAD_Y + ((max - p.price) / (max - min || 1)) * (r.height - PAD_Y * 2);
-    return { x, y };
+    return { x: r.left + xOf(p.i), y: r.top + yOf(p.price) };
   }
 
   function lineDist(e: MouseEvent<HTMLCanvasElement>, a: Pt, b: Pt) {
@@ -379,7 +364,7 @@ export function PlanDraw({
       const next: AutoMark[] = [];
       for (const p of snap.patterns.slice(0, 3)) {
         const pts = p.points.map((pt) => ({ i: at(pt.time), price: pt.price, label: pt.label }));
-        const color = p.side === "bull" ? "#26a69a" : "#ef5350";
+        const color = p.side === "bull" ? "#7dffa8" : "#ff8a80";
         if (p.id === "wedge") {
           const top = pts.filter((pt) => pt.label === "верх");
           const bot = pts.filter((pt) => pt.label === "низ");
@@ -390,42 +375,6 @@ export function PlanDraw({
         for (let i = 1; i < pts.length; i++) {
           next.push({ t: "line", a: pts[i - 1]!, b: pts[i]!, name: i === 1 ? p.name : "", color });
         }
-      }
-      const highs = snap.swings.filter((s) => s.type === "high").slice(-2);
-      const lows = snap.swings.filter((s) => s.type === "low").slice(-2);
-      if (highs.length === 2) {
-        next.push({
-          t: "line",
-          a: { i: highs[0]!.index, price: highs[0]!.price },
-          b: { i: highs[1]!.index, price: highs[1]!.price },
-          name: "наклонная",
-          color: "#7dd3fc",
-        });
-      }
-      if (lows.length === 2) {
-        next.push({
-          t: "line",
-          a: { i: lows[0]!.index, price: lows[0]!.price },
-          b: { i: lows[1]!.index, price: lows[1]!.price },
-          name: "наклонная",
-          color: "#7dd3fc",
-        });
-      }
-      for (const z of [...snap.fvgs, ...snap.orderBlocks].filter((z) => !z.mitigated).slice(-4)) {
-        next.push({
-          t: "zone",
-          a: at(z.startTime),
-          b: Math.max(at(z.endTime), rows.length - 1),
-          top: z.top,
-          bot: z.bottom,
-          name: z.kind === "fvg" ? "имбаланс" : "ордерблок",
-          color: z.kind === "fvg" ? "rgba(56,189,248,0.22)" : "rgba(168,85,247,0.22)",
-        });
-      }
-      next.push({ t: "h", price: snap.dealingRange.high, name: "уровень", color: "#d4d4d8" });
-      next.push({ t: "h", price: snap.dealingRange.low, name: "уровень", color: "#d4d4d8" });
-      for (const l of snap.liquidity.filter((l) => !l.swept).slice(-4)) {
-        next.push({ t: "h", price: l.price, name: "ликвидность", color: l.side === "buy" ? "#fbbf24" : "#fb7185" });
       }
       const order = patternOrder(rows, snap.swings, snap.atr) ?? graphicBreak(rows, snap.swings, snap.atr);
       if (order) {
@@ -505,17 +454,6 @@ export function PlanDraw({
           <Tool name="Стоп" on={tool === "stop"} click={() => setTool("stop")} />
           <Tool name="Тейк" on={tool === "target"} click={() => setTool("target")} />
           <Tool name="Линия" on={tool === "line"} click={() => setTool("line")} />
-          <button
-            type="button"
-            onPointerDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              void findPattern();
-            }}
-            className="h-8 rounded-sm bg-sky-200 px-2 text-xs font-semibold text-zinc-900"
-          >
-            Найти паттерн
-          </button>
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <button type="button" disabled={busy || reading} onClick={() => void asNote()} className="h-8 rounded-sm bg-amber-100 px-3 text-sm font-semibold text-zinc-900 disabled:opacity-60">
               {reading ? "Снимаю…" : "Снимок"}
@@ -592,23 +530,46 @@ function level(
   ctx.strokeStyle = color;
   ctx.setLineDash([5, 4]);
   ctx.beginPath();
-  ctx.moveTo(PAD_L, y);
-  ctx.lineTo(w - PAD_R, y);
+  ctx.moveTo(LEFT, y);
+  ctx.lineTo(w - RIGHT, y);
   ctx.stroke();
   ctx.setLineDash([]);
   ctx.fillStyle = color;
   ctx.font = "12px sans-serif";
-  ctx.fillText(`${name} ${px(price)}`, w - PAD_R + 6, y + 4);
+  ctx.fillText(`${name} ${px(price)}`, w - RIGHT + 6, y + 4);
 }
 
 function drawLine(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, color: string) {
   ctx.strokeStyle = color;
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(x1, y1);
   ctx.lineTo(x2, y2);
   ctx.stroke();
   ctx.lineWidth = 1;
+}
+
+function tag(ctx: CanvasRenderingContext2D, x: number, y: number, text: string, color: string) {
+  ctx.font = "bold 13px sans-serif";
+  const width = ctx.measureText(text).width;
+  const left = Math.max(LEFT, x - width / 2);
+  ctx.fillStyle = "rgba(10, 14, 24, 0.88)";
+  ctx.fillRect(left - 4, y - 16, width + 8, 18);
+  ctx.fillStyle = color;
+  ctx.fillText(text, left, y - 3);
+}
+
+function axes(w: number, h: number, candles: Candle[], extra: Array<number | null>) {
+  const start = Math.max(0, candles.length - VIEW);
+  const rows = candles.slice(start);
+  const { min, max } = span(rows.length ? rows : candles, extra);
+  const bottom = Math.max(44, Math.round(h * 0.28));
+  const xOf = (i: number) => {
+    const local = Math.min(Math.max(i - start, 0), Math.max(rows.length - 1, 0));
+    return LEFT + ((w - LEFT - RIGHT) * local) / Math.max(rows.length - 1, 1);
+  };
+  const yOf = (p: number) => TOP + ((max - p) / (max - min || 1)) * Math.max(h - TOP - bottom, 1);
+  return { start, rows, min, max, bottom, xOf, yOf };
 }
 
 function caption(
