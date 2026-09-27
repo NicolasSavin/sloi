@@ -8,6 +8,8 @@ import { readDeskKey } from "@/lib/desk-key";
 import { PAIR_OPTIONS } from "@/lib/ea-settings";
 import { tvSymbol } from "@/lib/tradingview";
 
+const ON_CHART = new Set([1, 3, 5, 15, 30, 60, 120, 180, 240]);
+
 export const Route = createFileRoute("/ideas")({
   validateSearch: (s: Record<string, unknown>) => ({
     pair: typeof s.pair === "string" && PAIR_OPTIONS.includes(s.pair as (typeof PAIR_OPTIONS)[number]) ? s.pair : "EURUSD",
@@ -168,7 +170,14 @@ function IdeasPage() {
             onSubmit={(e) => {
               e.preventDefault();
               const n = Math.round(Number(typed.replace(",", ".")));
-              if (n >= 1 && n <= 1440) setCustom(n);
+              if (n < 1 || n > 1440) return;
+              if (ON_CHART.has(n)) {
+                setCustom(null);
+                setNote(`${n} мин уже есть на графике. Переключите там, линии не стираются.`);
+                return;
+              }
+              setCustom(n);
+              setNote("");
             }}
           >
             <input
@@ -187,7 +196,7 @@ function IdeasPage() {
               К графику
             </button>
           ) : (
-            <span className="px-2 text-xs text-zinc-400">Обычный таймфрейм — на графике, линии остаются</span>
+            <span className="px-2 text-xs text-zinc-400">Свой шаг только если его нет на графике: 2, 10, 45, 90</span>
           )}
           <div className="ml-auto flex flex-wrap items-center gap-1">
             <select

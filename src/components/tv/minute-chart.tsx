@@ -45,7 +45,7 @@ export function MinuteChart({ pair, minutes }: { pair: string; minutes: number }
       ctx.fillRect(0, 0, w, h);
       ctx.fillStyle = "#d4d4d8";
       ctx.font = "14px sans-serif";
-      ctx.fillText(`${pair} · ${minutes} мин. TradingView такой интервал не отдаёт, свечи наши.`, 16, 28);
+      ctx.fillText(`${pair} · ${minutes} мин. Это наш график. Линии TradingView под кнопкой «К графику».`, 16, 28);
       if (candles.length < 2) return;
       const padL = 12;
       const padR = 72;
