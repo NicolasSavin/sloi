@@ -5,6 +5,7 @@ import { DeltaLine } from "@/components/tv/delta-line";
 import { deskCommandFn } from "@/lib/desk-api";
 import { readDeskKey } from "@/lib/desk-key";
 import { PAIR_OPTIONS } from "@/lib/ea-settings";
+import { PatternOverlay } from "@/components/tv/pattern-overlay";
 import { PlanDraw } from "@/components/tv/plan-draw";
 import { tvSymbol } from "@/lib/tradingview";
 
@@ -284,7 +285,10 @@ function IdeasPage() {
       )}
       <div ref={screen} className="relative min-h-0 flex-1 bg-[#131722]">
         <div className={draw ? "absolute inset-x-0 top-0 bottom-52 flex flex-col" : "absolute inset-0 flex flex-col"}>
-          <div ref={host} className="relative min-h-0 flex-1" />
+          <div className="relative min-h-0 flex-1">
+            <div ref={host} className="absolute inset-0" />
+            {draw ? <PatternOverlay pair={pair} minutes={step} /> : null}
+          </div>
           <DeltaLine pair={pair} minutes={step} />
         </div>
         {draw ? (
