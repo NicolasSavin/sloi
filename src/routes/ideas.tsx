@@ -233,9 +233,13 @@ function IdeasPage() {
           </div>
         </div>
       )}
-      <div ref={screen} className="flex min-h-0 flex-1 flex-col bg-[#131722]">
-        <div ref={host} className="relative min-h-0 flex-1" />
-        <PlanDraw dock pair={pair} minutes={step} busy={busy} note={note} seek={draw} onClose={() => setDraw(false)} onSend={(how, plan) => void sendPlan(how, plan)} />
+      <div ref={screen} className="relative min-h-0 flex-1 bg-[#131722]">
+        <div ref={host} className={draw ? "absolute inset-x-0 top-0 bottom-52" : "absolute inset-0"} />
+        {draw ? (
+          <div className="absolute inset-x-0 bottom-0">
+            <PlanDraw dock pair={pair} minutes={step} busy={busy} note={note} seek onClose={() => setDraw(false)} onSend={(how, plan) => void sendPlan(how, plan)} />
+          </div>
+        ) : null}
         {full ? (
           <button type="button" onClick={() => setFull(false)} className="absolute right-3 top-2 z-30 h-8 rounded-sm bg-black/70 px-3 text-xs text-zinc-200">
             Выйти
