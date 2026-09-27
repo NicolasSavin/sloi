@@ -152,7 +152,7 @@ function wick(rows: Candle[], i: number, price: number, label = ""): Pt {
   const c = rows[at];
   if (!c) return { i: at, price, label };
   const high = new Set(["T1", "T2", "H", "верх", "горб", "левая голова", "правая голова", "голова"]);
-  const low = new Set(["B1", "B2", "L", "низ", "дно", "лапа", "брюхо", "левая лапа", "правая лапа", "плечо"]);
+  const low = new Set(["B1", "B2", "L", "низ", "дно", "лапа", "впадина", "брюхо", "левая лапа", "правая лапа", "плечо"]);
   if (high.has(label)) return { i: at, price: c.high, label };
   if (low.has(label)) return { i: at, price: c.low, label };
   return { i: at, price: Math.abs(c.high - price) <= Math.abs(c.low - price) ? c.high : c.low, label };

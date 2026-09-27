@@ -559,7 +559,7 @@ function dragon(swings: Swing[], atr: number): PatternHit | null {
         side: "bear",
         points: [
           { time: head1.time, price: head1.price, label: "левая голова" },
-          { time: belly.time, price: belly.price, label: "брюхо" },
+          { time: belly.time, price: belly.price, label: "впадина" },
           { time: head2.time, price: head2.price, label: "правая голова" },
         ],
         because: "Две головы, вторая не выше первой, между ними впадина",
@@ -683,7 +683,7 @@ export function patternOrder(candles: Candle[], swings: Swing[], atr: number): F
       }
     }
     if (p.id === "dragon" || p.id === "idragon") {
-      const hump = pt("горб") ?? pt("брюхо");
+      const hump = pt("горб") ?? pt("впадина");
       const feet = p.points.filter((x) => x.label === "лапа" || x.label === "голова");
       const lastFoot = feet.at(-1);
       if (!hump || !lastFoot) continue;
