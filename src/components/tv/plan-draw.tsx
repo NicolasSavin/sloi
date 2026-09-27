@@ -3,6 +3,7 @@ import { fetchCustomBars, fetchMarket } from "@/lib/market/fetch";
 import type { Candle } from "@/lib/market/types";
 import { retellSketch, type SketchPiece } from "@/lib/sketch";
 import { graphicBreak, patternOrder } from "@/lib/smc/patterns";
+import { latestDeltaDivergence } from "@/lib/smc/delta-div";
 
 type Tool = "entry" | "stop" | "target" | "line";
 type Pt = { i: number; price: number };
@@ -585,40 +586,18 @@ function deltaDivergence(
   at: (time: number) => number,
   next: AutoMark[],
 ) {
-  if (bars.length < 4) return "";
-  const cvdAt = (time: number) => {
-    let best = bars[0]!;
-    let dist = Infinity;
-    for (const bar of bars) {
-      const d = Math.abs(bar.time - time);
-      if (d < dist) {
-        dist = d;
-        best = bar;
-      }
-    }
-    return best.cvd;
-  };
-  const mark = (a: { time: number; price: number }, b: { time: number; price: number }, bull: boolean) => {
-    const name = bull ? "дивер дельты бычий" : "дивер дельты медвежий";
-    const tip = bull ? "низ" : "верх";
-    next.push({
-      t: "line",
-      a: wick(rows, at(a.time), a.price, tip),
-      b: wick(rows, at(b.time), b.price, tip),
-      name,
-      color: "#d6ff4a",
-    });
-    return name;
-  };
-  const highs = swings.filter((s) => s.type === "high").slice(-2);
-  const lows = swings.filter((s) => s.type === "low").slice(-2);
-  if (highs.length === 2 && highs[1]!.price > highs[0]!.price && cvdAt(highs[1]!.time) < cvdAt(highs[0]!.time)) {
-    return mark(highs[0]!, highs[1]!, false);
-  }
-  if (lows.length === 2 && lows[1]!.price < lows[0]!.price && cvdAt(lows[1]!.time) > cvdAt(lows[0]!.time)) {
-    return mark(lows[0]!, lows[1]!, true);
-  }
-  return "";
+  const hit = latestDeltaDivergence(swings, bars);
+  if (!hit) return "";
+  const name = hit.bull ? "дивер дельты бычий" : "дивер дельты медвежий";
+  const tip = hit.bull ? "низ" : "верх";
+  next.push({
+    t: "line",
+    a: wick(rows, at(hit.a.time), hit.a.price, tip),
+    b: wick(rows, at(hit.b.time), hit.b.price, tip),
+    name,
+    color: "#d6ff4a",
+  });
+  return name;
 }
 
 function wick(rows: Candle[], i: number, price: number, label = ""): Pt {

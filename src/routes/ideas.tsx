@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppNav } from "@/components/app-nav";
+import { DivChart } from "@/components/tv/div-chart";
 import { MinuteChart } from "@/components/tv/minute-chart";
 import { PlanDraw } from "@/components/tv/plan-draw";
 import { deskCommandFn } from "@/lib/desk-api";
@@ -29,6 +30,7 @@ function IdeasPage() {
   const [full, setFull] = useState(false);
   const [typed, setTyped] = useState("");
   const [custom, setCustom] = useState<number | null>(null);
+  const [divOn, setDivOn] = useState(true);
   const screen = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -157,6 +159,13 @@ function IdeasPage() {
           >
             {draw ? "Скрыть паттерн" : "Найти паттерн"}
           </button>
+          <button
+            type="button"
+            onClick={() => setDivOn((v) => !v)}
+            className={`h-7 rounded-sm px-2 text-xs ${divOn ? "bg-[#d6ff4a] font-semibold text-zinc-900" : "bg-[#2a2e39] text-zinc-100"}`}
+          >
+            {divOn ? "Скрыть дивер" : "Дивер"}
+          </button>
           <button type="button" onClick={() => setFull(true)} className="h-7 rounded-sm bg-[#2a2e39] px-2 text-xs text-zinc-100">
             F8 весь экран
           </button>
@@ -232,7 +241,8 @@ function IdeasPage() {
       )}
       <div ref={screen} className="relative min-h-0 flex-1 bg-[#131722]">
         <div ref={host} className="absolute inset-0" />
-        {custom ? <MinuteChart pair={pair} minutes={custom} /> : null}
+        {custom && !(divOn && !draw) ? <MinuteChart pair={pair} minutes={custom} /> : null}
+        {divOn && !draw ? <DivChart pair={pair} minutes={custom ?? 60} /> : null}
         {full ? (
           <button type="button" onClick={() => setFull(false)} className="absolute right-3 top-2 z-30 h-8 rounded-sm bg-black/70 px-3 text-xs text-zinc-200">
             Выйти
