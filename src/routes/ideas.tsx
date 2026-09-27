@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppNav } from "@/components/app-nav";
-import { PlanDraw } from "@/components/tv/plan-draw";
+import { DeltaLine } from "@/components/tv/delta-line";
 import { deskCommandFn } from "@/lib/desk-api";
 import { readDeskKey } from "@/lib/desk-key";
 import { PAIR_OPTIONS } from "@/lib/ea-settings";
+import { PlanDraw } from "@/components/tv/plan-draw";
 import { tvSymbol } from "@/lib/tradingview";
 
 const ON_CHART = new Set([1, 3, 5, 15, 30, 60, 120, 180, 240]);
@@ -96,7 +97,7 @@ function IdeasPage() {
   useEffect(() => {
     const root = host.current;
     if (!root) return;
-    const key = `${symbol}|${step}`;
+    const key = `${symbol}|${step}|price`;
     if (root.dataset.built === key && root.childElementCount > 0) return;
     root.dataset.built = key;
     root.replaceChildren();
@@ -132,7 +133,6 @@ function IdeasPage() {
       withdateranges: true,
       details: false,
       save_image: true,
-      studies: ["Volume@tv-basicstudies", "Volume Delta@tv-basicstudies"],
       support_host: "https://www.tradingview.com",
     });
     box.append(pane, copy, script);
@@ -282,7 +282,10 @@ function IdeasPage() {
         </div>
       )}
       <div ref={screen} className="relative min-h-0 flex-1 bg-[#131722]">
-        <div ref={host} className={draw ? "absolute inset-x-0 top-0 bottom-52" : "absolute inset-0"} />
+        <div className={draw ? "absolute inset-x-0 top-0 bottom-52" : "absolute inset-0"}>
+          <div ref={host} className="absolute inset-0" />
+          <DeltaLine pair={pair} minutes={step} />
+        </div>
         {draw ? (
           <div className="absolute inset-x-0 bottom-0">
             <PlanDraw dock pair={pair} minutes={step} busy={busy} note={note} seek onClose={() => setDraw(false)} onSend={(how, plan) => void sendPlan(how, plan)} />
