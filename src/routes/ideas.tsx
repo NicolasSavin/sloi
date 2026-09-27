@@ -179,9 +179,17 @@ function IdeasPage() {
     <div className="flex h-screen flex-col bg-[#131722] text-zinc-100">
       {full ? null : <AppNav />}
       {full ? null : (
-        <div className="flex flex-wrap items-center gap-1 border-b border-white/10 bg-[#131722] px-2 py-1">
-          <button type="button" onClick={() => setDraw(true)} className="h-9 rounded-sm bg-amber-100 px-4 text-sm font-semibold text-zinc-900">
-            Рисовать
+        <div className="relative z-[80] flex flex-wrap items-center gap-1 border-b border-white/10 bg-[#131722] px-2 py-1">
+          <button
+            type="button"
+            onPointerDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setDraw((v) => !v);
+            }}
+            className={`h-9 rounded-sm px-4 text-sm font-semibold ${draw ? "bg-sky-300 text-zinc-900" : "bg-amber-100 text-zinc-900"}`}
+          >
+            {draw ? "Закрыть" : "Рисовать"}
           </button>
           <button type="button" onClick={() => setFull(true)} className="h-7 rounded-sm bg-[#2a2e39] px-2 text-xs text-zinc-100">
             F8 весь экран
@@ -248,12 +256,12 @@ function IdeasPage() {
           </button>
         ) : null}
         {note && !draw ? <p className="absolute bottom-10 right-3 z-10 rounded bg-black/80 px-3 py-1 text-xs text-amber-100">{note}</p> : null}
-        {draw ? (
-          <div className="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 shadow-[0_-12px_40px_rgba(0,0,0,0.45)]">
-            <PlanDraw pair={pair} minutes={barMinutes} busy={busy} note={note} onClose={() => setDraw(false)} onSend={(how, plan) => void sendPlan(how, plan)} />
-          </div>
-        ) : null}
       </div>
+      {draw ? (
+        <div className="fixed inset-x-0 bottom-0 z-[90] border-t border-amber-100/40 bg-[#131722] shadow-[0_-12px_40px_rgba(0,0,0,0.45)]">
+          <PlanDraw pair={pair} minutes={barMinutes} busy={busy} note={note} onClose={() => setDraw(false)} onSend={(how, plan) => void sendPlan(how, plan)} />
+        </div>
+      ) : null}
     </div>
   );
 }
