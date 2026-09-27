@@ -43,8 +43,8 @@ export function AppNav() {
     };
   }, [onChart]);
   useEffect(() => {
-    if (open) menuBtn.current?.focus();
-  }, [open]);
+    document.documentElement.dataset.chartNav = onChart && !open ? "0" : "1";
+  }, [onChart, open]);
   return (
     <>
       <header

@@ -30,10 +30,19 @@ function IdeasPage() {
   const [custom, setCustom] = useState<number | null>(null);
   const [step, setStep] = useState(60);
   const [lots, setLots] = useState(0.1);
+  const [navOn, setNavOn] = useState(true);
   const screen = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setKey(readDeskKey());
+  }, []);
+
+  useEffect(() => {
+    const sync = () => setNavOn(document.documentElement.dataset.chartNav !== "0");
+    sync();
+    const obs = new MutationObserver(sync);
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-chart-nav"] });
+    return () => obs.disconnect();
   }, []);
 
   useEffect(() => {
@@ -49,13 +58,11 @@ function IdeasPage() {
     trap.style.opacity = "0";
     document.body.append(trap);
     const pull = () => {
-      window.setTimeout(() => {
-        if (document.activeElement instanceof HTMLIFrameElement) trap.focus();
-      }, 0);
+      if (document.activeElement instanceof HTMLIFrameElement) trap.focus({ preventScroll: true });
     };
-    window.addEventListener("blur", pull);
+    const timer = window.setInterval(pull, 300);
     return () => {
-      window.removeEventListener("blur", pull);
+      window.clearInterval(timer);
       trap.remove();
     };
   }, []);
@@ -168,7 +175,7 @@ function IdeasPage() {
   }
 
   return (
-    <div className="flex h-screen flex-col bg-[#131722] text-zinc-100">
+    <div className={`flex h-screen flex-col bg-[#131722] text-zinc-100 ${full || !navOn ? "" : "pt-[4.75rem]"}`}>
       {full ? null : <AppNav />}
       {full ? null : (
         <div className="relative z-[80] flex flex-wrap items-center gap-1 border-b border-white/10 bg-[#131722] px-2 py-1">
