@@ -22,8 +22,8 @@ export function PatternOverlay({ pair, minutes, figures, divergence }: { pair: s
     void (async () => {
       try {
         const candles = standard
-          ? (await fetchMarket({ data: { symbol: pair, timeframe: standard } })).candles.slice(-120)
-          : (await fetchCustomBars({ data: { symbol: pair, minutes } })).candles.slice(-120);
+          ? (await fetchMarket({ data: { symbol: pair, timeframe: standard } })).candles.slice(-span(minutes))
+          : (await fetchCustomBars({ data: { symbol: pair, minutes } })).candles.slice(-span(minutes));
         if (stop) return;
         const { analyzeMarket } = await import("@/lib/smc/engine");
         const snap = analyzeMarket(candles, null, undefined, { symbol: pair });
@@ -116,10 +116,10 @@ export function PatternOverlay({ pair, minutes, figures, divergence }: { pair: s
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, r.width, r.height);
       if (rows.length < 2 || (figs.length === 0 && lines.length === 0)) return;
-      const left = 56;
-      const right = r.width - 72;
-      const top = 36;
-      const bot = r.height - 78;
+      const left = 58;
+      const right = r.width - 68;
+      const top = 48;
+      const bot = r.height * 0.62;
       if (right - left < 40 || bot - top < 40) return;
       let min = Math.min(...rows.map((c) => c.low));
       let max = Math.max(...rows.map((c) => c.high));
@@ -140,7 +140,7 @@ export function PatternOverlay({ pair, minutes, figures, divergence }: { pair: s
       for (const fig of figs) {
         if (fig.ring.length < 2) continue;
         ctx.strokeStyle = fig.color;
-        ctx.lineWidth = 2.5;
+        ctx.lineWidth = 3.5;
         const stroke = (a: Pt, b: Pt) => {
           ctx.beginPath();
           ctx.moveTo(xOf(a.i), yOf(a.price));
@@ -148,8 +148,20 @@ export function PatternOverlay({ pair, minutes, figures, divergence }: { pair: s
           ctx.stroke();
         };
         if (fig.rails && fig.ring.length >= 4) {
-          stroke(fig.ring[0]!, fig.ring[1]!);
-          stroke(fig.ring[2]!, fig.ring[3]!);
+          const topA = fig.ring[0]!;
+          const topB = fig.ring[1]!;
+          const botA = fig.ring[2]!;
+          const botB = fig.ring[3]!;
+          ctx.beginPath();
+          ctx.moveTo(xOf(topA.i), yOf(topA.price));
+          ctx.lineTo(xOf(topB.i), yOf(topB.price));
+          ctx.lineTo(xOf(botB.i), yOf(botB.price));
+          ctx.lineTo(xOf(botA.i), yOf(botA.price));
+          ctx.closePath();
+          ctx.fillStyle = "rgba(255, 176, 32, 0.22)";
+          ctx.fill();
+          stroke(topA, topB);
+          stroke(botA, botB);
         } else {
           ctx.beginPath();
           fig.ring.forEach((pt, i) => {
@@ -188,7 +200,7 @@ export function PatternOverlay({ pair, minutes, figures, divergence }: { pair: s
         const ax = Math.min(xOf(tip.i) + 36, right - 18);
         const ay = yOf(tip.price);
         arrow(ctx, ax, ay, fig.up, fig.up ? "#26a69a" : "#f23645");
-        place(`${fig.name}, ${fig.up ? "дальше вверх" : "дальше вниз"}`, ax - 20, fig.up ? ay - 58 : ay + 64, fig.up ? "#b7f0dc" : "#ffc1c6");
+        place(`${fig.name}. ${fig.up ? "Ждём ход вверх" : "Ждём ход вниз"}`, left + 8, top + 28, fig.up ? "#b7f0dc" : "#ffd0a8");
       }
       for (const line of lines) {
         ctx.strokeStyle = line.color;
@@ -221,6 +233,13 @@ export function PatternOverlay({ pair, minutes, figures, divergence }: { pair: s
   }, [rows, lines, figs]);
 
   return <canvas ref={ref} className="pointer-events-none absolute inset-0 z-10" />;
+}
+
+function span(minutes: number) {
+  if (minutes <= 15) return 280;
+  if (minutes <= 60) return 336;
+  if (minutes <= 240) return 180;
+  return 140;
 }
 
 function plain(label: string) {
