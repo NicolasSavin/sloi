@@ -378,21 +378,22 @@ export function PlanDraw({
         return best;
       };
       const next: AutoMark[] = [];
-      for (const p of snap.patterns.slice(0, 3)) {
+      const figureColor = ["#ffb020", "#5ec8ff", "#d58bff"];
+      snap.patterns.slice(0, 3).forEach((p, n) => {
         const pts = p.points.map((pt) => ({ i: at(pt.time), price: pt.price, label: pt.label }));
-        const color = p.side === "bull" ? "#7dffa8" : "#ffb4a8";
-        const onWick = (pt: { i: number; price: number }) => wick(rows, pt.i, pt.price);
+        const color = figureColor[n] ?? "#ffb020";
+        const onWick = (pt: { i: number; price: number; label: string }) => wick(rows, pt.i, pt.price, pt.label);
         if (p.id === "wedge") {
           const top = pts.filter((pt) => pt.label === "верх");
           const bot = pts.filter((pt) => pt.label === "низ");
           if (top.length === 2) next.push({ t: "line", a: onWick(top[0]!), b: onWick(top[1]!), name: p.name, color });
           if (bot.length === 2) next.push({ t: "line", a: onWick(bot[0]!), b: onWick(bot[1]!), name: "", color });
-          continue;
+          return;
         }
         for (let i = 1; i < pts.length; i++) {
           next.push({ t: "line", a: onWick(pts[i - 1]!), b: onWick(pts[i]!), name: i === 1 ? p.name : "", color });
         }
-      }
+      });
       const order = patternOrder(rows, snap.swings, snap.atr) ?? graphicBreak(rows, snap.swings, snap.atr);
       if (order) {
         setEntry(order.entry);
@@ -576,10 +577,14 @@ function tag(ctx: CanvasRenderingContext2D, x: number, y: number, text: string, 
   ctx.fillText(text, left, y - 3);
 }
 
-function wick(rows: Candle[], i: number, price: number): Pt {
+function wick(rows: Candle[], i: number, price: number, label = ""): Pt {
   const at = Math.min(rows.length - 1, Math.max(0, Math.round(i)));
   const c = rows[at];
   if (!c) return { i: at, price };
+  const high = new Set(["T1", "T2", "голова", "H", "верх", "горб"]);
+  const low = new Set(["B1", "B2", "L", "низ", "дно", "лапа", "брюхо"]);
+  if (high.has(label)) return { i: at, price: c.high };
+  if (low.has(label)) return { i: at, price: c.low };
   return { i: at, price: Math.abs(c.high - price) <= Math.abs(c.low - price) ? c.high : c.low };
 }
 
