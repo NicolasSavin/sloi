@@ -45,7 +45,7 @@ export function MinuteChart({ pair, minutes }: { pair: string; minutes: number }
       ctx.fillRect(0, 0, w, h);
       ctx.fillStyle = "#d4d4d8";
       ctx.font = "14px sans-serif";
-      ctx.fillText(`${pair} · ${minutes} мин. Это наш график. Линии TradingView под кнопкой «К графику».`, 16, 28);
+      ctx.fillText(`${pair} · ${minutes} мин`, 16, 28);
       if (candles.length < 2) return;
       const padL = 12;
       const padR = 72;
@@ -80,7 +80,7 @@ export function MinuteChart({ pair, minutes }: { pair: string; minutes: number }
   }, [candles, pair, minutes]);
 
   return (
-    <div ref={box} className="absolute inset-0 bg-[#131722]">
+    <div ref={box} className="absolute inset-0 z-10 bg-[#131722]">
       <canvas ref={canvas} className="absolute inset-0" />
       {miss ? <p className="absolute left-4 top-12 text-sm text-rose-300">{miss}</p> : null}
     </div>

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppNav } from "@/components/app-nav";
+import { MinuteChart } from "@/components/tv/minute-chart";
 import { PlanDraw } from "@/components/tv/plan-draw";
 import { deskCommandFn } from "@/lib/desk-api";
 import { readDeskKey } from "@/lib/desk-key";
@@ -27,6 +28,7 @@ function IdeasPage() {
   const [draw, setDraw] = useState(false);
   const [full, setFull] = useState(false);
   const [typed, setTyped] = useState("");
+  const [custom, setCustom] = useState<number | null>(null);
   const screen = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -168,10 +170,12 @@ function IdeasPage() {
               const n = Math.round(Number(typed.replace(",", ".")));
               if (n < 1 || n > 1440) return;
               if (ON_CHART.has(n)) {
-                setNote(`${n} мин переключите на самом графике. Отдельный холст не открываю, линии остаются.`);
+                setCustom(null);
+                setNote(`${n} мин есть на графике TradingView. Переключите там, линии не сотрутся.`);
                 return;
               }
-              setNote(`${n} мин на этом окне нет. Если подменить график, линии сотрутся, поэтому холст не включаю.`);
+              setCustom(n);
+              setNote("");
             }}
           >
             <input
@@ -181,11 +185,30 @@ function IdeasPage() {
               placeholder="мин"
               className="h-7 w-14 rounded-sm bg-[#1e222d] px-2 text-xs outline-none"
             />
-            <button type="submit" className="h-7 rounded-sm bg-[#2a2e39] px-2 text-xs text-zinc-100">
-              Свой
+            <button type="submit" className={`h-7 rounded-sm px-2 text-xs ${custom ? "bg-amber-100 font-semibold text-zinc-900" : "bg-[#2a2e39] text-zinc-100"}`}>
+              {custom ? `${custom}м` : "Свой"}
             </button>
           </form>
-          <span className="px-2 text-xs text-zinc-400">Таймфрейм на графике, линии не стираются</span>
+          {[2, 10, 45, 90].map((n) => (
+            <button
+              key={n}
+              type="button"
+              onClick={() => {
+                setCustom(n);
+                setTyped(String(n));
+              }}
+              className={`h-7 rounded-sm px-2 text-xs ${custom === n ? "bg-amber-100 font-semibold text-zinc-900" : "bg-[#1e222d] text-zinc-200"}`}
+            >
+              {n}м
+            </button>
+          ))}
+          {custom ? (
+            <button type="button" onClick={() => setCustom(null)} className="h-7 rounded-sm bg-[#2a2e39] px-2 text-xs text-zinc-100">
+              К графику
+            </button>
+          ) : (
+            <span className="px-2 text-xs text-zinc-400">Свой шаг: 2, 10, 45, 90 или любые минуты</span>
+          )}
           <div className="ml-auto flex flex-wrap items-center gap-1">
             <select
               value={pair}
@@ -212,6 +235,7 @@ function IdeasPage() {
       )}
       <div ref={screen} className="relative min-h-0 flex-1 bg-[#131722]">
         <div ref={host} className="absolute inset-0" />
+        {custom ? <MinuteChart pair={pair} minutes={custom} /> : null}
         {full ? (
           <button type="button" onClick={() => setFull(false)} className="absolute right-3 top-2 z-30 h-8 rounded-sm bg-black/70 px-3 text-xs text-zinc-200">
             Выйти
@@ -219,7 +243,7 @@ function IdeasPage() {
         ) : null}
         {note && !draw ? <p className="pointer-events-none absolute bottom-10 right-3 z-10 rounded bg-black/80 px-3 py-1 text-xs text-amber-100">{note}</p> : null}
         {draw ? (
-          <PlanDraw pair={pair} minutes={60} busy={busy} note={note} onClose={() => setDraw(false)} onSend={(how, plan) => void sendPlan(how, plan)} />
+          <PlanDraw pair={pair} minutes={custom ?? 60} busy={busy} note={note} onClose={() => setDraw(false)} onSend={(how, plan) => void sendPlan(how, plan)} />
         ) : null}
       </div>
     </div>
