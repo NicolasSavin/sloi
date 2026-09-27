@@ -29,15 +29,17 @@ export function AppNav() {
   const menuBtn = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || !onChart) return;
+      if ((e.key !== "Escape" && e.code !== "Escape") || !onChart) return;
       e.preventDefault();
       setOpen((v) => !v);
     };
-    window.addEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, true);
+    document.addEventListener("keydown", onKey, true);
     const onMenu = () => setOpen((v) => !v);
     window.addEventListener("sloi-menu", onMenu);
     return () => {
-      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keydown", onKey, true);
+      document.removeEventListener("keydown", onKey, true);
       window.removeEventListener("sloi-menu", onMenu);
     };
   }, [onChart]);

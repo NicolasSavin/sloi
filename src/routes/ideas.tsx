@@ -157,6 +157,9 @@ function IdeasPage() {
           >
             {draw ? "Скрыть разметку" : "Найти паттерн"}
           </button>
+          <button type="button" onClick={() => window.dispatchEvent(new Event("sloi-menu"))} className="h-7 rounded-sm bg-[#2a2e39] px-2 text-xs text-zinc-100">
+            Меню
+          </button>
           <button type="button" onClick={() => setFull(true)} className="h-7 rounded-sm bg-[#2a2e39] px-2 text-xs text-zinc-100">
             F8 весь экран
           </button>
