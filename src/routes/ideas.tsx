@@ -94,7 +94,7 @@ function IdeasPage() {
   useEffect(() => {
     const root = host.current;
     if (!root) return;
-    const key = native ? `${symbol}|${interval}|lite` : "custom";
+    const key = native ? `${symbol}|${interval}|dark` : "custom";
     if (root.dataset.built === key && (native ? root.childElementCount > 0 : true)) return;
     root.dataset.built = key;
     if (!native) {
@@ -125,8 +125,8 @@ function IdeasPage() {
       theme: "dark",
       style: "1",
       locale: "ru",
-      backgroundColor: "#2a3448",
-      gridColor: "rgba(255, 255, 255, 0.1)",
+      backgroundColor: "#131722",
+      gridColor: "rgba(242, 242, 242, 0.06)",
       allow_symbol_change: true,
       hide_top_toolbar: false,
       hide_side_toolbar: false,
@@ -254,7 +254,7 @@ function IdeasPage() {
           </div>
         </div>
       )}
-      <div ref={screen} className="relative min-h-0 flex-1 bg-[#2a3448]">
+      <div ref={screen} className="relative min-h-0 flex-1 bg-[#131722]">
         <div ref={host} className="absolute inset-0" />
         {!native ? <MinuteChart pair={pair} minutes={barMinutes} /> : null}
         {full ? (
