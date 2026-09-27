@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppNav } from "@/components/app-nav";
-import { DeltaDivergence } from "@/components/tv/delta-div";
 import { MinuteChart } from "@/components/tv/minute-chart";
 import { PlanDraw } from "@/components/tv/plan-draw";
 import { deskCommandFn } from "@/lib/desk-api";
@@ -231,21 +230,18 @@ function IdeasPage() {
           </div>
         </div>
       )}
-      <div ref={screen} className="flex min-h-0 flex-1 flex-col bg-[#131722]">
-        <div className="relative min-h-0 flex-1">
-          <div ref={host} className="absolute inset-0" />
-          {custom ? <MinuteChart pair={pair} minutes={custom} /> : null}
-          {full ? (
-            <button type="button" onClick={() => setFull(false)} className="absolute right-3 top-2 z-30 h-8 rounded-sm bg-black/70 px-3 text-xs text-zinc-200">
-              Выйти
-            </button>
-          ) : null}
-          {note && !draw ? <p className="pointer-events-none absolute bottom-10 right-3 z-10 rounded bg-black/80 px-3 py-1 text-xs text-amber-100">{note}</p> : null}
-          {draw ? (
-            <PlanDraw pair={pair} minutes={custom ?? 60} busy={busy} note={note} onClose={() => setDraw(false)} onSend={(how, plan) => void sendPlan(how, plan)} />
-          ) : null}
-        </div>
-        <DeltaDivergence pair={pair} minutes={custom ?? 60} />
+      <div ref={screen} className="relative min-h-0 flex-1 bg-[#131722]">
+        <div ref={host} className="absolute inset-0" />
+        {custom ? <MinuteChart pair={pair} minutes={custom} /> : null}
+        {full ? (
+          <button type="button" onClick={() => setFull(false)} className="absolute right-3 top-2 z-30 h-8 rounded-sm bg-black/70 px-3 text-xs text-zinc-200">
+            Выйти
+          </button>
+        ) : null}
+        {note && !draw ? <p className="pointer-events-none absolute bottom-10 right-3 z-10 rounded bg-black/80 px-3 py-1 text-xs text-amber-100">{note}</p> : null}
+        {draw ? (
+          <PlanDraw pair={pair} minutes={custom ?? 60} busy={busy} note={note} onClose={() => setDraw(false)} onSend={(how, plan) => void sendPlan(how, plan)} />
+        ) : null}
       </div>
     </div>
   );

@@ -394,6 +394,18 @@ export function PlanDraw({
           next.push({ t: "line", a: onWick(pts[i - 1]!), b: onWick(pts[i]!), name: i === 1 ? p.name : "", color });
         }
       });
+      const div = snap.flow.cvdDiv;
+      const divName = div?.from && div.to ? (div.side === "bull" ? "дивер дельты бычий" : "дивер дельты медвежий") : "";
+      if (div?.from && div.to) {
+        const tip = div.side === "bull" ? "низ" : "верх";
+        next.push({
+          t: "line",
+          a: wick(rows, at(div.from.time), div.from.price, tip),
+          b: wick(rows, at(div.to.time), div.to.price, tip),
+          name: divName,
+          color: "#d6ff4a",
+        });
+      }
       const order = patternOrder(rows, snap.swings, snap.atr) ?? graphicBreak(rows, snap.swings, snap.atr);
       if (order) {
         setEntry(order.entry);
@@ -401,7 +413,7 @@ export function PlanDraw({
         setTarget(order.target);
       }
       setMarks(next);
-      const names = snap.patterns.map((p) => p.name).slice(0, 3);
+      const names = [...snap.patterns.map((p) => p.name).slice(0, 3), divName].filter(Boolean);
       setFound(names.length ? names.join(", ") : order ? order.name : "фигуры нет, на полосе зоны и уровни");
       setErr("");
     } catch {
