@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { fetchCustomBars, fetchMarket } from "@/lib/market/fetch";
 import type { Candle } from "@/lib/market/types";
-import { latestDeltaDivergence } from "@/lib/smc/delta-div";
+import { deltaDivergenceOn } from "@/lib/smc/delta-div";
 import { deltaOf } from "@/lib/smc/flow";
 
 export function DivChart({ pair, minutes }: { pair: string; minutes: number }) {
@@ -20,9 +20,7 @@ export function DivChart({ pair, minutes }: { pair: string; minutes: number }) {
           : (await fetchCustomBars({ data: { symbol: pair, minutes } })).candles;
         const view = candles.slice(-80);
         if (stop) return;
-        const { analyzeMarket } = await import("@/lib/smc/engine");
-        const snap = analyzeMarket(view, null, undefined, { symbol: pair });
-        const hit = latestDeltaDivergence(snap.swings, snap.flow.bars);
+        const hit = deltaDivergenceOn(view);
         setRows(view);
         setLine(
           hit

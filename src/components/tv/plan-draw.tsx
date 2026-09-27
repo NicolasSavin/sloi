@@ -3,7 +3,7 @@ import { fetchCustomBars, fetchMarket } from "@/lib/market/fetch";
 import type { Candle } from "@/lib/market/types";
 import { retellSketch, type SketchPiece } from "@/lib/sketch";
 import { graphicBreak, patternOrder } from "@/lib/smc/patterns";
-import { latestDeltaDivergence } from "@/lib/smc/delta-div";
+import { deltaDivergenceOn } from "@/lib/smc/delta-div";
 
 type Tool = "entry" | "stop" | "target" | "line";
 type Pt = { i: number; price: number };
@@ -395,7 +395,7 @@ export function PlanDraw({
           next.push({ t: "line", a: onWick(pts[i - 1]!), b: onWick(pts[i]!), name: i === 1 ? p.name : "", color });
         }
       });
-      const divName = deltaDivergence(snap.swings, snap.flow.bars, rows, at, next);
+      const divName = deltaDivergence(rows, at, next);
       const order = patternOrder(rows, snap.swings, snap.atr) ?? graphicBreak(rows, snap.swings, snap.atr);
       if (order) {
         setEntry(order.entry);
@@ -579,17 +579,11 @@ function tag(ctx: CanvasRenderingContext2D, x: number, y: number, text: string, 
   ctx.fillText(text, left, y - 3);
 }
 
-function deltaDivergence(
-  swings: { time: number; price: number; type: "high" | "low" }[],
-  bars: { time: number; cvd: number }[],
-  rows: Candle[],
-  at: (time: number) => number,
-  next: AutoMark[],
-) {
-  const hit = latestDeltaDivergence(swings, bars);
+function deltaDivergence(rows: Candle[], at: (time: number) => number, next: AutoMark[]) {
+  const hit = deltaDivergenceOn(rows);
   if (!hit) return "";
   const name = hit.bull ? "дивер дельты бычий" : "дивер дельты медвежий";
-  const tip = hit.bull ? "низ" : "верх";
+  const tip = hit.onHigh ? "верх" : "низ";
   next.push({
     t: "line",
     a: wick(rows, at(hit.a.time), hit.a.price, tip),
