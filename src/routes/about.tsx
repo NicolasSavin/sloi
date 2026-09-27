@@ -9,6 +9,11 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.11.6",
+    d: "2026-09-27",
+    items: ["Кнопка «Дельта» ставит на график Cumulative Volume Delta Divergence от TradingFinder"],
+  },
+  {
     v: "1.11.5",
     d: "2026-09-27",
     items: ["Фигура рисуется по тем же двум неделям, что на графике, и лежит на свечах, а не в пустом месте"],
