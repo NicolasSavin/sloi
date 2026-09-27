@@ -257,9 +257,9 @@ function IdeasPage() {
         <div className={draw ? "absolute inset-x-0 top-0 bottom-52 flex flex-col" : "absolute inset-0 flex flex-col"}>
           <div className="relative min-h-[420px] min-w-0 flex-1">
             <iframe
-              key={`${symbol}|${step}|${deltaOpen ? "cvd" : "plain"}`}
+              key={`${symbol}|${step}|cvd|${deltaOpen ? "vol" : "novol"}`}
               title="График TradingView"
-              src={tvWidgetSrc(pair, ON_CHART.has(step) ? String(step) : "60", !deltaOpen, deltaOpen ? ["PUB;HvOAnchA"] : [])}
+              src={tvWidgetSrc(pair, ON_CHART.has(step) ? String(step) : "60", !deltaOpen, ["PUB;HvOAnchA"])}
               className="absolute inset-0 h-full w-full border-0"
             />
             {(draw || deltaOpen) && !mark ? <PatternOverlay pair={pair} minutes={step} figures={draw} divergence={deltaOpen} /> : null}
