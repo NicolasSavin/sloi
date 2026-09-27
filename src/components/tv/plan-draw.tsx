@@ -640,12 +640,17 @@ function wick(rows: Candle[], i: number, price: number, label = ""): Pt {
   return { i: at, price: Math.abs(c.high - price) <= Math.abs(c.low - price) ? c.high : c.low };
 }
 
-function axes(w: number, h: number, candles: Candle[], _extra: Array<number | null>) {
+function axes(w: number, h: number, candles: Candle[], extra: Array<number | null>) {
   const start = Math.max(0, candles.length - VIEW);
   const rows = candles.slice(start);
-  const { min, max } = span(rows.length ? rows : candles, []);
-  const top = 28;
-  const bottom = 24;
+  const raw = rows.length ? rows : candles;
+  const lo = Math.min(...raw.map((c) => c.low));
+  const hi = Math.max(...raw.map((c) => c.high));
+  const room = hi - lo || Math.abs(hi) * 0.01 || 1;
+  const near = extra.filter((n): n is number => n != null && Number.isFinite(n) && n > lo - room * 0.4 && n < hi + room * 0.4);
+  const { min, max } = span(raw, near);
+  const top = 36;
+  const bottom = 132;
   const plotRight = RIGHT;
   const xOf = (i: number) => {
     const local = i - start;
