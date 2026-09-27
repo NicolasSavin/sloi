@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.10.46",
+    d: "2026-09-27",
+    items: [
+      "«Рисовать» не подменяет график. Линия, объём и свечи TradingView остаются как были",
+    ],
+  },
+  {
     v: "1.10.45",
     d: "2026-09-27",
     items: [

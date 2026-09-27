@@ -483,16 +483,8 @@ export function PlanDraw({
 
   return (
     <>
-      <div ref={box} className="pointer-events-none absolute inset-0 z-20">
-        <canvas
-          ref={canvas}
-          onClick={click}
-          onMouseDown={down}
-          onMouseMove={move}
-          onMouseUp={up}
-          onMouseLeave={up}
-          className={`absolute inset-0 ${tool === "line" || tool === "entry" || tool === "stop" || tool === "target" ? "pointer-events-auto cursor-crosshair" : "pointer-events-none"}`}
-        />
+      <div ref={box} className="pointer-events-none fixed -left-[2400px] top-0 h-[420px] w-[800px]">
+        <canvas ref={canvas} className="h-[420px] w-[800px]" />
       </div>
       <div className="fixed inset-x-0 bottom-0 z-[90] border-t border-white/10 bg-[#131722]/95 px-3 py-2">
         <div className="flex flex-wrap items-center gap-2">
