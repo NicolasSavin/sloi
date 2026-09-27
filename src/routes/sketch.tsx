@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AppNav } from "@/components/app-nav";
 import { deskCommandFn } from "@/lib/desk-api";
 import { readDeskKey } from "@/lib/desk-key";
@@ -121,6 +121,36 @@ function SketchPage() {
     });
   }
 
+  const take = useRef(onFile);
+  take.current = onFile;
+
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const file = [...(e.clipboardData?.items ?? [])].find((item) => item.type.startsWith("image/"))?.getAsFile();
+      if (!file) return;
+      e.preventDefault();
+      take.current(file);
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, []);
+
+  async function fromClipboard() {
+    try {
+      const items = await navigator.clipboard.read();
+      for (const item of items) {
+        const type = item.types.find((t) => t.startsWith("image/"));
+        if (!type) continue;
+        const blob = await item.getType(type);
+        onFile(new File([blob], "chart.png", { type }));
+        return;
+      }
+      setMiss("В буфере нет картинки. Скопируйте график и нажмите ещё раз.");
+    } catch {
+      setMiss("Браузер не отдал буфер. Скопируйте график и нажмите Ctrl+V на этой странице.");
+    }
+  }
+
   async function publish() {
     if (!image) {
       setMiss("Сначала скиньте график. Статья может собраться с самой картинки.");
@@ -200,7 +230,7 @@ function SketchPage() {
         <div className="mt-6 grid gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:grid-cols-2">
           <label className="flex min-h-40 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed border-amber-200/30 bg-black/30 px-4 text-center text-sm text-muted">
             <input type="file" accept="image/*" className="sr-only" onChange={(e) => onFile(e.target.files?.[0])} />
-            {image ? <img src={image} alt="" className="max-h-36 w-full object-contain" /> : "Скинуть график"}
+            {image ? <img src={image} alt="" className="max-h-36 w-full object-contain" /> : "Скинуть график или Ctrl+V"}
           </label>
           <div className="flex flex-col gap-3">
             <input
@@ -216,6 +246,9 @@ function SketchPage() {
               placeholder="Можно оставить пустым. Тогда статья будет только с графика."
               className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm outline-none focus:border-amber-200/40"
             />
+            <button type="button" onClick={() => void fromClipboard()} className="h-11 rounded-sm border border-white/15 text-sm text-zinc-100">
+              Вставить из буфера
+            </button>
             <button type="button" disabled={busy} onClick={() => void publish()} className="btn-metal h-11 rounded-sm text-sm font-medium text-accent-fg disabled:opacity-60">
               Добавить заметку
             </button>
