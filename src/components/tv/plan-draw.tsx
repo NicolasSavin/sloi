@@ -25,7 +25,7 @@ export function PlanDraw({
   busy,
   note,
   seek,
-  onClose,
+  dock,
   onSend,
 }: {
   pair: string;
@@ -33,13 +33,14 @@ export function PlanDraw({
   busy: boolean;
   note: string;
   seek: boolean;
+  dock?: boolean;
   onClose: () => void;
   onSend: (how: "now" | "limit", plan: { side: "buy" | "sell"; entry: number; stop: number; target: number }) => void;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [candles, setCandles] = useState<Candle[]>([]);
-  const [tool, setTool] = useState<Tool>("line");
+  const [tool] = useState<Tool>("line");
   const [entry, setEntry] = useState<number | null>(null);
   const [stop, setStop] = useState<number | null>(null);
   const [target, setTarget] = useState<number | null>(null);
@@ -101,6 +102,12 @@ export function PlanDraw({
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, h);
       if (candles.length < 2) return;
+      if (dock) {
+        ctx.fillStyle = "#131722";
+        ctx.fillRect(0, 0, w, h);
+        paintDeltaDock(ctx, w, h, candles, marks);
+        return;
+      }
       const extra = [
         entry,
         stop,
@@ -203,7 +210,7 @@ export function PlanDraw({
     const ro = new ResizeObserver(paint);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [candles, entry, stop, target, lines, marks, pick, draft]);
+  }, [candles, entry, stop, target, lines, marks, pick, draft, dock]);
 
   function at(e: MouseEvent<HTMLCanvasElement>): Pt | null {
     const el = box.current;
@@ -524,14 +531,15 @@ export function PlanDraw({
   useEffect(() => {
     if (!seek) {
       setMarks([]);
-      setFound("График открыт. Линия, вход, стоп и тейк ставятся на свечи. Приказ уходит советнику, в заметку — только кнопка «В заметку».");
+      setFound("На графике TradingView размечайте сами. «Найти паттерн» поставит дивер на дельту и цены приказа. В заметку это не уходит.");
       return;
     }
     void findPattern();
   }, [pair, minutes, seek]);
 
   return (
-    <>
+    <div className={dock ? "relative z-20 shrink-0 border-t border-white/10 bg-[#131722]" : "contents"}>
+      {dock ? null : (
       <div ref={box} className="pointer-events-none absolute inset-0 z-20">
         <canvas
           ref={canvas}
@@ -543,13 +551,16 @@ export function PlanDraw({
           className={`absolute inset-0 ${tool === "line" || tool === "entry" || tool === "stop" || tool === "target" ? "pointer-events-auto cursor-crosshair" : "pointer-events-none"}`}
         />
       </div>
-      <div className="fixed inset-x-0 bottom-0 z-[90] border-t border-white/10 bg-[#131722]/95 px-3 py-2">
+      )}
+      {dock ? (
+        <div ref={box} className="h-28">
+          <canvas ref={canvas} className="h-full w-full" />
+        </div>
+      ) : null}
+      <div className={dock ? "px-3 py-2" : "fixed inset-x-0 bottom-0 z-[90] border-t border-white/10 bg-[#131722]/95 px-3 py-2"}>
       <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs tracking-[0.16em] text-amber-100/80">{pair}</span>
-          <Tool name="Вход" on={tool === "entry"} click={() => setTool("entry")} />
-          <Tool name="Стоп" on={tool === "stop"} click={() => setTool("stop")} />
-          <Tool name="Тейк" on={tool === "target"} click={() => setTool("target")} />
-          <Tool name="Линия" on={tool === "line"} click={() => setTool("line")} />
+          <span className="text-xs text-zinc-400">Линии ставьте на графике TradingView слева</span>
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <button type="button" disabled={busy || reading} onClick={() => void asNote()} className="h-8 rounded-sm bg-[#2a2e39] px-3 text-sm text-zinc-100 disabled:opacity-60">
               {reading ? "Пишу…" : "В заметку"}
@@ -562,6 +573,7 @@ export function PlanDraw({
             </button>
           </div>
         </div>
+        {dock ? null : (
         <textarea
           value={words}
           onChange={(e) => setWords(e.target.value)}
@@ -569,6 +581,7 @@ export function PlanDraw({
           placeholder="Текст заметки. На приказ брокеру не влияет."
           className="mt-2 w-full rounded-sm border border-white/10 bg-black/40 px-2 py-1 text-sm outline-none"
         />
+        )}
         {story ? (
           <div className="mt-2 text-sm text-zinc-200">
             <p className="font-semibold">{story.title}</p>
@@ -582,15 +595,7 @@ export function PlanDraw({
           </p>
         )}
       </div>
-    </>
-  );
-}
-
-function Tool({ name, on, click }: { name: string; on: boolean; click: () => void }) {
-  return (
-    <button type="button" onClick={click} className={`h-8 rounded-sm px-2 text-xs ${on ? "bg-amber-100 text-zinc-900" : "bg-[#1e222d] text-zinc-200"}`}>
-      {name}
-    </button>
+    </div>
   );
 }
 
@@ -651,6 +656,49 @@ function dot(ctx: CanvasRenderingContext2D, x: number, y: number, color: string)
   ctx.strokeStyle = "#131722";
   ctx.stroke();
   ctx.lineWidth = 1;
+}
+
+function paintDeltaDock(ctx: CanvasRenderingContext2D, w: number, h: number, candles: Candle[], marks: AutoMark[]) {
+  const rows = candles.slice(-80);
+  if (rows.length < 2) return;
+  const start = candles.length - rows.length;
+  const deltas = rows.map((c) => deltaOf(c));
+  const peak = Math.max(...deltas.map((d) => Math.abs(d)), 1);
+  const top = 6;
+  const bot = h - 6;
+  const mid = (top + bot) / 2;
+  const room = (bot - top) / 2 - 4;
+  const slot = (w - LEFT - RIGHT) / rows.length;
+  const xOf = (i: number) => LEFT + ((w - LEFT - RIGHT) * (i - start)) / Math.max(rows.length - 1, 1);
+  ctx.font = "12px sans-serif";
+  ctx.fillStyle = "#c8d0dc";
+  ctx.fillText("дельта объёма", LEFT + 4, top + 12);
+  rows.forEach((_, n) => {
+    const d = deltas[n] ?? 0;
+    const x = xOf(start + n);
+    const bh = (Math.abs(d) / peak) * room;
+    ctx.fillStyle = d >= 0 ? "#26a69a" : "#ef5350";
+    ctx.fillRect(x - Math.max(slot * 0.28, 1), d >= 0 ? mid - bh : mid, Math.max(slot * 0.56, 2), Math.max(bh, 1));
+  });
+  for (const m of marks) {
+    if (m.t !== "line" || !m.name.startsWith("дивер")) continue;
+    const da = deltas[m.a.i - start];
+    const db = deltas[m.b.i - start];
+    if (da == null || db == null) continue;
+    const y = (d: number) => {
+      const bh = (Math.abs(d) / peak) * room;
+      return d >= 0 ? mid - bh : mid + bh;
+    };
+    ctx.strokeStyle = "#d6ff4a";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(xOf(m.a.i), y(da));
+    ctx.lineTo(xOf(m.b.i), y(db));
+    ctx.stroke();
+    ctx.fillStyle = "#d6ff4a";
+    ctx.font = "bold 12px sans-serif";
+    ctx.fillText(m.name, LEFT + 4, bot - 4);
+  }
 }
 
 function paintDelta(

@@ -64,7 +64,7 @@ function IdeasPage() {
   useEffect(() => {
     const root = host.current;
     if (!root) return;
-    const key = `${symbol}|div2`;
+    const key = `${symbol}|${step}`;
     if (root.dataset.built === key && root.childElementCount > 0) return;
     root.dataset.built = key;
     root.replaceChildren();
@@ -86,7 +86,7 @@ function IdeasPage() {
     script.innerHTML = JSON.stringify({
       autosize: true,
       symbol,
-      interval: "60",
+      interval: ON_CHART.has(step) ? String(step) : "60",
       timezone: "Asia/Dubai",
       theme: "dark",
       style: "1",
@@ -100,12 +100,12 @@ function IdeasPage() {
       withdateranges: true,
       details: false,
       save_image: true,
-      studies: ["Volume Delta@tv-basicstudies"],
+      studies: ["Volume@tv-basicstudies", "Volume Delta@tv-basicstudies"],
       support_host: "https://www.tradingview.com",
     });
     box.append(pane, copy, script);
     root.append(box);
-  }, [symbol]);
+  }, [symbol, step]);
 
   async function send(kind: "BUY" | "SELL" | "CLOSE") {
     if (!key) {
@@ -233,9 +233,9 @@ function IdeasPage() {
           </div>
         </div>
       )}
-      <div ref={screen} className="relative min-h-0 flex-1 bg-[#131722]">
-        <div ref={host} className="absolute inset-0" />
-        <PlanDraw pair={pair} minutes={step} busy={busy} note={note} seek={draw} onClose={() => setDraw(false)} onSend={(how, plan) => void sendPlan(how, plan)} />
+      <div ref={screen} className="flex min-h-0 flex-1 flex-col bg-[#131722]">
+        <div ref={host} className="relative min-h-0 flex-1" />
+        <PlanDraw dock pair={pair} minutes={step} busy={busy} note={note} seek={draw} onClose={() => setDraw(false)} onSend={(how, plan) => void sendPlan(how, plan)} />
         {full ? (
           <button type="button" onClick={() => setFull(false)} className="absolute right-3 top-2 z-30 h-8 rounded-sm bg-black/70 px-3 text-xs text-zinc-200">
             Выйти
