@@ -4,6 +4,7 @@ import type { Candle } from "@/lib/market/types";
 import { deltaDivergenceOn } from "@/lib/smc/delta-div";
 
 type Pt = { i: number; price: number; label: string };
+type Fig = { name: string; color: string; up: boolean; ring: Pt[]; neck: [Pt, Pt] | null };
 type Line = { a: Pt; b: Pt; name: string; color: string };
 
 const TF = { 5: "5m", 15: "15m", 60: "1h", 240: "4h", 1440: "1d" } as const;
@@ -12,6 +13,7 @@ const TF = { 5: "5m", 15: "15m", 60: "1h", 240: "4h", 1440: "1d" } as const;
 export function PatternOverlay({ pair, minutes }: { pair: string; minutes: number }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const [rows, setRows] = useState<Candle[]>([]);
+  const [figs, setFigs] = useState<Fig[]>([]);
   const [lines, setLines] = useState<Line[]>([]);
 
   useEffect(() => {
@@ -37,32 +39,42 @@ export function PatternOverlay({ pair, minutes }: { pair: string; minutes: numbe
           });
           return best;
         };
-        const next: Line[] = [];
+        const next: Fig[] = [];
         const colors = ["#ffb020", "#5ec8ff", "#d58bff"];
-        const picked = [...snap.patterns].sort((a, b) => rank(a.id) - rank(b.id)).slice(0, 2);
+        const picked = [...snap.patterns].sort((a, b) => rank(a.id) - rank(b.id)).slice(0, 3);
         for (const [n, p] of picked.entries()) {
           const color = colors[n] ?? "#ffb020";
           const ordered = p.points
             .map((pt) => wick(candles, at(pt.time), pt.price, pt.label))
             .sort((a, b) => a.i - b.i);
+          const up = p.side === "bull";
           if (p.id === "wedge" || p.id === "tri" || p.id === "exp") {
             const top = ordered.filter((pt) => pt.label === "верх");
             const bot = ordered.filter((pt) => pt.label === "низ");
-            const chain = (side: Pt[], title: string) => {
-              for (let i = 1; i < side.length; i++) next.push({ a: side[i - 1]!, b: side[i]!, name: i === 1 ? title : "", color });
-            };
-            chain(top, p.name);
-            chain(bot, "");
-          } else {
-            const body = ordered.filter((pt) => pt.label !== "шея");
-            for (let i = 1; i < body.length; i++) next.push({ a: body[i - 1]!, b: body[i]!, name: i === 1 ? p.name : body[i - 1]!.label, color });
-            const neck = ordered.filter((pt) => pt.label === "шея");
-            if (neck.length === 2) next.push({ a: neck[0]!, b: neck[1]!, name: "шея", color });
+            if (top.length >= 2 && bot.length >= 2) {
+              next.push({
+                name: p.name,
+                color,
+                up,
+                ring: [top[0]!, top[top.length - 1]!, bot[bot.length - 1]!, bot[0]!],
+                neck: null,
+              });
+            }
+            continue;
           }
+          const neckPts = ordered.filter((pt) => pt.label === "шея");
+          next.push({
+            name: p.name,
+            color,
+            up,
+            ring: ordered,
+            neck: neckPts.length >= 2 ? [neckPts[0]!, neckPts[neckPts.length - 1]!] : null,
+          });
         }
+        const extra: Line[] = [];
         const div = deltaDivergenceOn(candles);
         if (div) {
-          next.push({
+          extra.push({
             a: wick(candles, at(div.a.time), div.a.price, div.onHigh ? "верх" : "низ"),
             b: wick(candles, at(div.b.time), div.b.price, div.onHigh ? "верх" : "низ"),
             name: div.bull ? "дивер дельты вверх" : "дивер дельты вниз",
@@ -70,9 +82,13 @@ export function PatternOverlay({ pair, minutes }: { pair: string; minutes: numbe
           });
         }
         setRows(candles);
-        setLines(next);
+        setFigs(next);
+        setLines(extra);
       } catch {
-        if (!stop) setLines([]);
+        if (!stop) {
+          setFigs([]);
+          setLines([]);
+        }
       }
     })();
     return () => {
@@ -95,7 +111,7 @@ export function PatternOverlay({ pair, minutes }: { pair: string; minutes: numbe
       if (!ctx) return;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, r.width, r.height);
-      if (rows.length < 2 || lines.length === 0) return;
+      if (rows.length < 2 || (figs.length === 0 && lines.length === 0)) return;
       const left = 56;
       const right = r.width - 72;
       const top = 36;
@@ -108,6 +124,52 @@ export function PatternOverlay({ pair, minutes }: { pair: string; minutes: numbe
       max += pad;
       const xOf = (i: number) => left + ((right - left) * i) / (rows.length - 1);
       const yOf = (price: number) => top + ((max - price) / (max - min)) * (bot - top);
+      const label = (text: string, x: number, y: number, color: string) => {
+        ctx.font = "bold 13px sans-serif";
+        const w = ctx.measureText(text).width;
+        const lx = Math.min(Math.max(left, x), right - w - 8);
+        ctx.fillStyle = "rgba(12, 16, 24, 0.86)";
+        ctx.fillRect(lx - 4, y - 14, w + 8, 18);
+        ctx.fillStyle = color;
+        ctx.fillText(text, lx, y);
+      };
+      for (const fig of figs) {
+        if (fig.ring.length < 2) continue;
+        ctx.strokeStyle = fig.color;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        fig.ring.forEach((pt, i) => {
+          const x = xOf(pt.i);
+          const y = yOf(pt.price);
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        if (fig.ring.length <= 4) ctx.closePath();
+        ctx.stroke();
+        ctx.fillStyle = fig.color;
+        for (const pt of fig.ring) {
+          ctx.beginPath();
+          ctx.arc(xOf(pt.i), yOf(pt.price), 4, 0, Math.PI * 2);
+          ctx.fill();
+          if (pt.label && pt.label !== "верх" && pt.label !== "низ" && pt.label !== "шея") {
+            label(pt.label, xOf(pt.i) + 8, yOf(pt.price) - 8, fig.color);
+          }
+        }
+        if (fig.neck) {
+          ctx.setLineDash([6, 4]);
+          ctx.beginPath();
+          ctx.moveTo(xOf(fig.neck[0].i), yOf(fig.neck[0].price));
+          ctx.lineTo(xOf(fig.neck[1].i), yOf(fig.neck[1].price));
+          ctx.stroke();
+          ctx.setLineDash([]);
+          label("шея", xOf(fig.neck[1].i) + 8, yOf(fig.neck[1].price) + 16, fig.color);
+        }
+        const tip = fig.ring.reduce((a, b) => (a.i > b.i ? a : b));
+        const ax = Math.min(xOf(tip.i) + 28, right - 16);
+        const ay = yOf(tip.price);
+        arrow(ctx, ax, ay, fig.up, fig.up ? "#26a69a" : "#f23645");
+        label(`${fig.name}: ${fig.up ? "вверх" : "вниз"}`, ax - 10, fig.up ? ay - 54 : ay + 62, fig.up ? "#b7f0dc" : "#ffc1c6");
+      }
       for (const line of lines) {
         ctx.strokeStyle = line.color;
         ctx.lineWidth = 2.5;
@@ -136,9 +198,27 @@ export function PatternOverlay({ pair, minutes }: { pair: string; minutes: numbe
     const ro = new ResizeObserver(paint);
     ro.observe(parent);
     return () => ro.disconnect();
-  }, [rows, lines]);
+  }, [rows, lines, figs]);
 
   return <canvas ref={ref} className="pointer-events-none absolute inset-0 z-10" />;
+}
+
+function arrow(ctx: CanvasRenderingContext2D, x: number, y: number, up: boolean, color: string) {
+  const dir = up ? -1 : 1;
+  const len = 42;
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x, y + dir * len);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x, y + dir * len);
+  ctx.lineTo(x - 8, y + dir * (len - 14));
+  ctx.lineTo(x + 8, y + dir * (len - 14));
+  ctx.closePath();
+  ctx.fill();
 }
 
 function rank(id: string) {
