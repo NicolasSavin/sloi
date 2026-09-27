@@ -394,18 +394,7 @@ export function PlanDraw({
           next.push({ t: "line", a: onWick(pts[i - 1]!), b: onWick(pts[i]!), name: i === 1 ? p.name : "", color });
         }
       });
-      const div = snap.flow.cvdDiv;
-      const divName = div?.from && div.to ? (div.side === "bull" ? "дивер дельты бычий" : "дивер дельты медвежий") : "";
-      if (div?.from && div.to) {
-        const tip = div.side === "bull" ? "низ" : "верх";
-        next.push({
-          t: "line",
-          a: wick(rows, at(div.from.time), div.from.price, tip),
-          b: wick(rows, at(div.to.time), div.to.price, tip),
-          name: divName,
-          color: "#d6ff4a",
-        });
-      }
+      const divName = deltaDivergence(snap.swings, snap.flow.bars, rows, at, next);
       const order = patternOrder(rows, snap.swings, snap.atr) ?? graphicBreak(rows, snap.swings, snap.atr);
       if (order) {
         setEntry(order.entry);
@@ -587,6 +576,49 @@ function tag(ctx: CanvasRenderingContext2D, x: number, y: number, text: string, 
   ctx.fillRect(left - 4, y - 16, width + 8, 18);
   ctx.fillStyle = color;
   ctx.fillText(text, left, y - 3);
+}
+
+function deltaDivergence(
+  swings: { time: number; price: number; type: "high" | "low" }[],
+  bars: { time: number; cvd: number }[],
+  rows: Candle[],
+  at: (time: number) => number,
+  next: AutoMark[],
+) {
+  if (bars.length < 4) return "";
+  const cvdAt = (time: number) => {
+    let best = bars[0]!;
+    let dist = Infinity;
+    for (const bar of bars) {
+      const d = Math.abs(bar.time - time);
+      if (d < dist) {
+        dist = d;
+        best = bar;
+      }
+    }
+    return best.cvd;
+  };
+  const mark = (a: { time: number; price: number }, b: { time: number; price: number }, bull: boolean) => {
+    const name = bull ? "дивер дельты бычий" : "дивер дельты медвежий";
+    const tip = bull ? "низ" : "верх";
+    next.push({
+      t: "line",
+      a: wick(rows, at(a.time), a.price, tip),
+      b: wick(rows, at(b.time), b.price, tip),
+      name,
+      color: "#d6ff4a",
+    });
+    return name;
+  };
+  const highs = swings.filter((s) => s.type === "high").slice(-2);
+  const lows = swings.filter((s) => s.type === "low").slice(-2);
+  if (highs.length === 2 && highs[1]!.price > highs[0]!.price && cvdAt(highs[1]!.time) < cvdAt(highs[0]!.time)) {
+    return mark(highs[0]!, highs[1]!, false);
+  }
+  if (lows.length === 2 && lows[1]!.price < lows[0]!.price && cvdAt(lows[1]!.time) > cvdAt(lows[0]!.time)) {
+    return mark(lows[0]!, lows[1]!, true);
+  }
+  return "";
 }
 
 function wick(rows: Candle[], i: number, price: number, label = ""): Pt {
