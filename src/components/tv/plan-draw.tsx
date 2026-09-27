@@ -12,7 +12,7 @@ type AutoMark =
   | { t: "zone"; a: number; b: number; top: number; bot: number; name: string; color: string }
   | { t: "h"; price: number; name: string; color: string }
   | { t: "line"; a: Pt; b: Pt; name: string; color: string }
-  | { t: "poly"; pts: Pt[]; color: string };
+  | { t: "poly"; pts: Pt[]; color: string; title?: string };
 
 const LEFT = 12;
 const RIGHT = 70;
@@ -131,15 +131,6 @@ export function PlanDraw({
       const seen = start + rows.length;
       const inside = (i: number) => i >= start && i < seen;
       for (const m of marks) {
-        if (m.t !== "line" || m.name.startsWith("дивер")) continue;
-        drawLine(ctx, xOf(m.a.i), yOf(m.a.price), xOf(m.b.i), yOf(m.b.price), m.color);
-        dot(ctx, xOf(m.a.i), yOf(m.a.price), m.color);
-        dot(ctx, xOf(m.b.i), yOf(m.b.price), m.color);
-        if (!m.name) continue;
-        tag(ctx, xOf(m.a.i), yOf(m.a.price) - 16, m.name, m.color);
-      }
-      const divs = marks.filter((m) => m.t === "line" && m.name.startsWith("дивер"));
-      for (const m of marks) {
         if (m.t !== "poly" || m.pts.length < 3) continue;
         ctx.beginPath();
         m.pts.forEach((p, i) => (i ? ctx.lineTo(xOf(p.i), yOf(p.price)) : ctx.moveTo(xOf(p.i), yOf(p.price))));
@@ -147,6 +138,24 @@ export function PlanDraw({
         ctx.fillStyle = `${m.color}33`;
         ctx.fill();
       }
+      const captions: Array<{ x: number; y: number; text: string; color: string }> = [];
+      for (const m of marks) {
+        if (m.t === "poly" && m.title && m.pts.length >= 3) {
+          const x = m.pts.reduce((s, p) => s + xOf(p.i), 0) / m.pts.length;
+          const y = Math.min(...m.pts.map((p) => yOf(p.price))) - 36;
+          captions.push({ x, y, text: m.title, color: m.color });
+        }
+      }
+      for (const m of marks) {
+        if (m.t !== "line" || m.name.startsWith("дивер")) continue;
+        drawLine(ctx, xOf(m.a.i), yOf(m.a.price), xOf(m.b.i), yOf(m.b.price), m.color);
+        dot(ctx, xOf(m.a.i), yOf(m.a.price), m.color);
+        dot(ctx, xOf(m.b.i), yOf(m.b.price), m.color);
+        if (!m.name) continue;
+        captions.push({ x: xOf(m.a.i), y: yOf(m.a.price) - 18, text: speak(m.name), color: m.color });
+      }
+      placeTags(ctx, captions);
+      const divs = marks.filter((m) => m.t === "line" && m.name.startsWith("дивер"));
       ctx.font = "bold 16px sans-serif";
       ctx.fillStyle = "#d6ff4a";
       ctx.fillText(divs[0]?.t === "line" ? divs[0].name : "дивергенции дельты нет", 16, 26);
@@ -413,7 +422,8 @@ export function PlanDraw({
       };
       const next: AutoMark[] = [];
       const figureColor = ["#ffb020", "#5ec8ff", "#d58bff"];
-      snap.patterns.slice(0, 3).forEach((p, n) => {
+      const picked = [...snap.patterns].sort((a, b) => rank(a.id) - rank(b.id)).slice(0, 2);
+      picked.forEach((p, n) => {
         const pts = p.points.map((pt) => ({ i: at(pt.time), price: pt.price, label: pt.label }));
         const color = figureColor[n] ?? "#ffb020";
         const onWick = (pt: { i: number; price: number; label: string }) => wick(rows, pt.i, pt.price, pt.label);
@@ -429,7 +439,7 @@ export function PlanDraw({
           chain(top, p.name);
           chain(bot, "");
           const ring = [...top, ...[...bot].reverse()].map(onWick);
-          if (ring.length >= 3) next.push({ t: "poly", pts: ring, color });
+          if (ring.length >= 3) next.push({ t: "poly", pts: ring, color, title: p.name });
           if (top.length >= 2 && bot.length >= 2) {
             next.push({ t: "line", a: onWick(top[0]!), b: onWick(bot[0]!), name: "", color });
             next.push({ t: "line", a: onWick(top[top.length - 1]!), b: onWick(bot[bot.length - 1]!), name: "", color });
@@ -437,7 +447,7 @@ export function PlanDraw({
           return;
         }
         const shape = ordered.filter((pt) => pt.label !== "шея").map(onWick);
-        if (shape.length >= 3) next.push({ t: "poly", pts: shape, color });
+        if (shape.length >= 3) next.push({ t: "poly", pts: shape, color, title: p.name });
         const body = ordered.filter((pt) => pt.label !== "шея");
         for (let i = 1; i < body.length; i++) {
           next.push({ t: "line", a: onWick(body[i - 1]!), b: onWick(body[i]!), name: body[i - 1]!.label, color });
@@ -635,6 +645,36 @@ function dot(ctx: CanvasRenderingContext2D, x: number, y: number, color: string)
   ctx.strokeStyle = "#131722";
   ctx.stroke();
   ctx.lineWidth = 1;
+}
+
+function rank(id: string) {
+  if (id === "dragon" || id === "idragon") return 0;
+  if (id === "hs" || id === "ihs") return 1;
+  return 2;
+}
+
+function speak(name: string) {
+  if (name === "B1") return "левое дно";
+  if (name === "B2") return "правое дно";
+  if (name === "T1") return "левая вершина";
+  if (name === "T2") return "правая вершина";
+  return name;
+}
+
+function placeTags(ctx: CanvasRenderingContext2D, items: Array<{ x: number; y: number; text: string; color: string }>) {
+  const used: Array<{ x: number; y: number; w: number }> = [];
+  for (const item of items) {
+    ctx.font = "bold 13px sans-serif";
+    const w = ctx.measureText(item.text).width + 10;
+    let y = item.y;
+    for (let n = 0; n < 6; n++) {
+      const hit = used.some((r) => Math.abs(r.x - item.x) < (r.w + w) / 2 && Math.abs(r.y - y) < 18);
+      if (!hit) break;
+      y -= 18;
+    }
+    tag(ctx, item.x, y, item.text, item.color);
+    used.push({ x: item.x, y, w });
+  }
 }
 
 function tag(ctx: CanvasRenderingContext2D, x: number, y: number, text: string, color: string) {
