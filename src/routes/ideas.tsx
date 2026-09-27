@@ -62,7 +62,7 @@ function IdeasPage() {
   useEffect(() => {
     const root = host.current;
     if (!root) return;
-    const key = `${symbol}|vd`;
+    const key = `${symbol}|div`;
     if (root.dataset.built === key && root.childElementCount > 0) return;
     root.dataset.built = key;
     root.replaceChildren();
@@ -99,10 +99,8 @@ function IdeasPage() {
       details: false,
       save_image: true,
       studies: [
-        "Volume@tv-basicstudies",
         "Volume Delta@tv-basicstudies",
-        "VolumeDelta@tv-basicstudies",
-        "Cumulative Volume Delta@tv-basicstudies",
+        "Script$PUB;V5NHdMI3@tv-scripting-101",
       ],
       support_host: "https://www.tradingview.com",
     });
