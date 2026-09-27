@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.41"
+#property version   "5.42"
 #property strict
-#property description "SLOI 5.41: с графика можно войти сразу или лимиткой на уровне"
+#property description "SLOI 5.42: лот с графика сайта"
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -2669,7 +2669,7 @@ void ManualTrade(int dir)
    TryTrade(Symbol(), dir, 0);
   }
 
-int ManualTradeSym(string s, int dir, double forceTp = 0)
+int ManualTradeSym(string s, int dir, double forceTp = 0, double lotsOverride = 0)
   {
    SymbolSelect(s, true);
    RefreshRates();
@@ -2687,7 +2687,7 @@ int ManualTradeSym(string s, int dir, double forceTp = 0)
    string verdict, why;
    int lim = 0;
    ReadSite(Naked(s), d, entry, stop, target, siteLast, verdict, why, skewCap, lim);
-   double lots = LotFor(s, entry, stop);
+   double lots = (lotsOverride > 0 ? lotsOverride : LotFor(s, entry, stop));
    double sl = (stop > 0 ? NormalizeDouble(stop, DigitsOf(s)) : 0);
    double tp = (target > 0 ? NormalizeDouble(target, DigitsOf(s)) : 0);
    if(forceTp > 0 && ((dir > 0 && forceTp > px) || (dir < 0 && forceTp < px)))
@@ -2730,7 +2730,7 @@ void CloseByNaked(string naked)
    Alert("SLOI сайт закрыть ", naked, " ", n);
   }
 
-int ChartOrder(string naked, int dir, double entry, double stop, double tp, int how)
+int ChartOrder(string naked, int dir, double entry, double stop, double tp, int how, double lotsOverride = 0)
   {
    if(entry <= 0 || stop <= 0 || tp <= 0) return(0);
    string s = naked;
@@ -2813,7 +2813,7 @@ int ChartOrder(string naked, int dir, double entry, double stop, double tp, int 
          target = tp - (entry - bid);
         }
      }
-   double lots = LotFor(s, px, sl);
+   double lots = (lotsOverride > 0 ? lotsOverride : LotFor(s, px, sl));
    int ticket = SendOrder(s, cmd, lots, px, sl, target, "SLOI chart", dir > 0 ? C_BUY : C_SEL);
    if(ticket > 0) Alert("SLOI график ", (dir > 0 ? "ПОКУПКА " : "ПРОДАЖА "), s, " #", ticket);
    else Print("SLOI график ", s, " err ", GetLastError());
@@ -2842,11 +2842,13 @@ void ApplySiteCommands()
       double chartEntry = 0;
       double chartStop = 0;
       int chartHow = -1;
+      double chartLots = 0;
       for(int t = 4; t < k - 1; t++)
         {
          if(p[t] == "TP") forceTp = StringToDouble(p[t + 1]);
          else if(p[t] == "ENTRY") chartEntry = StringToDouble(p[t + 1]);
          else if(p[t] == "STOP") chartStop = StringToDouble(p[t + 1]);
+         else if(p[t] == "LOTS") chartLots = StringToDouble(p[t + 1]);
          else if(p[t] == "HOW" && p[t + 1] == "NOW") chartHow = 1;
          else if(p[t] == "HOW" && p[t + 1] == "LIMIT") chartHow = 0;
         }
@@ -2856,9 +2858,9 @@ void ApplySiteCommands()
       else if(kind == "CLOSE_PROFIT") CloseMine(false);
       else if(kind == "CLOSE") CloseByNaked(a);
       else if((kind == "BUY" || kind == "SELL") && chartEntry > 0 && chartStop > 0 && forceTp > 0)
-         ChartOrder(a, kind == "BUY" ? 1 : -1, chartEntry, chartStop, forceTp, chartHow);
-      else if(kind == "BUY") ManualTradeSym(a, 1, forceTp);
-      else if(kind == "SELL") ManualTradeSym(a, -1, forceTp);
+         ChartOrder(a, kind == "BUY" ? 1 : -1, chartEntry, chartStop, forceTp, chartHow, chartLots);
+      else if(kind == "BUY") ManualTradeSym(a, 1, forceTp, chartLots);
+      else if(kind == "SELL") ManualTradeSym(a, -1, forceTp, chartLots);
       Print("SLOI CMD ", cid, " ", kind, " ", a);
      }
   }

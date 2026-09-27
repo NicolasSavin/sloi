@@ -11,6 +11,7 @@ const CmdIn = z.object({
   entry: z.number().finite().optional(),
   stop: z.number().finite().optional(),
   how: z.enum(["now", "limit"]).optional(),
+  lots: z.number().finite().positive().max(100).optional(),
 });
 
 export const createDeskFn = createServerFn({ method: "POST" }).handler(async () => {
@@ -52,6 +53,9 @@ export const deskCommandFn = createServerFn({ method: "POST" })
       if (data.entry != null && data.entry > 0 && data.stop != null && data.stop > 0 && data.tp != null && data.tp > 0) {
         payload = `${sym} ENTRY ${data.entry} STOP ${data.stop} TP ${data.tp}${data.how === "now" ? " HOW NOW" : data.how === "limit" ? " HOW LIMIT" : ""}`;
       } else if (data.tp != null && data.tp > 0) payload = `${sym} TP ${data.tp}`;
+      if (data.lots != null && data.lots > 0 && (data.kind === "BUY" || data.kind === "SELL")) {
+        payload = `${payload} LOTS ${data.lots}`;
+      }
     }
     const id = await enqueueCommand(desk.id, data.kind, payload);
     return { ok: true as const, id };

@@ -29,6 +29,7 @@ function IdeasPage() {
   const [typed, setTyped] = useState("");
   const [custom, setCustom] = useState<number | null>(null);
   const [step, setStep] = useState(60);
+  const [lots, setLots] = useState(0.1);
   const screen = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -138,7 +139,7 @@ function IdeasPage() {
     }
     setBusy(true);
     setNote(kind === "BUY" ? "Покупка уходит брокеру…" : kind === "SELL" ? "Продажа уходит брокеру…" : "Закрываю пару у брокера…");
-    const res = await deskCommandFn({ data: { key, kind, symbol: pair } });
+    const res = await deskCommandFn({ data: { key, kind, symbol: pair, lots: kind === "CLOSE" ? undefined : lots } });
     setBusy(false);
     setNote(res.ok ? "Приказ у вашего советника." : res.error);
   }
@@ -159,6 +160,7 @@ function IdeasPage() {
         stop: plan.stop,
         tp: plan.target,
         how,
+        lots,
       },
     });
     setBusy(false);
@@ -248,14 +250,26 @@ function IdeasPage() {
                 </option>
               ))}
             </select>
+            <select
+              value={String(lots)}
+              onChange={(e) => setLots(Number(e.target.value))}
+              className="h-7 rounded-sm bg-[#1e222d] px-2 text-xs text-zinc-100"
+              title="Лот для покупки и продажи с этого графика"
+            >
+              {[0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1].map((n) => (
+                <option key={n} value={n}>
+                  лот {n}
+                </option>
+              ))}
+            </select>
             <button type="button" disabled={busy} onClick={() => void send("SELL")} className="h-7 rounded-sm bg-[#f23645] px-3 text-xs font-semibold text-white disabled:opacity-60">
               Продать
             </button>
             <button type="button" disabled={busy} onClick={() => void send("BUY")} className="h-7 rounded-sm bg-[#089981] px-3 text-xs font-semibold text-white disabled:opacity-60">
               Купить
             </button>
-            <button type="button" disabled={busy} onClick={() => void send("CLOSE")} className="h-7 rounded-sm bg-[#2a2e39] px-3 text-xs text-zinc-100 disabled:opacity-60">
-              Закрыть
+            <button type="button" disabled={busy} onClick={() => void send("CLOSE")} title={`Закрыть только ${pair}: и покупки, и продажи советника SLOI. Другие пары и чужие сделки не трогает.`} className="h-7 rounded-sm bg-[#2a2e39] px-3 text-xs text-zinc-100 disabled:opacity-60">
+              Закрыть {pair}
             </button>
           </div>
         </div>
