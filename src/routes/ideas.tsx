@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppNav } from "@/components/app-nav";
-import { DivChart } from "@/components/tv/div-chart";
-import { MinuteChart } from "@/components/tv/minute-chart";
 import { PlanDraw } from "@/components/tv/plan-draw";
 import { deskCommandFn } from "@/lib/desk-api";
 import { readDeskKey } from "@/lib/desk-key";
@@ -31,7 +29,6 @@ function IdeasPage() {
   const [typed, setTyped] = useState("");
   const [custom, setCustom] = useState<number | null>(null);
   const [step, setStep] = useState(60);
-  const [divOn, setDivOn] = useState(true);
   const screen = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -154,21 +151,11 @@ function IdeasPage() {
             onPointerDown={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              setDraw((v) => {
-                if (!v) setDivOn(true);
-                return !v;
-              });
+              setDraw((v) => !v);
             }}
             className={`h-9 rounded-sm px-4 text-sm font-semibold ${draw ? "bg-sky-300 text-zinc-900" : "bg-amber-100 text-zinc-900"}`}
           >
-            {draw ? "Скрыть паттерн" : "Найти паттерн"}
-          </button>
-          <button
-            type="button"
-            onClick={() => setDivOn((v) => !v)}
-            className={`h-7 rounded-sm px-2 text-xs ${divOn ? "bg-[#d6ff4a] font-semibold text-zinc-900" : "bg-[#2a2e39] text-zinc-100"}`}
-          >
-            {divOn ? `Скрыть дивер ${step}м` : `Дивер ${step}м`}
+            {draw ? "Скрыть разметку" : "Найти паттерн"}
           </button>
           <button type="button" onClick={() => setFull(true)} className="h-7 rounded-sm bg-[#2a2e39] px-2 text-xs text-zinc-100">
             F8 весь экран
@@ -180,7 +167,6 @@ function IdeasPage() {
               const n = Math.round(Number(typed.replace(",", ".")));
               if (n < 1 || n > 1440) return;
               setStep(n);
-              setDivOn(true);
               setTyped(String(n));
               if (ON_CHART.has(n)) {
                 setCustom(null);
@@ -208,7 +194,6 @@ function IdeasPage() {
               type="button"
               onClick={() => {
                 setStep(n);
-                setDivOn(true);
                 setTyped(String(n));
                 setCustom(ON_CHART.has(n) ? null : n);
               }}
@@ -250,16 +235,11 @@ function IdeasPage() {
       )}
       <div ref={screen} className="relative min-h-0 flex-1 bg-[#131722]">
         <div ref={host} className="absolute inset-0" />
-        {custom && !(divOn && !draw) ? <MinuteChart pair={pair} minutes={custom} /> : null}
-        {divOn && !draw ? <DivChart pair={pair} minutes={step} /> : null}
+        <PlanDraw pair={pair} minutes={step} busy={busy} note={note} seek={draw} onClose={() => setDraw(false)} onSend={(how, plan) => void sendPlan(how, plan)} />
         {full ? (
           <button type="button" onClick={() => setFull(false)} className="absolute right-3 top-2 z-30 h-8 rounded-sm bg-black/70 px-3 text-xs text-zinc-200">
             Выйти
           </button>
-        ) : null}
-        {note && !draw ? <p className="pointer-events-none absolute bottom-10 right-3 z-10 rounded bg-black/80 px-3 py-1 text-xs text-amber-100">{note}</p> : null}
-        {draw ? (
-          <PlanDraw pair={pair} minutes={step} busy={busy} note={note} onClose={() => setDraw(false)} onSend={(how, plan) => void sendPlan(how, plan)} />
         ) : null}
       </div>
     </div>

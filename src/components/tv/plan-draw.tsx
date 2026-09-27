@@ -4,6 +4,7 @@ import type { Candle } from "@/lib/market/types";
 import { retellSketch, type SketchPiece } from "@/lib/sketch";
 import { graphicBreak, patternOrder } from "@/lib/smc/patterns";
 import { deltaDivergenceOn } from "@/lib/smc/delta-div";
+import { deltaOf } from "@/lib/smc/flow";
 
 type Tool = "entry" | "stop" | "target" | "line";
 type Pt = { i: number; price: number };
@@ -23,6 +24,7 @@ export function PlanDraw({
   minutes = 60,
   busy,
   note,
+  seek,
   onClose,
   onSend,
 }: {
@@ -30,6 +32,7 @@ export function PlanDraw({
   minutes?: number;
   busy: boolean;
   note: string;
+  seek: boolean;
   onClose: () => void;
   onSend: (how: "now" | "limit", plan: { side: "buy" | "sell"; entry: number; stop: number; target: number }) => void;
 }) {
@@ -128,6 +131,7 @@ export function PlanDraw({
         const bot = yOf(Math.min(c.open, c.close));
         ctx.fillRect(x - Math.max(slot * 0.32, 1.2), top, Math.max(slot * 0.64, 2.4), Math.max(bot - top, 1));
       });
+      paintDelta(ctx, w, h, rows, start, xOf, slot, marks);
       const seen = start + rows.length;
       const inside = (i: number) => i >= start && i < seen;
       for (const m of marks) {
@@ -518,8 +522,13 @@ export function PlanDraw({
   }
 
   useEffect(() => {
+    if (!seek) {
+      setMarks([]);
+      setFound("Холст открыт. Линией можно отметить дивер сами, или нажмите «Найти паттерн».");
+      return;
+    }
     void findPattern();
-  }, [pair, minutes]);
+  }, [pair, minutes, seek]);
 
   return (
     <>
@@ -647,6 +656,58 @@ function dot(ctx: CanvasRenderingContext2D, x: number, y: number, color: string)
   ctx.lineWidth = 1;
 }
 
+function paintDelta(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  rows: Candle[],
+  start: number,
+  xOf: (i: number) => number,
+  slot: number,
+  marks: AutoMark[],
+) {
+  const paneTop = h - 220;
+  const paneBot = h - 136;
+  if (paneBot - paneTop < 24 || rows.length < 2) return;
+  ctx.fillStyle = "rgba(255,255,255,0.04)";
+  ctx.fillRect(LEFT, paneTop, w - LEFT - RIGHT, paneBot - paneTop);
+  ctx.strokeStyle = "rgba(255,255,255,0.12)";
+  ctx.strokeRect(LEFT, paneTop, w - LEFT - RIGHT, paneBot - paneTop);
+  const deltas = rows.map((c) => deltaOf(c));
+  const peak = Math.max(...deltas.map((d) => Math.abs(d)), 1);
+  const mid = (paneTop + paneBot) / 2;
+  const room = (paneBot - paneTop) / 2 - 8;
+  ctx.font = "12px sans-serif";
+  ctx.fillStyle = "#c8d0dc";
+  ctx.fillText("дельта объёма", LEFT + 6, paneTop + 14);
+  const tip = (i: number) => {
+    const d = deltas[i - start];
+    if (d == null) return null;
+    const bh = (Math.abs(d) / peak) * room;
+    return { x: xOf(i), y: d >= 0 ? mid - bh : mid + bh };
+  };
+  rows.forEach((_, n) => {
+    const d = deltas[n] ?? 0;
+    const x = xOf(start + n);
+    const bh = (Math.abs(d) / peak) * room;
+    ctx.fillStyle = d >= 0 ? "#26a69a" : "#ef5350";
+    ctx.fillRect(x - Math.max(slot * 0.28, 1), d >= 0 ? mid - bh : mid, Math.max(slot * 0.56, 2), Math.max(bh, 1));
+  });
+  for (const m of marks) {
+    if (m.t !== "line" || !m.name.startsWith("дивер")) continue;
+    const a = tip(m.a.i);
+    const b = tip(m.b.i);
+    if (!a || !b) continue;
+    ctx.strokeStyle = "#d6ff4a";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+    ctx.lineWidth = 1;
+  }
+}
+
 function rank(id: string) {
   if (id === "dragon" || id === "idragon") return 0;
   if (id === "hs" || id === "ihs") return 1;
@@ -724,7 +785,7 @@ function axes(w: number, h: number, candles: Candle[], extra: Array<number | nul
   const near = extra.filter((n): n is number => n != null && Number.isFinite(n) && n > lo - room * 0.4 && n < hi + room * 0.4);
   const { min, max } = span(raw, near);
   const top = 36;
-  const bottom = 132;
+  const bottom = 228;
   const plotRight = RIGHT;
   const xOf = (i: number) => {
     const local = i - start;
