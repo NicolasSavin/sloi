@@ -250,7 +250,7 @@ function IdeasPage() {
             <iframe
               key={`${symbol}|${step}`}
               title="График TradingView"
-              src={tvWidgetSrc(pair, ON_CHART.has(step) ? String(step) : "60")}
+              src={tvWidgetSrc(pair, ON_CHART.has(step) ? String(step) : "60", !deltaOpen)}
               className="absolute inset-0 h-full w-full border-0"
             />
             {draw ? <PatternOverlay pair={pair} minutes={step} /> : null}

@@ -4,7 +4,7 @@ import type { Candle } from "@/lib/market/types";
 import { deltaDivergenceOn } from "@/lib/smc/delta-div";
 
 type Pt = { i: number; price: number; label: string };
-type Fig = { name: string; color: string; up: boolean; ring: Pt[]; neck: [Pt, Pt] | null };
+type Fig = { name: string; color: string; up: boolean; ring: Pt[]; neck: [Pt, Pt] | null; rails: boolean };
 type Line = { a: Pt; b: Pt; name: string; color: string };
 
 const TF = { 5: "5m", 15: "15m", 60: "1h", 240: "4h", 1440: "1d" } as const;
@@ -40,10 +40,12 @@ export function PatternOverlay({ pair, minutes }: { pair: string; minutes: numbe
           return best;
         };
         const next: Fig[] = [];
-        const colors = ["#ffb020", "#5ec8ff", "#d58bff"];
-        const picked = [...snap.patterns].sort((a, b) => rank(a.id) - rank(b.id)).slice(0, 3);
-        for (const [n, p] of picked.entries()) {
-          const color = colors[n] ?? "#ffb020";
+        const picked = [...snap.patterns].sort((a, b) => {
+          const last = (p: (typeof snap.patterns)[number]) => Math.max(...p.points.map((pt) => pt.time));
+          return last(b) - last(a);
+        });
+        const p = picked[0];
+        if (p) {
           const ordered = p.points
             .map((pt) => wick(candles, at(pt.time), pt.price, pt.label))
             .sort((a, b) => a.i - b.i);
@@ -54,22 +56,24 @@ export function PatternOverlay({ pair, minutes }: { pair: string; minutes: numbe
             if (top.length >= 2 && bot.length >= 2) {
               next.push({
                 name: p.name,
-                color,
+                color: "#ffb020",
                 up,
-                ring: [top[0]!, top[top.length - 1]!, bot[bot.length - 1]!, bot[0]!],
+                ring: [top[0]!, top[top.length - 1]!, bot[0]!, bot[bot.length - 1]!],
                 neck: null,
+                rails: true,
               });
             }
-            continue;
+          } else {
+            const neckPts = ordered.filter((pt) => pt.label === "шея");
+            next.push({
+              name: p.name,
+              color: "#5ec8ff",
+              up,
+              ring: ordered,
+              neck: neckPts.length >= 2 ? [neckPts[0]!, neckPts[neckPts.length - 1]!] : null,
+              rails: false,
+            });
           }
-          const neckPts = ordered.filter((pt) => pt.label === "шея");
-          next.push({
-            name: p.name,
-            color,
-            up,
-            ring: ordered,
-            neck: neckPts.length >= 2 ? [neckPts[0]!, neckPts[neckPts.length - 1]!] : null,
-          });
         }
         const extra: Line[] = [];
         const div = deltaDivergenceOn(candles);
@@ -137,38 +141,54 @@ export function PatternOverlay({ pair, minutes }: { pair: string; minutes: numbe
         if (fig.ring.length < 2) continue;
         ctx.strokeStyle = fig.color;
         ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        fig.ring.forEach((pt, i) => {
-          const x = xOf(pt.i);
-          const y = yOf(pt.price);
-          if (i === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        });
-        if (fig.ring.length <= 4) ctx.closePath();
-        ctx.stroke();
+        const stroke = (a: Pt, b: Pt) => {
+          ctx.beginPath();
+          ctx.moveTo(xOf(a.i), yOf(a.price));
+          ctx.lineTo(xOf(b.i), yOf(b.price));
+          ctx.stroke();
+        };
+        if (fig.rails && fig.ring.length >= 4) {
+          stroke(fig.ring[0]!, fig.ring[1]!);
+          stroke(fig.ring[2]!, fig.ring[3]!);
+        } else {
+          ctx.beginPath();
+          fig.ring.forEach((pt, i) => {
+            const x = xOf(pt.i);
+            const y = yOf(pt.price);
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          });
+          ctx.stroke();
+        }
+        const seen: Array<{ x: number; y: number }> = [];
+        const place = (text: string, x: number, y: number, color: string) => {
+          let yy = y;
+          for (let n = 0; n < 8; n++) {
+            if (!seen.some((s) => Math.abs(s.x - x) < 90 && Math.abs(s.y - yy) < 20)) break;
+            yy -= 20;
+          }
+          seen.push({ x, y: yy });
+          label(text, x, yy, color);
+        };
         ctx.fillStyle = fig.color;
         for (const pt of fig.ring) {
           ctx.beginPath();
           ctx.arc(xOf(pt.i), yOf(pt.price), 4, 0, Math.PI * 2);
           ctx.fill();
-          if (pt.label && pt.label !== "верх" && pt.label !== "низ" && pt.label !== "шея") {
-            label(pt.label, xOf(pt.i) + 8, yOf(pt.price) - 8, fig.color);
-          }
+          const word = plain(pt.label);
+          if (word && word !== "верх" && word !== "низ" && word !== "шея") place(word, xOf(pt.i) + 8, yOf(pt.price) - 10, fig.color);
         }
         if (fig.neck) {
           ctx.setLineDash([6, 4]);
-          ctx.beginPath();
-          ctx.moveTo(xOf(fig.neck[0].i), yOf(fig.neck[0].price));
-          ctx.lineTo(xOf(fig.neck[1].i), yOf(fig.neck[1].price));
-          ctx.stroke();
+          stroke(fig.neck[0], fig.neck[1]);
           ctx.setLineDash([]);
-          label("шея", xOf(fig.neck[1].i) + 8, yOf(fig.neck[1].price) + 16, fig.color);
+          place("шея", xOf(fig.neck[1].i) + 8, yOf(fig.neck[1].price) + 18, fig.color);
         }
         const tip = fig.ring.reduce((a, b) => (a.i > b.i ? a : b));
-        const ax = Math.min(xOf(tip.i) + 28, right - 16);
+        const ax = Math.min(xOf(tip.i) + 36, right - 18);
         const ay = yOf(tip.price);
         arrow(ctx, ax, ay, fig.up, fig.up ? "#26a69a" : "#f23645");
-        label(`${fig.name}: ${fig.up ? "вверх" : "вниз"}`, ax - 10, fig.up ? ay - 54 : ay + 62, fig.up ? "#b7f0dc" : "#ffc1c6");
+        place(`${fig.name}, ${fig.up ? "дальше вверх" : "дальше вниз"}`, ax - 20, fig.up ? ay - 58 : ay + 64, fig.up ? "#b7f0dc" : "#ffc1c6");
       }
       for (const line of lines) {
         ctx.strokeStyle = line.color;
@@ -203,6 +223,15 @@ export function PatternOverlay({ pair, minutes }: { pair: string; minutes: numbe
   return <canvas ref={ref} className="pointer-events-none absolute inset-0 z-10" />;
 }
 
+function plain(label: string) {
+  if (label === "T1") return "левая вершина";
+  if (label === "T2") return "правая вершина";
+  if (label === "B1") return "левое дно";
+  if (label === "B2") return "правое дно";
+  if (label === "H") return "голова";
+  return label;
+}
+
 function arrow(ctx: CanvasRenderingContext2D, x: number, y: number, up: boolean, color: string) {
   const dir = up ? -1 : 1;
   const len = 42;
@@ -219,12 +248,6 @@ function arrow(ctx: CanvasRenderingContext2D, x: number, y: number, up: boolean,
   ctx.lineTo(x + 8, y + dir * (len - 14));
   ctx.closePath();
   ctx.fill();
-}
-
-function rank(id: string) {
-  if (id === "dragon" || id === "idragon") return 0;
-  if (id === "hs" || id === "ihs") return 1;
-  return 2;
 }
 
 function wick(rows: Candle[], i: number, price: number, label = ""): Pt {
