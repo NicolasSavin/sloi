@@ -1,42 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppNav } from "@/components/app-nav";
-import { MinuteChart } from "@/components/tv/minute-chart";
 import { PlanDraw } from "@/components/tv/plan-draw";
 import { deskCommandFn } from "@/lib/desk-api";
 import { readDeskKey } from "@/lib/desk-key";
 import { PAIR_OPTIONS } from "@/lib/ea-settings";
 import { tvSymbol } from "@/lib/tradingview";
-
-const FRAMES: [string, string][] = [
-  ["1", "1м"],
-  ["2", "2м"],
-  ["3", "3м"],
-  ["5", "5м"],
-  ["10", "10м"],
-  ["15", "15м"],
-  ["30", "30м"],
-  ["45", "45м"],
-  ["60", "1ч"],
-  ["90", "90м"],
-  ["120", "2ч"],
-  ["180", "3ч"],
-  ["240", "4ч"],
-  ["360", "6ч"],
-  ["D", "Д"],
-  ["W", "Н"],
-  ["M", "М"],
-];
-
-const TV_INTERVALS = new Set(["1", "3", "5", "15", "30", "60", "120", "180", "240", "D", "W", "M"]);
-
-function minutesOf(interval: string) {
-  if (interval === "D") return 1440;
-  if (interval === "W") return 10080;
-  if (interval === "M") return 43200;
-  const n = Number(interval);
-  return Number.isFinite(n) && n > 0 ? n : 60;
-}
 
 export const Route = createFileRoute("/ideas")({
   validateSearch: (s: Record<string, unknown>) => ({
@@ -56,10 +25,6 @@ function IdeasPage() {
   const [draw, setDraw] = useState(false);
   const [full, setFull] = useState(false);
   const screen = useRef<HTMLDivElement>(null);
-  const [interval, setInterval] = useState("60");
-  const [typed, setTyped] = useState("");
-  const native = TV_INTERVALS.has(interval);
-  const barMinutes = minutesOf(interval);
 
   useEffect(() => {
     setKey(readDeskKey());
@@ -94,13 +59,9 @@ function IdeasPage() {
   useEffect(() => {
     const root = host.current;
     if (!root) return;
-    const key = native ? `${symbol}|${interval}|vd` : "custom";
-    if (root.dataset.built === key && (native ? root.childElementCount > 0 : true)) return;
+    const key = `${symbol}|vd`;
+    if (root.dataset.built === key && root.childElementCount > 0) return;
     root.dataset.built = key;
-    if (!native) {
-      root.replaceChildren();
-      return;
-    }
     root.replaceChildren();
     const box = document.createElement("div");
     box.className = "tradingview-widget-container";
@@ -120,7 +81,7 @@ function IdeasPage() {
     script.innerHTML = JSON.stringify({
       autosize: true,
       symbol,
-      interval,
+      interval: "60",
       timezone: "Asia/Dubai",
       theme: "dark",
       style: "1",
@@ -144,7 +105,7 @@ function IdeasPage() {
     });
     box.append(pane, copy, script);
     root.append(box);
-  }, [symbol, interval, native]);
+  }, [symbol]);
 
   async function send(kind: "BUY" | "SELL" | "CLOSE") {
     if (!key) {
@@ -199,35 +160,7 @@ function IdeasPage() {
           <button type="button" onClick={() => setFull(true)} className="h-7 rounded-sm bg-[#2a2e39] px-2 text-xs text-zinc-100">
             F8 весь экран
           </button>
-          {FRAMES.map(([id, name]) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setInterval(id)}
-              className={`h-7 rounded-sm px-2 text-xs ${interval === id ? "bg-amber-100 font-semibold text-zinc-900" : "bg-[#1e222d] text-zinc-200"}`}
-            >
-              {name}
-            </button>
-          ))}
-          <form
-            className="flex items-center gap-1"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const n = Math.round(Number(typed.replace(",", ".")));
-              if (n >= 1 && n <= 1440) setInterval(String(n));
-            }}
-          >
-            <input
-              value={typed}
-              onChange={(e) => setTyped(e.target.value)}
-              inputMode="numeric"
-              placeholder="мин"
-              className="h-7 w-14 rounded-sm bg-[#1e222d] px-2 text-xs outline-none"
-            />
-            <button type="submit" className="h-7 rounded-sm bg-[#2a2e39] px-2 text-xs text-zinc-100">
-              Свой
-            </button>
-          </form>
+          <span className="px-2 text-xs text-zinc-400">Таймфрейм переключайте на графике, линии тогда остаются</span>
           <div className="ml-auto flex flex-wrap items-center gap-1">
             <select
               value={pair}
@@ -254,7 +187,6 @@ function IdeasPage() {
       )}
       <div ref={screen} className="relative min-h-0 flex-1 bg-[#131722]">
         <div ref={host} className="absolute inset-0" />
-        {!native ? <MinuteChart pair={pair} minutes={barMinutes} /> : null}
         {full ? (
           <button type="button" onClick={() => setFull(false)} className="absolute right-3 top-2 z-30 h-8 rounded-sm bg-black/70 px-3 text-xs text-zinc-200">
             Выйти
@@ -262,7 +194,7 @@ function IdeasPage() {
         ) : null}
         {note && !draw ? <p className="pointer-events-none absolute bottom-10 right-3 z-10 rounded bg-black/80 px-3 py-1 text-xs text-amber-100">{note}</p> : null}
         {draw ? (
-          <PlanDraw pair={pair} minutes={barMinutes} busy={busy} note={note} onClose={() => setDraw(false)} onSend={(how, plan) => void sendPlan(how, plan)} />
+          <PlanDraw pair={pair} minutes={60} busy={busy} note={note} onClose={() => setDraw(false)} onSend={(how, plan) => void sendPlan(how, plan)} />
         ) : null}
       </div>
     </div>
