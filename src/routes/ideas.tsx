@@ -36,6 +36,30 @@ function IdeasPage() {
   }, []);
 
   useEffect(() => {
+    const trap = document.createElement("button");
+    trap.type = "button";
+    trap.tabIndex = -1;
+    trap.setAttribute("aria-hidden", "true");
+    trap.style.position = "fixed";
+    trap.style.left = "0";
+    trap.style.top = "0";
+    trap.style.width = "1px";
+    trap.style.height = "1px";
+    trap.style.opacity = "0";
+    document.body.append(trap);
+    const pull = () => {
+      window.setTimeout(() => {
+        if (document.activeElement instanceof HTMLIFrameElement) trap.focus();
+      }, 0);
+    };
+    window.addEventListener("blur", pull);
+    return () => {
+      window.removeEventListener("blur", pull);
+      trap.remove();
+    };
+  }, []);
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "F8") return;
       e.preventDefault();
