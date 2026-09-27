@@ -14,8 +14,7 @@ type AutoMark =
 
 const LEFT = 54;
 const RIGHT = 70;
-const TOP = 76;
-const VIEW = 80;
+const VIEW = 52;
 
 export function PlanDraw({
   pair,
@@ -104,7 +103,11 @@ export function PlanDraw({
         ...lines.flatMap((l) => [l.a.price, l.b.price]),
         ...marks.flatMap((m) => (m.t === "h" ? [m.price] : m.t === "zone" ? [m.top, m.bot] : [m.a.price, m.b.price])),
       ];
-      const { xOf, yOf } = axes(w, h, candles, extra);
+    const { xOf, yOf, priceBottom } = axes(w, h, candles, extra);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, w, priceBottom);
+    ctx.clip();
       let labelRow = 0;
       for (const m of marks) {
         if (m.t !== "line") continue;
@@ -135,6 +138,7 @@ export function PlanDraw({
           ctx.fill();
         }
       }
+      ctx.restore();
     };
     paint();
     const ro = new ResizeObserver(paint);
@@ -146,15 +150,15 @@ export function PlanDraw({
     const el = box.current;
     if (!el || candles.length < 2) return null;
     const r = el.getBoundingClientRect();
-    const { min, max, start, rows, bottom } = axes(r.width, r.height, candles, [
+    const { min, max, start, rows, top, priceBottom, plotRight } = axes(r.width, r.height, candles, [
       entry,
       stop,
       target,
       ...lines.flatMap((l) => [l.a.price, l.b.price]),
       ...marks.flatMap((m) => (m.t === "h" ? [m.price] : m.t === "zone" ? [m.top, m.bot] : [m.a.price, m.b.price])),
     ]);
-    const i = start + ((e.clientX - r.left - LEFT) / (r.width - LEFT - RIGHT)) * Math.max(rows.length - 1, 1);
-    const price = max - ((e.clientY - r.top - TOP) / (r.height - TOP - bottom)) * (max - min);
+    const i = start + ((e.clientX - r.left - LEFT) / (r.width - LEFT - plotRight)) * Math.max(rows.length - 1, 1);
+    const price = max - ((e.clientY - r.top - top) / Math.max(priceBottom - top, 1)) * (max - min);
     if (!Number.isFinite(price)) return null;
     return { i: Math.min(candles.length - 1, Math.max(0, i)), price };
   }
@@ -163,14 +167,14 @@ export function PlanDraw({
     const el = box.current;
     if (!el) return raw;
     const h = el.clientHeight;
-    const { min, max, bottom } = axes(el.clientWidth, h, candles, [
+    const { min, max, top, priceBottom } = axes(el.clientWidth, h, candles, [
       entry,
       stop,
       target,
       ...lines.flatMap((l) => [l.a.price, l.b.price]),
       ...marks.flatMap((m) => (m.t === "h" ? [m.price] : m.t === "zone" ? [m.top, m.bot] : [m.a.price, m.b.price])),
     ]);
-    const yPer = (h - TOP - bottom) / (max - min || 1);
+    const yPer = (priceBottom - top) / (max - min || 1);
     let bestI = Math.round(raw.i);
     let bestP = raw.price;
     let bestPx = 16;
@@ -559,17 +563,19 @@ function tag(ctx: CanvasRenderingContext2D, x: number, y: number, text: string, 
   ctx.fillText(text, left, y - 3);
 }
 
-function axes(w: number, h: number, candles: Candle[], extra: Array<number | null>) {
+function axes(w: number, h: number, candles: Candle[], _extra: Array<number | null>) {
   const start = Math.max(0, candles.length - VIEW);
   const rows = candles.slice(start);
-  const { min, max } = span(rows.length ? rows : candles, extra);
-  const bottom = Math.max(44, Math.round(h * 0.28));
+  const { min, max } = span(rows.length ? rows : candles, []);
+  const top = 64;
+  const priceBottom = Math.round(h * 0.47);
+  const plotRight = RIGHT + Math.round(w * 0.05);
   const xOf = (i: number) => {
     const local = Math.min(Math.max(i - start, 0), Math.max(rows.length - 1, 0));
-    return LEFT + ((w - LEFT - RIGHT) * local) / Math.max(rows.length - 1, 1);
+    return LEFT + ((w - LEFT - plotRight) * local) / Math.max(rows.length - 1, 1);
   };
-  const yOf = (p: number) => TOP + ((max - p) / (max - min || 1)) * Math.max(h - TOP - bottom, 1);
-  return { start, rows, min, max, bottom, xOf, yOf };
+  const yOf = (p: number) => top + ((max - p) / (max - min || 1)) * Math.max(priceBottom - top, 1);
+  return { start, rows, min, max, bottom: h - priceBottom, top, priceBottom, plotRight, xOf, yOf };
 }
 
 function caption(
