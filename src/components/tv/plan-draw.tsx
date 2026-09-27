@@ -94,14 +94,8 @@ export function PlanDraw({
       const ctx = cv.getContext("2d");
       if (!ctx) return;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.fillStyle = "#2a3448";
-      ctx.fillRect(0, 0, w, h);
-      if (candles.length < 2) {
-        ctx.fillStyle = "#a1a1aa";
-        ctx.font = "14px sans-serif";
-        ctx.fillText("Свечи ещё грузятся…", 24, 36);
-        return;
-      }
+      ctx.clearRect(0, 0, w, h);
+      if (candles.length < 2) return;
       const extra = [
         entry,
         stop,
@@ -112,20 +106,6 @@ export function PlanDraw({
       const { min, max } = span(candles, extra);
       const xOf = (i: number) => PAD_L + ((w - PAD_L - PAD_R) * i) / Math.max(candles.length - 1, 1);
       const yOf = (p: number) => PAD_Y + ((max - p) / (max - min || 1)) * (h - PAD_Y * 2);
-      const slot = (w - PAD_L - PAD_R) / candles.length;
-      candles.forEach((c, i) => {
-        const up = c.close >= c.open;
-        ctx.strokeStyle = up ? "#26a69a" : "#ef5350";
-        ctx.fillStyle = ctx.strokeStyle;
-        const x = xOf(i);
-        ctx.beginPath();
-        ctx.moveTo(x, yOf(c.high));
-        ctx.lineTo(x, yOf(c.low));
-        ctx.stroke();
-        const top = yOf(Math.max(c.open, c.close));
-        const bot = yOf(Math.min(c.open, c.close));
-        ctx.fillRect(x - Math.max(slot * 0.32, 1.5), top, Math.max(slot * 0.64, 3), Math.max(bot - top, 1));
-      });
       for (const m of marks) {
         if (m.t === "zone") {
           const x1 = xOf(Math.min(m.a, m.b));
@@ -166,10 +146,6 @@ export function PlanDraw({
           ctx.fill();
         }
       }
-      ctx.fillStyle = "#71717a";
-      ctx.font = "11px sans-serif";
-      ctx.fillText(px(max), w - PAD_R + 8, PAD_Y + 4);
-      ctx.fillText(px(min), w - PAD_R + 8, h - PAD_Y);
     };
     paint();
     const ro = new ResizeObserver(paint);
@@ -507,7 +483,7 @@ export function PlanDraw({
 
   return (
     <>
-      <div ref={box} className="absolute inset-0 z-20 bg-[#2a3448]">
+      <div ref={box} className="pointer-events-none absolute inset-0 z-20">
         <canvas
           ref={canvas}
           onClick={click}
@@ -515,7 +491,7 @@ export function PlanDraw({
           onMouseMove={move}
           onMouseUp={up}
           onMouseLeave={up}
-          className="absolute inset-0 cursor-crosshair"
+          className={`absolute inset-0 ${tool === "line" || tool === "entry" || tool === "stop" || tool === "target" ? "pointer-events-auto cursor-crosshair" : "pointer-events-none"}`}
         />
       </div>
       <div className="fixed inset-x-0 bottom-0 z-[90] border-t border-white/10 bg-[#131722]/95 px-3 py-2">
