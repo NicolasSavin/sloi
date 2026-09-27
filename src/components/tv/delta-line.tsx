@@ -9,12 +9,10 @@ const TF = { 5: "5m", 15: "15m", 60: "1h", 240: "4h", 1440: "1d" } as const;
 type Bar = { o: number; h: number; l: number; c: number; time: number };
 
 /** Одна дельта объёма свечами вокруг нуля, прямо под графиком. Второго объёма нет. */
-export function DeltaLine({ pair, minutes }: { pair: string; minutes: number }) {
+export function DeltaLine({ pair, minutes, open }: { pair: string; minutes: number; open: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const [bars, setBars] = useState<Bar[]>([]);
   const [hit, setHit] = useState<DivHit | null>(null);
-  const [last, setLast] = useState(0);
-  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     let stop = false;
@@ -28,7 +26,6 @@ export function DeltaLine({ pair, minutes }: { pair: string; minutes: number }) 
         const slice = candles.slice(-120);
         const next = toCandles(slice);
         setBars(next);
-        setLast(next.at(-1)?.c ?? 0);
         setHit(deltaDivergenceOn(slice));
       } catch {
         if (!stop) {
@@ -108,28 +105,17 @@ export function DeltaLine({ pair, minutes }: { pair: string; minutes: number }) 
           ctx.stroke();
         }
       }
-      ctx.font = "12px sans-serif";
-      ctx.fillStyle = "#d1d4dc";
-      ctx.fillText("Дельта объёма", left + 4, 15);
-      ctx.fillStyle = last >= 0 ? "#26a69a" : "#ef5350";
-      ctx.fillText(fmt(last), left + 108, 15);
     };
     paint();
     const ro = new ResizeObserver(paint);
     if (canvas.parentElement) ro.observe(canvas.parentElement);
     return () => ro.disconnect();
-  }, [bars, hit, last, open]);
+  }, [bars, hit, open]);
 
+  if (!open) return null;
   return (
-    <div className={`relative shrink-0 border-t border-white/10 bg-[#131722] ${open ? "h-36" : "h-8"}`}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="absolute left-2 top-1 z-10 text-xs text-zinc-200"
-      >
-        {open ? "Свернуть дельту" : "Дельта объёма — развернуть"} {fmt(last)}
-      </button>
-      {open ? <canvas ref={ref} className="absolute inset-0" /> : null}
+    <div className="relative h-36 shrink-0 border-t border-white/10 bg-[#131722]">
+      <canvas ref={ref} className="absolute inset-0" />
     </div>
   );
 }
@@ -152,9 +138,4 @@ function toCandles(rows: Candle[]): Bar[] {
     prev = cvd;
     return bar;
   });
-}
-
-function fmt(n: number) {
-  const v = Math.round(n);
-  return v > 0 ? `+${v}` : String(v);
 }

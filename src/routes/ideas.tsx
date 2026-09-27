@@ -33,6 +33,7 @@ function IdeasPage() {
   const [step, setStep] = useState(60);
   const [lots, setLots] = useState(0.1);
   const [navOn, setNavOn] = useState(true);
+  const [deltaOpen, setDeltaOpen] = useState(false);
   const screen = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -195,6 +196,13 @@ function IdeasPage() {
           <button type="button" onClick={() => window.dispatchEvent(new Event("sloi-menu"))} className="h-7 rounded-sm bg-[#2a2e39] px-2 text-xs text-zinc-100">
             Меню
           </button>
+          <button
+            type="button"
+            onClick={() => setDeltaOpen((v) => !v)}
+            className={`h-7 rounded-sm px-2 text-xs font-semibold ${deltaOpen ? "bg-sky-300 text-zinc-900" : "bg-[#2a2e39] text-zinc-100"}`}
+          >
+            {deltaOpen ? "Свернуть дельту" : "Дельта"}
+          </button>
           <button type="button" onClick={() => setFull(true)} className="h-7 rounded-sm bg-[#2a2e39] px-2 text-xs text-zinc-100">
             F8 весь экран
           </button>
@@ -289,7 +297,7 @@ function IdeasPage() {
             <div ref={host} className="absolute inset-0" />
             {draw ? <PatternOverlay pair={pair} minutes={step} /> : null}
           </div>
-          <DeltaLine pair={pair} minutes={step} />
+          <DeltaLine pair={pair} minutes={step} open={deltaOpen} />
         </div>
         {draw ? (
           <div className="absolute inset-x-0 bottom-0">
