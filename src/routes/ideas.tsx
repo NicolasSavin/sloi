@@ -5,6 +5,7 @@ import { DeltaLine } from "@/components/tv/delta-line";
 import { deskCommandFn } from "@/lib/desk-api";
 import { readDeskKey } from "@/lib/desk-key";
 import { PAIR_OPTIONS } from "@/lib/ea-settings";
+import { MarkOrder } from "@/components/tv/mark-order";
 import { PatternOverlay } from "@/components/tv/pattern-overlay";
 import { PlanDraw } from "@/components/tv/plan-draw";
 import { tvSymbol, tvWidgetSrc } from "@/lib/tradingview";
@@ -26,6 +27,7 @@ function IdeasPage() {
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [draw, setDraw] = useState(false);
+  const [mark, setMark] = useState(false);
   const [full, setFull] = useState(false);
   const [typed, setTyped] = useState("");
   const [custom, setCustom] = useState<number | null>(null);
@@ -146,6 +148,13 @@ function IdeasPage() {
           >
             {draw ? "Скрыть разметку" : "Найти паттерн"}
           </button>
+          <button
+            type="button"
+            onClick={() => setMark((v) => !v)}
+            className={`h-7 rounded-sm px-2 text-xs font-semibold ${mark ? "bg-amber-100 text-zinc-900" : "bg-[#2a2e39] text-zinc-100"}`}
+          >
+            {mark ? "Закончить разметку" : "Разметить"}
+          </button>
           <button type="button" onClick={() => window.dispatchEvent(new Event("sloi-menu"))} className="h-7 rounded-sm bg-[#2a2e39] px-2 text-xs text-zinc-100">
             Меню
           </button>
@@ -253,7 +262,8 @@ function IdeasPage() {
               src={tvWidgetSrc(pair, ON_CHART.has(step) ? String(step) : "60", !deltaOpen)}
               className="absolute inset-0 h-full w-full border-0"
             />
-            {(draw || deltaOpen) ? <PatternOverlay pair={pair} minutes={step} figures={draw} divergence={deltaOpen} /> : null}
+            {(draw || deltaOpen) && !mark ? <PatternOverlay pair={pair} minutes={step} figures={draw} divergence={deltaOpen} /> : null}
+            {mark ? <MarkOrder pair={pair} minutes={step} busy={busy} onSend={(how, plan) => void sendPlan(how, plan)} /> : null}
           </div>
           <DeltaLine pair={pair} minutes={step} open={deltaOpen} />
         </div>
