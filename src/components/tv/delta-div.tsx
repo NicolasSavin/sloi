@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { fetchCustomBars, fetchMarket } from "@/lib/market/fetch";
 import type { Candle } from "@/lib/market/types";
+import { deltaOf } from "@/lib/smc/flow";
 
-type Mark = { i: number; side: "bull" | "bear" };
+type Line = { a: number; ap: number; b: number; bp: number; text: string; color: string };
 
 export function DeltaDivergence({ pair, minutes }: { pair: string; minutes: number }) {
   const box = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [rows, setRows] = useState<Candle[]>([]);
+  const [lines, setLines] = useState<Line[]>([]);
+  const [caption, setCaption] = useState("Дивергенция стола");
 
   useEffect(() => {
     let stop = false;
@@ -17,9 +20,45 @@ export function DeltaDivergence({ pair, minutes }: { pair: string; minutes: numb
         const candles = standard
           ? (await fetchMarket({ data: { symbol: pair, timeframe: standard } })).candles
           : (await fetchCustomBars({ data: { symbol: pair, minutes } })).candles;
-        if (!stop) setRows(candles.slice(-80));
+        const view = candles.slice(-70);
+        if (stop) return;
+        setRows(view);
+        const { analyzeMarket } = await import("@/lib/smc/engine");
+        const snap = analyzeMarket(view, null, undefined, { symbol: pair });
+        const next: Line[] = [];
+        const div = snap.flow.cvdDiv;
+        if (div?.from && div.to) {
+          next.push({
+            a: div.from.time,
+            ap: div.from.price,
+            b: div.to.time,
+            bp: div.to.price,
+            text: div.side === "bull" ? "дельта бычья" : "дельта медвежья",
+            color: div.side === "bull" ? "#7dffa8" : "#ffb020",
+          });
+        }
+        const rsi = snap.divergences.filter((d) => !d.played).at(-1);
+        if (rsi) {
+          const i = nearest(view, rsi.priceTime);
+          const c = view[i];
+          if (c) {
+            next.push({
+              a: c.time,
+              ap: rsi.side === "bull" ? c.low : c.high,
+              b: c.time,
+              bp: rsi.side === "bull" ? c.low : c.high,
+              text: rsi.side === "bull" ? "RSI бычья" : "RSI медвежья",
+              color: rsi.side === "bull" ? "#5ec8ff" : "#d58bff",
+            });
+          }
+        }
+        setLines(next);
+        setCaption(div ? div.therefore : rsi?.note ?? "Регулярной дивергенции дельты и RSI нет");
       } catch {
-        if (!stop) setRows([]);
+        if (!stop) {
+          setRows([]);
+          setLines([]);
+        }
       }
     };
     void load();
@@ -47,70 +86,72 @@ export function DeltaDivergence({ pair, minutes }: { pair: string; minutes: numb
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.fillStyle = "#0e1118";
       ctx.fillRect(0, 0, w, h);
-      ctx.fillStyle = "#d4d4d8";
-      ctx.font = "12px sans-serif";
-      ctx.fillText("Дивергенция дельты", 10, 16);
       if (rows.length < 8) return;
-      const delta = rows.map(barDelta);
-      const cvd = delta.reduce<number[]>((acc, v) => {
-        acc.push((acc.at(-1) ?? 0) + v);
-        return acc;
-      }, []);
-      const marks = divergences(rows, cvd);
-      const max = Math.max(...delta.map((v) => Math.abs(v)), 1);
-      const mid = h * 0.58;
+      const split = Math.round(h * 0.62);
+      const min = Math.min(...rows.map((c) => c.low));
+      const max = Math.max(...rows.map((c) => c.high));
+      const xOf = (i: number) => 8 + ((w - 16) * i) / Math.max(rows.length - 1, 1);
+      const yOf = (p: number) => 18 + ((max - p) / (max - min || 1)) * (split - 26);
       const slot = (w - 16) / rows.length;
-      delta.forEach((v, i) => {
-        const bh = (Math.abs(v) / max) * (h * 0.34);
-        ctx.fillStyle = v >= 0 ? "rgba(38,166,154,0.9)" : "rgba(242,54,69,0.9)";
-        ctx.fillRect(8 + i * slot, v >= 0 ? mid - bh : mid, Math.max(slot * 0.62, 1), Math.max(bh, 1));
+      rows.forEach((c, i) => {
+        const up = c.close >= c.open;
+        ctx.strokeStyle = up ? "#26a69a" : "#ef5350";
+        ctx.fillStyle = ctx.strokeStyle;
+        const x = xOf(i);
+        ctx.beginPath();
+        ctx.moveTo(x, yOf(c.high));
+        ctx.lineTo(x, yOf(c.low));
+        ctx.stroke();
+        const top = yOf(Math.max(c.open, c.close));
+        const bot = yOf(Math.min(c.open, c.close));
+        ctx.fillRect(x - Math.max(slot * 0.28, 1), top, Math.max(slot * 0.56, 2), Math.max(bot - top, 1));
       });
-      ctx.strokeStyle = "rgba(255,255,255,0.15)";
-      ctx.beginPath();
-      ctx.moveTo(8, mid);
-      ctx.lineTo(w - 8, mid);
-      ctx.stroke();
-      for (const m of marks) {
-        const x = 8 + m.i * slot + slot * 0.3;
-        ctx.fillStyle = m.side === "bull" ? "#7dffa8" : "#ffb020";
-        ctx.font = "bold 11px sans-serif";
-        ctx.fillText(m.side === "bull" ? "бычья" : "медвежья", x - 16, m.side === "bull" ? h - 8 : 32);
+      const delta = rows.map(deltaOf);
+      const peak = Math.max(...delta.map((v) => Math.abs(v)), 1);
+      const mid = split + (h - split) * 0.55;
+      delta.forEach((v, i) => {
+        const bh = (Math.abs(v) / peak) * ((h - split) * 0.38);
+        ctx.fillStyle = v >= 0 ? "rgba(38,166,154,0.85)" : "rgba(242,54,69,0.85)";
+        ctx.fillRect(xOf(i) - Math.max(slot * 0.28, 1), v >= 0 ? mid - bh : mid, Math.max(slot * 0.56, 2), Math.max(bh, 1));
+      });
+      for (const line of lines) {
+        const ia = nearest(rows, line.a);
+        const ib = nearest(rows, line.b);
+        ctx.strokeStyle = line.color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(xOf(ia), yOf(line.ap));
+        ctx.lineTo(xOf(ib), yOf(line.bp));
+        ctx.stroke();
+        ctx.lineWidth = 1;
+        ctx.font = "bold 12px sans-serif";
+        ctx.fillStyle = line.color;
+        ctx.fillText(line.text, xOf(ib) + 6, yOf(line.bp));
       }
     };
     paint();
     const ro = new ResizeObserver(paint);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [rows]);
+  }, [rows, lines]);
 
   return (
-    <div ref={box} className="relative h-28 shrink-0 border-t border-white/10 bg-[#0e1118]">
+    <div ref={box} className="relative h-40 shrink-0 border-t border-white/10 bg-[#0e1118]">
       <canvas ref={canvas} className="absolute inset-0" />
+      <p className="pointer-events-none absolute left-2 top-1 max-w-[70%] truncate text-[11px] text-zinc-300">{caption}</p>
     </div>
   );
 }
 
-function barDelta(c: Candle) {
-  if (c.buyVolume != null && c.volume > 0) return c.buyVolume - (c.volume - c.buyVolume);
-  const span = c.high - c.low;
-  if (!(span > 0) || !(c.volume > 0)) return Math.sign(c.close - c.open);
-  return c.volume * (2 * ((c.close - c.low) / span) - 1);
-}
-
-function divergences(rows: Candle[], cvd: number[]): Mark[] {
-  const highs: number[] = [];
-  const lows: number[] = [];
-  for (let i = 2; i < rows.length - 2; i++) {
-    const p = rows[i]!;
-    if (p.high >= rows[i - 1]!.high && p.high >= rows[i - 2]!.high && p.high > rows[i + 1]!.high && p.high > rows[i + 2]!.high) highs.push(i);
-    if (p.low <= rows[i - 1]!.low && p.low <= rows[i - 2]!.low && p.low < rows[i + 1]!.low && p.low < rows[i + 2]!.low) lows.push(i);
-  }
-  const out: Mark[] = [];
-  const h1 = highs.at(-2);
-  const h2 = highs.at(-1);
-  if (h1 != null && h2 != null && rows[h2]!.high > rows[h1]!.high && cvd[h2]! < cvd[h1]!) out.push({ i: h2, side: "bear" });
-  const l1 = lows.at(-2);
-  const l2 = lows.at(-1);
-  if (l1 != null && l2 != null && rows[l2]!.low < rows[l1]!.low && cvd[l2]! > cvd[l1]!) out.push({ i: l2, side: "bull" });
-  return out;
+function nearest(rows: Candle[], time: number) {
+  let best = 0;
+  let dist = Infinity;
+  rows.forEach((c, i) => {
+    const d = Math.abs(c.time - time);
+    if (d < dist) {
+      dist = d;
+      best = i;
+    }
+  });
+  return best;
 }
