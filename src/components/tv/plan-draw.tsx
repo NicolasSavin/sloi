@@ -123,14 +123,33 @@ export function PlanDraw({
         ctx.fillRect(x - Math.max(slot * 0.32, 1.2), top, Math.max(slot * 0.64, 2.4), Math.max(bot - top, 1));
       });
       let labelRow = 0;
+      const divs = marks.filter((m) => m.t === "line" && m.name.startsWith("дивер"));
       for (const m of marks) {
-        if (m.t !== "line") continue;
+        if (m.t !== "line" || m.name.startsWith("дивер")) continue;
         drawLine(ctx, xOf(m.a.i), yOf(m.a.price), xOf(m.b.i), yOf(m.b.price), m.color);
         if (!m.name) continue;
         const x = (xOf(m.a.i) + xOf(m.b.i)) / 2;
         const y = (yOf(m.a.price) + yOf(m.b.price)) / 2 - labelRow * 18;
         labelRow += 1;
         tag(ctx, x, y, m.name, m.color);
+      }
+      ctx.font = "bold 16px sans-serif";
+      ctx.fillStyle = "#d6ff4a";
+      ctx.fillText(divs[0]?.t === "line" ? divs[0].name : "дивергенции дельты нет", 16, 26);
+      for (const m of divs) {
+        if (m.t !== "line") continue;
+        ctx.strokeStyle = "#d6ff4a";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(xOf(m.a.i), yOf(m.a.price));
+        ctx.lineTo(xOf(m.b.i), yOf(m.b.price));
+        ctx.stroke();
+        ctx.lineWidth = 1;
+        for (const p of [m.a, m.b]) {
+          ctx.beginPath();
+          ctx.arc(xOf(p.i), yOf(p.price), 5, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
       for (const line of lines) drawLine(ctx, xOf(line.a.i), yOf(line.a.price), xOf(line.b.i), yOf(line.b.price), "#f0d7a8");
       if (draft) {
