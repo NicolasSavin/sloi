@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.42"
+#property version   "5.43"
 #property strict
-#property description "SLOI 5.42: лот с графика сайта"
+#property description "SLOI 5.43: в выходные приказ с графика ждёт открытия отложкой"
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -2754,6 +2754,11 @@ int ChartOrder(string naked, int dir, double entry, double stop, double tp, int 
    double px = entry;
    double sl = stop;
    double target = tp;
+   if(how == 1 && MarketInfo(s, MODE_TRADEALLOWED) == 0)
+     {
+      Alert("SLOI график: рынок закрыт, сразу нельзя. Ставлю отложку до открытия.");
+      how = 0;
+     }
    if(how == 1)
      {
       if(dir > 0)
@@ -2816,7 +2821,11 @@ int ChartOrder(string naked, int dir, double entry, double stop, double tp, int 
    double lots = (lotsOverride > 0 ? lotsOverride : LotFor(s, px, sl));
    int ticket = SendOrder(s, cmd, lots, px, sl, target, "SLOI chart", dir > 0 ? C_BUY : C_SEL);
    if(ticket > 0) Alert("SLOI график ", (dir > 0 ? "ПОКУПКА " : "ПРОДАЖА "), s, " #", ticket);
-   else Print("SLOI график ", s, " err ", GetLastError());
+   else
+     {
+      Print("SLOI график ", s, " err ", GetLastError());
+      if(MarketInfo(s, MODE_TRADEALLOWED) == 0) return(-132);
+     }
    return(ticket);
   }
 
@@ -2858,7 +2867,14 @@ void ApplySiteCommands()
       else if(kind == "CLOSE_PROFIT") CloseMine(false);
       else if(kind == "CLOSE") CloseByNaked(a);
       else if((kind == "BUY" || kind == "SELL") && chartEntry > 0 && chartStop > 0 && forceTp > 0)
-         ChartOrder(a, kind == "BUY" ? 1 : -1, chartEntry, chartStop, forceTp, chartHow, chartLots);
+        {
+         int placed = ChartOrder(a, kind == "BUY" ? 1 : -1, chartEntry, chartStop, forceTp, chartHow, chartLots);
+         if(placed == -132)
+           {
+            StringReplace(g_cmds, cid + ",", "");
+            Print("SLOI график: рынок закрыт, приказ остаётся до открытия");
+           }
+        }
       else if(kind == "BUY") ManualTradeSym(a, 1, forceTp, chartLots);
       else if(kind == "SELL") ManualTradeSym(a, -1, forceTp, chartLots);
       Print("SLOI CMD ", cid, " ", kind, " ", a);

@@ -107,6 +107,7 @@ export function MarkOrder({
   }
 
   const plan = orderOf(entry, stop, target);
+  const closed = marketClosed(pair);
 
   return (
     <>
@@ -135,19 +136,32 @@ export function MarkOrder({
           Стереть
         </button>
         <span className="text-xs text-zinc-300">
-          {plan
-            ? `${plan.side === "buy" ? "Покупка" : "Продажа"} ${fmt(plan.entry)}, стоп ${fmt(plan.stop)}, тейк ${fmt(plan.target)}`
-            : "Клик по графику ставит выбранный уровень. Стоп и тейк — с разных сторон входа."}
+          {closed
+            ? "Рынок закрыт. Сразу брокер не откроет. Отложка встанет и дождётся открытия."
+            : plan
+              ? `${plan.side === "buy" ? "Покупка" : "Продажа"} ${fmt(plan.entry)}, стоп ${fmt(plan.stop)}, тейк ${fmt(plan.target)}`
+              : "Клик по графику ставит выбранный уровень. Стоп и тейк — с разных сторон входа."}
         </span>
-        <button type="button" disabled={busy || !plan} onClick={() => plan && onSend("now", plan)} className="ml-auto h-8 rounded-sm bg-[#089981] px-3 text-sm font-semibold text-white disabled:opacity-50">
+        <button type="button" disabled={busy || !plan || closed} onClick={() => plan && onSend("now", plan)} className="ml-auto h-8 rounded-sm bg-[#089981] px-3 text-sm font-semibold text-white disabled:opacity-50">
           Приказ сразу
         </button>
         <button type="button" disabled={busy || !plan} onClick={() => plan && onSend("limit", plan)} className="h-8 rounded-sm bg-amber-100 px-3 text-sm font-semibold text-zinc-900 disabled:opacity-50">
-          Приказ лимитом
+          {closed ? "Отложка до открытия" : "Приказ лимитом"}
         </button>
       </div>
     </>
   );
+}
+
+function marketClosed(pair: string) {
+  if (pair.endsWith("USD") && ["BTC", "ETH", "LTC", "BCH", "XRP", "TON"].some((c) => pair.startsWith(c))) return false;
+  const d = new Date();
+  const day = d.getUTCDay();
+  const hour = d.getUTCHours();
+  if (day === 6) return true;
+  if (day === 0 && hour < 22) return true;
+  if (day === 5 && hour >= 22) return true;
+  return false;
 }
 
 function orderOf(entry: number | null, stop: number | null, target: number | null) {
