@@ -199,7 +199,7 @@ function IdeasPage() {
               {custom ? `${custom}м` : "Свой"}
             </button>
           </form>
-          {[15, 2, 10, 45, 90].map((n) => (
+          {[15, 30, 60, 2, 10, 45, 90].map((n) => (
             <button
               key={n}
               type="button"
