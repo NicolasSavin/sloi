@@ -97,7 +97,7 @@ function IdeasPage() {
   useEffect(() => {
     const root = host.current;
     if (!root) return;
-    const key = `${symbol}|${step}|price`;
+    const key = `${symbol}|${step}|delta1`;
     if (root.dataset.built === key && root.childElementCount > 0) return;
     root.dataset.built = key;
     root.replaceChildren();
@@ -133,6 +133,7 @@ function IdeasPage() {
       withdateranges: true,
       details: false,
       save_image: true,
+      hide_volume: true,
       support_host: "https://www.tradingview.com",
     });
     box.append(pane, copy, script);
@@ -282,8 +283,8 @@ function IdeasPage() {
         </div>
       )}
       <div ref={screen} className="relative min-h-0 flex-1 bg-[#131722]">
-        <div className={draw ? "absolute inset-x-0 top-0 bottom-52" : "absolute inset-0"}>
-          <div ref={host} className="absolute inset-0" />
+        <div className={draw ? "absolute inset-x-0 top-0 bottom-52 flex flex-col" : "absolute inset-0 flex flex-col"}>
+          <div ref={host} className="relative min-h-0 flex-1" />
           <DeltaLine pair={pair} minutes={step} />
         </div>
         {draw ? (
