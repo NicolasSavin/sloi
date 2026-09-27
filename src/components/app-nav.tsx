@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { Download } from "lucide-react";
 import { BRAND, DOMAIN, EA_FILE } from "@/lib/brand";
@@ -25,6 +25,7 @@ const LINKS = [
 export function AppNav() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [open, setOpen] = useState(false);
+  const menuBtn = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "F2") {
@@ -40,17 +41,23 @@ export function AppNav() {
       window.removeEventListener("sloi-menu", onMenu);
     };
   }, []);
+  useEffect(() => {
+    if (open) menuBtn.current?.focus();
+  }, [open]);
   return (
     <>
-      {pathname.startsWith("/ideas") ? null : (
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          className="fixed left-2 top-2 z-[280] h-8 rounded-sm bg-white px-3 text-sm font-semibold text-zinc-900 shadow"
-        >
-          Меню
-        </button>
-      )}
+      <button
+        ref={menuBtn}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="fixed left-3 top-3 z-[400] h-10 rounded-sm bg-amber-300 px-4 text-sm font-bold text-zinc-900 shadow-lg"
+      >
+        {open ? "Закрыть" : "Меню"}
+      </button>
+      {open ? (
+        <button type="button" aria-label="Закрыть меню" onClick={() => setOpen(false)} className="fixed inset-0 z-[290] bg-black/40" />
+      ) : null}
+      <header
         className={cn(
           "nav-metal fixed inset-x-0 top-0 z-[300] backdrop-blur-md transition-transform duration-200",
           open ? "translate-y-0" : "-translate-y-full",
