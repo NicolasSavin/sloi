@@ -189,7 +189,7 @@ function IdeasPage() {
             }}
             className={`h-9 rounded-sm px-4 text-sm font-semibold ${draw ? "bg-sky-300 text-zinc-900" : "bg-amber-100 text-zinc-900"}`}
           >
-            {draw ? "Закрыть" : "Рисовать"}
+            {draw ? "Скрыть паттерн" : "Найти паттерн"}
           </button>
           <button type="button" onClick={() => setFull(true)} className="h-7 rounded-sm bg-[#2a2e39] px-2 text-xs text-zinc-100">
             F8 весь экран

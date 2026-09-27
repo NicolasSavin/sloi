@@ -9,6 +9,13 @@ export const Route = createFileRoute("/about")({
 
 const UPDATES = [
   {
+    v: "1.10.47",
+    d: "2026-09-27",
+    items: [
+      "«Найти паттерн» показывает фигуру полосой снизу и не трогает график TradingView",
+    ],
+  },
+  {
     v: "1.10.46",
     d: "2026-09-27",
     items: [

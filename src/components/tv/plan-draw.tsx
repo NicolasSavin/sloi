@@ -106,6 +106,22 @@ export function PlanDraw({
       const { min, max } = span(candles, extra);
       const xOf = (i: number) => PAD_L + ((w - PAD_L - PAD_R) * i) / Math.max(candles.length - 1, 1);
       const yOf = (p: number) => PAD_Y + ((max - p) / (max - min || 1)) * (h - PAD_Y * 2);
+      const slot = (w - PAD_L - PAD_R) / candles.length;
+      ctx.fillStyle = "#2a3448";
+      ctx.fillRect(0, 0, w, h);
+      candles.forEach((c, i) => {
+        const up = c.close >= c.open;
+        ctx.strokeStyle = up ? "#26a69a" : "#ef5350";
+        ctx.fillStyle = ctx.strokeStyle;
+        const x = xOf(i);
+        ctx.beginPath();
+        ctx.moveTo(x, yOf(c.high));
+        ctx.lineTo(x, yOf(c.low));
+        ctx.stroke();
+        const top = yOf(Math.max(c.open, c.close));
+        const bot = yOf(Math.min(c.open, c.close));
+        ctx.fillRect(x - Math.max(slot * 0.28, 1), top, Math.max(slot * 0.56, 2), Math.max(bot - top, 1));
+      });
       for (const m of marks) {
         if (m.t === "zone") {
           const x1 = xOf(Math.min(m.a, m.b));
@@ -481,13 +497,13 @@ export function PlanDraw({
     setStory(piece);
   }
 
+  useEffect(() => {
+    void findPattern();
+  }, [pair, minutes]);
+
   return (
-    <>
-      <div ref={box} className="pointer-events-none fixed -left-[2400px] top-0 h-[420px] w-[800px]">
-        <canvas ref={canvas} className="h-[420px] w-[800px]" />
-      </div>
-      <div className="fixed inset-x-0 bottom-0 z-[90] border-t border-white/10 bg-[#131722]/95 px-3 py-2">
-        <div className="flex flex-wrap items-center gap-2">
+    <div className="fixed inset-x-0 bottom-0 z-[90] max-h-[46vh] overflow-auto border-t border-white/10 bg-[#131722]/95 px-3 py-2">
+      <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs tracking-[0.16em] text-amber-100/80">{pair}</span>
           <Tool name="Вход" on={tool === "entry"} click={() => setTool("entry")} />
           <Tool name="Стоп" on={tool === "stop"} click={() => setTool("stop")} />
@@ -538,8 +554,18 @@ export function PlanDraw({
             {err ? ` ${err}` : ""}
           </p>
         )}
+        <div ref={box} className="relative mt-2 h-52 w-full overflow-hidden rounded-sm border border-white/10">
+          <canvas
+            ref={canvas}
+            onClick={click}
+            onMouseDown={down}
+            onMouseMove={move}
+            onMouseUp={up}
+            onMouseLeave={up}
+            className="absolute inset-0 h-full w-full cursor-crosshair"
+          />
+        </div>
       </div>
-    </>
   );
 }
 
