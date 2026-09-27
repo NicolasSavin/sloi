@@ -7,7 +7,7 @@ import { readDeskKey } from "@/lib/desk-key";
 import { PAIR_OPTIONS } from "@/lib/ea-settings";
 import { PatternOverlay } from "@/components/tv/pattern-overlay";
 import { PlanDraw } from "@/components/tv/plan-draw";
-import { tvSymbol } from "@/lib/tradingview";
+import { tvSymbol, tvWidgetSrc } from "@/lib/tradingview";
 
 const ON_CHART = new Set([1, 3, 5, 15, 30, 60, 120, 180, 240]);
 
@@ -22,7 +22,6 @@ function IdeasPage() {
   const { pair } = Route.useSearch();
   const navigate = useNavigate();
   const symbol = tvSymbol(pair);
-  const host = useRef<HTMLDivElement>(null);
   const [key, setKey] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -95,52 +94,6 @@ function IdeasPage() {
     document.addEventListener("fullscreenchange", sync);
     return () => document.removeEventListener("fullscreenchange", sync);
   }, []);
-
-  useEffect(() => {
-    const root = host.current;
-    if (!root) return;
-    const key = `${symbol}|${step}|vol1`;
-    if (root.dataset.built === key && root.childElementCount > 0) return;
-    root.dataset.built = key;
-    root.replaceChildren();
-    const box = document.createElement("div");
-    box.className = "tradingview-widget-container";
-    box.style.height = "100%";
-    box.style.width = "100%";
-    const pane = document.createElement("div");
-    pane.className = "tradingview-widget-container__widget";
-    pane.style.height = "calc(100% - 32px)";
-    pane.style.width = "100%";
-    const copy = document.createElement("div");
-    copy.className = "tradingview-widget-container__copyright";
-    copy.innerHTML =
-      '<a href="https://www.tradingview.com/" rel="noopener nofollow" target="_blank"><span class="blue-text">График TradingView</span></a>';
-    const script = document.createElement("script");
-    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
-    script.async = true;
-    script.innerHTML = JSON.stringify({
-      autosize: true,
-      symbol,
-      interval: ON_CHART.has(step) ? String(step) : "60",
-      timezone: "Asia/Dubai",
-      theme: "dark",
-      style: "1",
-      locale: "ru",
-      backgroundColor: "#131722",
-      gridColor: "rgba(242, 242, 242, 0.06)",
-      allow_symbol_change: true,
-      hide_top_toolbar: false,
-      hide_side_toolbar: false,
-      hide_legend: false,
-      withdateranges: true,
-      details: false,
-      save_image: true,
-      hide_volume: false,
-      support_host: "https://www.tradingview.com",
-    });
-    box.append(pane, copy, script);
-    root.append(box);
-  }, [symbol, step]);
 
   async function send(kind: "BUY" | "SELL" | "CLOSE") {
     if (!key) {
@@ -293,8 +246,13 @@ function IdeasPage() {
       )}
       <div ref={screen} className="relative min-h-0 flex-1 bg-[#131722]">
         <div className={draw ? "absolute inset-x-0 top-0 bottom-52 flex flex-col" : "absolute inset-0 flex flex-col"}>
-          <div className="relative min-h-0 flex-1">
-            <div ref={host} className="absolute inset-0" />
+          <div className="relative min-h-[420px] min-w-0 flex-1">
+            <iframe
+              key={`${symbol}|${step}`}
+              title="График TradingView"
+              src={tvWidgetSrc(pair, ON_CHART.has(step) ? String(step) : "60")}
+              className="absolute inset-0 h-full w-full border-0"
+            />
             {draw ? <PatternOverlay pair={pair} minutes={step} /> : null}
           </div>
           <DeltaLine pair={pair} minutes={step} open={deltaOpen} />
