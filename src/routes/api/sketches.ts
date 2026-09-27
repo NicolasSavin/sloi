@@ -43,6 +43,14 @@ function chartHint(text: string) {
   };
 }
 
+function spokenSide(text: string): "buy" | "sell" | undefined {
+  const buy = /рост|быч|покуп|лонг|вверх|наверх/i.test(text);
+  const sell = /продаж|шорт|падени|вниз|медвеж/i.test(text);
+  if (buy && !sell) return "buy";
+  if (sell && !buy) return "sell";
+  if (buy && /рост|быч/i.test(text)) return "buy";
+  return undefined;
+}
 function howWord(how: "now" | "limit" | null) {
   if (how === "now") return " КАК NOW";
   if (how === "limit") return " КАК LIMIT";
@@ -51,23 +59,25 @@ function howWord(how: "now" | "limit" | null) {
 
 async function withDeskLevels(text: string, instrument: string) {
   const marks = chartHint(text);
+  const said = spokenSide(text);
   const drawn = parsePlan(text);
-  if (drawn) {
+  if (drawn && (!said || drawn.side === said)) {
     if (marks.how && !/ПРИКАЗ[^\n]*КАК\s+(?:NOW|LIMIT)/i.test(text)) {
       return text.replace(/ПРИКАЗ[^\n]*/, (line) => `${line}${howWord(marks.how)}`);
     }
     return text;
   }
-  const symbol = guessSymbol(instrument, text);
+  const symbol = guessSymbol(instrument, text) || drawn?.symbol || "";
   if (!symbol) return `${text}\nИнструмент не назван, поэтому стол сам уровни не ставит.`;
-  const levels = await ownLevels(symbol, { side: marks.side, target: marks.target });
+  const body = drawn ? text.replace(/\n?ПРИКАЗ[^\n]*/i, "").trim() : text;
+  const levels = await ownLevels(symbol, { side: said ?? marks.side, target: marks.target });
   if (!levels && (marks.entry == null || marks.stop == null || marks.target == null)) {
     return `${text}\nС графика не прочитались вход, стоп и тейк, и стол тоже не собрал приказ.`;
   }
   const entry = marks.entry ?? levels?.entry ?? null;
   const stop = marks.stop ?? levels?.stop ?? null;
   const target = marks.target ?? levels?.target ?? null;
-  const side = marks.side ?? levels?.side;
+  const side = said ?? marks.side ?? levels?.side;
   if (entry == null || stop == null || target == null || !side) {
     return `${text}\nНа графике не хватило цен, стол не стал додумывать сторону.`;
   }
@@ -78,13 +88,17 @@ async function withDeskLevels(text: string, instrument: string) {
   }
   const fromChart = marks.entry != null || marks.stop != null || marks.target != null;
   const verb = side === "buy" ? "BUY" : "SELL";
-  const how = fromChart
+  const how = said && said !== levels?.side
+    ? said === "buy"
+      ? "В тексте назван рост, поэтому приказ на покупку. Двойная вершина здесь цель, не продажа."
+      : "В тексте названа продажа, поэтому приказ в шорт. Фигура не перебивает это слово."
+    : fromChart
     ? "Цены взяты с графика, со шкалы, куда смотрят подписи. Стол дописал только то, чего на картинке не было."
     : /клин|наклон|флаг|вымпел|пробой|голова|плеч|двойн|треугольник|паттерн/i.test(text)
       ? "На графике не было цен. Вход на линии пробоя, стоп за край фигуры, тейк на её высоту."
       : "На графике не было цен. Стол поставил вход, стоп и тейк сам.";
   const own = fromChart ? "" : " СТОЛ";
-  return `${text}\n${how}\nПРИКАЗ ${symbol} ${verb} ENTRY ${entry} STOP ${stop} TP ${target}${own}${howWord(marks.how)}`;
+  return `${body}\n${how}\nПРИКАЗ ${symbol} ${verb} ENTRY ${entry} STOP ${stop} TP ${target}${own}${howWord(marks.how)}`;
 }
 
 async function notesFromChart(typed: string, image: string, instrument: string) {

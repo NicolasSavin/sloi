@@ -830,6 +830,17 @@ export async function ownLevels(
       : ready ?? fromMap(snap);
     if (!base) return null;
     const side = hint?.side ?? base.side;
+    if (hint?.side && hint.side !== base.side) {
+      const risk = Math.abs(base.entry - base.stop) || base.entry * 0.002;
+      const reward = Math.abs(base.target - base.entry) || risk * 1.5;
+      const entry = base.entry;
+      if (hint.side === "buy") {
+        const target = hint.target != null && hint.target > entry ? hint.target : entry + reward;
+        return { side: "buy", entry: n(entry), stop: n(entry - risk), target: n(target) };
+      }
+      const target = hint.target != null && hint.target < entry ? hint.target : entry - reward;
+      return { side: "sell", entry: n(entry), stop: n(entry + risk), target: n(target) };
+    }
     let target = base.target;
     if (hint?.target != null && ((side === "buy" && hint.target > base.entry) || (side === "sell" && hint.target < base.entry))) {
       target = hint.target;
