@@ -24,14 +24,14 @@ const LINKS = [
 
 export function AppNav() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const [open, setOpen] = useState(false);
+  const onChart = pathname.startsWith("/ideas");
+  const [open, setOpen] = useState(true);
   const menuBtn = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" || e.key === "F2") {
-        e.preventDefault();
-        setOpen((v) => !v);
-      }
+      if (e.key !== "Escape" || !onChart) return;
+      e.preventDefault();
+      setOpen((v) => !v);
     };
     window.addEventListener("keydown", onKey);
     const onMenu = () => setOpen((v) => !v);
@@ -40,7 +40,7 @@ export function AppNav() {
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("sloi-menu", onMenu);
     };
-  }, []);
+  }, [onChart]);
   useEffect(() => {
     if (open) menuBtn.current?.focus();
   }, [open]);
@@ -51,7 +51,7 @@ export function AppNav() {
         tabIndex={-1}
         className={cn(
           "nav-metal fixed inset-x-0 top-0 z-[300] backdrop-blur-md transition-transform duration-200",
-          open ? "translate-y-0" : "-translate-y-full",
+          onChart && !open ? "-translate-y-full" : "translate-y-0",
         )}
       >
       <div className="flex items-center gap-3 overflow-x-auto px-3 py-3 sm:px-5">
