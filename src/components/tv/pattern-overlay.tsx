@@ -10,7 +10,7 @@ type Line = { a: Pt; b: Pt; name: string; color: string };
 const TF = { 5: "5m", 15: "15m", 60: "1h", 240: "4h", 1440: "1d" } as const;
 
 /** Найденные фигуры линиями на свечах TradingView. */
-export function PatternOverlay({ pair, minutes }: { pair: string; minutes: number }) {
+export function PatternOverlay({ pair, minutes, figures, divergence }: { pair: string; minutes: number; figures: boolean; divergence: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const [rows, setRows] = useState<Candle[]>([]);
   const [figs, setFigs] = useState<Fig[]>([]);
@@ -44,7 +44,7 @@ export function PatternOverlay({ pair, minutes }: { pair: string; minutes: numbe
           const last = (p: (typeof snap.patterns)[number]) => Math.max(...p.points.map((pt) => pt.time));
           return last(b) - last(a);
         });
-        const p = picked[0];
+        const p = figures ? picked[0] : undefined;
         if (p) {
           const ordered = p.points
             .map((pt) => wick(candles, at(pt.time), pt.price, pt.label))
@@ -77,7 +77,7 @@ export function PatternOverlay({ pair, minutes }: { pair: string; minutes: numbe
         }
         const extra: Line[] = [];
         const div = deltaDivergenceOn(candles);
-        if (div) {
+        if (divergence && div) {
           extra.push({
             a: wick(candles, at(div.a.time), div.a.price, div.onHigh ? "верх" : "низ"),
             b: wick(candles, at(div.b.time), div.b.price, div.onHigh ? "верх" : "низ"),
@@ -98,7 +98,7 @@ export function PatternOverlay({ pair, minutes }: { pair: string; minutes: numbe
     return () => {
       stop = true;
     };
-  }, [pair, minutes]);
+  }, [pair, minutes, figures, divergence]);
 
   useEffect(() => {
     const canvas = ref.current;

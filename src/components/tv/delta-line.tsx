@@ -97,12 +97,16 @@ export function DeltaLine({ pair, minutes, open }: { pair: string; minutes: numb
         const ib = bars.findIndex((b) => b.time === hit.b.time);
         if (ia >= 0 && ib >= 0) {
           const x = (i: number) => left + i * slot + slot / 2;
-          ctx.strokeStyle = "#7d8ea3";
-          ctx.lineWidth = 2;
+          const color = hit.bull ? "#26a69a" : "#f23645";
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 2.5;
           ctx.beginPath();
           ctx.moveTo(x(ia), yOf(bars[ia]!.c));
           ctx.lineTo(x(ib), yOf(bars[ib]!.c));
           ctx.stroke();
+          ctx.font = "bold 13px sans-serif";
+          ctx.fillStyle = color;
+          ctx.fillText(hit.bull ? "дивер дельты, вверх" : "дивер дельты, вниз", x(ia) + 6, yOf(bars[ia]!.c) - 8);
         }
       }
     };

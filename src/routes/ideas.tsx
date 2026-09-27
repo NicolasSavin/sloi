@@ -253,7 +253,7 @@ function IdeasPage() {
               src={tvWidgetSrc(pair, ON_CHART.has(step) ? String(step) : "60", !deltaOpen)}
               className="absolute inset-0 h-full w-full border-0"
             />
-            {draw ? <PatternOverlay pair={pair} minutes={step} /> : null}
+            {(draw || deltaOpen) ? <PatternOverlay pair={pair} minutes={step} figures={draw} divergence={deltaOpen} /> : null}
           </div>
           <DeltaLine pair={pair} minutes={step} open={deltaOpen} />
         </div>
