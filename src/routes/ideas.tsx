@@ -182,6 +182,13 @@ function IdeasPage() {
         <div className="relative z-[80] flex flex-wrap items-center gap-1 border-b border-white/10 bg-[#131722] px-2 py-1">
           <button
             type="button"
+            onClick={() => window.dispatchEvent(new Event("sloi-menu"))}
+            className="h-9 rounded-sm bg-white px-3 text-sm font-semibold text-zinc-900"
+          >
+            Меню
+          </button>
+          <button
+            type="button"
             onPointerDown={(e) => {
               e.preventDefault();
               e.stopPropagation();

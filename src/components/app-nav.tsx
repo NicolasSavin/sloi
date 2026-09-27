@@ -33,20 +33,26 @@ export function AppNav() {
       } else if (e.key === "Escape") setOpen(false);
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    const onMenu = () => setOpen((v) => !v);
+    window.addEventListener("sloi-menu", onMenu);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("sloi-menu", onMenu);
+    };
   }, []);
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="fixed left-2 top-2 z-[60] h-7 rounded-sm bg-[#2a3448] px-2 text-xs text-zinc-100 shadow"
-      >
-        Меню
-      </button>
-      <header
+      {pathname.startsWith("/ideas") ? null : (
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="fixed left-2 top-2 z-[280] h-8 rounded-sm bg-white px-3 text-sm font-semibold text-zinc-900 shadow"
+        >
+          Меню
+        </button>
+      )}
         className={cn(
-          "nav-metal fixed inset-x-0 top-0 z-50 backdrop-blur-md transition-transform duration-200",
+          "nav-metal fixed inset-x-0 top-0 z-[300] backdrop-blur-md transition-transform duration-200",
           open ? "translate-y-0" : "-translate-y-full",
         )}
       >
