@@ -154,7 +154,10 @@ function IdeasPage() {
             onPointerDown={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              setDraw((v) => !v);
+              setDraw((v) => {
+                if (!v) setDivOn(true);
+                return !v;
+              });
             }}
             className={`h-9 rounded-sm px-4 text-sm font-semibold ${draw ? "bg-sky-300 text-zinc-900" : "bg-amber-100 text-zinc-900"}`}
           >

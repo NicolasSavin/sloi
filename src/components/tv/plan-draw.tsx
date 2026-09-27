@@ -11,7 +11,8 @@ type Stroke = { a: Pt; b: Pt };
 type AutoMark =
   | { t: "zone"; a: number; b: number; top: number; bot: number; name: string; color: string }
   | { t: "h"; price: number; name: string; color: string }
-  | { t: "line"; a: Pt; b: Pt; name: string; color: string };
+  | { t: "line"; a: Pt; b: Pt; name: string; color: string }
+  | { t: "poly"; pts: Pt[]; color: string };
 
 const LEFT = 12;
 const RIGHT = 70;
@@ -102,9 +103,10 @@ export function PlanDraw({
         stop,
         target,
         ...lines.flatMap((l) => [l.a.price, l.b.price]),
-        ...marks.flatMap((m) => (m.t === "h" ? [m.price] : m.t === "zone" ? [m.top, m.bot] : [m.a.price, m.b.price])),
+        ...marks.flatMap((m) => (m.t === "h" ? [m.price] : m.t === "zone" ? [m.top, m.bot] : m.t === "poly" ? m.pts.map((p) => p.price) : [m.a.price, m.b.price])),
       ];
       const first = marks.reduce((min, m) => {
+        if (m.t === "poly") return Math.min(min, ...m.pts.map((p) => p.i));
         if (m.t !== "line") return min;
         return Math.min(min, m.a.i, m.b.i);
       }, candles.length);
@@ -137,6 +139,14 @@ export function PlanDraw({
         tag(ctx, xOf(m.a.i), yOf(m.a.price) - 16, m.name, m.color);
       }
       const divs = marks.filter((m) => m.t === "line" && m.name.startsWith("дивер"));
+      for (const m of marks) {
+        if (m.t !== "poly" || m.pts.length < 3) continue;
+        ctx.beginPath();
+        m.pts.forEach((p, i) => (i ? ctx.lineTo(xOf(p.i), yOf(p.price)) : ctx.moveTo(xOf(p.i), yOf(p.price))));
+        ctx.closePath();
+        ctx.fillStyle = `${m.color}33`;
+        ctx.fill();
+      }
       ctx.font = "bold 16px sans-serif";
       ctx.fillStyle = "#d6ff4a";
       ctx.fillText(divs[0]?.t === "line" ? divs[0].name : "дивергенции дельты нет", 16, 26);
@@ -191,7 +201,7 @@ export function PlanDraw({
       stop,
       target,
       ...lines.flatMap((l) => [l.a.price, l.b.price]),
-      ...marks.flatMap((m) => (m.t === "h" ? [m.price] : m.t === "zone" ? [m.top, m.bot] : [m.a.price, m.b.price])),
+      ...marks.flatMap((m) => (m.t === "h" ? [m.price] : m.t === "zone" ? [m.top, m.bot] : m.t === "poly" ? m.pts.map((p) => p.price) : [m.a.price, m.b.price])),
     ]);
     const i = start + ((e.clientX - r.left - LEFT) / (r.width - LEFT - plotRight)) * Math.max(rows.length - 1, 1);
     const price = max - ((e.clientY - r.top - top) / Math.max(priceBottom - top, 1)) * (max - min);
@@ -208,7 +218,7 @@ export function PlanDraw({
       stop,
       target,
       ...lines.flatMap((l) => [l.a.price, l.b.price]),
-      ...marks.flatMap((m) => (m.t === "h" ? [m.price] : m.t === "zone" ? [m.top, m.bot] : [m.a.price, m.b.price])),
+      ...marks.flatMap((m) => (m.t === "h" ? [m.price] : m.t === "zone" ? [m.top, m.bot] : m.t === "poly" ? m.pts.map((p) => p.price) : [m.a.price, m.b.price])),
     ]);
     const yPer = (priceBottom - top) / (max - min || 1);
     let bestI = Math.round(raw.i);
@@ -238,7 +248,7 @@ export function PlanDraw({
       stop,
       target,
       ...lines.flatMap((l) => [l.a.price, l.b.price]),
-      ...marks.flatMap((m) => (m.t === "h" ? [m.price] : m.t === "zone" ? [m.top, m.bot] : [m.a.price, m.b.price])),
+      ...marks.flatMap((m) => (m.t === "h" ? [m.price] : m.t === "zone" ? [m.top, m.bot] : m.t === "poly" ? m.pts.map((p) => p.price) : [m.a.price, m.b.price])),
     ]);
     return { x: r.left + xOf(p.i), y: r.top + yOf(p.price) };
   }
@@ -418,12 +428,16 @@ export function PlanDraw({
           };
           chain(top, p.name);
           chain(bot, "");
+          const ring = [...top, ...[...bot].reverse()].map(onWick);
+          if (ring.length >= 3) next.push({ t: "poly", pts: ring, color });
           if (top.length >= 2 && bot.length >= 2) {
             next.push({ t: "line", a: onWick(top[0]!), b: onWick(bot[0]!), name: "", color });
             next.push({ t: "line", a: onWick(top[top.length - 1]!), b: onWick(bot[bot.length - 1]!), name: "", color });
           }
           return;
         }
+        const shape = ordered.map(onWick);
+        if (shape.length >= 3) next.push({ t: "poly", pts: shape, color });
         for (let i = 1; i < ordered.length; i++) {
           next.push({
             t: "line",
