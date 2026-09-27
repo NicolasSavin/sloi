@@ -14,6 +14,7 @@ export function DeltaLine({ pair, minutes }: { pair: string; minutes: number }) 
   const [bars, setBars] = useState<Bar[]>([]);
   const [hit, setHit] = useState<DivHit | null>(null);
   const [last, setLast] = useState(0);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     let stop = false;
@@ -117,11 +118,18 @@ export function DeltaLine({ pair, minutes }: { pair: string; minutes: number }) 
     const ro = new ResizeObserver(paint);
     if (canvas.parentElement) ro.observe(canvas.parentElement);
     return () => ro.disconnect();
-  }, [bars, hit, last]);
+  }, [bars, hit, last, open]);
 
   return (
-    <div className="relative h-36 shrink-0 border-t border-white/10 bg-[#131722]">
-      <canvas ref={ref} className="absolute inset-0" />
+    <div className={`relative shrink-0 border-t border-white/10 bg-[#131722] ${open ? "h-36" : "h-8"}`}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="absolute left-2 top-1 z-10 text-xs text-zinc-200"
+      >
+        {open ? "Свернуть дельту" : "Дельта объёма — развернуть"} {fmt(last)}
+      </button>
+      {open ? <canvas ref={ref} className="absolute inset-0" /> : null}
     </div>
   );
 }

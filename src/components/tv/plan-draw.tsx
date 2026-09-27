@@ -552,11 +552,6 @@ export function PlanDraw({
         />
       </div>
       )}
-      {dock ? (
-        <div ref={box} className="h-28">
-          <canvas ref={canvas} className="h-full w-full" />
-        </div>
-      ) : null}
       <div className={dock ? "px-3 py-2" : "fixed inset-x-0 bottom-0 z-[90] border-t border-white/10 bg-[#131722]/95 px-3 py-2"}>
       <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs tracking-[0.16em] text-amber-100/80">{pair}</span>

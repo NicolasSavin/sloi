@@ -98,7 +98,7 @@ function IdeasPage() {
   useEffect(() => {
     const root = host.current;
     if (!root) return;
-    const key = `${symbol}|${step}|delta1`;
+    const key = `${symbol}|${step}|vol1`;
     if (root.dataset.built === key && root.childElementCount > 0) return;
     root.dataset.built = key;
     root.replaceChildren();
@@ -134,7 +134,7 @@ function IdeasPage() {
       withdateranges: true,
       details: false,
       save_image: true,
-      hide_volume: true,
+      hide_volume: false,
       support_host: "https://www.tradingview.com",
     });
     box.append(pane, copy, script);
