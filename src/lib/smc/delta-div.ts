@@ -19,6 +19,8 @@ export function deltaDivergenceOn(candles: Candle[]): DivHit | null {
     acc += d;
     cvd.push(acc);
   }
+  const seen = eye(candles, delta, true) ?? eye(candles, delta, false);
+  if (seen) return seen;
   const highs = pivots(
     candles.map((c) => c.high),
     "high",
@@ -27,10 +29,31 @@ export function deltaDivergenceOn(candles: Candle[]): DivHit | null {
     candles.map((c) => c.low),
     "low",
   );
-  const fromHighs = pair(candles, highs, cvd, delta, true);
-  const fromLows = pair(candles, lows, cvd, delta, false);
-  if (fromHighs && fromLows) return fromHighs.b.time >= fromLows.b.time ? fromHighs : fromLows;
-  return fromHighs ?? fromLows;
+  return pair(candles, highs, cvd, delta, true) ?? pair(candles, lows, cvd, delta, false);
+}
+
+function eye(candles: Candle[], delta: number[], onHigh: boolean): DivHit | null {
+  const pick = (from: number, to: number) => {
+    let at = from;
+    for (let i = from; i <= to; i++) {
+      const better = onHigh ? candles[i]!.high >= candles[at]!.high : candles[i]!.low <= candles[at]!.low;
+      if (better) at = i;
+    }
+    return at;
+  };
+  const mid = Math.floor(candles.length * 0.55);
+  const a = pick(2, Math.max(mid, 6));
+  const b = pick(Math.min(mid + 4, candles.length - 3), candles.length - 2);
+  if (b - a < 6) return null;
+  const left = onHigh ? candles[a]!.high : candles[a]!.low;
+  const right = onHigh ? candles[b]!.high : candles[b]!.low;
+  const first = leg(delta, Math.max(0, a - 6), a);
+  const second = leg(delta, Math.max(a, b - 8), b);
+  if (onHigh && right > left && second < first) return ends(candles, a, b, false, true);
+  if (onHigh && right < left && second > first) return ends(candles, a, b, true, true);
+  if (!onHigh && right < left && second > first) return ends(candles, a, b, true, false);
+  if (!onHigh && right > left && second < first) return ends(candles, a, b, false, false);
+  return null;
 }
 
 function pair(candles: Candle[], pts: number[], cvd: number[], delta: number[], onHigh: boolean): DivHit | null {
@@ -71,8 +94,8 @@ function ends(candles: Candle[], a: number, b: number, bull: boolean, onHigh: bo
 
 function pivots(values: number[], kind: "high" | "low") {
   const out: number[] = [];
-  const span = 4;
-  for (let i = span; i < values.length - span; i++) {
+  const span = 3;
+  for (let i = span; i < values.length - 2; i++) {
     let ok = true;
     for (let k = 1; k <= span; k++) {
       if (kind === "high" && !(values[i]! >= values[i - k]! && values[i]! > values[i + k]!)) ok = false;
