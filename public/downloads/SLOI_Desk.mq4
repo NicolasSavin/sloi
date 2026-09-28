@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.45"
+#property version   "5.46"
 #property strict
-#property description "SLOI 5.45: объявлен g_clickMs, файл компилируется"
+#property description "SLOI 5.46: приказ с заметки не теряется, если сразу нельзя — ставит отложку"
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -2767,32 +2767,47 @@ int ChartOrder(string naked, int dir, double entry, double stop, double tp, int 
      {
       if(dir > 0)
         {
-         if(!(ask > stop && ask < tp)) { Alert("SLOI график: сразу нельзя, цена уже не между стопом и тейком"); return(0); }
-         cmd = OP_BUY;
-         px = ask;
-         sl = stop + (ask - entry);
-         target = tp + (ask - entry);
+         if(!(ask > stop && ask < tp))
+           {
+            Alert("SLOI график: сразу нельзя, цена не между стопом и тейком. Ставлю отложку на вход.");
+            how = 0;
+           }
+         else
+           {
+            cmd = OP_BUY;
+            px = ask;
+            sl = stop + (ask - entry);
+            target = tp + (ask - entry);
+           }
         }
       else
         {
-         if(!(bid < stop && bid > tp)) { Alert("SLOI график: сразу нельзя, цена уже не между стопом и тейком"); return(0); }
-         cmd = OP_SELL;
-         px = bid;
-         sl = stop - (entry - bid);
-         target = tp - (entry - bid);
+         if(!(bid < stop && bid > tp))
+           {
+            Alert("SLOI график: сразу нельзя, цена не между стопом и тейком. Ставлю отложку на вход.");
+            how = 0;
+           }
+         else
+           {
+            cmd = OP_SELL;
+            px = bid;
+            sl = stop - (entry - bid);
+            target = tp - (entry - bid);
+           }
         }
      }
-   else if(how == 0)
+   if(how == 0)
      {
       if(dir > 0) cmd = (ask > entry) ? OP_BUYLIMIT : OP_BUYSTOP;
       else cmd = (bid < entry) ? OP_SELLLIMIT : OP_SELLSTOP;
       if(MathAbs(pxLive - entry) <= near)
         {
-         Alert("SLOI график: цена уже на входе, лимитку не ставлю. Выберите сразу.");
-         return(0);
+         Alert("SLOI график: цена уже на входе, вхожу по рынку.");
+         cmd = dir > 0 ? OP_BUY : OP_SELL;
+         px = dir > 0 ? ask : bid;
         }
      }
-   else if(dir > 0)
+   else if(how != 1 && dir > 0)
      {
       if(ask > entry + near)
         {
@@ -2807,7 +2822,7 @@ int ChartOrder(string naked, int dir, double entry, double stop, double tp, int 
          target = tp + (ask - entry);
         }
      }
-   else
+   else if(how != 1)
      {
       if(bid < entry - near)
         {
@@ -2847,8 +2862,6 @@ void ApplySiteCommands()
       if(k < 3) continue;
       string cid = p[1];
       if(StringFind(g_cmds, cid) >= 0) continue;
-      g_cmds = g_cmds + cid + ",";
-      if(StringLen(g_cmds) > 500) g_cmds = StringSubstr(g_cmds, StringLen(g_cmds) - 240);
       string kind = p[2];
       string a = (k >= 4 ? p[3] : "");
       double forceTp = 0;
@@ -2865,22 +2878,23 @@ void ApplySiteCommands()
          else if(p[t] == "HOW" && p[t + 1] == "NOW") chartHow = 1;
          else if(p[t] == "HOW" && p[t + 1] == "LIMIT") chartHow = 0;
         }
+      if((kind == "BUY" || kind == "SELL") && !TradeHere && !g_leader) continue;
+      int placed = 1;
       if(kind == "PAUSE") g_auto = false;
       else if(kind == "RESUME") g_auto = true;
       else if(kind == "CLOSE_ALL") CloseMine(true);
       else if(kind == "CLOSE_PROFIT") CloseMine(false);
       else if(kind == "CLOSE") CloseByNaked(a);
       else if((kind == "BUY" || kind == "SELL") && chartEntry > 0 && chartStop > 0 && forceTp > 0)
+         placed = ChartOrder(a, kind == "BUY" ? 1 : -1, chartEntry, chartStop, forceTp, chartHow, chartLots);
+      else if(kind == "BUY") placed = ManualTradeSym(a, 1, forceTp, chartLots);
+      else if(kind == "SELL") placed = ManualTradeSym(a, -1, forceTp, chartLots);
+      if(placed > 0)
         {
-         int placed = ChartOrder(a, kind == "BUY" ? 1 : -1, chartEntry, chartStop, forceTp, chartHow, chartLots);
-         if(placed == -132)
-           {
-            StringReplace(g_cmds, cid + ",", "");
-            Print("SLOI график: рынок закрыт, приказ остаётся до открытия");
-           }
+         g_cmds = g_cmds + cid + ",";
+         if(StringLen(g_cmds) > 500) g_cmds = StringSubstr(g_cmds, StringLen(g_cmds) - 240);
         }
-      else if(kind == "BUY") ManualTradeSym(a, 1, forceTp, chartLots);
-      else if(kind == "SELL") ManualTradeSym(a, -1, forceTp, chartLots);
+      else Print("SLOI график: приказ ", cid, " ещё не открыт, повтор");
       Print("SLOI CMD ", cid, " ", kind, " ", a);
      }
   }

@@ -340,7 +340,7 @@ function ChartOrder({ plan }: { plan: ChartPlan }) {
       },
     });
     setBusy(false);
-    setNote(res.ok ? (how === "now" ? "Рыночный приказ ушёл в ваш стол." : "Лимитка ушла в ваш стол. Пока цена не на входе, сделки нет.") : res.error);
+    setNote(res.ok ? (how === "now" ? "Приказ в очереди советника. Если цена не между стопом и тейком, встанет отложка на вход." : "Лимитка в очереди советника. Сделка появится, когда цена дойдёт до входа.") : res.error);
   }
   const px = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 5 });
   return (
