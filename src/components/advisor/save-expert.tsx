@@ -75,6 +75,13 @@ export function SaveExpert({ settings, className }: { settings: EaSettings; clas
         >
           Сов по ликвидности
         </a>
+        <a
+          href="/downloads/SLOI_Note.mq4"
+          download="SLOI_Note.mq4"
+          className="inline-flex h-11 items-center gap-2 rounded-sm px-4 text-sm font-medium shadow-[var(--shadow-border)]"
+        >
+          Сов заметок
+        </a>
         <Button type="button" variant="ghost" onClick={() => { setWhich("follow"); void copyNow(); setOpen(true); }}>
           Копировать код
         </Button>
