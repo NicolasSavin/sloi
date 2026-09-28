@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.43"
+#property version   "5.44"
 #property strict
-#property description "SLOI 5.43: в выходные приказ с графика ждёт открытия отложкой"
+#property description "SLOI 5.44: компилируется, g_qTp объявлен"
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -116,6 +116,7 @@ datetime g_clickAt = 0;
 uint     g_uiMs = 0;
 string g_qSym = "";
 int    g_qDir = 0;
+double g_qTp = 0;
 int    g_sendErr = 0;
 int    g_qTry = 0;
 string g_feedNote = "нет ленты";
@@ -1559,6 +1560,8 @@ void AppendBookFromChart(long ch, string &body)
    int d = DigitsOf(sym);
    double px[24];
    double vol[24];
+   ArrayInitialize(px, 0);
+   ArrayInitialize(vol, 0);
    int n = 0;
    int wins = (int)ChartGetInteger(ch, CHART_WINDOWS_TOTAL);
    for(int w = 0; w < MathMax(1, wins) && n < 24; w++)
