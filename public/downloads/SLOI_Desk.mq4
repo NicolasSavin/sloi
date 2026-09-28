@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "5.44"
+#property version   "5.45"
 #property strict
-#property description "SLOI 5.44: компилируется, g_qTp объявлен"
+#property description "SLOI 5.45: объявлен g_clickMs, файл компилируется"
 
 input string  SignalsUrl      = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string  DeskKey         = "";
@@ -113,6 +113,7 @@ datetime g_feedAt = 0;
 datetime g_tapeAt = 0;
 datetime g_uiAt = 0;
 datetime g_clickAt = 0;
+uint     g_clickMs = 0;
 uint     g_uiMs = 0;
 string g_qSym = "";
 int    g_qDir = 0;
@@ -1625,7 +1626,7 @@ void AppendBookFromChart(long ch, string &body)
      }
    int keep = (n > 8 ? 8 : n);
    int idx[8];
-   for(int a = 0; a < keep; a++) idx[a] = -1;
+   ArrayInitialize(idx, -1);
    for(int a = 0; a < keep; a++)
      {
       int best = -1;
