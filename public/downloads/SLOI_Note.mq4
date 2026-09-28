@@ -4,9 +4,9 @@
 //+------------------------------------------------------------------+
 #property copyright "SLOI"
 #property link      ""
-#property version   "1.00"
+#property version   "1.10"
 #property strict
-#property description "SLOI Note 1.00: заметка и график сайта. Один график, любая пара из приказа."
+#property description "SLOI Note 1.10: пары с панели, фигуры, вход, стоп, тейк и всплеск объёма"
 
 input string SignalsUrl = "https://sloi-kohl.vercel.app/api/signals.txt";
 input string DeskKey    = "";
@@ -18,11 +18,18 @@ input int    MagicNote  = 88046;
 string   g_done = "";
 string   g_note = "жду ключ";
 datetime g_poll = 0;
+bool     g_fig = false;
+bool     g_force = false;
+datetime g_bar = 0;
+string   g_pairs[28];
+int      g_np = 0;
+int      g_figN = 0;
 
 int OnInit()
   {
    EventSetTimer(2);
    LoadDone();
+   FillPairs();
    Paint();
    return(INIT_SUCCEEDED);
   }
@@ -32,12 +39,49 @@ void OnDeinit(const int reason)
    EventKillTimer();
    ObjectDelete(0, "SLOIN_bg");
    ObjectDelete(0, "SLOIN_tx");
+   ObjectDelete(0, "SLOIN_fig");
+   WipeFigs();
+   WipePairs();
   }
 
 void OnTimer()
   {
    Poll();
    Paint();
+   if(!g_fig) return;
+   datetime b = iTime(NULL, 0, 0);
+   if(b != g_bar || g_force)
+     {
+      g_bar = b;
+      g_force = false;
+      DrawFigs();
+     }
+  }
+
+void OnChartEvent(const int id, const long &lparam, const double &dparam, const string &sparam)
+  {
+   if(id != CHARTEVENT_OBJECT_CLICK) return;
+   if(sparam == "SLOIN_fig")
+     {
+      g_fig = !g_fig;
+      ObjectSetInteger(0, sparam, OBJPROP_STATE, g_fig);
+      if(!g_fig) WipeFigs();
+      else g_force = true;
+      Paint();
+      return;
+     }
+   if(StringFind(sparam, "SLOIN_p_") != 0) return;
+   ObjectSetInteger(0, sparam, OBJPROP_STATE, false);
+   string naked = StringSubstr(sparam, 8);
+   string sym = Resolve(naked);
+   if(sym == "")
+     {
+      g_note = "нет пары " + naked;
+      return;
+     }
+   ChartSetSymbolPeriod(0, sym, Period());
+   g_force = true;
+   g_note = naked;
   }
 
 void LoadDone()
@@ -252,7 +296,7 @@ void Paint()
    ObjectSetInteger(0, "SLOIN_bg", OBJPROP_CORNER, CORNER_LEFT_UPPER);
    ObjectSetInteger(0, "SLOIN_bg", OBJPROP_XDISTANCE, 8);
    ObjectSetInteger(0, "SLOIN_bg", OBJPROP_YDISTANCE, 18);
-   ObjectSetInteger(0, "SLOIN_bg", OBJPROP_XSIZE, 420);
+   ObjectSetInteger(0, "SLOIN_bg", OBJPROP_XSIZE, 580);
    ObjectSetInteger(0, "SLOIN_bg", OBJPROP_YSIZE, 36);
    ObjectSetInteger(0, "SLOIN_bg", OBJPROP_BGCOLOR, C'18,22,28');
    ObjectSetInteger(0, "SLOIN_bg", OBJPROP_COLOR, clrGoldenrod);
@@ -267,5 +311,327 @@ void Paint()
    ObjectSetString(0, "SLOIN_tx", OBJPROP_FONT, "Arial");
    ObjectSetString(0, "SLOIN_tx", OBJPROP_TEXT, "SLOI NOTE  " + g_note);
    ObjectSetInteger(0, "SLOIN_tx", OBJPROP_BACK, false);
+   Btn("SLOIN_fig", 440, 22, 130, 26, g_fig ? "ФИГУРЫ ВКЛ" : "ФИГУРЫ ВЫКЛ", g_fig ? clrSeaGreen : clrDimGray);
+   ObjectSetInteger(0, "SLOIN_fig", OBJPROP_STATE, g_fig);
+   string now = NakedNow();
+   int i;
+   for(i = 0; i < g_np; i++)
+     {
+      int col = i % 10;
+      int row = i / 10;
+      string id = "SLOIN_p_" + g_pairs[i];
+      Btn(id, 8 + col * 82, 60 + row * 22, 78, 18, g_pairs[i], g_pairs[i] == now ? clrGoldenrod : C'28,32,40');
+      ObjectSetInteger(0, id, OBJPROP_STATE, false);
+     }
+  }
+
+void FillPairs()
+  {
+   string raw = "EURUSD,GBPUSD,USDJPY,USDCHF,AUDUSD,USDCAD,NZDUSD,EURGBP,EURJPY,GBPJPY,AUDJPY,CADJPY,NZDJPY,EURCHF,EURAUD,GBPAUD,XAUUSD,XAGUSD,XTIUSD,XBRUSD,XNGUSD,BTCUSD,ETHUSD";
+   string p[];
+   int n = StringSplit(raw, ',', p);
+   if(n > 28) n = 28;
+   g_np = n;
+   int i;
+   for(i = 0; i < n; i++) g_pairs[i] = p[i];
+  }
+
+string NakedNow()
+  {
+   string s = Symbol();
+   if(StringLen(Suffix) > 0) StringReplace(s, Suffix, "");
+   StringToUpper(s);
+   return(s);
+  }
+
+void Btn(string name, int x, int y, int w, int h, string text, color bg)
+  {
+   if(ObjectFind(0, name) < 0)
+      ObjectCreate(0, name, OBJ_BUTTON, 0, 0, 0);
+   ObjectSetInteger(0, name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+   ObjectSetInteger(0, name, OBJPROP_XDISTANCE, x);
+   ObjectSetInteger(0, name, OBJPROP_YDISTANCE, y);
+   ObjectSetInteger(0, name, OBJPROP_XSIZE, w);
+   ObjectSetInteger(0, name, OBJPROP_YSIZE, h);
+   ObjectSetString(0, name, OBJPROP_TEXT, text);
+   ObjectSetInteger(0, name, OBJPROP_BGCOLOR, bg);
+   ObjectSetInteger(0, name, OBJPROP_COLOR, clrWhite);
+   ObjectSetInteger(0, name, OBJPROP_FONTSIZE, 8);
+   ObjectSetString(0, name, OBJPROP_FONT, "Arial");
+   ObjectSetInteger(0, name, OBJPROP_BACK, false);
+   ObjectSetInteger(0, name, OBJPROP_SELECTABLE, true);
+   ObjectSetInteger(0, name, OBJPROP_ZORDER, 3000);
+  }
+
+void WipeFigs()
+  {
+   int i;
+   for(i = ObjectsTotal(0, 0, -1) - 1; i >= 0; i--)
+     {
+      string n = ObjectName(0, i, 0, -1);
+      if(StringFind(n, "SLOINP_") == 0) ObjectDelete(0, n);
+     }
+  }
+
+void WipePairs()
+  {
+   int i;
+   for(i = 0; i < g_np; i++) ObjectDelete(0, "SLOIN_p_" + g_pairs[i]);
+  }
+
+void Trend(string name, int s1, double p1, int s2, double p2, color clr)
+  {
+   datetime t1 = iTime(NULL, 0, s1);
+   datetime t2 = iTime(NULL, 0, s2);
+   if(ObjectFind(0, name) < 0)
+      ObjectCreate(0, name, OBJ_TREND, 0, t1, p1, t2, p2);
+   else
+     {
+      ObjectMove(0, name, 0, t1, p1);
+      ObjectMove(0, name, 1, t2, p2);
+     }
+   ObjectSetInteger(0, name, OBJPROP_COLOR, clr);
+   ObjectSetInteger(0, name, OBJPROP_WIDTH, 2);
+   ObjectSetInteger(0, name, OBJPROP_RAY, false);
+   ObjectSetInteger(0, name, OBJPROP_BACK, false);
+  }
+
+void HLine(string name, double price, color clr, string text)
+  {
+   if(ObjectFind(0, name) < 0)
+      ObjectCreate(0, name, OBJ_HLINE, 0, 0, price);
+   ObjectSet(name, OBJPROP_PRICE1, price);
+   ObjectSetInteger(0, name, OBJPROP_COLOR, clr);
+   ObjectSetInteger(0, name, OBJPROP_STYLE, STYLE_DASH);
+   ObjectSetInteger(0, name, OBJPROP_WIDTH, 1);
+   ObjectSetString(0, name, OBJPROP_TEXT, text);
+   ObjectSetInteger(0, name, OBJPROP_BACK, false);
+  }
+
+void Txt(string name, datetime t, double price, string text, color clr)
+  {
+   if(ObjectFind(0, name) < 0)
+      ObjectCreate(0, name, OBJ_TEXT, 0, t, price);
+   else ObjectMove(0, name, 0, t, price);
+   ObjectSetString(0, name, OBJPROP_TEXT, text);
+   ObjectSetInteger(0, name, OBJPROP_COLOR, clr);
+   ObjectSetInteger(0, name, OBJPROP_FONTSIZE, 9);
+   ObjectSetString(0, name, OBJPROP_FONT, "Arial");
+   ObjectSetInteger(0, name, OBJPROP_ANCHOR, ANCHOR_LEFT);
+   ObjectSetInteger(0, name, OBJPROP_BACK, false);
+  }
+
+int SpikeBoost(int dir)
+  {
+   double avg = 0;
+   int k;
+   for(k = 2; k <= 21; k++) avg += (double)iVolume(NULL, 0, k);
+   avg /= 20.0;
+   if(avg <= 0) return(0);
+   if((double)iVolume(NULL, 0, 1) < avg * 2.2) return(0);
+   double c = iClose(NULL, 0, 1);
+   double o = iOpen(NULL, 0, 1);
+   if(dir > 0 && c > o) return(8);
+   if(dir < 0 && c < o) return(8);
+   return(0);
+  }
+
+int Chance(int base, int dir)
+  {
+   int p = base + SpikeBoost(dir);
+   double c = iClose(NULL, 0, 1);
+   double o = iOpen(NULL, 0, 1);
+   if(dir > 0 && c > o) p += 6;
+   if(dir < 0 && c < o) p += 6;
+   if(p > 74) p = 74;
+   if(p < 48) p = 48;
+   return(p);
+  }
+
+void Fig(string title, int dir, int s1, double p1, int s2, double p2, double entry, double sl, double tp, int prob)
+  {
+   string id = IntegerToString(g_figN);
+   g_figN++;
+   color clr = (dir > 0 ? clrLime : clrTomato);
+   if(s1 != s2) Trend("SLOINP_a" + id, s1, p1, s2, p2, clr);
+   HLine("SLOINP_e" + id, entry, clrGold, title + " вход");
+   HLine("SLOINP_s" + id, sl, clrTomato, "стоп");
+   HLine("SLOINP_t" + id, tp, clrLime, "тейк");
+   string way = (dir > 0 ? "Ждём вверх." : "Ждём вниз.");
+   string txt = title + ". " + way + " Вход " + DoubleToStr(entry, Digits) + "  Стоп " + DoubleToStr(sl, Digits) + "  Тейк " + DoubleToStr(tp, Digits) + "  Вероятность " + IntegerToString(prob) + "%";
+   int shift = s1;
+   if(s2 < shift) shift = s2;
+   if(shift < 1) shift = 1;
+   Txt("SLOINP_x" + id, iTime(NULL, 0, shift), dir > 0 ? sl : tp, txt, clr);
+  }
+
+int g_hiS[16];
+double g_hiP[16];
+int g_loS[16];
+double g_loP[16];
+int g_nh = 0;
+int g_nl = 0;
+
+void Swings()
+  {
+   g_nh = 0;
+   g_nl = 0;
+   int i;
+   for(i = 3; i < 90; i++)
+     {
+      bool hi = true;
+      bool lo = true;
+      double h = iHigh(NULL, 0, i);
+      double l = iLow(NULL, 0, i);
+      int k;
+      for(k = 1; k <= 3; k++)
+        {
+         if(h <= iHigh(NULL, 0, i - k) || h < iHigh(NULL, 0, i + k)) hi = false;
+         if(l >= iLow(NULL, 0, i - k) || l > iLow(NULL, 0, i + k)) lo = false;
+        }
+      if(hi && g_nh < 16) { g_hiS[g_nh] = i; g_hiP[g_nh] = h; g_nh++; }
+      if(lo && g_nl < 16) { g_loS[g_nl] = i; g_loP[g_nl] = l; g_nl++; }
+     }
+  }
+
+double LowBetween(int a, int b)
+  {
+   int from = a;
+   int to = b;
+   if(to < from) { int tmp = from; from = to; to = tmp; }
+   double best = iLow(NULL, 0, from);
+   int i;
+   for(i = from; i <= to; i++)
+     {
+      double v = iLow(NULL, 0, i);
+      if(v < best) best = v;
+     }
+   return(best);
+  }
+
+double HighBetween(int a, int b)
+  {
+   int from = a;
+   int to = b;
+   if(to < from) { int tmp = from; from = to; to = tmp; }
+   double best = iHigh(NULL, 0, from);
+   int i;
+   for(i = from; i <= to; i++)
+     {
+      double v = iHigh(NULL, 0, i);
+      if(v > best) best = v;
+     }
+   return(best);
+  }
+
+void DrawSpikes()
+  {
+   int n = 0;
+   int i;
+   for(i = 1; i <= 40 && n < 6; i++)
+     {
+      double avg = 0;
+      int k;
+      for(k = i + 1; k <= i + 20; k++) avg += (double)iVolume(NULL, 0, k);
+      avg /= 20.0;
+      double v = (double)iVolume(NULL, 0, i);
+      if(avg <= 0 || v < avg * 2.2) continue;
+      bool up = iClose(NULL, 0, i) >= iOpen(NULL, 0, i);
+      string id = IntegerToString(n);
+      string name = "SLOINP_v" + id;
+      double price = up ? iLow(NULL, 0, i) : iHigh(NULL, 0, i);
+      datetime t = iTime(NULL, 0, i);
+      if(ObjectFind(0, name) < 0)
+         ObjectCreate(0, name, OBJ_ARROW, 0, t, price);
+      else ObjectMove(0, name, 0, t, price);
+      ObjectSetInteger(0, name, OBJPROP_ARROWCODE, up ? 233 : 234);
+      ObjectSetInteger(0, name, OBJPROP_COLOR, up ? clrAqua : clrOrange);
+      ObjectSetInteger(0, name, OBJPROP_WIDTH, 2);
+      ObjectSetInteger(0, name, OBJPROP_BACK, false);
+      Txt("SLOINP_vt" + id, t, price, "всплеск", up ? clrAqua : clrOrange);
+      n++;
+     }
+  }
+
+void DrawFigs()
+  {
+   if(Bars < 50) return;
+   WipeFigs();
+   g_figN = 0;
+   Swings();
+   double pad = 8 * MarketInfo(Symbol(), MODE_POINT);
+   if(g_nh >= 2)
+     {
+      double a = g_hiP[0];
+      double b = g_hiP[1];
+      double mid = (a + b) * 0.5;
+      if(mid > 0 && MathAbs(a - b) / mid < 0.0025)
+        {
+         double neck = LowBetween(g_hiS[0], g_hiS[1]);
+         double top = MathMax(a, b);
+         double height = top - neck;
+         if(height > pad)
+           {
+            Trend("SLOINP_dt", g_hiS[0], a, g_hiS[1], b, clrTomato);
+            Fig("Двойная вершина", -1, g_hiS[0], a, g_hiS[0], a, neck, top + pad, neck - height, Chance(58, -1));
+           }
+        }
+     }
+   if(g_nl >= 2 && g_figN < 3)
+     {
+      double a = g_loP[0];
+      double b = g_loP[1];
+      double mid = (a + b) * 0.5;
+      if(mid > 0 && MathAbs(a - b) / mid < 0.0025)
+        {
+         double neck = HighBetween(g_loS[0], g_loS[1]);
+         double bot = MathMin(a, b);
+         double height = neck - bot;
+         if(height > pad)
+           {
+            Trend("SLOINP_db", g_loS[0], a, g_loS[1], b, clrLime);
+            Fig("Двойное дно", 1, g_loS[0], a, g_loS[0], a, neck, bot - pad, neck + height, Chance(58, 1));
+           }
+        }
+     }
+   if(g_nh >= 2 && g_nl >= 2 && g_figN < 3)
+     {
+      double spanNow = MathAbs(g_hiP[0] - g_loP[0]);
+      double spanOld = MathAbs(g_hiP[1] - g_loP[1]);
+      bool tight = (spanOld > 0 && spanNow < spanOld * 0.92);
+      if(tight && g_hiP[0] > g_hiP[1] && g_loP[0] > g_loP[1])
+        {
+         Trend("SLOINP_wu", g_hiS[1], g_hiP[1], g_hiS[0], g_hiP[0], clrOrange);
+         Trend("SLOINP_wd", g_loS[1], g_loP[1], g_loS[0], g_loP[0], clrOrange);
+         Fig("Восходящий клин", -1, g_hiS[0], g_hiP[0], g_loS[0], g_loP[0], g_loP[0], g_hiP[0] + pad, g_loP[0] - spanOld, Chance(56, -1));
+        }
+      else if(tight && g_hiP[0] < g_hiP[1] && g_loP[0] < g_loP[1])
+        {
+         Trend("SLOINP_wu", g_hiS[1], g_hiP[1], g_hiS[0], g_hiP[0], clrAqua);
+         Trend("SLOINP_wd", g_loS[1], g_loP[1], g_loS[0], g_loP[0], clrAqua);
+         Fig("Нисходящий клин", 1, g_hiS[0], g_hiP[0], g_loS[0], g_loP[0], g_hiP[0], g_loP[0] - pad, g_hiP[0] + spanOld, Chance(56, 1));
+        }
+     }
+   if(g_figN < 3)
+     {
+      double begin = iClose(NULL, 0, 24);
+      double end = iClose(NULL, 0, 8);
+      double move = end - begin;
+      double atr = 0;
+      int k;
+      for(k = 1; k <= 14; k++) atr += iHigh(NULL, 0, k) - iLow(NULL, 0, k);
+      atr /= 14.0;
+      double flagH = iHigh(NULL, 0, iHighest(NULL, 0, MODE_HIGH, 7, 1));
+      double flagL = iLow(NULL, 0, iLowest(NULL, 0, MODE_LOW, 7, 1));
+      if(atr > 0 && MathAbs(move) > atr * 2.0 && (flagH - flagL) < MathAbs(move) * 0.45)
+        {
+         int dir = (move > 0 ? 1 : -1);
+         double entry = (dir > 0 ? flagH : flagL);
+         double sl = (dir > 0 ? flagL - pad : flagH + pad);
+         double tp = entry + move;
+         Fig(dir > 0 ? "Флаг вверх" : "Флаг вниз", dir, 8, end, 1, entry, entry, sl, tp, Chance(54, dir));
+        }
+     }
+   DrawSpikes();
   }
 //+------------------------------------------------------------------+
