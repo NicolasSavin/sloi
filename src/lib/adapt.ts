@@ -53,7 +53,7 @@ export function adaptGates(log: SignalHit[]): AdaptGates {
   }
   const line =
     last.length < 3
-      ? "Вход только по старшему графику, в правильной половине диапазона, с объёмом или вектором. Цель около стопа."
+      ? "Вход по зоне: лимиткой на возврат, не вдогонку. Объём CD желателен, но без него сделка не отменяется."
       : level === 2
         ? `После ${streak || losses} стопов: RR≥1.25, живых не больше 1${pause.size ? `, пауза ${[...pause].join(", ")}` : ""}.`
         : level === 1
@@ -69,13 +69,14 @@ function wait(m: DigestMarket, title: string, therefore: string): DigestMarket {
   };
 }
 
-/** Zone opens the door. Volume, structure, score, PD, splash-delta still have to agree. */
+/** Зона и возврат к ней — уже вход. Объём CD не обязателен: его нет на каждой паре. */
 export function applyLessons(markets: DigestMarket[]): DigestMarket[] {
   return markets.map((m) => {
     const live = m.advice.action === "long" || m.advice.action === "short";
     if (!live) return m;
     const id = m.spec.id;
     const zoned = m.setup.entry != null && m.setup.stop != null;
+    const entry = m.setup.entry;
     const vol = m.volumeSpeak ?? "";
     if (/против входа|не догонять сплэш/i.test(vol)) {
       return wait(m, "Слой объёма против", vol);
@@ -86,7 +87,6 @@ export function applyLessons(markets: DigestMarket[]): DigestMarket[] {
     if (CRYPTO.has(id) && m.score < 58) {
       return wait(m, "Крипта без набора", "По крипте слабо. Нужен счёт ≥58 и зона.");
     }
-    const entry = m.setup.entry;
     const stop = m.setup.stop;
     if (entry != null && stop != null && m.spec.kind === "fx") {
       const pct = Math.abs(entry - stop) / Math.abs(entry);
@@ -98,15 +98,19 @@ export function applyLessons(markets: DigestMarket[]): DigestMarket[] {
     if (rr != null && rr > 2.4 && m.score < 55) {
       return wait(m, "Цель слишком далеко", `RR ${rr.toFixed(2)} при слабом счёте. Режем жадность.`);
     }
+    const pullback =
+      zoned &&
+      entry != null &&
+      ((m.advice.action === "short" && entry > m.lastClose) ||
+        (m.advice.action === "long" && entry < m.lastClose));
+    const withTrend =
+      (m.advice.action === "long" && m.bias === "bullish") ||
+      (m.advice.action === "short" && m.bias === "bearish");
     const bits: string[] = [];
     if (zoned) bits.push("зона");
     if (m.score >= 48) bits.push("счёт");
-    if (
-      (m.advice.action === "long" && m.bias === "bullish") ||
-      (m.advice.action === "short" && m.bias === "bearish")
-    ) {
-      bits.push("структура");
-    }
+    if (withTrend) bits.push("структура");
+    if (pullback) bits.push("возврат");
     if (/подтверд|сплэш\+дельта: ход|лужа|вливание по стороне/i.test(vol)) bits.push("объём");
     if (
       m.boxVector &&
@@ -120,32 +124,23 @@ export function applyLessons(markets: DigestMarket[]): DigestMarket[] {
     if (m.construction && /call|put|стена/i.test(`${m.construction.type} ${m.construction.ticker ?? ""}`)) {
       bits.push("опцион");
     }
-    if (bits.length < 3) {
+    if (bits.length < 2 || (!zoned && bits.length < 3)) {
       return wait(
         m,
         "Мало слоёв",
-        `Сейчас: ${bits.join(", ") || "пусто"}. Ордерблок один не вход. Нужны ещё структура, объём CD, счёт или вектор коробки.`,
+        `Сейчас: ${bits.join(", ") || "пусто"}. Нужна живая зона и ещё хотя бы структура или возврат к ней.`,
       );
     }
-    const withTrend =
-      (m.advice.action === "long" && m.bias === "bullish") ||
-      (m.advice.action === "short" && m.bias === "bearish");
-    if (!withTrend) {
-      return wait(m, "Против старшей структуры", "Час один не берём. Вход только когда старший график смотрит туда же. Так стоп реже прилетает первым.");
+    if (!withTrend && !pullback) {
+      return wait(m, "Против старшей структуры", "Час один не берём. Вход только когда старший график смотрит туда же, либо лимитка на возврат в зону.");
     }
-    if (m.advice.action === "long" && m.premiumDiscount === "premium") {
-      return wait(m, "Покупка дорого", "Цена в верхней части диапазона. Покупку ждём ниже, в дешёвой зоне.");
+    const entryInPremium = entry != null && entry >= m.range.eq;
+    const entryInDiscount = entry != null && entry <= m.range.eq;
+    if (m.advice.action === "long" && entryInPremium && !pullback) {
+      return wait(m, "Покупка дорого", "Вход в верхней части диапазона. Покупку ставим ниже, в зону.");
     }
-    if (m.advice.action === "short" && m.premiumDiscount === "discount") {
-      return wait(m, "Продажа дёшево", "Цена в нижней части диапазона. Продажу ждём выше, в дорогой зоне.");
-    }
-    const backed =
-      /подтверд|сплэш\+дельта: ход|лужа|вливание по стороне/i.test(vol) ||
-      (m.boxVector &&
-        ((m.advice.action === "long" && m.boxVector.dir === "up") ||
-          (m.advice.action === "short" && m.boxVector.dir === "down")));
-    if (!backed) {
-      return wait(m, "Нет подтверждения", "Структура есть, но ни объём, ни вектор коробки не стоят за входом. Ждём.");
+    if (m.advice.action === "short" && entryInDiscount && !pullback) {
+      return wait(m, "Продажа дёшево", "Вход в нижней части диапазона. Продажу ставим выше, в зону.");
     }
     return m;
   });

@@ -925,8 +925,17 @@ function buildSetup(
       last.close,
     );
   const width = Math.max(range.high - range.low, atr);
-  const longWanted = trend === "up" || (trend === "range" && last.close <= range.low + width * 0.28);
-  const shortWanted = trend === "down" || (trend === "range" && last.close >= range.high - width * 0.28);
+  const bearAbove = Boolean(bearZ && bearZ.bottom > last.close);
+  const bullBelow = Boolean(bullZ && bullZ.top < last.close);
+  let longWanted = trend === "up" || bullBelow || (trend === "range" && last.close <= range.low + width * 0.28);
+  let shortWanted = trend === "down" || bearAbove || (trend === "range" && last.close >= range.high - width * 0.28);
+  if (longWanted && shortWanted) {
+    const mid = (z: { top: number; bottom: number }) => (z.top + z.bottom) / 2;
+    const longDist = bullZ ? Math.abs(last.close - mid(bullZ)) : Number.POSITIVE_INFINITY;
+    const shortDist = bearZ ? Math.abs(last.close - mid(bearZ)) : Number.POSITIVE_INFINITY;
+    if (longDist <= shortDist) shortWanted = false;
+    else longWanted = false;
+  }
 
   if (!longWanted && !shortWanted) {
     return {
