@@ -1,8 +1,7 @@
 import type { SymbolSpec } from "@/lib/market/types";
 import type { SmcSnapshot, Zone } from "@/lib/smc/engine";
 import { zoneName } from "@/lib/smc/engine";
-import { entryVolume } from "@/lib/smc/micro";
-import { judgeMeta } from "@/lib/meta-engine";
+import { decideMeta } from "@/lib/meta-engine";
 import { formatPrice } from "@/lib/utils";
 
 export type AdviceAction = "long" | "short" | "wait" | "skip";
@@ -178,7 +177,7 @@ export function divOnOrderBlock(
   return empty;
 }
 
-export function advise(snap: Pick<SmcSnapshot, "bias" | "trend" | "localSetup" | "margin" | "wyckoff" | "patterns" | "auction" | "ivNews" | "micro" | "divergences" | "flow" | "coil" | "lastClose" | "orderBlocks" | "dealingRange" | "liquidity" | "fvgs">, spec: SymbolSpec, spread = spec.spread): Advice {
+export function advise(snap: Pick<SmcSnapshot, "bias" | "trend" | "atr" | "lastChangePct" | "localSetup" | "margin" | "wyckoff" | "patterns" | "auction" | "ivNews" | "micro" | "divergences" | "flow" | "coil" | "lastClose" | "orderBlocks" | "dealingRange" | "liquidity" | "fvgs">, spec: SymbolSpec, spread = spec.spread): Advice {
   const roundTrip = spread * 2;
   const entry = snap.localSetup.entry;
   const stop = snap.localSetup.stop;
@@ -232,20 +231,15 @@ export function advise(snap: Pick<SmcSnapshot, "bias" | "trend" | "localSetup" |
     };
   }
 
-  const meta = judgeMeta(snap, side);
-  const vol = entryVolume(side, snap.micro, snap.lastClose ?? entry, entry);
-  const onBlk = divOnOrderBlock(snap, side);
-  if (meta.valid) {
-    const soft = [
-      vol.verdict === "wait" ? vol.title : "",
-      onBlk.verdict === "wait" ? onBlk.title : "",
-    ].filter(Boolean);
-    const against = [...meta.against, ...soft];
+  const meta = decideMeta(snap, { spreadEats: false });
+  const callSide = meta.decision === "LONG" ? "long" : meta.decision === "SHORT" ? "short" : null;
+  const agrees = callSide != null && callSide === side;
+  if (!agrees) {
     return {
-      action: side,
-      title: side === "long" ? `Лонг · ${meta.strategy}` : `Шорт · ${meta.strategy}`,
-      because: `Режим: ${meta.regime}. За: ${meta.fors.join(", ") || "база сетапа"}.`,
-      therefore: `${meta.strategy}, сила ${meta.score}/100. ${against.length ? `Против, но не запрет: ${against.join("; ")}. ` : ""}Вход ${fmt(entry)}, стоп ${fmt(stop)}, цель ${fmt(target)}. ${snap.localSetup.thesis}`,
+      action: meta.decision === "PASS" ? "skip" : "wait",
+      title: meta.decision === "PASS" ? "Пропуск" : "Ждать сценарий",
+      because: meta.because,
+      therefore: meta.therefore,
       spread,
       roundTrip,
       grossRisk,
@@ -259,265 +253,11 @@ export function advise(snap: Pick<SmcSnapshot, "bias" | "trend" | "localSetup" |
     };
   }
 
-  if (snap.wyckoff?.event === "utad" && side === "long") {
-    return {
-      action: "wait",
-      title: "Ждать: Вайкофф раздаёт вверху",
-      because: snap.wyckoff.because,
-      therefore: snap.wyckoff.therefore,
-      spread,
-      roundTrip,
-      grossRisk,
-      grossReward,
-      netRisk,
-      netReward,
-      netRr,
-      covers,
-    };
-  }
-  if (snap.wyckoff?.event === "spring" && side === "short") {
-    return {
-      action: "wait",
-      title: "Ждать: Вайкофф набирает внизу",
-      because: snap.wyckoff.because,
-      therefore: snap.wyckoff.therefore,
-      spread,
-      roundTrip,
-      grossRisk,
-      grossReward,
-      netRisk,
-      netReward,
-      netRr,
-      covers,
-    };
-  }
-  if (snap.wyckoff?.phase === "distribution" && side === "long") {
-    return {
-      action: "wait",
-      title: "Ждать: фаза раздачи",
-      because: snap.wyckoff.because,
-      therefore: "В distribution лонг — кормить выход. Шорт от премии, не ловить хай.",
-      spread,
-      roundTrip,
-      grossRisk,
-      grossReward,
-      netRisk,
-      netReward,
-      netRr,
-      covers,
-    };
-  }
-  if (snap.wyckoff?.phase === "accumulation" && side === "short") {
-    return {
-      action: "wait",
-      title: "Ждать: фаза набора",
-      because: snap.wyckoff.because,
-      therefore: "В accumulation шорт — против крупняка. Лонг после спринга, не сам вынос.",
-      spread,
-      roundTrip,
-      grossRisk,
-      grossReward,
-      netRisk,
-      netReward,
-      netRr,
-      covers,
-    };
-  }
-  if (snap.ivNews?.phase === "crush") {
-    return {
-      action: "wait",
-      title: "Ждать: IV crush после новости",
-      because: snap.ivNews.because,
-      therefore: snap.ivNews.therefore,
-      spread,
-      roundTrip,
-      grossRisk,
-      grossReward,
-      netRisk,
-      netReward,
-      netRr,
-      covers,
-    };
-  }
-  if (snap.auction?.orb === "broke-high" && side === "short") {
-    return {
-      action: "wait",
-      title: "Ждать: ORB вверх, не шортить середину",
-      because: snap.auction.because,
-      therefore: snap.auction.therefore,
-      spread,
-      roundTrip,
-      grossRisk,
-      grossReward,
-      netRisk,
-      netReward,
-      netRr,
-      covers,
-    };
-  }
-  if (snap.auction?.orb === "broke-low" && side === "long") {
-    return {
-      action: "wait",
-      title: "Ждать: ORB вниз, не ловить дно",
-      because: snap.auction.because,
-      therefore: snap.auction.therefore,
-      spread,
-      roundTrip,
-      grossRisk,
-      grossReward,
-      netRisk,
-      netReward,
-      netRr,
-      covers,
-    };
-  }
-  if (snap.auction?.vol === "compressed" && netRr != null && netRr < 1.8 && snap.coil?.kind !== "coil") {
-    return {
-      action: "skip",
-      title: "Пропуск: волатильность сжата",
-      because: snap.auction.because,
-      therefore: "Ход короткий. Спред съест цель. Ждём расширение или ближе край IB.",
-      spread,
-      roundTrip,
-      grossRisk,
-      grossReward,
-      netRisk,
-      netReward,
-      netRr,
-      covers,
-    };
-  }
-  if (snap.coil?.kind === "spike") {
-    const chase =
-      (side === "long" && snap.coil.dir === "up") || (side === "short" && snap.coil.dir === "down");
-    if (chase) {
-      return {
-        action: "wait",
-        title: "Ждать: шпиль без полки",
-        because: snap.coil.because,
-        therefore: snap.coil.therefore,
-        spread,
-        roundTrip,
-        grossRisk,
-        grossReward,
-        netRisk,
-        netReward,
-        netRr,
-        covers,
-      };
-    }
-  }
-  if (vol.verdict === "wait") {
-    return {
-      action: "wait",
-      title: vol.title,
-      because: vol.because,
-      therefore: vol.therefore,
-      spread,
-      roundTrip,
-      grossRisk,
-      grossReward,
-      netRisk,
-      netReward,
-      netRr,
-      covers,
-    };
-  }
-  if (onBlk.verdict === "wait") {
-    return {
-      action: "wait",
-      title: onBlk.title,
-      because: onBlk.because,
-      therefore: onBlk.therefore,
-      spread,
-      roundTrip,
-      grossRisk,
-      grossReward,
-      netRisk,
-      netReward,
-      netRr,
-      covers,
-    };
-  }
-  const cvd = snap.flow?.cvdDiv;
-  const atEdge = cvd?.where === "edge" || snap.margin.upper.active || snap.margin.lower.active;
-  const div = snap.divergences?.[0];
-  if (
-    atEdge &&
-    div?.kind === "regular" &&
-    ((side === "long" && div.side === "bear") || (side === "short" && div.side === "bull"))
-  ) {
-    return {
-      action: "wait",
-      title: div.side === "bear" ? "Ждать: медвежья дивергенция на краю" : "Ждать: бычья дивергенция на краю",
-      because: div.note,
-      therefore: "Дивер на краю зоны. Против него лимитку не ставим.",
-      spread,
-      roundTrip,
-      grossRisk,
-      grossReward,
-      netRisk,
-      netReward,
-      netRr,
-      covers,
-    };
-  }
-  if (cvd && cvd.where === "edge" && ((side === "long" && cvd.side === "bear") || (side === "short" && cvd.side === "bull"))) {
-    return {
-      action: "wait",
-      title: "Ждать: объём против на краю",
-      because: cvd.because,
-      therefore: cvd.therefore,
-      spread,
-      roundTrip,
-      grossRisk,
-      grossReward,
-      netRisk,
-      netReward,
-      netRr,
-      covers,
-    };
-  }
-  const inf = snap.micro?.infusion;
-  const hid = snap.divergences?.find((d) => d.kind === "hidden");
-  const hidNote =
-    hid && ((hid.side === "bull" && side === "long") || (hid.side === "bear" && side === "short"))
-      ? " Скрытая дивергенция по стороне — откат, не разворот."
-      : hid && ((hid.side === "bear" && side === "long") || (hid.side === "bull" && side === "short"))
-        ? " Скрытая дивергенция против — лимит, не рынок."
-        : "";
-  const infNote = inf
-    ? inf.side === (side === "long" ? "sell" : "buy")
-      ? " Цель — вливание Каташева (остановка)."
-      : " Вливание по стороне входа — от лужи, не сквозь."
-    : "";
-  const fight = snap.patterns?.find((p) => (p.side === "bear" && side === "long") || (p.side === "bull" && side === "short"));
-  const patNote = fight ? ` На графике ${fight.name} против — лимит всё равно, рынок нет.` : "";
-
-  const blkNote = onBlk.verdict === "confirm" ? ` ${onBlk.therefore}` : "";
-  const lesson = chartLesson(snap, side);
-  if ("title" in lesson) {
-    return {
-      action: "wait",
-      title: lesson.title,
-      because: lesson.because,
-      therefore: lesson.therefore,
-      spread,
-      roundTrip,
-      grossRisk,
-      grossReward,
-      netRisk,
-      netReward,
-      netRr,
-      covers,
-    };
-  }
-
   return {
     action: side,
-    title: side === "long" ? "Час закрылся вверх" : "Час закрылся вниз",
-    because: `Вход ${fmt(entry)}, стоп ${fmt(stop)}, цель ${fmt(target)} — ближайшая ликвидность. Круг ${fmt(roundTrip)}.`,
-    therefore: `Дивер по стороне. Стоп за экстремумом, не на хвосте. Чистый RR ${netRr?.toFixed(2)}.${lesson.note}${blkNote}${patNote}${infNote}${hidNote}`,
+    title: side === "long" ? `Лонг · ${meta.strategy}` : `Шорт · ${meta.strategy}`,
+    because: meta.because,
+    therefore: `${meta.therefore} Вход ${fmt(entry)}, стоп ${fmt(stop)}, цель ${fmt(target)}.`,
     spread,
     roundTrip,
     grossRisk,
@@ -526,6 +266,8 @@ export function advise(snap: Pick<SmcSnapshot, "bias" | "trend" | "localSetup" |
     netReward,
     netRr,
     covers,
+    metaScore: meta.score,
+    metaStrategy: meta.strategy,
   };
 }
 
