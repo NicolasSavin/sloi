@@ -1,4 +1,5 @@
 import type { SmcSnapshot, Zone } from "@/lib/smc/engine";
+import type { LiveReaction } from "@/lib/level-reaction";
 
 export type Dir = "LONG" | "SHORT" | "NEUTRAL";
 export type Role = "CONTEXT" | "SETUP" | "CONFIRMATION" | "WARNING" | "HARD_GATE";
@@ -40,6 +41,7 @@ export interface MetaDecision {
   therefore: string;
   fors: string[];
   against: string[];
+  plan: { entry: number; stop: number; target: number } | null;
 }
 
 type Side = "long" | "short";
@@ -410,6 +412,46 @@ function scenarioText(s: Scenario): string {
   return [head, ok, warn, miss, `Вход: ${s.entryCondition}.`, `Снятие: ${s.invalidation}.`].filter(Boolean).join(" ");
 }
 
+function levelScenario(r: LiveReaction | undefined): Scenario | null {
+  if (!r || r.kind !== "retest" || !r.side) return null;
+  let score = 40;
+  const confirmations = ["повторный тест уровня"];
+  const warnings: string[] = [];
+  if (r.origin === "impulse") {
+    score += 12;
+    confirmations.push("уровень родился после импульса");
+  }
+  if (r.tests > 0) {
+    score += 10;
+    confirmations.push(`память: ${r.tests} касаний`);
+  } else warnings.push("первое касание, своей памяти ещё нет");
+  if (r.slowing) {
+    score += 8;
+    confirmations.push("свеча короче предыдущей");
+  }
+  if (r.volumeUp) {
+    score += 8;
+    confirmations.push("объём выше обычного");
+  }
+  if (r.sweep) {
+    score += 10;
+    confirmations.push("хвост снял уровень и закрылись обратно");
+  }
+  return finish(
+    "Level Reaction",
+    r.side,
+    score,
+    confirmations,
+    warnings,
+    score >= 55 ? [] : ["мало признаков реакции"],
+    r.expectedPips != null ? [`прошлые реакции около ${r.expectedPips.toFixed(0)} п.`] : [],
+    true,
+    r.side === "long" ? "короткий откат вверх от уровня, не разворот рынка" : "короткий откат вниз от уровня, не разворот рынка",
+    "уровень пробит примерно на четверть хода свечи",
+    55,
+  );
+}
+
 /** Strategies first. A warning lowers confidence. Only a hard gate or a real conflict blocks. */
 export function decideMeta(
   snap: Pick<
@@ -429,6 +471,7 @@ export function decideMeta(
     | "auction"
     | "coil"
     | "margin"
+    | "reaction"
   >,
   hard?: { noData?: boolean; spreadEats?: boolean; marketClosed?: boolean },
 ): MetaDecision {
@@ -446,6 +489,7 @@ export function decideMeta(
     therefore,
     fors: [],
     against: [],
+    plan: null,
   });
   if (hard?.noData || !Number.isFinite(snap.lastClose)) {
     return empty("PASS", "Нет цены.", "Жёсткий запрет: нет данных. Это не спор модулей.");
@@ -459,7 +503,11 @@ export function decideMeta(
 
   const book = readBook(snap);
   const sides: Side[] = ["long", "short"];
-  const all = sides.flatMap((side) => [impulse(book, side), reversal(book, side), trend(book, side), meanRev(book, side)]);
+  const reaction = levelScenario(snap.reaction);
+  const all = [
+    ...sides.flatMap((side) => [impulse(book, side), reversal(book, side), trend(book, side), meanRev(book, side)]),
+    ...(reaction ? [reaction] : []),
+  ];
   const ready = all.filter((s) => s.ready).sort((a, b) => b.score - a.score);
   const regime =
     book.structure === "bull" ? "бычий контекст" : book.structure === "bear" ? "медвежий контекст" : "диапазон";
@@ -491,6 +539,7 @@ export function decideMeta(
       therefore: `${scenarioText(best)} Решение: ждать. Один чужой модуль сценарий не отменяет и сам по себе вход не даёт.`,
       fors: best.confirmations,
       against: best.warnings,
+      plan: null,
     };
   }
 
@@ -502,21 +551,35 @@ export function decideMeta(
     conflicts.push(`${primary.strategy} ${primary.direction} против ${secondary.strategy} ${secondary.direction}`);
   }
 
+  const reactionNote =
+    snap.reaction?.kind === "empty-impulse"
+      ? ` ${snap.reaction.note}`
+      : snap.reaction?.kind === "retest"
+        ? ` Уровень: ${snap.reaction.note}`
+        : "";
   let decision: Call = primary.direction;
   let therefore = "";
   if (opposed) {
     decision = "WAIT";
-    therefore = `Конфликт сценариев, не индикаторов. ${scenarioText(primary)} Второй: ${secondary ? scenarioText(secondary) : ""}. Решение: ждать, пока один сценарий не оторвётся.`;
+    therefore = `Конфликт сценариев, не индикаторов. ${scenarioText(primary)} Второй: ${secondary ? scenarioText(secondary) : ""}. Решение: ждать, пока один сценарий не оторвётся.${reactionNote}`;
   } else if (!primary.inZone) {
     decision = "WAIT";
-    therefore = `${scenarioText(primary)} Решение: ждать. Сценарий жив, но условия входа ещё нет. Рыночный ордер не отправляем.`;
+    therefore = `${scenarioText(primary)} Решение: ждать. Сценарий жив, но условия входа ещё нет. Рыночный ордер не отправляем.${reactionNote}`;
   } else if (primary.score < 62) {
     decision = "WAIT";
-    therefore = `${scenarioText(primary)} Решение: ждать. Предупреждения снизили уверенность, сетап не стёрт.`;
+    therefore = `${scenarioText(primary)} Решение: ждать. Предупреждения снизили уверенность, сетап не стёрт.${reactionNote}`;
   } else {
     decision = primary.direction;
-    therefore = `${scenarioText(primary)}${secondary ? ` Второй сценарий: ${secondary.direction} ${secondary.strategy} ${secondary.score}/100.` : ""} Решение: ${primary.direction}. Предупреждения учтены и вход не отменили.`;
+    therefore = `${scenarioText(primary)}${secondary ? ` Второй сценарий: ${secondary.direction} ${secondary.strategy} ${secondary.score}/100.` : ""} Решение: ${primary.direction}. Предупреждения учтены и вход не отменили.${reactionNote}`;
   }
+  const armed =
+    (decision === "LONG" || decision === "SHORT") &&
+    primary.strategy === "Level Reaction" &&
+    snap.reaction?.entry != null &&
+    snap.reaction.stop != null &&
+    snap.reaction.target != null
+      ? { entry: snap.reaction.entry, stop: snap.reaction.stop, target: snap.reaction.target }
+      : null;
 
   return {
     regime: regime + where,
@@ -532,5 +595,6 @@ export function decideMeta(
     therefore,
     fors: primary.confirmations,
     against: [...primary.warnings, ...conflicts],
+    plan: armed,
   };
 }

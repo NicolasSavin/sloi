@@ -144,6 +144,21 @@ export function shortDate(iso: string): string {
 
 export function toDigestMarket(spec: SymbolSpec, snap: SmcSnapshot, spread?: number, last?: Candle, options?: OptionsSnapshot | null, candles?: Candle[]): DigestMarket {
   const advice = advise(snap, spec, spread ?? spec.spread);
+  const reactionOrder =
+    advice.metaStrategy === "Level Reaction" &&
+    (advice.action === "long" || advice.action === "short") &&
+    snap.reaction?.entry != null &&
+    snap.reaction.stop != null &&
+    snap.reaction.target != null;
+  const setup = reactionOrder
+    ? {
+        ...snap.localSetup,
+        entry: snap.reaction!.entry,
+        stop: snap.reaction!.stop,
+        targets: [snap.reaction!.target!],
+        thesis: snap.reaction!.note,
+      }
+    : snap.localSetup;
   return {
     spec,
     lastClose: snap.lastClose,
@@ -154,7 +169,7 @@ export function toDigestMarket(spec: SymbolSpec, snap: SmcSnapshot, spread?: num
     bias: snap.bias,
     score: snap.score,
     story: snap.story,
-    setup: snap.localSetup,
+    setup,
     range: snap.dealingRange,
     advice,
     premiumDiscount: snap.premiumDiscount,
@@ -165,7 +180,7 @@ export function toDigestMarket(spec: SymbolSpec, snap: SmcSnapshot, spread?: num
       advice.action,
       snap.micro,
       snap.lastClose,
-      snap.localSetup.entry,
+      setup.entry,
       snap.cdTape?.live,
     ),
   };

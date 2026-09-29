@@ -9,6 +9,8 @@ import { buildCorr, inheritCircle, type CorrSnap } from "@/lib/corr";
 import { buildIvNews, type IvNewsSnap } from "@/lib/iv-news";
 import { bookAdjust, brokerBook, liveAskBid, liveBook, liveCdBars, liveCdFlow, liveClusters, liveCumDelta, liveProfile } from "@/lib/broker-tape";
 import type { NewsHalt } from "@/lib/calendar";
+import { replayLevels, type LiveReaction } from "@/lib/level-reaction";
+import { getSymbol } from "@/lib/market/symbols";
 
 export type Bias = "bullish" | "bearish" | "range";
 export type Side = "bull" | "bear";
@@ -185,6 +187,7 @@ export interface SmcSnapshot {
   score: number;
   localSetup: LocalSetup;
   story: MarketStory;
+  reaction: LiveReaction;
 }
 
 const SWING = 3;
@@ -1946,6 +1949,8 @@ export function analyzeMarket(
     });
   }
 
+  const reaction = replayLevels(candles, opts?.symbol ? getSymbol(opts.symbol).pip : Math.max(atr * 0.01, 1e-5)).live;
+
   return {
     bias,
     trend,
@@ -1981,6 +1986,7 @@ export function analyzeMarket(
     score: Math.min(100, Math.max(8, score + tapeScore)),
     localSetup,
     story,
+    reaction,
   };
 }
 

@@ -177,19 +177,29 @@ export function divOnOrderBlock(
   return empty;
 }
 
-export function advise(snap: Pick<SmcSnapshot, "bias" | "trend" | "atr" | "lastChangePct" | "localSetup" | "margin" | "wyckoff" | "patterns" | "auction" | "ivNews" | "micro" | "divergences" | "flow" | "coil" | "lastClose" | "orderBlocks" | "dealingRange" | "liquidity" | "fvgs">, spec: SymbolSpec, spread = spec.spread): Advice {
+export function advise(snap: Pick<SmcSnapshot, "bias" | "trend" | "atr" | "lastChangePct" | "localSetup" | "margin" | "wyckoff" | "patterns" | "auction" | "ivNews" | "micro" | "divergences" | "flow" | "coil" | "lastClose" | "orderBlocks" | "dealingRange" | "liquidity" | "fvgs" | "reaction">, spec: SymbolSpec, spread = spec.spread): Advice {
   const roundTrip = spread * 2;
-  const entry = snap.localSetup.entry;
-  const stop = snap.localSetup.stop;
-  const target = snap.localSetup.targets[0] ?? null;
   const fmt = (n: number) => formatPrice(n, spec.decimals);
+  const meta = decideMeta(snap, { spreadEats: false });
+  const planned = meta.plan;
+  const entry = planned?.entry ?? snap.localSetup.entry;
+  const stop = planned?.stop ?? snap.localSetup.stop;
+  const target = planned?.target ?? snap.localSetup.targets[0] ?? null;
+  const setupSide: "long" | "short" | null =
+    snap.localSetup.entry != null && snap.localSetup.targets[0] != null
+      ? snap.localSetup.targets[0] > snap.localSetup.entry
+        ? "long"
+        : "short"
+      : null;
+  const callSide = meta.decision === "LONG" ? "long" : meta.decision === "SHORT" ? "short" : null;
+  const side = planned ? callSide : callSide != null && callSide === setupSide ? callSide : null;
 
-  if (entry == null || stop == null || target == null) {
+  if (entry == null || stop == null || target == null || side == null) {
     return {
-      action: "wait",
-      title: "Ждать край диапазона",
-      because: "Нет зоны входа со стопом и целью. Спред в середине только увеличивает шум.",
-      therefore: "Лимитку не ставим, пока нет блока/FVG с запасом хода.",
+      action: meta.decision === "PASS" ? "skip" : "wait",
+      title: meta.decision === "PASS" ? "Пропуск" : "Ждать сценарий",
+      because: meta.because,
+      therefore: meta.therefore,
       spread,
       roundTrip,
       grossRisk: null,
@@ -198,17 +208,17 @@ export function advise(snap: Pick<SmcSnapshot, "bias" | "trend" | "atr" | "lastC
       netReward: null,
       netRr: null,
       covers: null,
+      metaScore: meta.score,
+      metaStrategy: meta.strategy,
     };
   }
 
-  const side: "long" | "short" = target > entry ? "long" : "short";
   const grossRisk = Math.abs(entry - stop);
   const grossReward = Math.abs(target - entry);
   const netRisk = grossRisk + spread;
   const netReward = grossReward - spread;
   const covers = roundTrip > 0 ? grossReward / roundTrip : null;
   const netRr = netRisk > 0 ? netReward / netRisk : null;
-
   const minCover = 1.2;
   const minRr = 0.95;
   if (netReward <= 0 || (covers != null && covers < minCover) || (netRr != null && netRr < minRr)) {
@@ -219,27 +229,7 @@ export function advise(snap: Pick<SmcSnapshot, "bias" | "trend" | "atr" | "lastC
       therefore:
         netReward <= 0
           ? "После спреда прибыли нет даже до первой цели. Сигнал не берём."
-          : `Чистый запас ${(covers ?? 0).toFixed(1)} круга и RR ${netRr?.toFixed(2) ?? "—"}. Мало, чтобы платить спред.`,
-      spread,
-      roundTrip,
-      grossRisk,
-      grossReward,
-      netRisk,
-      netReward,
-      netRr,
-      covers,
-    };
-  }
-
-  const meta = decideMeta(snap, { spreadEats: false });
-  const callSide = meta.decision === "LONG" ? "long" : meta.decision === "SHORT" ? "short" : null;
-  const agrees = callSide != null && callSide === side;
-  if (!agrees) {
-    return {
-      action: meta.decision === "PASS" ? "skip" : "wait",
-      title: meta.decision === "PASS" ? "Пропуск" : "Ждать сценарий",
-      because: meta.because,
-      therefore: meta.therefore,
+          : `Чистый запас ${(covers ?? 0).toFixed(1)} круга и RR ${netRr?.toFixed(2) ?? "—"}. Мало, чтобы платить спред. ${meta.therefore}`,
       spread,
       roundTrip,
       grossRisk,

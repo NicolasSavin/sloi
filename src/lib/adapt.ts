@@ -78,7 +78,7 @@ export function applyLessons(markets: DigestMarket[]): DigestMarket[] {
       return wait(m, "Крипта без набора", "По крипте слабо. Нужен счёт ≥58 и зона.");
     }
     const stop = m.setup.stop;
-    if (entry != null && stop != null && m.spec.kind === "fx") {
+    if (m.advice.metaStrategy !== "Level Reaction" && entry != null && stop != null && m.spec.kind === "fx") {
       const pct = Math.abs(entry - stop) / Math.abs(entry);
       if (pct < 0.0012) {
         return wait(m, "Стоп слишком узкий", "Микростоп. Ждём блок пошире.");
