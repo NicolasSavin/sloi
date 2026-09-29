@@ -67,7 +67,8 @@ export function applyLessons(markets: DigestMarket[]): DigestMarket[] {
     const zoned = m.setup.entry != null && m.setup.stop != null;
     const entry = m.setup.entry;
     const vol = m.volumeSpeak ?? "";
-    if (/против входа|не догонять сплэш/i.test(vol)) {
+    const kept = (m.advice.metaScore ?? 0) >= 58;
+    if (!kept && /против входа|не догонять сплэш/i.test(vol)) {
       return wait(m, "Слой объёма против", vol);
     }
     if (WEAK.has(id) && m.score < 52) {
@@ -98,15 +99,15 @@ export function applyLessons(markets: DigestMarket[]): DigestMarket[] {
     if (!zoned) {
       return wait(m, "Ждать зону", "Без живого блока или имбаланса приказа нет.");
     }
-    if (!withTrend && !pullback) {
+    if (!kept && !withTrend && !pullback) {
       return wait(m, "Против старшей структуры", "Час один не берём. Вход только когда старший график смотрит туда же, либо лимитка на возврат в зону.");
     }
     const entryInPremium = entry != null && entry >= m.range.eq;
     const entryInDiscount = entry != null && entry <= m.range.eq;
-    if (m.advice.action === "long" && entryInPremium && !pullback) {
+    if (!kept && m.advice.action === "long" && entryInPremium && !pullback) {
       return wait(m, "Покупка дорого", "Вход в верхней части диапазона. Покупку ставим ниже, в зону.");
     }
-    if (m.advice.action === "short" && entryInDiscount && !pullback) {
+    if (!kept && m.advice.action === "short" && entryInDiscount && !pullback) {
       return wait(m, "Продажа дёшево", "Вход в нижней части диапазона. Продажу ставим выше, в зону.");
     }
     return m;

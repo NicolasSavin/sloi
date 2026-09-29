@@ -246,7 +246,8 @@ export function refineAdvice(
   const score = (opts.score ?? 50) + align.boost;
   const need = align.ok ? 38 : 46;
   const h1need = align.ok ? 42 : 52;
-  if (!opts.hasZone) {
+  const metaKept = (advice.metaScore ?? 0) >= 58;
+  if (!opts.hasZone && !metaKept) {
     return {
       ...advice,
       action: "wait",
@@ -345,7 +346,7 @@ export function refineAdvice(
       therefore: "Цена дешёвая относительно диапазона. Продажа только после CHoCH или возврата в премию.",
     };
   }
-  if (score < need && !opts.choch && !opts.hasZone) {
+  if (score < need && !opts.choch && !opts.hasZone && !metaKept) {
     return {
       ...advice,
       action: "wait",
@@ -353,7 +354,7 @@ export function refineAdvice(
       therefore: `Счёт ${score}/100, нет зоны и нет CHoCH. Ждём блок, ликвидность или всплеск.`,
     };
   }
-  if (stack.grade === "H1" && !opts.choch && score < h1need && !opts.hasZone) {
+  if (stack.grade === "H1" && !opts.choch && score < h1need && !opts.hasZone && !metaKept) {
     return {
       ...advice,
       action: "wait",
@@ -361,7 +362,7 @@ export function refineAdvice(
       therefore: `${stack.note} Нет блока/FVG. Без зоны лимитку не вешаем.`,
     };
   }
-  if (stack.block === "all") {
+  if (stack.block === "all" && !metaKept) {
     if (opts.hasZone) {
       const title = advice.action === "long" ? "Лимит: лонг в зоне" : "Лимит: шорт в зоне";
       return {

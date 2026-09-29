@@ -2,6 +2,7 @@ import type { SymbolSpec } from "@/lib/market/types";
 import type { SmcSnapshot, Zone } from "@/lib/smc/engine";
 import { zoneName } from "@/lib/smc/engine";
 import { entryVolume } from "@/lib/smc/micro";
+import { judgeMeta } from "@/lib/meta-engine";
 import { formatPrice } from "@/lib/utils";
 
 export type AdviceAction = "long" | "short" | "wait" | "skip";
@@ -19,6 +20,8 @@ export interface Advice {
   netReward: number | null;
   netRr: number | null;
   covers: number | null;
+  metaScore?: number;
+  metaStrategy?: string;
 }
 
 function chartLesson(
@@ -175,7 +178,7 @@ export function divOnOrderBlock(
   return empty;
 }
 
-export function advise(snap: Pick<SmcSnapshot, "bias" | "localSetup" | "margin" | "wyckoff" | "patterns" | "auction" | "ivNews" | "micro" | "divergences" | "flow" | "coil" | "lastClose" | "orderBlocks" | "dealingRange" | "liquidity" | "fvgs">, spec: SymbolSpec, spread = spec.spread): Advice {
+export function advise(snap: Pick<SmcSnapshot, "bias" | "trend" | "localSetup" | "margin" | "wyckoff" | "patterns" | "auction" | "ivNews" | "micro" | "divergences" | "flow" | "coil" | "lastClose" | "orderBlocks" | "dealingRange" | "liquidity" | "fvgs">, spec: SymbolSpec, spread = spec.spread): Advice {
   const roundTrip = spread * 2;
   const entry = snap.localSetup.entry;
   const stop = snap.localSetup.stop;
@@ -226,6 +229,33 @@ export function advise(snap: Pick<SmcSnapshot, "bias" | "localSetup" | "margin" 
       netReward,
       netRr,
       covers,
+    };
+  }
+
+  const meta = judgeMeta(snap, side);
+  const vol = entryVolume(side, snap.micro, snap.lastClose ?? entry, entry);
+  const onBlk = divOnOrderBlock(snap, side);
+  if (meta.valid) {
+    const soft = [
+      vol.verdict === "wait" ? vol.title : "",
+      onBlk.verdict === "wait" ? onBlk.title : "",
+    ].filter(Boolean);
+    const against = [...meta.against, ...soft];
+    return {
+      action: side,
+      title: side === "long" ? `Лонг · ${meta.strategy}` : `Шорт · ${meta.strategy}`,
+      because: `Режим: ${meta.regime}. За: ${meta.fors.join(", ") || "база сетапа"}.`,
+      therefore: `${meta.strategy}, сила ${meta.score}/100. ${against.length ? `Против, но не запрет: ${against.join("; ")}. ` : ""}Вход ${fmt(entry)}, стоп ${fmt(stop)}, цель ${fmt(target)}. ${snap.localSetup.thesis}`,
+      spread,
+      roundTrip,
+      grossRisk,
+      grossReward,
+      netRisk,
+      netReward,
+      netRr,
+      covers,
+      metaScore: meta.score,
+      metaStrategy: meta.strategy,
     };
   }
 
@@ -377,7 +407,6 @@ export function advise(snap: Pick<SmcSnapshot, "bias" | "localSetup" | "margin" 
       };
     }
   }
-  const vol = entryVolume(side, snap.micro, snap.lastClose ?? entry, entry);
   if (vol.verdict === "wait") {
     return {
       action: "wait",
@@ -394,7 +423,6 @@ export function advise(snap: Pick<SmcSnapshot, "bias" | "localSetup" | "margin" 
       covers,
     };
   }
-  const onBlk = divOnOrderBlock(snap, side);
   if (onBlk.verdict === "wait") {
     return {
       action: "wait",
