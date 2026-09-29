@@ -878,6 +878,110 @@ function applyChartPack(
   };
 }
 
+function applyVolumeRule(
+  setup: LocalSetup,
+  last: Candle,
+  atr: number,
+  range: { high: number; low: number },
+  micro: MicroSnap,
+  fvgs: Zone[],
+  divergences: Divergence[],
+  hvn: number[],
+): LocalSetup {
+  const splash = micro.splash;
+  const read = micro.splashDelta;
+  if (!splash || atr <= 0) return setup;
+  const px = last.close;
+  const dist = Math.abs(px - splash.price);
+  const ran = dist > atr * 1.15;
+  const onPrint = dist < atr * 0.22;
+  const fresh = read?.verdict === "continue" && !ran && !onPrint;
+  const span = Math.max(range.high - range.low, atr);
+  const atHigh = px >= range.high - span * 0.2;
+  const atLow = px <= range.low + span * 0.2;
+  const bearDiv = divergences.some((d) => d.side === "bear" && !d.played);
+  const bullDiv = divergences.some((d) => d.side === "bull" && !d.played);
+  const dir: 1 | -1 = splash.side === "buy" ? 1 : -1;
+
+  if (fresh) {
+    const against = (dir > 0 && bearDiv && atHigh) || (dir < 0 && bullDiv && atLow);
+    if (!against) {
+      const entry = dir > 0 ? px - atr * 0.12 : px + atr * 0.12;
+      const stop = dir > 0 ? Math.min(splash.price, last.low) - atr * 0.2 : Math.max(splash.price, last.high) + atr * 0.2;
+      const cap = entry + dir * Math.max(atr * 0.6, Math.abs(entry) * 0.0005);
+      const node = nearestStall(entry, dir, atr, micro.nodes, hvn);
+      const raw = node?.price ?? cap;
+      const tp = dir > 0 ? Math.min(raw, cap) : Math.max(raw, cap);
+      const ok = dir > 0 ? tp > entry && stop < entry : tp < entry && stop > entry;
+      if (ok) {
+        return {
+          thesis:
+            "Сплэш ещё жив: дельта в ту же сторону, цена уже сошла с кружка. Короткий тейк до ближайшего узла профиля, не до дальнего края.",
+          entry,
+          stop,
+          targets: [tp],
+          invalidation: "Закрытие обратно за сплэш отменяет короткий ход.",
+        };
+      }
+    }
+  }
+
+  const back =
+    ran && ((splash.side === "buy" && atHigh && bearDiv) || (splash.side === "sell" && atLow && bullDiv));
+  if (back) {
+    const gapSide: Side = splash.side === "buy" ? "bull" : "bear";
+    const gap = fvgs
+      .filter((z) => !z.mitigated && z.kind === "fvg" && z.side === gapSide)
+      .filter((z) => (splash.side === "buy" ? z.top < px - atr * 0.15 : z.bottom > px + atr * 0.15))
+      .sort((a, b) => Math.abs(px - (a.top + a.bottom) / 2) - Math.abs(px - (b.top + b.bottom) / 2))[0];
+    if (gap) {
+      const entry = splash.side === "buy" ? gap.top : gap.bottom;
+      const tp = splash.side === "buy" ? gap.bottom : gap.top;
+      const stop = splash.side === "buy" ? last.high + atr * 0.12 : last.low - atr * 0.12;
+      const ok = splash.side === "buy" ? tp < entry && stop > px : tp > entry && stop < px;
+      if (ok) {
+        return {
+          thesis:
+            "Всплеск уже отработан. Толстый объём у основания — набор: цена от него ушла, это не закрытие кита. На краю дельта не догоняет цену, первый ход — к ближнему краю имбаланса.",
+          entry,
+          stop,
+          targets: [tp],
+          invalidation: "Закрытие за край отменяет возврат в имбаланс.",
+        };
+      }
+    }
+  }
+
+  const chasingHigh = ran && splash.side === "buy" && atHigh && setup.entry != null && setup.entry > px - atr * 0.35;
+  const chasingLow = ran && splash.side === "sell" && atLow && setup.entry != null && setup.entry < px + atr * 0.35;
+  if (chasingHigh || chasingLow) {
+    const up = Boolean(chasingHigh);
+    const gap = fvgs
+      .filter((z) => !z.mitigated && z.kind === "fvg" && z.side === (up ? "bull" : "bear"))
+      .filter((z) => (up ? z.top < px - atr * 0.2 : z.bottom > px + atr * 0.2))
+      .sort((a, b) => (up ? px - a.top - (px - b.top) : a.bottom - px - (b.bottom - px)))[0];
+    if (gap) {
+      const entry = up ? gap.top : gap.bottom;
+      const stop = up ? gap.bottom - atr * 0.15 : gap.top + atr * 0.15;
+      const room = Math.max(atr * 0.8, Math.abs(px - entry) * 0.45);
+      const tp = up ? Math.min(px - atr * 0.1, entry + room) : Math.max(px + atr * 0.1, entry - room);
+      const ok = up ? tp > entry && stop < entry : tp < entry && stop > entry;
+      if (ok) {
+        return {
+          thesis: up
+            ? "С хая не покупаем: всплеск внизу уже отработан. Лимит на возврат в имбаланс. Толстый объём там — набор, не закрытие."
+            : "С лоя не продаём: всплеск наверху уже отработан. Лимит на возврат в имбаланс. Толстый объём там — набор продаж, не закрытие.",
+          entry,
+          stop,
+          targets: [tp],
+          invalidation: "Закрытие сквозь имбаланс отменяет лимитку.",
+        };
+      }
+    }
+  }
+  return setup;
+}
+
 function buildSetup(
   last: Candle,
   trend: "up" | "down" | "range",
@@ -1745,14 +1849,23 @@ export function analyzeMarket(
       micro,
       clusters.hvn,
     );
-    const guarded = applyChartPack(
-      placeDivStop(built, swings, divergences, atr),
-      patterns,
-      fvgs,
-      liquidity,
-      divergences,
+    const guarded = applyVolumeRule(
+      applyChartPack(
+        placeDivStop(built, swings, divergences, atr),
+        patterns,
+        fvgs,
+        liquidity,
+        divergences,
+        atr,
+        last.close,
+      ),
+      last,
       atr,
-      last.close,
+      dealingRange,
+      micro,
+      fvgs,
+      divergences,
+      clusters.hvn,
     );
     if (!opts?.symbol || guarded.entry == null || guarded.stop == null || guarded.targets[0] == null) return guarded;
     const book = bookAdjust(opts.symbol, guarded.entry, guarded.stop, guarded.targets[0]);

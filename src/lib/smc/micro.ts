@@ -101,8 +101,8 @@ export function readSplashDelta(
       because: `Сплэш ${dS}, следом дельта ${dF} в ту же сторону, цена ещё за уровнем.`,
       therefore:
         splash.side === "buy"
-          ? "Стопы сверху сняли и агрессор остался. Не шортить вынос. Лонг от возврата в зону, цель — следующая ликвидность."
-          : "Стопы снизу сняли и продажи живы. Не ловить нож. Шорт от возврата, цель — ликвидность ниже.",
+          ? "Дельта ещё жива. В кружок не входим: короткий тейк в сторону хода, пока цена не ушла. Ушла и на хае дивер — это уже не догон, а возврат в имбаланс."
+          : "Продажи ещё живы. В кружок не входим: короткий тейк вниз, пока цена рядом. Ушла и на лое дивер — возврат в имбаланс, не догон.",
     };
   }
   if (withFollow < -absS * 0.12 || (back && withFollow <= absS * 0.1)) {
@@ -701,21 +701,39 @@ export function entryVolume(
   const splashPx = spl?.price ?? micro.splash?.price;
   const splashSide = spl?.side ?? micro.splash?.side;
   const near = (a: number, b: number) => Math.abs(a - b) <= Math.abs(a) * 0.0012;
-  const atSplash = splashPx != null && Number.isFinite(last) && near(last, splashPx);
+  const onPrint = splashPx != null && Number.isFinite(last) && Math.abs(last - splashPx) <= Math.abs(last) * 0.00018;
+  const ran =
+    splashPx != null &&
+    Number.isFinite(last) &&
+    Math.abs(last - splashPx) > Math.abs(last) * 0.0035;
+  const backToOrigin =
+    ran &&
+    splashSide != null &&
+    entry != null &&
+    ((action === "short" && splashSide === "buy" && entry < last) ||
+      (action === "long" && splashSide === "sell" && entry > last));
+  if (backToOrigin) {
+    return {
+      verdict: "confirm",
+      title: "",
+      because: "Всплеск уже отработан, цена ушла от него.",
+      therefore: "Толстый объём у основания — набор, не закрытие. Приказ — назад в имбаланс, не догон края.",
+    };
+  }
   const chase =
     splashSide != null &&
     ((action === "long" && splashSide === "buy") || (action === "short" && splashSide === "sell")) &&
-    atSplash;
+    onPrint;
   if (chase) {
     const read = micro.splashDelta;
     return {
       verdict: "wait",
-      title: "Ждать: не догонять сплэш",
-      because: read?.because ?? micro.splash?.because ?? "Вынос объёмом, цена ещё на сплэше.",
+      title: "Ждать: не в кружок",
+      because: read?.because ?? micro.splash?.because ?? "Цена ещё на самом сплэше.",
       therefore:
         read?.verdict === "continue"
-          ? "Дельта жива, ход может продолжиться — но в кружок не входим. Лимит на возврат в зону."
-          : (read?.therefore ?? "Сплэш — не вход. Лимит после возврата."),
+          ? "Дельта жива, но в кружок не входим. Короткий тейк — только когда цена чуть сошла с принта."
+          : (read?.therefore ?? "Сплэш — не вход. Лимит после отхода."),
     };
   }
   const buy = Math.abs(micro.footprint.buy) + Math.abs(micro.footprint.sell);
@@ -733,11 +751,11 @@ export function entryVolume(
   }
   const fade =
     splashSide != null &&
-    !atSplash &&
+    !onPrint &&
     ((action === "long" && splashSide === "sell") || (action === "short" && splashSide === "buy"));
   const goOn =
     (micro.splashDelta?.verdict === "continue" || spl?.follow === "continue") &&
-    !atSplash &&
+    !onPrint &&
     splashSide != null &&
     ((action === "long" && splashSide === "buy") || (action === "short" && splashSide === "sell"));
   const inf = [...micro.nodes].reverse().find((n) => n.kind === "infusion" && n.held !== false);
