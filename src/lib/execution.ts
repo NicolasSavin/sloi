@@ -362,6 +362,14 @@ export function refineAdvice(
     };
   }
   if (stack.block === "all") {
+    if (opts.hasZone) {
+      const title = advice.action === "long" ? "Лимит: лонг в зоне" : "Лимит: шорт в зоне";
+      return {
+        ...advice,
+        title,
+        therefore: `${stack.note} Зона на часе есть — лимитка в неё, рынком против старших не идём.`,
+      };
+    }
     return { ...advice, action: "wait", title: "Ждать старший ТФ", therefore: stack.note };
   }
   if (mode === "MARKET") {

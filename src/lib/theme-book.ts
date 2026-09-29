@@ -31,51 +31,19 @@ export function applyThemeBook(markets: DigestMarket[]): DigestMarket[] {
   const longUsd = live.filter((m) => usdSide(m) === "longUsd");
 
   const rank = (a: DigestMarket, b: DigestMarket) => b.score - a.score || a.spec.id.localeCompare(b.spec.id);
-  const bestShort = [...shortUsd].sort(rank)[0];
-  const bestLong = [...longUsd].sort(rank)[0];
-
-  const eur = markets.find((m) => m.spec.id === "EURUSD");
-  const gbp = markets.find((m) => m.spec.id === "GBPUSD");
-  const smtBias =
-    eur &&
-    gbp &&
-    ((eur.bias === "bullish" && gbp.bias === "bearish") || (eur.bias === "bearish" && gbp.bias === "bullish"));
-  const smtLive =
-    Boolean(eur && gbp && usdSide(eur) && usdSide(gbp) && usdSide(eur) !== usdSide(gbp));
-
-  let keepShort: DigestMarket | undefined = bestShort;
-  let keepLong: DigestMarket | undefined = bestLong;
-  if (bestShort && bestLong && !smtLive) {
-    if (bestShort.score >= bestLong.score) keepLong = undefined;
-    else keepShort = undefined;
-  }
+  const keepShort = new Set([...shortUsd].sort(rank).slice(0, 3).map((m) => m.spec.id));
+  const keepLong = new Set([...longUsd].sort(rank).slice(0, 3).map((m) => m.spec.id));
 
   return markets.map((m) => {
     const side = usdSide(m);
     if (!side) return m;
-    if (side === "shortUsd" && keepShort && m.spec.id !== keepShort.spec.id) {
-      return waitTwin(m, keepShort.spec.label, "Сейчас несколько лонгов против доллара.");
+    if (side === "shortUsd" && keepShort.size && !keepShort.has(m.spec.id)) {
+      const winner = shortUsd.find((x) => keepShort.has(x.spec.id));
+      return waitTwin(m, winner?.spec.label ?? "лидер", "Против доллара уже три приказа. Этот слабее.");
     }
-    if (side === "longUsd" && keepLong && m.spec.id !== keepLong.spec.id) {
-      return waitTwin(m, keepLong.spec.label, "Сейчас несколько лонгов в доллар.");
-    }
-    if (smtLive && (m.spec.id === "EURUSD" || m.spec.id === "GBPUSD") && (m.advice.action === "long" || m.advice.action === "short")) {
-      return {
-        ...m,
-        advice: {
-          ...m.advice,
-          therefore: `${m.advice.therefore} SMT: евро и фунт не согласны — держим расхождение, не оба в одну сторону.`,
-        },
-      };
-    }
-    if (smtBias && (m.spec.id === "EURUSD" || m.spec.id === "GBPUSD") && (m.advice.action === "long" || m.advice.action === "short") && !smtLive) {
-      return {
-        ...m,
-        advice: {
-          ...m.advice,
-          therefore: `${m.advice.therefore} SMT на карте евро/фунт, приказ один — второй в ждать.`,
-        },
-      };
+    if (side === "longUsd" && keepLong.size && !keepLong.has(m.spec.id)) {
+      const winner = longUsd.find((x) => keepLong.has(x.spec.id));
+      return waitTwin(m, winner?.spec.label ?? "лидер", "В доллар уже три приказа. Этот слабее.");
     }
     return m;
   });

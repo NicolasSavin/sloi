@@ -25,40 +25,29 @@ export function adaptGates(log: SignalHit[]): AdaptGates {
     streak++;
   }
   const pause = new Set<string>();
-  const by = new Map<string, SignalHit[]>();
-  for (const h of real) {
-    const row = by.get(h.symbol) ?? [];
-    if (row.length < 4) row.push(h);
-    by.set(h.symbol, row);
-  }
-  for (const [id, rows] of by) {
-    const stops = rows.filter((h) => h.status === "stop").length;
-    if (rows.length >= 3 && stops >= 3) pause.add(id);
-    if (rows.slice(0, 3).every((h) => h.status === "stop")) pause.add(id);
-  }
-  let minCover = 1.12;
-  let minRr = 0.85;
+  let minCover = 1.05;
+  let minRr = 0.9;
   let maxLive = 6;
   let level: 0 | 1 | 2 = 0;
   if (streak >= 3 || losses >= 5) {
-    minCover = 1.85;
-    minRr = 1.25;
-    maxLive = 1;
+    minCover = 1.25;
+    minRr = 1.05;
+    maxLive = 4;
     level = 2;
   } else if (streak >= 2 || losses >= 4) {
-    minCover = 1.5;
-    minRr = 1.15;
-    maxLive = 1;
+    minCover = 1.15;
+    minRr = 1;
+    maxLive = 5;
     level = 1;
   }
   const line =
     last.length < 3
-      ? "Вход по зоне: лимиткой на возврат, не вдогонку. Объём CD желателен, но без него сделка не отменяется."
+      ? "Приказ, если есть зона, стоп и цель. Лимитка на возврат, рынком не догоняем."
       : level === 2
-        ? `После ${streak || losses} стопов: RR≥1.25, живых не больше 1${pause.size ? `, пауза ${[...pause].join(", ")}` : ""}.`
+        ? `После серии стопов планка чуть выше: RR ≥${minRr.toFixed(2)}. Живых до ${maxLive}, пары не выключаем.`
         : level === 1
-          ? `Серия минусов (${losses} из ${last.length}). Один живой приказ, RR ≥1.15.`
-          : `Последние ${last.length}: ${last.length - losses} плюс / ${losses} стоп. Зоны ставим, слабые пары режем.`;
+          ? `Серия минусов (${losses} из ${last.length}). RR ≥${minRr.toFixed(2)}, живых до ${maxLive}.`
+          : `Последние ${last.length}: ${last.length - losses} плюс / ${losses} стоп. Зона со стопом и целью — уже приказ.`;
   return { minCover, minRr, maxLive, pause, level, line };
 }
 
@@ -106,30 +95,8 @@ export function applyLessons(markets: DigestMarket[]): DigestMarket[] {
     const withTrend =
       (m.advice.action === "long" && m.bias === "bullish") ||
       (m.advice.action === "short" && m.bias === "bearish");
-    const bits: string[] = [];
-    if (zoned) bits.push("зона");
-    if (m.score >= 48) bits.push("счёт");
-    if (withTrend) bits.push("структура");
-    if (pullback) bits.push("возврат");
-    if (/подтверд|сплэш\+дельта: ход|лужа|вливание по стороне/i.test(vol)) bits.push("объём");
-    if (
-      m.boxVector &&
-      ((m.advice.action === "long" && m.boxVector.dir === "up") ||
-        (m.advice.action === "short" && m.boxVector.dir === "down"))
-    ) {
-      bits.push("вектор");
-    }
-    if (m.premiumDiscount === "discount" && m.advice.action === "long") bits.push("дисконт");
-    if (m.premiumDiscount === "premium" && m.advice.action === "short") bits.push("премия");
-    if (m.construction && /call|put|стена/i.test(`${m.construction.type} ${m.construction.ticker ?? ""}`)) {
-      bits.push("опцион");
-    }
-    if (bits.length < 2 || (!zoned && bits.length < 3)) {
-      return wait(
-        m,
-        "Мало слоёв",
-        `Сейчас: ${bits.join(", ") || "пусто"}. Нужна живая зона и ещё хотя бы структура или возврат к ней.`,
-      );
+    if (!zoned) {
+      return wait(m, "Ждать зону", "Без живого блока или имбаланса приказа нет.");
     }
     if (!withTrend && !pullback) {
       return wait(m, "Против старшей структуры", "Час один не берём. Вход только когда старший график смотрит туда же, либо лимитка на возврат в зону.");
