@@ -1,0 +1,121 @@
+--- a/src/lib/smc/engine.ts
++++ b/src/lib/smc/engine.ts
+@@ -997,6 +997,22 @@
+   micro: MicroSnap,
+   hvn: number[],
+ ): LocalSetup {
++  // Недавний свип: ликвидность уже снята и цена закрылась обратно.
++  const recentSweepSell = liq
++    .filter((l) => l.side === "sell" && l.swept && l.sweptTime != null)
++    .sort((a, b) => (b.sweptTime ?? 0) - (a.sweptTime ?? 0))[0];
++  const recentSweepBuy = liq
++    .filter((l) => l.side === "buy" && l.swept && l.sweptTime != null)
++    .sort((a, b) => (b.sweptTime ?? 0) - (a.sweptTime ?? 0))[0];
++  const sweepLongOk =
++    recentSweepSell != null &&
++    last.close > recentSweepSell.price &&
++    Math.abs(last.close - recentSweepSell.price) <= atr * 3.5;
++  const sweepShortOk =
++    recentSweepBuy != null &&
++    last.close < recentSweepBuy.price &&
++    Math.abs(last.close - recentSweepBuy.price) <= atr * 3.5;
++
+   const bullZ =
+     nearestZone(
+       fvgs.filter((z) => z.side === "bull"),
+@@ -1034,8 +1050,27 @@
+   const width = Math.max(range.high - range.low, atr);
+   const bearAbove = Boolean(bearZ && bearZ.bottom > last.close);
+   const bullBelow = Boolean(bullZ && bullZ.top < last.close);
+-  let longWanted = trend === "up" || bullBelow || (trend === "range" && last.close <= range.low + width * 0.28);
+-  let shortWanted = trend === "down" || bearAbove || (trend === "range" && last.close >= range.high - width * 0.28);
++
++  // Жёстче по структуре: против тренда только после свипа + зоны.
++  let longWanted =
++    trend === "up" ||
++    (trend === "range" && last.close <= range.low + width * 0.28) ||
++    (sweepLongOk && Boolean(bullZ));
++  let shortWanted =
++    trend === "down" ||
++    (trend === "range" && last.close >= range.high - width * 0.28) ||
++    (sweepShortOk && Boolean(bearZ));
++
++  // В явном тренде не разворачиваемся только из-за «зоны рядом».
++  if (trend === "down" && !sweepLongOk) longWanted = false;
++  if (trend === "up" && !sweepShortOk) shortWanted = false;
++
++  // Приоритет свипу: если есть sweep-сетап, берём его.
++  if (sweepLongOk && bullZ && trend !== "down") longWanted = true;
++  if (sweepShortOk && bearZ && trend !== "up") shortWanted = true;
++  if (sweepLongOk && !sweepShortOk) shortWanted = false;
++  if (sweepShortOk && !sweepLongOk) longWanted = false;
++
+   if (longWanted && shortWanted) {
+     const mid = (z: { top: number; bottom: number }) => (z.top + z.bottom) / 2;
+     const longDist = bullZ ? Math.abs(last.close - mid(bullZ)) : Number.POSITIVE_INFINITY;
+@@ -1046,11 +1081,11 @@
+ 
+   if (!longWanted && !shortWanted) {
+     return {
+-      thesis: "Середина диапазона. Края нет — сигнала нет.",
++      thesis: "Нет setup: нет тренда + зоны, либо нет свипа против структуры.",
+       entry: null,
+       stop: null,
+       targets: [],
+-      invalidation: "Ждём край или CHoCH.",
++      invalidation: "Ждём CHoCH / свип ликвидности + живую зону.",
+     };
+   }
+ 
+@@ -1085,14 +1120,17 @@
+           ? [stall.price, ...far]
+           : structural;
+     const targets = nearLiq ? [nearLiq, ...raw.filter((t) => t > nearLiq + atr * 0.1)] : clipTp1(entry, stop, raw, 1);
++    const sweepNote = sweepLongOk
++      ? `Свип SSL ${recentSweepSell!.price.toFixed(last.close > 50 ? 2 : 5)} отработан. `
++      : "";
+     return {
+       thesis: nearLiq
+-        ? `Лонг. Цель — ближайшая ликвидность ${nearLiq.toFixed(last.close > 50 ? 2 : 5)}, не середина.`
++        ? `${sweepNote}Лонг. Цель — ближайшая ликвидность ${nearLiq.toFixed(last.close > 50 ? 2 : 5)}, не середина.`
+         : stall
+-          ? `Лонг от зоны. TP1 — ${stall.from === "hvn" ? "кластер HVN" : "infusion"} ${stall.price.toFixed(last.close > 50 ? 2 : 5)} (остановка объёма CME/профиля).`
++          ? `${sweepNote}Лонг от зоны. TP1 — ${stall.from === "hvn" ? "кластер HVN" : "infusion"} ${stall.price.toFixed(last.close > 50 ? 2 : 5)} (остановка объёма CME/профиля).`
+           : pd === "premium"
+-            ? "Структура вверх. Лимит в дисконт — цена ещё не в зоне, ордер уже рабочий."
+-            : `Лонг от ${zoneName(zone)}. Вход на верхнем крае зоны, не в середине.`,
++            ? `${sweepNote}Структура вверх. Лимит в дисконт — цена ещё не в зоне, ордер уже рабочий.`
++            : `${sweepNote}Лонг от ${zoneName(zone)}. Вход на верхнем крае зоны, не в середине.`,
+       entry,
+       stop,
+       targets: nearLiq ? targets : clipTp1(entry, stop, targets, 1),
+@@ -1124,14 +1162,17 @@
+           ? [stall.price, ...far]
+           : structural;
+     const targets = nearLiq ? [nearLiq, ...raw.filter((t) => t < nearLiq - atr * 0.1)] : clipTp1(entry, stop, raw, -1);
++    const sweepNote = sweepShortOk
++      ? `Свип BSL ${recentSweepBuy!.price.toFixed(last.close > 50 ? 2 : 5)} отработан. `
++      : "";
+     return {
+       thesis: nearLiq
+-        ? `Шорт. Цель — ближайшая ликвидность ${nearLiq.toFixed(last.close > 50 ? 2 : 5)}, не середина.`
++        ? `${sweepNote}Шорт. Цель — ближайшая ликвидность ${nearLiq.toFixed(last.close > 50 ? 2 : 5)}, не середина.`
+         : stall
+-          ? `Шорт от зоны. TP1 — ${stall.from === "hvn" ? "кластер HVN" : "infusion"} ${stall.price.toFixed(last.close > 50 ? 2 : 5)} (остановка объёма CME/профиля).`
++          ? `${sweepNote}Шорт от зоны. TP1 — ${stall.from === "hvn" ? "кластер HVN" : "infusion"} ${stall.price.toFixed(last.close > 50 ? 2 : 5)} (остановка объёма CME/профиля).`
+           : pd === "discount"
+-            ? "Структура вниз. Лимит в премию — цена ещё не в зоне, ордер уже рабочий."
+-            : `Шорт от ${zoneName(zone)}. Вход на нижнем крае зоны, не в середине.`,
++            ? `${sweepNote}Структура вниз. Лимит в премию — цена ещё не в зоне, ордер уже рабочий.`
++            : `${sweepNote}Шорт от ${zoneName(zone)}. Вход на нижнем крае зоны, не в середине.`,
+       entry,
+       stop,
+       targets: nearLiq ? targets : clipTp1(entry, stop, targets, -1),
+@@ -1146,6 +1187,7 @@
+     invalidation: "Ждём структуру.",
+   };
+ }
++
+ 
+ function roundStep(price: number) {
+   if (price >= 2000) return 25;
