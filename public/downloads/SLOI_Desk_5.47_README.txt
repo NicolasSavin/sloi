@@ -1,0 +1,19 @@
+SLOI_Desk 5.47 — тиковый имбаланс
+
+Полный файл: скачай SLOI_Desk.mq4 из артефакта чата / или собери:
+1) Возьми 5.46 из истории git commit 5c7e3a0
+2) Либо используй готовый патченный файл у Grok в artifacts/SLOI_Desk_5.47.mq4
+
+Новые input:
+  TickImbalance = true
+  TickGapMult = 3.0   // разрыв >= спред * mult
+  TickGapMinPts = 15
+  TickFvgKeep = 12
+  DrawTickFvg = true
+
+В ленту /api/broker уходит:
+  TICKFVG EURUSD DEMAND 1.11720 1.11785 1730...
+
+На графике: ТИК-ИМБАЛАНС спрос/предложение
+
+ВНИМАНИЕ: в main временно мог остаться stub Desk — замени файлом 5.47 из артефакта.
