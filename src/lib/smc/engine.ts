@@ -12,18 +12,39 @@ import type { NewsHalt } from "@/lib/calendar";
 import { replayLevels, type LiveReaction } from "@/lib/level-reaction";
 import { getSymbol } from "@/lib/market/symbols";
 
+// Confluence scoring (new layer — use this for EA signals)
+export {
+  buildConfluenceScore,
+  toSignalLine,
+  type ConfluenceScore,
+  type ScoreInput,
+  type ScoredSignal,
+  type ScoreBreakdown,
+  type ScoreLayer,
+} from "@/lib/smc/score";
+
 export type Bias = "bullish" | "bearish" | "range";
 export type Side = "bull" | "bear";
 
 // ENGINE RESTORE IN PROGRESS - full body will be restored via next commits
 // Temporary minimal surface so the project typechecks partially
+// After restore: call buildConfluenceScore() inside analyzeMarket and attach to snapshot
 
 export interface Swing { index: number; time: number; price: number; type: "high" | "low"; }
 export interface StructureEvent { time: number; price: number; kind: "BOS" | "CHoCH"; side: Side; index: number; }
 export interface Zone { id: string; kind: "fvg" | "ob" | "breaker" | "mitigation"; side: Side; top: number; bottom: number; startTime: number; endTime: number; mitigated: boolean; }
 export interface LiquidityPool { price: number; time: number; side: "buy" | "sell"; equal: boolean; swept: boolean; sweptTime: number | null; }
 export interface LocalSetup { thesis: string; entry: number | null; stop: number | null; targets: number[]; invalidation: string; }
-export interface SmcSnapshot { bias: Bias; trend: "up" | "down" | "range"; lastClose: number; atr: number; localSetup: LocalSetup; [key: string]: unknown; }
+export interface SmcSnapshot {
+  bias: Bias;
+  trend: "up" | "down" | "range";
+  lastClose: number;
+  atr: number;
+  localSetup: LocalSetup;
+  /** Filled by buildConfluenceScore when engine is fully restored */
+  confluence?: import("@/lib/smc/score").ConfluenceScore;
+  [key: string]: unknown;
+}
 
 export function zoneReach(z: Pick<Zone, "top" | "bottom" | "mitigated">, last: number, atr: number): number | null {
   if (z.mitigated || atr <= 0) return null;
@@ -48,7 +69,7 @@ export function buildBoxVector(): BoxVector {
 }
 
 export function analyzeMarket(): SmcSnapshot {
-  throw new Error("engine.ts restore required: run git checkout 0f5cbb7f -- src/lib/smc/engine.ts && git apply patches/buildSetup-sweep.patch");
+  throw new Error("engine.ts restore required: run git checkout 0f5cbb7f -- src/lib/smc/engine.ts && git apply patches/buildSetup-sweep.patch\nThen wire buildConfluenceScore() into the snapshot.");
 }
 
 export function compactForAi(): unknown {
